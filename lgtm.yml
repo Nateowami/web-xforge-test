@@ -2,3 +2,5 @@ extraction:
   csharp:
     index:
       buildless: true
+queries:
+  - include: "*"
