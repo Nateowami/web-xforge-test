@@ -10,3 +10,5 @@ extraction:
     index:
       dotnet:
         version: 3.1.402
+queries:
+  - include: "*"
