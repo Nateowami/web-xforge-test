@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using Microsoft.Extensions.Localization;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
-using SIL.Machine.WebApi.Services;
 using SIL.XForge.Configuration;
 using SIL.XForge.DataAccess;
 using SIL.XForge.Models;
@@ -18,7 +17,6 @@ using SIL.XForge.Realtime.Json0;
 using SIL.XForge.Scripture.Models;
 using SIL.XForge.Services;
 using SIL.XForge.Utils;
-using MachineProject = SIL.Machine.WebApi.Models.Project;
 
 namespace SIL.XForge.Scripture.Services
 {
@@ -31,7 +29,7 @@ namespace SIL.XForge.Scripture.Services
         private static readonly IEqualityComparer<Dictionary<string, string>> _permissionDictionaryEqualityComparer =
             new DictionaryComparer<string, string>();
         public static readonly string ErrorAlreadyConnectedKey = "error-already-connected";
-        private readonly IEngineService _engineService;
+        private readonly IMachineProjectService _machineProjectService;
         private readonly ISyncService _syncService;
         private readonly IParatextService _paratextService;
         private readonly IRepository<UserSecret> _userSecrets;
@@ -49,7 +47,7 @@ namespace SIL.XForge.Scripture.Services
             IRepository<SFProjectSecret> projectSecrets,
             ISecurityService securityService,
             IFileSystemService fileSystemService,
-            IEngineService engineService,
+            IMachineProjectService machineProjectService,
             ISyncService syncService,
             IParatextService paratextService,
             IRepository<UserSecret> userSecrets,
@@ -58,7 +56,7 @@ namespace SIL.XForge.Scripture.Services
             ITransceleratorService transceleratorService
         ) : base(realtimeService, siteOptions, audioService, projectSecrets, fileSystemService)
         {
-            _engineService = engineService;
+            _machineProjectService = machineProjectService;
             _syncService = syncService;
             _paratextService = paratextService;
             _userSecrets = userSecrets;
@@ -138,13 +136,7 @@ namespace SIL.XForge.Scripture.Services
 
                 if (projectDoc.Data.TranslateConfig.TranslationSuggestionsEnabled)
                 {
-                    var machineProject = new MachineProject
-                    {
-                        Id = projectDoc.Id,
-                        SourceLanguageTag = projectDoc.Data.TranslateConfig.Source.WritingSystem.Tag,
-                        TargetLanguageTag = projectDoc.Data.WritingSystem.Tag
-                    };
-                    await _engineService.AddProjectAsync(machineProject);
+                    await _machineProjectService.AddProjectAsync(curUserId, projectDoc.Id, CancellationToken.None);
                 }
             }
 
@@ -230,9 +222,10 @@ namespace SIL.XForge.Scripture.Services
                 await Task.WhenAll(tasks);
             }
 
+            // The machine service requires the project secrets
+            await _machineProjectService.RemoveProjectAsync(curUserId, projectId, CancellationToken.None);
             await ProjectSecrets.DeleteAsync(projectId);
             await RealtimeService.DeleteProjectAsync(projectId);
-            await _engineService.RemoveProjectAsync(projectId);
             string projectDir = Path.Combine(SiteOptions.Value.SiteDir, "sync", ptProjectId);
             if (FileSystemService.DirectoryExists(projectDir))
                 FileSystemService.DeleteDirectory(projectDir);
@@ -254,24 +247,35 @@ namespace SIL.XForge.Scripture.Services
                 // Get the source - any creation or permission updates are handled in GetTranslateSourceAsync
                 TranslateSource source = null;
                 bool unsetSourceProject = settings.SourceParatextId == ProjectSettingValueUnset;
-                if (settings.SourceParatextId != null && !unsetSourceProject)
+                string writingSystemTag = projectDoc.Data.WritingSystem.Tag;
+                if ((writingSystemTag == null || settings.SourceParatextId != null) && !unsetSourceProject)
                 {
                     Attempt<UserSecret> userSecretAttempt = await _userSecrets.TryGetAsync(curUserId);
                     if (!userSecretAttempt.TryResult(out UserSecret userSecret))
                         throw new DataNotFoundException("The user does not exist.");
 
                     IReadOnlyList<ParatextProject> ptProjects = await _paratextService.GetProjectsAsync(userSecret);
-                    source = await GetTranslateSourceAsync(
-                        curUserId,
-                        userSecret,
-                        settings.SourceParatextId,
-                        ptProjects,
-                        projectDoc.Data.UserRoles
-                    );
-                    if (source.ProjectRef == projectId)
+                    if (settings.SourceParatextId != null)
                     {
-                        // A project cannot reference itself
-                        source = null;
+                        source = await GetTranslateSourceAsync(
+                            curUserId,
+                            userSecret,
+                            settings.SourceParatextId,
+                            ptProjects,
+                            projectDoc.Data.UserRoles
+                        );
+                        if (source.ProjectRef == projectId)
+                        {
+                            // A project cannot reference itself
+                            source = null;
+                        }
+                    }
+
+                    // Update the writing system tag, if it is null
+                    ParatextProject paratextProject = ptProjects.FirstOrDefault(p => p.ProjectId == projectId);
+                    if (string.IsNullOrEmpty(writingSystemTag) && !string.IsNullOrEmpty(paratextProject?.LanguageTag))
+                    {
+                        writingSystemTag = paratextProject.LanguageTag;
                     }
                 }
 
@@ -296,6 +300,7 @@ namespace SIL.XForge.Scripture.Services
                     UpdateSetting(op, p => p.CheckingConfig.ShareEnabled, settings.CheckingShareEnabled);
                     UpdateSetting(op, p => p.CheckingConfig.ShareLevel, settings.CheckingShareLevel);
                     UpdateSetting(op, p => p.CheckingConfig.AnswerExportMethod, settings.CheckingAnswerExport);
+                    UpdateSetting(op, p => p.WritingSystem.Tag, writingSystemTag);
                 });
 
                 bool suggestionsEnabledSet = settings.TranslationSuggestionsEnabled != null;
@@ -316,20 +321,25 @@ namespace SIL.XForge.Scripture.Services
 
                             // recreate Machine project only if one existed
                             if (hasExistingMachineProject)
-                                await _engineService.RemoveProjectAsync(projectId);
-                            var machineProject = new MachineProject
                             {
-                                Id = projectId,
-                                SourceLanguageTag = projectDoc.Data.TranslateConfig.Source.WritingSystem.Tag,
-                                TargetLanguageTag = projectDoc.Data.WritingSystem.Tag
-                            };
-                            await _engineService.AddProjectAsync(machineProject);
+                                await _machineProjectService.RemoveProjectAsync(
+                                    curUserId,
+                                    projectId,
+                                    CancellationToken.None
+                                );
+                            }
+
+                            await _machineProjectService.AddProjectAsync(curUserId, projectId, CancellationToken.None);
                             trainEngine = true;
                         }
                         else if (hasExistingMachineProject)
                         {
                             // translation suggestions was disabled or source project set to null
-                            await _engineService.RemoveProjectAsync(projectId);
+                            await _machineProjectService.RemoveProjectAsync(
+                                curUserId,
+                                projectId,
+                                CancellationToken.None
+                            );
                         }
                     }
 
