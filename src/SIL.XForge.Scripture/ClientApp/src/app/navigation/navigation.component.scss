@@ -1,9 +1,11 @@
 @use 'src/variables';
+@use 'src/material-styles';
 
 mat-nav-list .mdc-list-item {
   font-weight: 500;
   font-size: 14px;
   padding-inline: 12px 0;
+  --mat-list-active-indicator-shape: 0;
 
   mat-icon {
     color: variables.$purpleMedium;
@@ -12,7 +14,9 @@ mat-nav-list .mdc-list-item {
     padding: 4px;
     box-sizing: content-box;
   }
-  &:hover {
+  &:hover,
+  &.activated-nav-item,
+  &.active {
     mat-icon {
       color: variables.$purpleLight;
       fill: variables.$purpleLight;
@@ -37,7 +41,7 @@ mat-nav-list .mdc-list-item {
 
   &.activated-nav-item,
   &.active {
-    background-color: #e7e8e7;
+    background-color: var(--sf-list-item-active-background-color);
   }
 }
 
@@ -51,6 +55,10 @@ mat-nav-list .mdc-list-item {
 #tools-menu-list,
 #admin-pages-menu-list {
   padding-block: 0;
+}
+
+#admin-pages-menu-list {
+  background-color: rgba(0, 0, 0, 0.04);
 }
 
 #tools-menu-list {
