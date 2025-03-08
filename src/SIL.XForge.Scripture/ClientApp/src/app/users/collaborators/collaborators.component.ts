@@ -1,4 +1,5 @@
 import { AfterViewInit, ChangeDetectorRef, Component, OnInit } from '@angular/core';
+import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { UntypedFormControl, UntypedFormGroup } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import { translate } from '@ngneat/transloco';
@@ -13,6 +14,7 @@ import { I18nService } from 'xforge-common/i18n.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { UserService } from 'xforge-common/user.service';
+import { QuietDestroyRef } from 'xforge-common/utils';
 import { XFValidators } from 'xforge-common/xfvalidators';
 import { SFProjectDoc } from '../../core/models/sf-project-doc';
 import { SFProjectService } from '../../core/sf-project.service';
@@ -66,7 +68,8 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
     private readonly onlineStatusService: OnlineStatusService,
     private readonly changeDetector: ChangeDetectorRef,
     private readonly dialogService: DialogService,
-    readonly urls: ExternalUrlService
+    readonly urls: ExternalUrlService,
+    private destroyRef: QuietDestroyRef
   ) {
     super(noticeService);
   }
@@ -132,17 +135,18 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
 
   ngOnInit(): void {
     this.loadingStarted();
-    this.subscribe(
-      this.activatedRoute.params.pipe(
+    this.activatedRoute.params
+      .pipe(
         map(params => params['projectId'] as string),
         distinctUntilChanged(),
         filter(projectId => projectId != null)
-      ),
-      async projectId => {
+      )
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(async projectId => {
         this.loadingStarted();
         this.projectDoc = await this.projectService.get(projectId);
         this.loadUsers();
-        this.subscribe(this.projectDoc.remoteChanges$, async () => {
+        this.projectDoc.remoteChanges$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(async () => {
           this.loadingStarted();
           try {
             await this.loadUsers();
@@ -151,9 +155,8 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
           }
         });
         this.loadingFinished();
-      }
-    );
-    this.subscribe(this.onlineStatusService.onlineStatus$, isOnline => {
+      });
+    this.onlineStatusService.onlineStatus$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(isOnline => {
       this.isAppOnline = isOnline;
       if (isOnline && this._userRows == null) {
         this.loadingStarted();
@@ -164,7 +167,7 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
   }
 
   ngAfterViewInit(): void {
-    this.subscribe(this.onlineStatusService.onlineStatus$, isOnline => {
+    this.onlineStatusService.onlineStatus$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(isOnline => {
       if (isOnline) {
         this.filterForm.enable();
       } else {
