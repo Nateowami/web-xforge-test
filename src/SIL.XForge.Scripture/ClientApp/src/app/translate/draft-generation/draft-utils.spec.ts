@@ -1,6 +1,6 @@
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { TranslateSource } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
-import { projectToDraftSources } from './draft-utils';
+import { normalizeLanguageCodeToISO639_3, projectToDraftSources } from './draft-utils';
 
 function translateSource(id: string): TranslateSource {
   return {
@@ -187,5 +187,15 @@ describe('DraftUtils', () => {
         trainingTargets: [testProject]
       });
     });
+  });
+});
+
+describe('normalizeLanguageCodeToISO639_3', () => {
+  it('handles ISO 639-1 codes', () => {
+    expect(normalizeLanguageCodeToISO639_3('en')).toBe('eng');
+  });
+
+  it('handles ISO 639-2 bibliography codes', () => {
+    expect(normalizeLanguageCodeToISO639_3('chi')).toBe('zho');
   });
 });
