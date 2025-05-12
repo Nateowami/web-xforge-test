@@ -21,6 +21,7 @@ import { TestRealtimeModule } from 'xforge-common/test-realtime.module';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
+import { FETCH_WITHOUT_SUBSCRIBE } from '../../xforge-common/models/realtime-doc';
 import { ResumeCheckingService } from '../checking/checking/resume-checking.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { SFProjectUserConfigDoc } from '../core/models/sf-project-user-config-doc';
@@ -189,8 +190,8 @@ class TestEnvironment {
     when(mockedActivatedRoute.params).thenReturn(of({ projectId: 'project1' }));
     when(mockedUserService.currentUserId).thenReturn('user01');
     when(mockedUserService.currentProjectId(anything())).thenReturn('project1');
-    when(mockedUserService.getCurrentUser()).thenCall(() =>
-      this.realtimeService.subscribe(UserDoc.COLLECTION, 'user01')
+    when(mockedUserService.subscribeCurrentUser(anything())).thenCall(subscription =>
+      this.realtimeService.subscribe(UserDoc.COLLECTION, 'user01', subscription)
     );
     when(mockedTranslocoService.translate<string>(anything())).thenReturn('The project link is invalid.');
     const snapshot = new ActivatedRouteSnapshot();
@@ -276,7 +277,7 @@ class TestEnvironment {
 
   addUserToProject(projectIdSuffix: number): void {
     this.setProjectData({ memberProjectIdSuffixes: [projectIdSuffix] });
-    const userDoc: UserDoc = this.realtimeService.get(UserDoc.COLLECTION, 'user01');
+    const userDoc: UserDoc = this.realtimeService.get(UserDoc.COLLECTION, 'user01', FETCH_WITHOUT_SUBSCRIBE);
     userDoc.submitJson0Op(op => op.set(u => u.sites, { sf: { projects: [`project${projectIdSuffix}`] } }), false);
     tick();
   }

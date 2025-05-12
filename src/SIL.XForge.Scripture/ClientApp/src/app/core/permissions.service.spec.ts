@@ -13,6 +13,7 @@ import { TestRealtimeModule } from 'xforge-common/test-realtime.module';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
+import { FETCH_WITHOUT_SUBSCRIBE } from '../../xforge-common/models/realtime-doc';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { SF_TYPE_REGISTRY } from './models/sf-type-registry';
 import { TextDocId } from './models/text-doc';
@@ -233,11 +234,7 @@ class TestEnvironment {
     this.service = TestBed.inject(PermissionsService);
 
     when(mockedProjectService.getProfile(anything())).thenCall(id =>
-      this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, id)
-    );
-
-    when(mockedProjectService.get(anything())).thenCall(id =>
-      this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, id)
+      this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, id, FETCH_WITHOUT_SUBSCRIBE)
     );
 
     this.setProjectProfile();
@@ -285,7 +282,9 @@ class TestEnvironment {
 
   setCurrentUser(userId: string = 'user01'): void {
     when(mockedUserService.currentUserId).thenReturn(userId);
-    when(mockedUserService.getCurrentUser()).thenCall(() => this.realtimeService.subscribe(UserDoc.COLLECTION, userId));
+    when(mockedUserService.getCurrentUser()).thenCall(() =>
+      this.realtimeService.subscribe(UserDoc.COLLECTION, userId, FETCH_WITHOUT_SUBSCRIBE)
+    );
   }
 
   setupUserData(userId: string = 'user01', projects: string[] = ['project01']): void {

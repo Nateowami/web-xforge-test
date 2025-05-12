@@ -19,6 +19,7 @@ import { TestRealtimeModule } from 'xforge-common/test-realtime.module';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { ChildViewContainerComponent, configureTestingModule, TestTranslocoModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
+import { FETCH_WITHOUT_SUBSCRIBE } from '../../../xforge-common/models/realtime-doc';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SF_DEFAULT_SHARE_ROLE, SF_DEFAULT_TRANSLATE_SHARE_ROLE } from '../../core/models/sf-project-role-info';
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
@@ -405,11 +406,12 @@ class TestEnvironment {
         return Promise.resolve(undefined);
       }
     } as Clipboard);
-    when(mockedProjectService.getProfile(anything())).thenCall(projectId =>
-      this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, projectId)
+    when(mockedProjectService.subscribeProfile(anything(), anything())).thenCall((projectId, subscription) =>
+      this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, projectId, subscription)
     );
     when(mockedUserService.currentUserId).thenReturn(userId);
     when(mockedUserService.getCurrentUser()).thenResolve({ data: createTestUser() } as UserDoc);
+    when(mockedUserService.subscribeCurrentUser(anything())).thenResolve({ data: createTestUser() } as UserDoc);
     when(mockedProjectService.onlineGetLinkSharingKey(projectId, anything(), anything(), anything())).thenResolve(
       checkingShareEnabled || translateShareEnabled ? 'linkSharing01' : ''
     );
@@ -493,7 +495,11 @@ class TestEnvironment {
   }
 
   disableCheckingSharing(): void {
-    const projectDoc: SFProjectProfileDoc = this.realtimeService.get(SFProjectProfileDoc.COLLECTION, 'project01');
+    const projectDoc: SFProjectProfileDoc = this.realtimeService.get(
+      SFProjectProfileDoc.COLLECTION,
+      'project01',
+      FETCH_WITHOUT_SUBSCRIBE
+    );
     projectDoc.submitJson0Op(
       op =>
         op.set(p => p.checkingConfig, {
