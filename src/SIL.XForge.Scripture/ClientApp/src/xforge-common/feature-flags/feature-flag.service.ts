@@ -13,6 +13,7 @@ export interface FeatureFlag {
   readonly readonly: boolean;
   get enabled(): boolean;
   set enabled(value: boolean);
+  readonly isPublic?: boolean;
 }
 
 export interface ObservableFeatureFlag extends FeatureFlag {
@@ -368,6 +369,13 @@ export class FeatureFlagService {
     'Show in-app draft signup form instead of external link',
     19,
     new StaticFeatureFlagStore(true)
+  );
+
+  readonly newConfigureSourcesPage: ObservableFeatureFlag = new FeatureFlagFromStorage(
+    'NewConfigureSourcesPage',
+    'Show new configure sources page',
+    20,
+    this.featureFlagStore
   );
 
   get featureFlags(): FeatureFlag[] {
