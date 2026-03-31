@@ -1,7 +1,8 @@
+#nullable disable warnings
 namespace SIL.XForge.Models;
 
 public abstract class ProjectData : Json0Snapshot, IOwnedData
 {
-    public string OwnerRef { get; set; } = null!;
-    public string? ProjectRef { get; set; }
+    public string OwnerRef { get; set; }
+    public string ProjectRef { get; set; }
 }
