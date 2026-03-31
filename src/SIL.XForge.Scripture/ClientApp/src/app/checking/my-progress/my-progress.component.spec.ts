@@ -134,11 +134,35 @@ describe('MyProgressComponent', () => {
       env.addAnsweredQuestion();
       env.waitForProjectDocChanges();
 
-      env.expandBookAtIndex(0);
-
       // The second chapter (chapter 3) should have a complete icon since all questions are answered
       const completeIcons = env.fixture.debugElement.queryAll(By.css('.chapter-tile.complete .complete-icon'));
       expect(completeIcons.length).toBeGreaterThan(0);
+    }));
+
+    it('should show correct chapter tooltip', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setCurrentUser(env.checkerUser);
+      env.waitForQuestions();
+
+      // SUT - MAT ch1 has 6 questions, 1 answered by checker
+      const tooltip: string = env.component.chapterTooltip(40, 1);
+      expect(tooltip).toBe('1 of 6 questions answered');
+    }));
+
+    it('should show all books and chapters without requiring interaction', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setCurrentUser(env.checkerUser);
+      env.waitForQuestions();
+
+      // All books and chapter grids should be visible immediately
+      const bookSections = env.fixture.debugElement.queryAll(By.css('.book-section'));
+      expect(bookSections.length).toBe(2); // MAT and LUK
+
+      const chapterGrids = env.fixture.debugElement.queryAll(By.css('.chapter-grid'));
+      expect(chapterGrids.length).toBe(2); // one grid per book with questions
+
+      const chapterTiles = env.fixture.debugElement.queryAll(By.css('.chapter-tile'));
+      expect(chapterTiles.length).toBeGreaterThan(0);
     }));
 
     it('should show book complete icon when all chapter questions are answered', fakeAsync(() => {
@@ -519,15 +543,6 @@ class TestEnvironment {
       false
     );
     this.waitForProjectDocChanges();
-  }
-
-  expandBookAtIndex(index: number): void {
-    const panels = this.fixture.debugElement.queryAll(By.css('#books-progress-list mat-expansion-panel'));
-    if (panels[index] != null) {
-      const panel = panels[index].componentInstance;
-      panel.open();
-      this.fixture.detectChanges();
-    }
   }
 
   /** Adds a question in MAT chapter 3 that the checker has already answered, making that chapter complete. */

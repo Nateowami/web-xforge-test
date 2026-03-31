@@ -24,27 +24,27 @@
   margin-bottom: 32px;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 24px;
 }
 
-.book-panel {
-  .mat-expansion-panel-header {
-    padding-inline-end: 16px;
-  }
+.book-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-.mat-expansion-panel-header {
-  --mat-expansion-header-expanded-state-height: var(--mat-expansion-header-collapsed-state-height);
-}
-
-mat-panel-title {
+.book-header {
   display: flex;
   align-items: center;
   gap: 12px;
+  padding-block: 4px;
+  border-bottom: 1px solid var(--mat-divider-color, #e0e0e0);
 }
 
 .book-name {
   flex: 1;
+  font-weight: 500;
+  font-size: 1rem;
 }
 
 .book-progress-summary {
@@ -68,7 +68,7 @@ mat-panel-title {
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
-  padding: 16px;
+  padding-block-start: 4px;
 }
 
 .chapter-tile {

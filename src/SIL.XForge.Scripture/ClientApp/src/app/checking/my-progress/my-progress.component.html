@@ -29,64 +29,56 @@
   <div id="books-progress-list">
     @for (text of texts; track text.bookNum) {
       @if (bookQuestionCount(text) > 0) {
-        <mat-expansion-panel [togglePosition]="'before'" class="book-panel">
-          <mat-expansion-panel-header>
-            <mat-panel-title>
-              <span class="book-name">{{ getBookName(text) }}</span>
-              <span class="book-progress-summary">
-                @if (bookProgress(text)[2] === bookQuestionCount(text)) {
-                  <mat-icon class="book-complete-icon" [matTooltip]="t('book_complete')">check_circle</mat-icon>
-                } @else {
-                  <app-donut-chart
-                    class="book-progress-donut"
-                    [colors]="[
-                      'var(--sf-community-checking-donut-unread)',
-                      'var(--sf-community-checking-overview-donut-read)',
-                      'var(--sf-community-checking-donut-answered)'
-                    ]"
-                    backgroundColor="var(--sf-community-checking-donut-container-edge)"
-                    [data]="bookProgress(text)"
-                    [animationDuration]="0"
-                  ></app-donut-chart>
-                }
-              </span>
-            </mat-panel-title>
-          </mat-expansion-panel-header>
-          <ng-template matExpansionPanelContent>
-            <div class="chapter-grid">
-              @for (chapter of text.chapters; track chapter.number) {
-                @if (chapterQuestionCount(text.bookNum, chapter.number) > 0) {
-                  <a
-                    class="chapter-tile"
-                    [ngClass]="{ complete: isChapterComplete(text.bookNum, chapter.number) }"
-                    [appRouterLink]="getChapterRouterLink(getBookId(text), chapter.number)"
-                    [matTooltip]="
-                      isChapterComplete(text.bookNum, chapter.number)
-                        ? t('chapter_complete', { number: chapter.number })
-                        : t('chapter_in_progress', { number: chapter.number })
-                    "
-                  >
-                    <span class="chapter-label">{{ t("chapter_number", { number: chapter.number }) }}</span>
-                    @if (isChapterComplete(text.bookNum, chapter.number)) {
-                      <mat-icon class="complete-icon">check_circle</mat-icon>
-                    } @else {
-                      <app-donut-chart
-                        [colors]="[
-                          'var(--sf-community-checking-donut-unread)',
-                          'var(--sf-community-checking-overview-donut-read)',
-                          'var(--sf-community-checking-donut-answered)'
-                        ]"
-                        backgroundColor="var(--sf-community-checking-donut-container-edge)"
-                        [data]="chapterProgress(text.bookNum, chapter.number)"
-                        [animationDuration]="0"
-                      ></app-donut-chart>
-                    }
-                  </a>
-                }
+        <div class="book-section">
+          <div class="book-header">
+            <span class="book-name">{{ getBookName(text) }}</span>
+            <span class="book-progress-summary">
+              @if (bookProgress(text)[2] === bookQuestionCount(text)) {
+                <mat-icon class="book-complete-icon" [matTooltip]="t('book_complete')">check_circle</mat-icon>
+              } @else {
+                <app-donut-chart
+                  class="book-progress-donut"
+                  [colors]="[
+                    'var(--sf-community-checking-donut-unread)',
+                    'var(--sf-community-checking-overview-donut-read)',
+                    'var(--sf-community-checking-donut-answered)'
+                  ]"
+                  backgroundColor="var(--sf-community-checking-donut-container-edge)"
+                  [data]="bookProgress(text)"
+                  [animationDuration]="0"
+                ></app-donut-chart>
               }
-            </div>
-          </ng-template>
-        </mat-expansion-panel>
+            </span>
+          </div>
+          <div class="chapter-grid">
+            @for (chapter of text.chapters; track chapter.number) {
+              @if (chapterQuestionCount(text.bookNum, chapter.number) > 0) {
+                <a
+                  class="chapter-tile"
+                  [ngClass]="{ complete: isChapterComplete(text.bookNum, chapter.number) }"
+                  [appRouterLink]="getChapterRouterLink(getBookId(text), chapter.number)"
+                  [matTooltip]="chapterTooltip(text.bookNum, chapter.number)"
+                >
+                  <span class="chapter-label">{{ t("chapter_number", { number: chapter.number }) }}</span>
+                  @if (isChapterComplete(text.bookNum, chapter.number)) {
+                    <mat-icon class="complete-icon">check_circle</mat-icon>
+                  } @else {
+                    <app-donut-chart
+                      [colors]="[
+                        'var(--sf-community-checking-donut-unread)',
+                        'var(--sf-community-checking-overview-donut-read)',
+                        'var(--sf-community-checking-donut-answered)'
+                      ]"
+                      backgroundColor="var(--sf-community-checking-donut-container-edge)"
+                      [data]="chapterProgress(text.bookNum, chapter.number)"
+                      [animationDuration]="0"
+                    ></app-donut-chart>
+                  }
+                </a>
+              }
+            }
+          </div>
+        </div>
       }
     }
   </div>

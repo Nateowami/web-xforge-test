@@ -510,7 +510,6 @@
     "overall_progress_tooltip": "Overall progress",
     "book_complete": "Book complete",
     "chapter_number": "Ch. {{ number }}",
-    "chapter_complete": "Chapter {{ number }} complete",
-    "chapter_in_progress": "Chapter {{ number }}"
+    "chapter_tooltip": "{{ answered }} of {{ total }} questions answered"
   }
 }

@@ -1,12 +1,6 @@
 import { NgClass } from '@angular/common';
 import { Component, DestroyRef, OnDestroy, OnInit } from '@angular/core';
 import { MatCard, MatCardContent } from '@angular/material/card';
-import {
-  MatExpansionPanel,
-  MatExpansionPanelContent,
-  MatExpansionPanelHeader,
-  MatExpansionPanelTitle
-} from '@angular/material/expansion';
 import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { ActivatedRoute } from '@angular/router';
@@ -34,7 +28,8 @@ import { SFProjectService } from '../../core/sf-project.service';
 import { CheckingUtils } from '../checking.utils';
 import { CheckingQuestionsService } from '../checking/checking-questions.service';
 
-/** Displays a community checker's personal progress on community checking questions, broken down by book and chapter. */
+/** Displays a user's personal progress on community checking questions, broken down by book and chapter.
+ * Accessible to all users with community checking access, including project admins. */
 @Component({
   selector: 'app-my-progress',
   templateUrl: './my-progress.component.html',
@@ -44,10 +39,6 @@ import { CheckingQuestionsService } from '../checking/checking-questions.service
     NgClass,
     MatCard,
     MatCardContent,
-    MatExpansionPanel,
-    MatExpansionPanelHeader,
-    MatExpansionPanelTitle,
-    MatExpansionPanelContent,
     MatIcon,
     MatTooltip,
     DonutChartComponent,
@@ -293,6 +284,13 @@ export class MyProgressComponent extends DataLoadingComponent implements OnInit,
     }
     const [, , answered] = this.chapterProgress(bookNum, chapterNum);
     return answered === total;
+  }
+
+  /** Returns a tooltip string showing how many questions have been answered out of total. */
+  chapterTooltip(bookNum: number, chapterNum: number): string {
+    const [unread, read, answered] = this.chapterProgress(bookNum, chapterNum);
+    const total: number = unread + read + answered;
+    return this.i18n.translateStatic('my_progress.chapter_tooltip', { answered, total });
   }
 
   getQuestionDocs(textDocId: TextDocId): QuestionDoc[] {
