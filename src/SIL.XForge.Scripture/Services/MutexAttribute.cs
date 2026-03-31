@@ -116,6 +116,13 @@ public class MutexAttribute(string? resource = null) : JobFilterAttribute, IElec
         if (context.BackgroundJob.Job == null || context.OldStateName != ProcessingState.StateName)
             return;
 
+        // When a worker crashes during processing, Hangfire re-fetches the same job after the
+        // SlidingInvisibilityTimeout and fires a Processing → Processing transition. In that case we
+        // must NOT release the mutex: the job is still running on the recovered worker, and removing
+        // it from the resource set would allow another job to acquire the mutex and run concurrently.
+        if (context.NewState.Name == ProcessingState.StateName)
+            return;
+
         using (AcquireDistributedSetLock(context.Connection, context.BackgroundJob.Job))
         {
             var localTransaction = context.Connection.CreateWriteTransaction();

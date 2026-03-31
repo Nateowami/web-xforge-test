@@ -1,7 +1,12 @@
+using System;
 using System.Linq;
 using System.Reflection;
 using System.Threading;
+using Hangfire;
 using Hangfire.Common;
+using Hangfire.States;
+using Hangfire.Storage;
+using NSubstitute;
 using NUnit.Framework;
 
 namespace SIL.XForge.Scripture.Services;
@@ -117,6 +122,96 @@ public class MutexAttributeTests
         Assert.That(keyA, Is.EqualTo("ParatextSync"), "The shared key must be the explicit 'ParatextSync' resource");
     }
 
+    [Test]
+    public void OnStateApplied_WhenTransitioningProcessingToProcessing_DoesNotReleaseMutex()
+    {
+        // Regression test for the worker-crash re-processing scenario:
+        // When a Hangfire worker crashes during a sync, Hangfire re-fetches the same job after the
+        // SlidingInvisibilityTimeout and fires a Processing → Processing state transition.
+        // OnStateApplied must NOT remove the job from the mutex set in this case, otherwise the set
+        // becomes empty while the job is still running and a new sync can start concurrently.
+        var connection = Substitute.For<IStorageConnection>();
+        var outerTransaction = Substitute.For<IWriteOnlyTransaction>();
+
+        var job = new Job(
+            typeof(IParatextSyncRunner),
+            typeof(IParatextSyncRunner).GetMethod("RunAsync")!,
+            "project01",
+            "userId",
+            "metricsId",
+            false,
+            CancellationToken.None
+        );
+        var backgroundJob = new BackgroundJob("job1", job, DateTime.UtcNow);
+
+        var newProcessingState = Substitute.For<IState>();
+        newProcessingState.Name.Returns(ProcessingState.StateName);
+
+        var context = new ApplyStateContext(
+            Substitute.For<JobStorage>(),
+            connection,
+            outerTransaction,
+            backgroundJob,
+            newProcessingState,
+            ProcessingState.StateName // OldStateName = Processing
+        );
+
+        var attr = new MutexAttribute("ParatextSync");
+
+        // SUT
+        attr.OnStateApplied(context, outerTransaction);
+
+        // The distributed lock must NOT be acquired, and RemoveFromSet must NOT be called
+        connection.DidNotReceive().AcquireDistributedLock(Arg.Any<string>(), Arg.Any<TimeSpan>());
+        connection.DidNotReceive().CreateWriteTransaction();
+    }
+
+    [Test]
+    public void OnStateApplied_WhenTransitioningProcessingToSucceeded_ReleasesMutex()
+    {
+        // Verify the normal cleanup path: when a job finishes (Processing → Succeeded),
+        // the mutex set entry IS removed so the next sync can start.
+        var writeTransaction = Substitute.For<IWriteOnlyTransaction>();
+        var connection = Substitute.For<IStorageConnection>();
+        connection
+            .AcquireDistributedLock(Arg.Any<string>(), Arg.Any<TimeSpan>())
+            .Returns(Substitute.For<IDisposable>());
+        connection.CreateWriteTransaction().Returns(writeTransaction);
+        var outerTransaction = Substitute.For<IWriteOnlyTransaction>();
+
+        var job = new Job(
+            typeof(IParatextSyncRunner),
+            typeof(IParatextSyncRunner).GetMethod("RunAsync")!,
+            "project01",
+            "userId",
+            "metricsId",
+            false,
+            CancellationToken.None
+        );
+        var backgroundJob = new BackgroundJob("job1", job, DateTime.UtcNow);
+
+        var succeededState = Substitute.For<IState>();
+        succeededState.Name.Returns("Succeeded");
+
+        var context = new ApplyStateContext(
+            Substitute.For<JobStorage>(),
+            connection,
+            outerTransaction,
+            backgroundJob,
+            succeededState,
+            ProcessingState.StateName // OldStateName = Processing
+        );
+
+        var attr = new MutexAttribute("ParatextSync");
+
+        // SUT
+        attr.OnStateApplied(context, outerTransaction);
+
+        // The distributed lock must be acquired and RemoveFromSet must be called
+        connection.Received(1).AcquireDistributedLock(Arg.Any<string>(), Arg.Any<TimeSpan>());
+        writeTransaction.Received(1).RemoveFromSet(Arg.Any<string>(), "job1");
+    }
+
     /// <summary>
     /// Calls the private static <c>GetKeyFormat</c> method on <see cref="MutexAttribute"/> via reflection.
     /// </summary>
@@ -127,10 +222,12 @@ public class MutexAttributeTests
     }
 
     /// <summary>
-    /// Minimal interface used as a test fixture for <see cref="MutexAttribute"/> key-format tests.
+    /// Minimal stub interface whose <c>SomeMethod</c> carries no special attributes, used to test
+    /// <see cref="MutexAttribute.GetKeyFormat"/> with a method name or format-string resource.
     /// </summary>
     private interface ITestRunner
     {
+        /// <summary>A plain method used as the target job for key-format tests.</summary>
         void SomeMethod(string arg1, string arg2);
     }
 }
