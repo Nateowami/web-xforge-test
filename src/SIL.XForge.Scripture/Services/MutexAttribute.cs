@@ -20,6 +20,9 @@ public class MutexAttribute(string? resource = null) : JobFilterAttribute, IElec
 {
     private static readonly TimeSpan DistributedLockTimeout = TimeSpan.FromMinutes(1);
 
+    /// <summary>Gets the mutex resource key, or null if using the method name as the key.</summary>
+    public string? Resource => resource;
+
     public int RetryInSeconds { get; set; } = 15;
     public int MaxAttempts { get; set; }
 
@@ -149,5 +152,5 @@ public class MutexAttribute(string? resource = null) : JobFilterAttribute, IElec
     private static string GetKeyFormat(Job job, string? keyFormat) =>
         string.IsNullOrWhiteSpace(keyFormat)
             ? job.Method.Name
-            : string.Format(CultureInfo.InvariantCulture, keyFormat, job.Args);
+            : string.Format(CultureInfo.InvariantCulture, keyFormat, (object[])job.Args);
 }

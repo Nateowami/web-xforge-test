@@ -5,6 +5,6 @@ namespace SIL.XForge.Scripture.Services;
 
 public interface IParatextSyncRunner
 {
-    [Mutex]
+    [Mutex("ParatextSync")]
     Task RunAsync(string projectId, string userId, string syncMetricsId, bool trainEngine, CancellationToken token);
 }

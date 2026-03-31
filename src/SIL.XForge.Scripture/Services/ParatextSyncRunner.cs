@@ -133,8 +133,9 @@ public class ParatextSyncRunner : IParatextSyncRunner
     /// <param name="trainEngine">No longer used. This is kept to ensure backwards compatibility with previously created jobs.</param>
     /// <param name="token">The cancellation token.</param>
     /// <remarks>
-    /// Do not allow multiple sync jobs to run in parallel by creating a hangfire mutex that restricts the execution
-    /// of this method as a background job to one instance at a time across the entire system.
+    /// Do not allow multiple sync jobs to run in parallel by creating a hangfire mutex with resource
+    /// "ParatextSync" that restricts the execution of this method as a background job to one instance at a time
+    /// across the entire system.
     /// </remarks>
     public async Task RunAsync(
         string projectSFId,
