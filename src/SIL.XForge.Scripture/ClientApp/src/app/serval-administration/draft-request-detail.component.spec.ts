@@ -1,0 +1,271 @@
+import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
+import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { DebugElement } from '@angular/core';
+import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { By } from '@angular/platform-browser';
+import { ActivatedRoute, provideRouter } from '@angular/router';
+import { anything, mock, verify, when } from 'ts-mockito';
+import { DialogService } from 'xforge-common/dialog.service';
+import { NoticeService } from 'xforge-common/notice.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
+import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
+import { configureTestingModule } from 'xforge-common/test-utils';
+import { UserService } from 'xforge-common/user.service';
+import { DraftRequestResolutionKey, OnboardingRequest, OnboardingRequestService } from '../translate/draft-generation/onboarding-request.service';
+import { ServalAdministrationService } from './serval-administration.service';
+import { DraftRequestDetailComponent } from './draft-request-detail.component';
+
+const mockedActivatedRoute = mock(ActivatedRoute);
+const mockedDialogService = mock(DialogService);
+const mockedNoticeService = mock(NoticeService);
+const mockedOnboardingRequestService = mock(OnboardingRequestService);
+const mockedServalAdministrationService = mock(ServalAdministrationService);
+const mockedUserService = mock(UserService);
+
+const REQUEST_ID = 'request01';
+const CURRENT_USER_ID = 'user01';
+const ASSIGNEE_USER_ID = 'user02';
+
+/** Creates a minimal OnboardingRequest for use in tests. */
+function createTestRequest(overrides: Partial<OnboardingRequest> = {}): OnboardingRequest {
+  return {
+    id: REQUEST_ID,
+    submittedAt: '2024-01-01T00:00:00Z',
+    submittedBy: { name: 'Test User', email: 'test@example.com' },
+    submission: {
+      projectId: 'project01',
+      userId: 'user03',
+      timestamp: '2024-01-01T00:00:00Z',
+      formData: {
+        name: 'Test User',
+        email: 'test@example.com',
+        organization: 'Test Org',
+        partnerOrganization: 'Partner Org',
+        translationLanguageName: 'English',
+        translationLanguageIsoCode: 'en',
+        completedBooks: [],
+        nextBooksToDraft: [],
+        sourceProjectA: 'ptproject01',
+        draftingSourceProject: 'ptproject02',
+        backTranslationStage: 'None',
+        backTranslationProject: null
+      }
+    },
+    assigneeId: '',
+    status: 'new',
+    resolution: 'unresolved',
+    comments: [],
+    ...overrides
+  };
+}
+
+describe('DraftRequestDetailComponent', () => {
+  configureTestingModule(() => ({
+    imports: [DraftRequestDetailComponent],
+    providers: [
+      provideTestOnlineStatus(),
+      provideHttpClient(withInterceptorsFromDi()),
+      provideHttpClientTesting(),
+      provideRouter([]),
+      { provide: ActivatedRoute, useMock: mockedActivatedRoute },
+      { provide: DialogService, useMock: mockedDialogService },
+      { provide: NoticeService, useMock: mockedNoticeService },
+      { provide: OnlineStatusService, useClass: TestOnlineStatusService },
+      { provide: OnboardingRequestService, useMock: mockedOnboardingRequestService },
+      { provide: ServalAdministrationService, useMock: mockedServalAdministrationService },
+      { provide: UserService, useMock: mockedUserService }
+    ]
+  }));
+
+  it('should create', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.wait();
+    expect(env.component).toBeTruthy();
+  }));
+
+  describe('assignee select', () => {
+    it('should show the assignee dropdown', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.wait();
+      expect(env.assigneeSelect).not.toBeNull();
+    }));
+
+    it('should call onAssigneeChange when assignee is changed', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.wait();
+      const updatedRequest = createTestRequest({ assigneeId: CURRENT_USER_ID, status: 'in_progress' });
+      when(mockedOnboardingRequestService.setAssignee(REQUEST_ID, CURRENT_USER_ID)).thenResolve(updatedRequest);
+
+      // SUT
+      env.component.onAssigneeChange(CURRENT_USER_ID);
+      flush();
+
+      verify(mockedOnboardingRequestService.setAssignee(REQUEST_ID, CURRENT_USER_ID)).once();
+    }));
+
+    it('should update local request after assignee change', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.wait();
+      const updatedRequest = createTestRequest({ assigneeId: CURRENT_USER_ID, status: 'in_progress' });
+      when(mockedOnboardingRequestService.setAssignee(REQUEST_ID, CURRENT_USER_ID)).thenResolve(updatedRequest);
+
+      // SUT
+      env.component.onAssigneeChange(CURRENT_USER_ID);
+      flush();
+
+      expect(env.component.request?.assigneeId).toBe(CURRENT_USER_ID);
+      expect(env.component.request?.status).toBe('in_progress');
+    }));
+
+    it('should show error if assignee update fails', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.wait();
+      when(mockedOnboardingRequestService.setAssignee(REQUEST_ID, CURRENT_USER_ID)).thenReject(
+        new Error('Network error')
+      );
+      // Re-mock getRequestById to avoid issues when reloading
+      when(mockedOnboardingRequestService.getRequestById(REQUEST_ID)).thenResolve(createTestRequest());
+
+      // SUT
+      env.component.onAssigneeChange(CURRENT_USER_ID);
+      flush();
+
+      verify(mockedNoticeService.showError('Failed to update assignee')).once();
+    }));
+
+    it('should include current user in assignee options', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.wait();
+      const options = env.component.getAssignedUserOptions();
+      expect(options).toContain(CURRENT_USER_ID);
+    }));
+
+    it('should include already-assigned user in options if different from current user', fakeAsync(() => {
+      const env = new TestEnvironment({ assigneeId: ASSIGNEE_USER_ID });
+      env.wait();
+      const options = env.component.getAssignedUserOptions();
+      expect(options).toContain(CURRENT_USER_ID);
+      expect(options).toContain(ASSIGNEE_USER_ID);
+    }));
+
+    it('should list current user first in options', fakeAsync(() => {
+      const env = new TestEnvironment({ assigneeId: ASSIGNEE_USER_ID });
+      env.wait();
+      const options = env.component.getAssignedUserOptions();
+      expect(options[0]).toBe(CURRENT_USER_ID);
+    }));
+  });
+
+  describe('resolution select', () => {
+    it('should show the resolution dropdown', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.wait();
+      expect(env.resolutionSelect).not.toBeNull();
+    }));
+
+    it('should call onResolutionChange when resolution is changed', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.wait();
+      const newResolution: DraftRequestResolutionKey = 'approved';
+      const updatedRequest = createTestRequest({ resolution: newResolution });
+      when(mockedOnboardingRequestService.setResolution(REQUEST_ID, newResolution)).thenResolve(updatedRequest);
+
+      // SUT
+      env.component.onResolutionChange(newResolution);
+      flush();
+
+      verify(mockedOnboardingRequestService.setResolution(REQUEST_ID, newResolution)).once();
+    }));
+
+    it('should update local request after resolution change', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.wait();
+      const newResolution: DraftRequestResolutionKey = 'declined';
+      const updatedRequest = createTestRequest({ resolution: newResolution, assigneeId: '' });
+      when(mockedOnboardingRequestService.setResolution(REQUEST_ID, newResolution)).thenResolve(updatedRequest);
+
+      // SUT
+      env.component.onResolutionChange(newResolution);
+      flush();
+
+      expect(env.component.request?.resolution).toBe(newResolution);
+    }));
+
+    it('should show error if resolution update fails', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.wait();
+      const newResolution: DraftRequestResolutionKey = 'approved';
+      when(mockedOnboardingRequestService.setResolution(REQUEST_ID, newResolution)).thenReject(
+        new Error('Network error')
+      );
+      when(mockedOnboardingRequestService.getRequestById(REQUEST_ID)).thenResolve(createTestRequest());
+
+      // SUT
+      env.component.onResolutionChange(newResolution);
+      flush();
+
+      verify(mockedNoticeService.showError('Failed to update resolution')).once();
+    }));
+
+    it('compareResolutions should return true for equal values', () => {
+      const env = new TestEnvironment();
+      expect(env.component.compareResolutions('approved', 'approved')).toBe(true);
+      expect(env.component.compareResolutions('unresolved', 'unresolved')).toBe(true);
+      expect(env.component.compareResolutions(null, null)).toBe(true);
+    });
+
+    it('compareResolutions should return false for different values', () => {
+      const env = new TestEnvironment();
+      expect(env.component.compareResolutions('approved', 'declined')).toBe(false);
+      expect(env.component.compareResolutions('approved', null)).toBe(false);
+      expect(env.component.compareResolutions(null, 'unresolved')).toBe(false);
+    });
+  });
+
+  /**
+   * Test environment for DraftRequestDetailComponent tests.
+   * Sets up the component with mock services and a default request.
+   */
+  class TestEnvironment {
+    readonly component: DraftRequestDetailComponent;
+    readonly fixture: ComponentFixture<DraftRequestDetailComponent>;
+
+    constructor({ assigneeId = '' }: { assigneeId?: string } = {}) {
+      const request = createTestRequest({ assigneeId });
+
+      when(mockedActivatedRoute.snapshot).thenReturn({
+        paramMap: { get: (key: string) => (key === 'id' ? REQUEST_ID : null) }
+      } as any);
+      when(mockedUserService.currentUserId).thenReturn(CURRENT_USER_ID);
+      when(mockedOnboardingRequestService.getRequestById(REQUEST_ID)).thenResolve(request);
+      when(mockedOnboardingRequestService.getStatus(anything())).thenCall(status =>
+        ({ value: status, label: status, icon: 'help', color: 'gray' } as any)
+      );
+      when(mockedServalAdministrationService.get(anything())).thenResolve(undefined);
+      when(mockedServalAdministrationService.getByParatextId(anything())).thenResolve(undefined);
+      when(mockedUserService.getProfile(anything())).thenResolve({
+        data: { displayName: 'Test User' }
+      } as any);
+
+      this.fixture = TestBed.createComponent(DraftRequestDetailComponent);
+      this.component = this.fixture.componentInstance;
+      this.fixture.detectChanges();
+    }
+
+    get assigneeSelect(): DebugElement {
+      return this.fixture.debugElement.query(By.css('mat-select[ng-reflect-name="assigneeId"]'));
+    }
+
+    get resolutionSelect(): DebugElement {
+      return this.fixture.debugElement.query(By.css('.resolution-field mat-select'));
+    }
+
+    wait(): void {
+      tick();
+      this.fixture.detectChanges();
+      tick();
+      this.fixture.detectChanges();
+    }
+  }
+});

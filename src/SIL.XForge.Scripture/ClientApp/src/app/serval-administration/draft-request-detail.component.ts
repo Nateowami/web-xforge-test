@@ -13,6 +13,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Canon } from '@sillsdev/scripture';
 import { saveAs } from 'file-saver';
@@ -23,15 +24,16 @@ import { DialogService } from 'xforge-common/dialog.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OwnerComponent } from 'xforge-common/owner/owner.component';
 import { RouterLinkDirective } from 'xforge-common/router-link.directive';
+import { UserService } from 'xforge-common/user.service';
 import { ParatextService } from '../core/paratext.service';
 import { DevOnlyComponent } from '../shared/dev-only/dev-only.component';
 import { JsonViewerComponent } from '../shared/json-viewer/json-viewer.component';
 import { MobileNotSupportedComponent } from '../shared/mobile-not-supported/mobile-not-supported.component';
 import { projectLabel } from '../shared/utils';
 import {
+  DRAFT_REQUEST_RESOLUTION_OPTIONS,
   DraftingSignupFormData,
   DraftRequestResolutionKey,
-  DraftRequestResolutionMetadata,
   OnboardingRequest,
   OnboardingRequestService
 } from '../translate/draft-generation/onboarding-request.service';
@@ -65,6 +67,7 @@ import { ServalAdministrationService } from './serval-administration.service';
     DevOnlyComponent,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     MobileNotSupportedComponent
   ]
 })
@@ -76,6 +79,12 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
   projectShortNames: Map<string, string> = new Map(); // Maps Paratext ID to project short name
   newCommentText: string = '';
   isAddingComment: boolean = false;
+  currentUserId?: string;
+  assignedUserIds: Set<string> = new Set();
+  userDisplayNames: Map<string, string> = new Map();
+
+  // Resolution options for the resolution select dropdown
+  readonly resolutionOptions = DRAFT_REQUEST_RESOLUTION_OPTIONS;
 
   constructor(
     private readonly route: ActivatedRoute,
@@ -83,12 +92,14 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     private readonly servalAdministrationService: ServalAdministrationService,
     private readonly onboardingRequestService: OnboardingRequestService,
     private readonly dialogService: DialogService,
+    private readonly userService: UserService,
     protected readonly noticeService: NoticeService
   ) {
     super(noticeService);
   }
 
   ngOnInit(): void {
+    this.currentUserId = this.userService.currentUserId;
     const requestId = this.route.snapshot.paramMap.get('id');
     if (requestId != null) {
       void this.loadRequest(requestId);
@@ -103,9 +114,121 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     try {
       this.request = await this.onboardingRequestService.getRequestById(requestId);
       await this.loadProjectNames();
-      this.loadingFinished();
+      this.initializeAssigneeData();
     } finally {
       this.loadingFinished();
+    }
+  }
+
+  /**
+   * Initializes derived assignee data from the current request.
+   * Called after loading the request or after updating assignee/resolution.
+   */
+  private initializeAssigneeData(): void {
+    if (this.request == null) {
+      return;
+    }
+
+    // Collect assigned user IDs for the dropdown options (excluding empty string)
+    this.assignedUserIds = new Set(
+      [this.request.assigneeId].filter((id): id is string => id != null && id !== '')
+    );
+
+    // Pre-cache display names for the assigned user and current user
+    this.assignedUserIds.forEach(userId => void this.cacheUserDisplayName(userId));
+    if (this.currentUserId != null) {
+      void this.cacheUserDisplayName(this.currentUserId);
+    }
+  }
+
+  /**
+   * Gets the list of user IDs to show in the assignee dropdown (excluding "Unassigned").
+   * Includes current user first, then the currently assigned user if different.
+   */
+  getAssignedUserOptions(): string[] {
+    const options: string[] = [];
+
+    // Add current user first if available
+    if (this.currentUserId != null) {
+      options.push(this.currentUserId);
+    }
+
+    // Add the currently assigned user if they are not the current user
+    this.assignedUserIds.forEach(userId => {
+      if (userId !== this.currentUserId && !options.includes(userId)) {
+        options.push(userId);
+      }
+    });
+
+    return options;
+  }
+
+  /**
+   * Caches the display name for a user ID.
+   */
+  private async cacheUserDisplayName(userId: string): Promise<void> {
+    if (!this.userDisplayNames.has(userId)) {
+      try {
+        const userDoc = await this.userService.getProfile(userId);
+        if (userDoc?.data != null) {
+          const displayName = this.currentUserId === userId ? 'Me' : userDoc.data.displayName || 'Unknown User';
+          this.userDisplayNames.set(userId, displayName);
+        }
+      } catch (error) {
+        console.error('Error loading user display name:', error);
+        this.userDisplayNames.set(userId, 'Unknown User');
+      }
+    }
+  }
+
+  /** Gets the display name for a user ID. */
+  getUserDisplayName(userId: string): string {
+    return this.userDisplayNames.get(userId) ?? 'Loading...';
+  }
+
+  /**
+   * Comparison function for resolution values.
+   * Needed to properly handle null values in the select dropdown and the resolution not yet being set on a request.
+   */
+  compareResolutions(r1: string | null, r2: string | null): boolean {
+    return r1 === r2 || (r1 == null && r2 == null);
+  }
+
+  /**
+   * Handles assignee change for the current request.
+   * Calls the backend to persist the change and updates local state with the response.
+   */
+  async onAssigneeChange(newAssigneeId: string): Promise<void> {
+    if (this.request == null) {
+      return;
+    }
+    try {
+      this.request = await this.onboardingRequestService.setAssignee(this.request.id, newAssigneeId);
+      this.initializeAssigneeData();
+    } catch (error) {
+      console.error('Error updating assignee:', error);
+      this.noticeService.showError('Failed to update assignee');
+      // Reload to restore correct state
+      await this.loadRequest(this.request.id);
+    }
+  }
+
+  /**
+   * Handles resolution change for the current request.
+   * Calls the backend to persist the change and updates local state with the response.
+   */
+  async onResolutionChange(newResolution: DraftRequestResolutionKey | null): Promise<void> {
+    if (this.request == null) {
+      return;
+    }
+    try {
+      this.request = await this.onboardingRequestService.setResolution(this.request.id, newResolution);
+      this.initializeAssigneeData();
+    } catch (error) {
+      console.error('Error updating resolution:', error);
+      this.noticeService.showError('Failed to update resolution');
+      // Reload to restore correct state
+      await this.loadRequest(this.request.id);
     }
   }
 
@@ -213,10 +336,6 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
       return 'Download';
     }
     return ParatextService.isResource(paratextId) ? 'Download DBL resource' : 'Download Paratext project';
-  }
-
-  getResolution(resolution: DraftRequestResolutionKey): DraftRequestResolutionMetadata {
-    return this.onboardingRequestService.getResolution(resolution);
   }
 
   get isResolved(): boolean {
