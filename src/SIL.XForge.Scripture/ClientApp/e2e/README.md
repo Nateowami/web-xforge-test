@@ -26,6 +26,50 @@ cd src/SIL.XForge.Scripture/ClientApp/e2e
 ./e2e.mts
 ```
 
+## AI Agent Tools (MCP server)
+
+`agent-tools.mts` is a [Model Context Protocol](https://modelcontextprotocol.io/) (MCP) server that
+lets AI agents (e.g. GitHub Copilot) interact with a running Scripture Forge instance.  It exposes
+Playwright-based tools so agents can see the page, click elements, test selectors, and more—all
+while reusing the existing login flow from `pt-login.ts`.
+
+### Prerequisites
+
+Same as the regular e2e tests (Deno, Playwright browsers, `secrets.json`), plus the application
+must already be running locally.
+
+### VS Code / GitHub Copilot integration
+
+`.vscode/mcp.json` configures VS Code to start the server automatically.  Once Deno is installed,
+the server named **scripture-forge** will appear in the GitHub Copilot MCP tool picker.
+
+### Available tools
+
+| Tool | Purpose |
+|---|---|
+| `start_session` | Launch Chromium and log in with a `secrets.json` user |
+| `navigate` | Go to a URL |
+| `snapshot` | Get the ARIA accessibility tree (lets the agent "see" the page) |
+| `screenshot` | Capture a PNG of the current viewport |
+| `click` | Click an element by Playwright selector |
+| `fill` | Fill a form field |
+| `press_key` | Send a keyboard key press |
+| `test_selector` | Count and preview elements matching a selector (for writing/fixing e2e tests) |
+| `evaluate` | Run a JavaScript expression in the page context |
+| `get_url` | Return the current URL |
+| `close_session` | Close the browser |
+
+### Playwright REPL
+
+`playwright-repl.mts` provides a simpler entry point for interactive exploration via the Deno REPL:
+
+```bash
+deno
+> import launch from './playwright-repl.mts';
+> const page = await launch();
+// page is now a logged-in Playwright Page object – use it interactively
+```
+
 ## Testing philosophy
 
 ### The testing pyramid
