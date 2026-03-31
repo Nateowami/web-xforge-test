@@ -278,7 +278,6 @@
     "training_files": "Training files",
     "translated_book_selected_no_training_pair": "Some of the training books you selected have no matching reference books selected. Please select matching reference books.",
     "translated_books": "Translated books",
-    "unusable_target_books": "Can't find the book you're looking for? Be sure the book is created in Paratext, then sync your project.",
     "use_echo_warning": "Enabling this will echo your source text instead of translating it.",
     "use_echo": "Use Echo Translation Engine"
   },

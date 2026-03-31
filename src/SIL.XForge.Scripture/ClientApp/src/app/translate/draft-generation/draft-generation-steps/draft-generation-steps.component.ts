@@ -276,23 +276,32 @@ export class DraftGenerationStepsComponent implements OnInit {
           // Reset the field that toggles a notice that books were automatically selected
           this.trainingBooksWereAutoSelected = false;
 
-          // If book exists in both target and source, add to available books.
-          // Otherwise, add to unusable books.
+          // Books from the drafting source are eligible for translation even if they don't yet exist in the
+          // target project. Books in both source and target are also eligible for training.
           // Ensure books are displayed in ascending canonical order.
-          const targetBooks = new Set<number>();
+          const targetBooks = new Set<number>(target.texts.map(t => t.bookNum));
           const projectProgress = await this.progressService.getProgress(projectId, {
             maxStalenessMs: 30_000
           });
-          for (const text of target.texts.slice().sort((a, b) => a.bookNum - b.bookNum)) {
-            const bookNum = text.bookNum;
-            targetBooks.add(bookNum);
 
-            // Exclude non-canonical books
-            if (Canon.isExtraMaterial(bookNum)) {
-              continue;
-            }
+          // Compute draft config flags once before the loop since the values are the same for all books
+          const draftConfig: DraftConfig | undefined =
+            this.activatedProject.projectDoc?.data?.translateConfig.draftConfig;
+          this.isCustomConfigSet = draftConfig?.servalConfig != null;
+          const hasPreviousTrainingRange: boolean =
+            (draftConfig?.lastSelectedTrainingScriptureRanges ?? []).length > 0;
 
-            // Translate books
+          // Process all canonical books from both the target and drafting source, in canonical order.
+          // Using the union ensures source-only books (not yet in the target) are also considered for drafting.
+          const allCanonicalBookNums: number[] = Array.from(
+            new Set<number>([...targetBooks, ...draftingSourceBooks])
+          )
+            .filter(bookNum => !Canon.isExtraMaterial(bookNum))
+            .sort((a, b) => a - b);
+
+          for (const bookNum of allCanonicalBookNums) {
+            // Translate books: a book is available for translation if it's in the drafting source,
+            // regardless of whether it already exists in the target project.
             // TODO: When implementing multiple drafting sources, this should be updated to handle multiple sources
             if (draftingSourceBooks.has(bookNum)) {
               const book: Book = { number: bookNum, selected: false };
@@ -303,15 +312,15 @@ export class DraftGenerationStepsComponent implements OnInit {
                 this.emptyTranslateSourceBooks.push(bookNum);
               }
             } else {
+              // Book is in the target but not in the drafting source
               this.unusableTranslateSourceBooks.push(bookNum);
             }
 
-            // See if there is an existing training scripture range
-            const draftConfig: DraftConfig | undefined =
-              this.activatedProject.projectDoc?.data?.translateConfig.draftConfig;
-            this.isCustomConfigSet = draftConfig?.servalConfig != null;
-            const hasPreviousTrainingRange: boolean =
-              (draftConfig?.lastSelectedTrainingScriptureRanges ?? []).length > 0;
+            // Training requires the book to exist in the target project (to provide translated text for training).
+            // Skip training consideration for books that are only in the source.
+            if (!targetBooks.has(bookNum)) {
+              continue;
+            }
 
             // Determine if this book should be auto selected. The requirements are:
             // 1. The project does not have any previous training selections made.
@@ -369,13 +378,13 @@ export class DraftGenerationStepsComponent implements OnInit {
 
           this.setInitialTrainingBooks(projectId!);
 
-          // Store the books that are not in the target
+          // Store training source books that have no corresponding translated text in the target project
           this.unusableTrainingTargetBooks = [...trainingSourceBooks].filter(
             bookNum => !targetBooks.has(bookNum) && Canon.isCanonical(bookNum)
           );
-          this.unusableTranslateTargetBooks = [...draftingSourceBooks].filter(
-            bookNum => !targetBooks.has(bookNum) && Canon.isCanonical(bookNum)
-          );
+          // unusableTranslateTargetBooks is always empty: drafting source books not yet in the target project
+          // are now eligible for drafting (the draft will create the book in the target project).
+          this.unusableTranslateTargetBooks = [];
 
           // set developer settings
           if (this.featureFlags.showDeveloperTools.enabled) {

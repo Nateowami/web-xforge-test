@@ -319,7 +319,8 @@ describe('DraftGenerationStepsComponent', () => {
         { number: 1, selected: false },
         { number: 2, selected: false },
         { number: 3, selected: false },
-        { number: 5, selected: false }
+        { number: 5, selected: false },
+        { number: 7, selected: false }
       ]);
     }));
 
@@ -328,7 +329,8 @@ describe('DraftGenerationStepsComponent', () => {
         sourceProject: [
           { number: 1, selected: false },
           { number: 2, selected: false },
-          { number: 3, selected: false }
+          { number: 3, selected: false },
+          { number: 7, selected: false }
         ]
       });
     }));
@@ -381,7 +383,9 @@ describe('DraftGenerationStepsComponent', () => {
     }));
 
     it('should set "unusableTranslateTargetBooks" and "unusableTrainingTargetBooks" correctly', fakeAsync(() => {
-      expect(component.unusableTranslateTargetBooks).toEqual([7]);
+      // unusableTranslateTargetBooks is always empty: books only in the drafting source (not in target)
+      // are now available for translation, so they no longer go into the unusable list
+      expect(component.unusableTranslateTargetBooks).toEqual([]);
       expect(component.unusableTrainingTargetBooks).toEqual([7]);
     }));
 
