@@ -92,11 +92,6 @@
             </div>
           </app-notice>
         }
-        @if (unusableTranslateTargetBooks.length) {
-          <app-notice>
-            <transloco key="draft_generation_steps.unusable_target_books"></transloco>
-          </app-notice>
-        }
         @if (showBookSelectionError) {
           <app-notice type="error">
             {{ t("choose_books_to_translate_error") }}
