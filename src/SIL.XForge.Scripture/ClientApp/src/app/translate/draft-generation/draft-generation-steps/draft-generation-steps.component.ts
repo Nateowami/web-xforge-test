@@ -312,7 +312,8 @@ export class DraftGenerationStepsComponent implements OnInit {
                 this.emptyTranslateSourceBooks.push(bookNum);
               }
             } else {
-              // Book is in the target but not in the drafting source
+              // Book is in targetBooks but not in the drafting source (allCanonicalBookNums is the union of both sets,
+              // so if a book is not in draftingSourceBooks, it must have come from targetBooks)
               this.unusableTranslateSourceBooks.push(bookNum);
             }
 
