@@ -26,6 +26,27 @@ cd src/SIL.XForge.Scripture/ClientApp/e2e
 ./e2e.mts
 ```
 
+## Performance testing
+
+To measure page load times under realistic network conditions, use the `run-performance-tests.sh` script. This script:
+
+1. Builds the Angular application in production mode (minified and optimized).
+2. Starts the .NET backend to serve the production build.
+3. Runs the `performance_load_times` test with the `slow_network` preset, which throttles the network to simulate a
+   slow connection (Regular 3G: 1.5 Mbps download, 750 Kbps upload, 300 ms latency).
+
+```bash
+cd src/SIL.XForge.Scripture/ClientApp/e2e
+./run-performance-tests.sh
+```
+
+The load times for key pages are logged to the console. Results and Playwright traces are saved to
+`test_output/performance_test_results/`.
+
+Network throttling uses the Chrome DevTools Protocol (CDP) and is therefore only available when running with Chromium.
+Running a production build is important for accurate measurements because development builds are significantly larger
+and slower to load than production builds.
+
 ## Testing philosophy
 
 ### The testing pyramid

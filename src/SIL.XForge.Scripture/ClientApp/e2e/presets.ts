@@ -3,6 +3,16 @@ import type { BrowserName, UserRole } from './e2e-globals.ts';
 import { E2ETestRunLogger } from './e2e-test-run-logger.ts';
 import { Utils } from './e2e-utils.ts';
 
+/** Defines network throttling conditions for simulating slow network connections. Only supported in Chromium. */
+export interface NetworkConditions {
+  /** Download throughput in bytes per second. Use -1 for no throttling. */
+  downloadThroughput: number;
+  /** Upload throughput in bytes per second. Use -1 for no throttling. */
+  uploadThroughput: number;
+  /** Minimum latency from request sent to response headers received in milliseconds. */
+  latency: number;
+}
+
 export interface TestPreset {
   rootUrl: string;
   browsers: BrowserName[];
@@ -16,6 +26,8 @@ export interface TestPreset {
   showArrow: boolean;
   pauseOnFailure: boolean;
   headless: boolean;
+  /** Network throttling conditions. Only applied when using Chromium. */
+  networkConditions?: NetworkConditions;
 }
 
 export interface ScreenshotContext {
@@ -73,5 +85,26 @@ export const presets = {
     showArrow: true,
     outputDir: 'test_output/ci_e2e_test_results',
     maxTries: 5
+  },
+  // Simulates a slow network connection (Regular 3G) for performance testing.
+  // Network throttling is only applied when running with Chromium.
+  slow_network: {
+    rootUrl: 'http://localhost:5000',
+    locales: ['en'],
+    browsers: ['chromium'],
+    skipScreenshots: true,
+    trace: true,
+    pauseOnFailure: false,
+    headless: true,
+    defaultUserDelay: 0,
+    showArrow: false,
+    outputDir: 'test_output/performance_test_results',
+    maxTries: 3,
+    networkConditions: {
+      // Regular 3G: 1.5 Mbps download, 750 Kbps upload, 300ms latency
+      downloadThroughput: (1.5 * 1024 * 1024) / 8,
+      uploadThroughput: (750 * 1024) / 8,
+      latency: 300
+    }
   }
 } as const satisfies { [key: string]: TestPreset };
