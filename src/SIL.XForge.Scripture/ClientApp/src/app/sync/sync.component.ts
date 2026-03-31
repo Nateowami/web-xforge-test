@@ -182,7 +182,20 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
 
   /** Returns a user-friendly label for the sync status. */
   syncStatusLabel(status: SyncStatus): string {
-    return this.i18n.translateStatic(`sync.sync_status_${status.toLowerCase()}`);
+    switch (status) {
+      case SyncStatus.Queued:
+        return this.i18n.translateStatic('sync.sync_status_queued');
+      case SyncStatus.Running:
+        return this.i18n.translateStatic('sync.sync_status_running');
+      case SyncStatus.Successful:
+        return this.i18n.translateStatic('sync.sync_status_successful');
+      case SyncStatus.Cancelled:
+        return this.i18n.translateStatic('sync.sync_status_cancelled');
+      case SyncStatus.Failed:
+        return this.i18n.translateStatic('sync.sync_status_failed');
+      default:
+        return status;
+    }
   }
 
   /** Returns the display date for a sync entry. */
@@ -281,7 +294,7 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     try {
       const results = await this.projectService.onlineSyncMetrics(this.projectDoc.id, 0, this.syncLogPageSize);
       this.syncLogTotalCount = results.unpagedCount;
-      this.syncLog = Array.isArray(results.results) ? (results.results as SyncMetrics[]) : [];
+      this.syncLog = Array.isArray(results.results) ? results.results : [];
     } finally {
       this.syncLogLoading = false;
     }

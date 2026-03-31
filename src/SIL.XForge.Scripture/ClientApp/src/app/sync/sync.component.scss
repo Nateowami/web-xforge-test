@@ -106,12 +106,12 @@ app-sync-progress {
 }
 
 .sync-log-status-successful {
-  color: #2e7d32;
+  color: variables.$greenDark;
   font-weight: 500;
 }
 
 .sync-log-status-failed {
-  color: #c62828;
+  color: variables.$errorColor;
   font-weight: 500;
 }
 
@@ -124,7 +124,7 @@ app-sync-progress {
   margin-top: 0.5rem;
   summary {
     cursor: pointer;
-    color: #c62828;
+    color: variables.$errorColor;
   }
 }
 

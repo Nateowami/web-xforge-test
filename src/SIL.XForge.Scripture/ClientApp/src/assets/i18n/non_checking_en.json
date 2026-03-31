@@ -859,16 +859,7 @@
     "sync_is_disabled": "Synchronization for this project needed to be disabled, so it is not available at this time. Please contact {{ email }} to discuss what needs to be done so project synchronization can be enabled again.",
     "sync_failure_support_message": "Something went wrong the last time Scripture Forge attempted to synchronize the project with Paratext. If it still doesn't work after you try again, please report the problem by writing to {{email}}.",
     "sync_user_permissions_failure_message": "The last user to synchronize this project no longer has permission to sync. Please contact the project administrator.",
-    "user_permissions_failure_dialog_message": "You no longer have permission to synchronize this project with Paratext. Please contact the project administrator.",
-    "sync_log_title": "Sync Log",
-    "sync_log_empty": "No sync history available.",
-    "sync_log_error_details": "Error details",
-    "sync_log_load_more": "Load more",
-    "sync_status_queued": "Queued",
-    "sync_status_running": "Running",
-    "sync_status_successful": "Successful",
-    "sync_status_cancelled": "Cancelled",
-    "sync_status_failed": "Failed"
+    "user_permissions_failure_dialog_message": "You no longer have permission to synchronize this project with Paratext. Please contact the project administrator."
   },
   "tab_group_header": {
     "no_tabs_available": "No tabs available."
