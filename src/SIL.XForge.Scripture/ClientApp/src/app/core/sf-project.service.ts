@@ -26,6 +26,7 @@ import { RetryingRequest, RetryingRequestService } from 'xforge-common/retrying-
 import { EventMetric } from '../event-metrics/event-metric';
 import { BookProgress } from '../shared/progress-service/progress.service';
 import { booksFromScriptureRange } from '../shared/utils';
+import { SyncMetrics } from '../sync/sync-metrics';
 import { BiblicalTermDoc } from './models/biblical-term-doc';
 import { InviteeStatus } from './models/invitee-status';
 import { NoteThreadDoc } from './models/note-thread-doc';
@@ -380,6 +381,10 @@ export class SFProjectService extends ProjectService<SFProject, SFProjectDoc> {
 
   async onlineEventMetrics(projectId: string, pageIndex: number, pageSize: number): Promise<QueryResults<EventMetric>> {
     return await this.onlineInvoke<QueryResults<EventMetric>>('eventMetrics', { projectId, pageIndex, pageSize });
+  }
+
+  async onlineSyncMetrics(projectId: string, pageIndex: number, pageSize: number): Promise<QueryResults<SyncMetrics>> {
+    return await this.onlineInvoke<QueryResults<SyncMetrics>>('syncMetrics', { projectId, pageIndex, pageSize });
   }
 
   async onlineAllEventMetricsForConstructingDraftJobs(

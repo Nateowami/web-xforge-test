@@ -3,6 +3,7 @@ import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testin
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
 import { CookieService } from 'ngx-cookie-service';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { createTestProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { of } from 'rxjs';
@@ -24,6 +25,7 @@ import { ParatextService } from '../core/paratext.service';
 import { ProjectNotificationService } from '../core/project-notification.service';
 import { SFProjectService } from '../core/sf-project.service';
 import { NoticeComponent } from '../shared/notice/notice.component';
+import { SyncMetrics, SyncStatus } from './sync-metrics';
 import { SyncProgressComponent } from './sync-progress/sync-progress.component';
 import { SyncComponent } from './sync.component';
 
@@ -250,6 +252,105 @@ describe('SyncComponent', () => {
     verify(mockedNoticeService.show('Successfully synchronized Sync Test Project with Paratext.')).once();
     verify(mockedDialogService.message(anything())).never();
   }));
+
+  it('should not show sync log for non-admin users', fakeAsync(() => {
+    const env = new TestEnvironment({ userSystemRole: SystemRole.User });
+    expect(env.component.showSyncLog).toBe(false);
+    expect(env.syncLog).toBeNull();
+  }));
+
+  it('should show sync log for system admins', fakeAsync(() => {
+    const env = new TestEnvironment({ userSystemRole: SystemRole.SystemAdmin });
+    expect(env.component.showSyncLog).toBe(true);
+    expect(env.syncLog).not.toBeNull();
+  }));
+
+  it('should show sync log for serval admins', fakeAsync(() => {
+    const env = new TestEnvironment({ userSystemRole: SystemRole.ServalAdmin });
+    expect(env.component.showSyncLog).toBe(true);
+    expect(env.syncLog).not.toBeNull();
+  }));
+
+  it('should show empty message when no sync log entries exist', fakeAsync(() => {
+    const env = new TestEnvironment({ userSystemRole: SystemRole.SystemAdmin, syncLogEntries: [] });
+    expect(env.syncLogEmpty).not.toBeNull();
+    expect(env.syncLogEntries.length).toBe(0);
+  }));
+
+  it('should display sync log entries for system admins', fakeAsync(() => {
+    const entries: SyncMetrics[] = [
+      {
+        id: 'sync1',
+        dateQueued: new Date('2024-01-15T10:00:00Z').toISOString(),
+        status: SyncStatus.Successful,
+        projectRef: 'testProject01',
+        log: []
+      },
+      {
+        id: 'sync2',
+        dateQueued: new Date('2024-01-10T10:00:00Z').toISOString(),
+        status: SyncStatus.Failed,
+        errorDetails: 'Some error occurred\nStack trace here',
+        projectRef: 'testProject01',
+        log: []
+      }
+    ];
+    const env = new TestEnvironment({ userSystemRole: SystemRole.SystemAdmin, syncLogEntries: entries });
+
+    // SUT
+    expect(env.syncLogEntries.length).toBe(2);
+  }));
+
+  it('should show load more button when more entries are available', fakeAsync(() => {
+    const entries: SyncMetrics[] = Array.from({ length: 5 }, (_, i) => ({
+      id: `sync${i}`,
+      dateQueued: new Date().toISOString(),
+      status: SyncStatus.Successful,
+      projectRef: 'testProject01',
+      log: []
+    }));
+    // Return 5 results but indicate 10 total
+    const env = new TestEnvironment({
+      userSystemRole: SystemRole.SystemAdmin,
+      syncLogEntries: entries,
+      syncLogTotalCount: 10
+    });
+
+    // SUT
+    expect(env.loadMoreSyncLogButton).not.toBeNull();
+  }));
+
+  it('should not show load more button when all entries are loaded', fakeAsync(() => {
+    const entries: SyncMetrics[] = [
+      {
+        id: 'sync1',
+        dateQueued: new Date().toISOString(),
+        status: SyncStatus.Successful,
+        projectRef: 'testProject01',
+        log: []
+      }
+    ];
+    const env = new TestEnvironment({
+      userSystemRole: SystemRole.SystemAdmin,
+      syncLogEntries: entries,
+      syncLogTotalCount: 1
+    });
+
+    // SUT
+    expect(env.loadMoreSyncLogButton).toBeNull();
+  }));
+
+  it('should reload sync log after sync completes for admin', fakeAsync(() => {
+    const env = new TestEnvironment({ userSystemRole: SystemRole.SystemAdmin });
+    const initialCallCount = env.syncMetricsCallCount;
+
+    env.clickElement(env.syncButton);
+    env.setQueuedCount(env.projectId);
+    env.emitSyncComplete(true, env.projectId);
+
+    // SUT
+    expect(env.syncMetricsCallCount).toBeGreaterThan(initialCallCount);
+  }));
 });
 
 interface SyncComponentTestConstructorArgs {
@@ -259,6 +360,9 @@ interface SyncComponentTestConstructorArgs {
   isSyncDisabled?: boolean;
   lastSyncWasSuccessful?: boolean;
   lastSyncErrorCode?: number;
+  userSystemRole?: SystemRole;
+  syncLogEntries?: SyncMetrics[];
+  syncLogTotalCount?: number;
 }
 
 class TestEnvironment {
@@ -269,16 +373,23 @@ class TestEnvironment {
     OnlineStatusService
   ) as TestOnlineStatusService;
 
+  syncMetricsCallCount: number = 0;
+
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
   private isLoading: boolean = false;
 
-  constructor(args: SyncComponentTestConstructorArgs = {}) {
-    const isParatextAccountConnected: boolean = args.isParatextAccountConnected ?? true;
-    const isInProgress: boolean = args.isInProgress ?? false;
-    const isOnline: boolean = args.isOnline ?? true;
-    const isSyncDisabled: boolean = args.isSyncDisabled ?? false;
-    const lastSyncWasSuccessful: boolean = args.lastSyncWasSuccessful ?? true;
-    const lastSyncErrorCode: number = args.lastSyncErrorCode ?? 0;
+  constructor({
+    isParatextAccountConnected = true,
+    isInProgress = false,
+    isOnline = true,
+    isSyncDisabled = false,
+    lastSyncWasSuccessful = true,
+    lastSyncErrorCode = 0,
+    userSystemRole = SystemRole.User,
+    syncLogEntries = [],
+    syncLogTotalCount
+  }: SyncComponentTestConstructorArgs = {}) {
+    const resolvedTotalCount: number = syncLogTotalCount ?? syncLogEntries.length;
 
     when(mockedActivatedRoute.params).thenReturn(of({ projectId: this.projectId }));
     const ptUsername = isParatextAccountConnected ? 'Paratext User01' : '';
@@ -287,6 +398,13 @@ class TestEnvironment {
       this.setQueuedCount(id);
       return Promise.resolve();
     });
+    when(mockedProjectService.onlineSyncMetrics(anything(), anything(), anything())).thenCall(() => {
+      this.syncMetricsCallCount++;
+      return Promise.resolve({ results: syncLogEntries, unpagedCount: resolvedTotalCount });
+    });
+    when(mockedAuthService.currentUserRoles).thenReturn(
+      userSystemRole === SystemRole.User ? [] : [userSystemRole as SystemRole]
+    );
     when(mockedNoticeService.loadingStarted(anything())).thenCall(() => (this.isLoading = true));
     when(mockedNoticeService.loadingFinished(anything())).thenCall(() => (this.isLoading = false));
     when(mockedNoticeService.isAppLoading).thenCall(() => this.isLoading);
@@ -361,6 +479,22 @@ class TestEnvironment {
 
   get offlineMessage(): HTMLElement {
     return this.fixture.nativeElement.querySelector('.offline-text');
+  }
+
+  get syncLog(): HTMLElement {
+    return this.fixture.nativeElement.querySelector('#sync-log');
+  }
+
+  get syncLogEmpty(): HTMLElement {
+    return this.fixture.nativeElement.querySelector('#sync-log-empty');
+  }
+
+  get syncLogEntries(): HTMLElement[] {
+    return Array.from(this.fixture.nativeElement.querySelectorAll('.sync-log-entry'));
+  }
+
+  get loadMoreSyncLogButton(): HTMLElement {
+    return this.fixture.nativeElement.querySelector('#btn-load-more-sync-log');
   }
 
   set onlineStatus(hasConnection: boolean) {

@@ -6,6 +6,7 @@ import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoModule } from '@ngneat/transloco';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { firstValueFrom } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
@@ -22,6 +23,7 @@ import { SFProjectDoc } from '../core/models/sf-project-doc';
 import { ParatextService } from '../core/paratext.service';
 import { SFProjectService } from '../core/sf-project.service';
 import { NoticeComponent } from '../shared/notice/notice.component';
+import { SyncMetrics, SyncStatus } from './sync-metrics';
 import { SyncProgressComponent } from './sync-progress/sync-progress.component';
 /** Reports as to whether a given project is actively syncing right now. */
 export function isSFProjectSyncing(project: SFProjectProfile): boolean {
@@ -31,6 +33,9 @@ export function isSFProjectSyncing(project: SFProjectProfile): boolean {
 enum SyncErrorCodes {
   UserPermission = -1
 }
+
+/** Default number of sync history entries to show. */
+const DEFAULT_SYNC_LOG_PAGE_SIZE = 5;
 
 @Component({
   selector: 'app-sync',
@@ -43,6 +48,11 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
   showParatextLogin = false;
   syncDisabled: boolean = false;
   projectDoc?: SFProjectDoc;
+
+  syncLog: SyncMetrics[] = [];
+  syncLogTotalCount: number = 0;
+  syncLogPageSize: number = DEFAULT_SYNC_LOG_PAGE_SIZE;
+  syncLogLoading: boolean = false;
 
   private _syncActive: boolean = false;
   private isSyncCancelled = false;
@@ -128,6 +138,10 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
           );
         }
       }
+      // Reload sync log after a sync completes, if the log is visible
+      if (this.showSyncLog) {
+        void this.loadSyncLog();
+      }
     }
     this.isSyncCancelled = false;
     this._syncActive = isActive;
@@ -151,6 +165,30 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     return this.i18n.translateAndInsertTags('sync.sync_failure_support_message', {
       email: `<a target="_blank" href="mailto:${environment.issueEmail}">${environment.issueEmail}</a>`
     });
+  }
+
+  /** Whether the current user is allowed to see the sync log (system admin or serval admin). */
+  get showSyncLog(): boolean {
+    return (
+      this.authService.currentUserRoles.includes(SystemRole.SystemAdmin) ||
+      this.authService.currentUserRoles.includes(SystemRole.ServalAdmin)
+    );
+  }
+
+  /** Whether there are more sync log entries available to load. */
+  get canLoadMoreSyncLog(): boolean {
+    return this.syncLog.length < this.syncLogTotalCount;
+  }
+
+  /** Returns a user-friendly label for the sync status. */
+  syncStatusLabel(status: SyncStatus): string {
+    return this.i18n.translateStatic(`sync.sync_status_${status.toLowerCase()}`);
+  }
+
+  /** Returns the display date for a sync entry. */
+  syncEntryDate(metrics: SyncMetrics): string {
+    const date: Date = new Date(metrics.dateQueued);
+    return this.i18n.formatDate(date, { showTimeZone: true });
   }
 
   ngOnInit(): void {
@@ -179,6 +217,11 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
       this.projectDoc = await this.projectService.get(projectId);
       this.checkSyncStatus();
       this.loadingFinished();
+
+      // Load the sync log if the user is an admin
+      if (this.showSyncLog && this.isAppOnline) {
+        void this.loadSyncLog();
+      }
 
       // Check to see if a sync has started when the project document changes
       // TODO Clean up the use of nested subscribe()
@@ -219,6 +262,29 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     }
     void this.projectService.onlineCancelSync(this.projectDoc.id);
     this.isSyncCancelled = true;
+  }
+
+  /** Loads more sync log entries. */
+  async loadMoreSyncLog(): Promise<void> {
+    if (this.projectDoc == null) {
+      return;
+    }
+    this.syncLogPageSize += DEFAULT_SYNC_LOG_PAGE_SIZE;
+    await this.loadSyncLog();
+  }
+
+  private async loadSyncLog(): Promise<void> {
+    if (this.projectDoc == null) {
+      return;
+    }
+    this.syncLogLoading = true;
+    try {
+      const results = await this.projectService.onlineSyncMetrics(this.projectDoc.id, 0, this.syncLogPageSize);
+      this.syncLogTotalCount = results.unpagedCount;
+      this.syncLog = Array.isArray(results.results) ? (results.results as SyncMetrics[]) : [];
+    } finally {
+      this.syncLogLoading = false;
+    }
   }
 
   private checkSyncStatus(): void {

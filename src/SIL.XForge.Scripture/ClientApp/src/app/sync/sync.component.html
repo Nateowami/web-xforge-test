@@ -56,5 +56,39 @@
         }
       </div>
     </mat-card>
+    @if (showSyncLog) {
+      <div id="sync-log" class="sync-log">
+        <h2 class="h3">{{ t("sync_log_title") }}</h2>
+        @if (syncLog.length === 0 && !syncLogLoading) {
+          <p id="sync-log-empty">{{ t("sync_log_empty") }}</p>
+        }
+        @for (entry of syncLog; track entry.id) {
+          <mat-card class="sync-log-entry" [class.sync-log-entry-failed]="entry.status === 'Failed'">
+            <div class="sync-log-entry-header">
+              <span class="sync-log-entry-date">{{ syncEntryDate(entry) }}</span>
+              <span
+                class="sync-log-entry-status"
+                [class.sync-log-status-successful]="entry.status === 'Successful'"
+                [class.sync-log-status-failed]="entry.status === 'Failed'"
+                [class.sync-log-status-cancelled]="entry.status === 'Cancelled'"
+              >
+                {{ syncStatusLabel(entry.status) }}
+              </span>
+            </div>
+            @if (entry.errorDetails) {
+              <details class="sync-log-error-details">
+                <summary>{{ t("sync_log_error_details") }}</summary>
+                <pre class="sync-log-error-pre">{{ entry.errorDetails }}</pre>
+              </details>
+            }
+          </mat-card>
+        }
+        @if (canLoadMoreSyncLog) {
+          <button mat-button id="btn-load-more-sync-log" (click)="loadMoreSyncLog()" [disabled]="syncLogLoading">
+            {{ t("sync_log_load_more") }}
+          </button>
+        }
+      </div>
+    }
   </div>
 </ng-container>
