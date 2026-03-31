@@ -50,6 +50,13 @@ public interface ISFProjectService : IProjectService
         int pageIndex = 0,
         int pageSize = int.MaxValue
     );
+    Task<QueryResults<SyncMetrics>> GetSyncMetricsAsync(
+        string curUserId,
+        string[] systemRoles,
+        string projectId,
+        int pageIndex = 0,
+        int pageSize = 5
+    );
     Task<SFProject> GetProjectAsync(string projectId);
     SFProjectSecret GetProjectSecretByShareKey(string shareKey);
     Task ReserveLinkSharingKeyAsync(string curUserId, string shareKey, int daysBeforeExpiration);

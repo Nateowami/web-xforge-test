@@ -498,5 +498,16 @@
     "save": "Save",
     "select_scripture": "Select scripture to attach to your answer",
     "select_text_error_message": "Select verses to attach to your answer."
+  },
+  "sync": {
+    "sync_log_title": "Sync Log",
+    "sync_log_empty": "No sync history available.",
+    "sync_log_error_details": "Error details",
+    "sync_log_load_more": "Load more",
+    "sync_status_queued": "Queued",
+    "sync_status_running": "Running",
+    "sync_status_successful": "Successful",
+    "sync_status_cancelled": "Cancelled",
+    "sync_status_failed": "Failed"
   }
 }
