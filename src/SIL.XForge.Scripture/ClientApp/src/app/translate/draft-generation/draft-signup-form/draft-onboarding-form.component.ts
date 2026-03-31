@@ -5,7 +5,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
 import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatOption } from '@angular/material/core';
-import { MatError, MatFormFieldModule, MatLabel } from '@angular/material/form-field';
+import { MAT_FORM_FIELD_DEFAULT_OPTIONS, MatError, MatFormFieldModule, MatLabel } from '@angular/material/form-field';
 import { MatIcon, MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
@@ -55,6 +55,7 @@ type DraftOnboardingFormUiState = 'editing' | 'submitting' | 'submitted';
   // selected) even after the user has made the selection (though in the ProjectSelectComponent itself the selection
   // exists and is known to be valid).
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [{ provide: MAT_FORM_FIELD_DEFAULT_OPTIONS, useValue: { appearance: 'outline', hideRequiredMarker: false } }],
   imports: [
     CommonModule,
     TranslocoModule,
