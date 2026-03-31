@@ -1,4 +1,3 @@
-import { NgClass } from '@angular/common';
 import { Component, DestroyRef, OnDestroy, OnInit } from '@angular/core';
 import { MatButton, MatIconButton, MatMiniFabButton } from '@angular/material/button';
 import { MatCard, MatCardContent } from '@angular/material/card';
@@ -24,24 +23,20 @@ import { asyncScheduler, merge, Subscription } from 'rxjs';
 import { map, tap, throttleTime } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DialogService } from 'xforge-common/dialog.service';
-import { DonutChartComponent } from 'xforge-common/donut-chart/donut-chart.component';
 import { I18nService } from 'xforge-common/i18n.service';
 import { L10nNumberPipe } from 'xforge-common/l10n-number.pipe';
 import { RealtimeQuery } from 'xforge-common/models/realtime-query';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
-import { RouterLinkDirective } from 'xforge-common/router-link.directive';
 import { UserService } from 'xforge-common/user.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { QuestionDoc } from '../../core/models/question-doc';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
-import { SFProjectUserConfigDoc } from '../../core/models/sf-project-user-config-doc';
 import { TextDocId } from '../../core/models/text-doc';
 import { TextsByBookId } from '../../core/models/texts-by-book-id';
 import { PermissionsService } from '../../core/permissions.service';
 import { SFProjectService } from '../../core/sf-project.service';
 import { formatDateForFilename } from '../../shared/utils';
-import { CheckingUtils } from '../checking.utils';
 import { CheckingQuestionsService } from '../checking/checking-questions.service';
 import {
   ImportQuestionsDialogComponent,
@@ -55,11 +50,9 @@ import { QuestionDialogService } from '../question-dialog/question-dialog.servic
   styleUrls: ['./checking-overview.component.scss'],
   imports: [
     TranslocoModule,
-    NgClass,
     MatButton,
     MatIcon,
     MatMiniFabButton,
-    DonutChartComponent,
     MatExpansionPanel,
     MatExpansionPanelHeader,
     MatExpansionPanelTitle,
@@ -69,7 +62,6 @@ import { QuestionDialogService } from '../question-dialog/question-dialog.servic
     MatSelectionList,
     MatListItem,
     MatList,
-    RouterLinkDirective,
     MatCard,
     MatCardContent,
     L10nNumberPipe
@@ -83,7 +75,6 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
   private textsByBookId?: TextsByBookId;
   private projectDoc?: SFProjectProfileDoc;
   private dataChangesSub?: Subscription;
-  private projectUserConfigDoc?: SFProjectUserConfigDoc;
   private questionsQuery?: RealtimeQuery<QuestionDoc>;
 
   constructor(
@@ -226,7 +217,6 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
       this.projectId = projectId;
       try {
         this.projectDoc = await projectDocPromise;
-        this.projectUserConfigDoc = await this.projectService.getUserConfig(projectId, this.userService.currentUserId);
         this.questionsQuery?.dispose();
         this.questionsQuery = await this.checkingQuestionsService.queryQuestions(
           projectId,
@@ -261,13 +251,6 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
   ngOnDestroy(): void {
     this.dataChangesSub?.unsubscribe();
     this.questionsQuery?.dispose();
-  }
-
-  getRouterLink(bookId: string): string[] {
-    if (this.projectId == null) {
-      return [];
-    }
-    return ['/projects', this.projectId, 'checking', bookId];
   }
 
   getTextDocIdType(bookNum: number, chapter: number): TextDocId | undefined {
@@ -378,46 +361,8 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
     });
   }
 
-  overallProgress(): number[] {
-    let totalUnread: number = 0;
-    let totalRead: number = 0;
-    let totalAnswered: number = 0;
-    for (const text of this.texts) {
-      const [unread, read, answered] = this.bookProgress(text);
-      totalUnread += unread;
-      totalRead += read;
-      totalAnswered += answered;
-    }
-
-    return [totalUnread, totalRead, totalAnswered];
-  }
-
   bookHasChapterAudio(text: TextInfo): boolean {
     return text.chapters.filter((c: Chapter) => c.hasAudio).length > 0;
-  }
-
-  bookProgress(text: TextInfo): number[] {
-    let unread: number = 0;
-    let read: number = 0;
-    let answered: number = 0;
-    if (this.projectId != null) {
-      for (const chapter of text.chapters) {
-        const id = new TextDocId(this.projectId, text.bookNum, chapter.number);
-        for (const questionDoc of this.getQuestionDocs(id)) {
-          if (CheckingUtils.hasUserAnswered(questionDoc.data, this.userService.currentUserId)) {
-            answered++;
-          } else if (
-            this.projectUserConfigDoc != null &&
-            CheckingUtils.hasUserReadQuestion(questionDoc.data, this.projectUserConfigDoc.data)
-          ) {
-            read++;
-          } else {
-            unread++;
-          }
-        }
-      }
-    }
-    return [unread, read, answered];
   }
 
   async questionDialog(questionDoc?: QuestionDoc): Promise<void> {

@@ -1,53 +1,39 @@
 <ng-container *transloco="let t; read: 'checking_overview'">
-  <div [ngClass]="{ 'reviewer-panels': !canCreateQuestion }" class="header">
-    <h1>{{ t(canCreateQuestion ? "manage_questions" : "my_progress") }}</h1>
+  <div class="header">
+    <h1>{{ t("manage_questions") }}</h1>
     @if (canCreateQuestion) {
-      <ng-container class="primary-actions">
-        @if (showImportButton) {
-          <button mat-button type="button" (click)="importDialog()" id="import-btn">
-            <mat-icon>file_upload</mat-icon>
-            {{ t("import") }}
-          </button>
-          @if (allQuestionsCount > 0) {
-            <button mat-button type="button" (click)="downloadQuestionsCsv()" id="export-btn">
-              <mat-icon>download</mat-icon>
-              {{ t("export") }}
-            </button>
-          }
-        }
-        @if (!isLoadingData) {
-          <button
-            class="add-question-button hide-lt-sm"
-            mat-flat-button
-            type="button"
-            color="secondary"
-            (click)="questionDialog()"
-          >
-            <mat-icon class="mirror-rtl">post_add</mat-icon> <span>{{ t("add_question") }}</span>
-          </button>
-          <button
-            class="add-question-button hide-gt-sm"
-            mat-mini-fab
-            type="button"
-            color="primary"
-            (click)="questionDialog()"
-          >
-            <mat-icon class="mirror-rtl">post_add</mat-icon>
+      @if (showImportButton) {
+        <button mat-button type="button" (click)="importDialog()" id="import-btn">
+          <mat-icon>file_upload</mat-icon>
+          {{ t("import") }}
+        </button>
+        @if (allQuestionsCount > 0) {
+          <button mat-button type="button" (click)="downloadQuestionsCsv()" id="export-btn">
+            <mat-icon>download</mat-icon>
+            {{ t("export") }}
           </button>
         }
-      </ng-container>
-    } @else {
-      <div id="overall-progress-chart">
-        <app-donut-chart
-          [colors]="[
-            'var(--sf-community-checking-donut-unread)',
-            'var(--sf-community-checking-overview-donut-read)',
-            'var(--sf-community-checking-donut-answered)'
-          ]"
-          backgroundColor="var(--sf-community-checking-donut-container-edge)"
-          [data]="overallProgress()"
-        ></app-donut-chart>
-      </div>
+      }
+      @if (!isLoadingData) {
+        <button
+          class="add-question-button hide-lt-sm"
+          mat-flat-button
+          type="button"
+          color="secondary"
+          (click)="questionDialog()"
+        >
+          <mat-icon class="mirror-rtl">post_add</mat-icon> <span>{{ t("add_question") }}</span>
+        </button>
+        <button
+          class="add-question-button hide-gt-sm"
+          mat-mini-fab
+          type="button"
+          color="primary"
+          (click)="questionDialog()"
+        >
+          <mat-icon class="mirror-rtl">post_add</mat-icon>
+        </button>
+      }
     }
   </div>
 
@@ -172,31 +158,6 @@
           </mat-expansion-panel>
         }
       }
-    </div>
-  } @else {
-    <div class="reviewer-panels" id="reviewer-question-panel">
-      <mat-list dense id="reviewer-questions-list">
-        @for (text of texts; track text.bookNum) {
-          @if (bookQuestionCount(text) > 0) {
-            <mat-list-item [appRouterLink]="getRouterLink(getBookId(text))">
-              <div class="flex">
-                <span class="flex">{{ getBookName(text) }}</span>
-                <span>
-                  <app-donut-chart
-                    [colors]="[
-                      'var(--sf-community-checking-donut-unread)',
-                      'var(--sf-community-checking-overview-donut-read)',
-                      'var(--sf-community-checking-donut-answered)'
-                    ]"
-                    backgroundColor="var(--sf-community-checking-donut-container-edge)"
-                    [data]="bookProgress(text)"
-                  ></app-donut-chart>
-                </span>
-              </div>
-            </mat-list-item>
-          }
-        }
-      </mat-list>
     </div>
   }
 

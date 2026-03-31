@@ -339,7 +339,7 @@ describe('CheckingOverviewComponent', () => {
       expect(env.noQuestionsLabel).not.toBeNull();
     }));
 
-    it('should not display progress for project admin', fakeAsync(() => {
+    it('should not display progress chart or reviewer panel for project admin', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setCurrentUser(env.adminUser);
       env.waitForQuestions();
@@ -347,32 +347,14 @@ describe('CheckingOverviewComponent', () => {
       expect(env.reviewerQuestionPanel).toBeNull();
     }));
 
-    it('should display progress', fakeAsync(() => {
+    it('should not display progress chart or reviewer panel for community checker', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setCurrentUser(env.checkerUser);
       env.waitForQuestions();
-      expect(env.overallProgressChart).not.toBeNull();
-      expect(env.reviewerQuestionPanel).not.toBeNull();
-    }));
-
-    it('should calculate the right progress proportions and stats', fakeAsync(() => {
-      const env = new TestEnvironment();
-      env.setCurrentUser(env.checkerUser);
-      env.waitForQuestions();
-      const [unread, read, answered] = env.component.bookProgress({
-        bookNum: 40,
-        hasSource: false,
-        chapters: [{ number: 1, lastVerse: 3, isValid: true, permissions: {} }],
-        permissions: {}
-      });
-      expect(unread).toBe(3);
-      expect(read).toBe(2);
-      expect(answered).toBe(1);
-      // 1 of 7 questions of MAT is archived + 1 in LUK
-      expect(env.component.allQuestionsCount).toBe(7);
-      expect(env.component.myAnswerCount).toBe(1);
-      expect(env.component.myCommentCount).toBe(2);
-      expect(env.component.myLikeCount).toBe(3);
+      // CheckingOverviewComponent is now admin-focused (manage questions);
+      // community checkers use MyProgressComponent for progress
+      expect(env.overallProgressChart).toBeNull();
+      expect(env.reviewerQuestionPanel).toBeNull();
     }));
 
     it('should calculate the right stats for project admin', fakeAsync(() => {
@@ -388,7 +370,7 @@ describe('CheckingOverviewComponent', () => {
 
     it('should hide like card if see other user responses is disabled', fakeAsync(() => {
       const env = new TestEnvironment();
-      env.setCurrentUser(env.checkerUser);
+      env.setCurrentUser(env.adminUser);
       env.waitForQuestions();
       expect(env.likePanel).not.toBeNull();
       env.setSeeOtherUserResponses(false);

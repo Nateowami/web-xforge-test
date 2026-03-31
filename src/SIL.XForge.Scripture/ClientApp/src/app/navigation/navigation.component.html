@@ -29,7 +29,7 @@
           {{ t("manage_questions") }}
         </a>
       } @else {
-        <a mat-list-item [appRouterLink]="getProjectLink('checking')">
+        <a mat-list-item [appRouterLink]="getProjectLink('checking', ['progress'])">
           <mat-icon class="mirror-rtl">bar_chart</mat-icon>
           {{ t("my_progress") }}
         </a>
