@@ -1,4 +1,3 @@
-#nullable disable warnings
 namespace SIL.XForge.Models;
 
 /// <summary>
@@ -11,7 +10,7 @@ public class UserSecret : IIdentifiable
     /// SF user ID of the user that these secrets pertain to. (This is not a different set of IDs for
     /// specifically user secrets.)
     /// </summary>
-    public string Id { get; set; }
+    public string Id { get; set; } = null!;
 
-    public Tokens ParatextTokens { get; set; }
+    public Tokens? ParatextTokens { get; set; }
 }

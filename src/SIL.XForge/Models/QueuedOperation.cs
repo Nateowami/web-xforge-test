@@ -1,4 +1,3 @@
-#nullable disable warnings
 using SIL.XForge.Realtime;
 
 namespace SIL.XForge.Models;
@@ -31,7 +30,7 @@ internal class QueuedOperation
     /// <remarks>
     /// This is specified for all queued operations.
     /// </remarks>
-    public string Collection { get; set; }
+    public string? Collection { get; set; }
 
     /// <summary>
     /// Gets or sets the data.
@@ -42,7 +41,7 @@ internal class QueuedOperation
     /// <remarks>
     /// This is required for <see cref="QueuedAction.Create" />.
     /// </remarks>
-    public object Data { get; set; }
+    public object? Data { get; set; }
 
     /// <summary>
     /// Gets or sets the handle.
@@ -64,7 +63,7 @@ internal class QueuedOperation
     /// <remarks>
     /// This is specified for all queued operations.
     /// </remarks>
-    public string Id { get; set; }
+    public string? Id { get; set; }
 
     /// <summary>
     /// Gets or sets the operations.
@@ -76,7 +75,7 @@ internal class QueuedOperation
     /// Required for <see cref="QueuedAction.Submit" />.
     /// This is usually a collection of JSON0 or RichText operations.
     /// </remarks>
-    public object Op { get; set; }
+    public object? Op { get; set; }
 
     /// <summary>
     /// Gets or sets the name of the ot type.
@@ -88,7 +87,7 @@ internal class QueuedOperation
     /// This is required for <see cref="QueuedAction.Create" />.
     /// See <see cref="Realtime.OTType" /> for allowed values.
     /// </remarks>
-    public string OtTypeName { get; set; }
+    public string? OtTypeName { get; set; }
 
     /// <summary>
     /// Gets or sets the source of the op.
