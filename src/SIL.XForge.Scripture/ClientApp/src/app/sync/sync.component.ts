@@ -17,6 +17,7 @@ import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { OwnerComponent } from 'xforge-common/owner/owner.component';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { environment } from '../../environments/environment';
 import { SFProjectDoc } from '../core/models/sf-project-doc';
@@ -41,9 +42,22 @@ const DEFAULT_SYNC_LOG_PAGE_SIZE = 5;
   selector: 'app-sync',
   templateUrl: './sync.component.html',
   styleUrls: ['./sync.component.scss'],
-  imports: [TranslocoModule, NoticeComponent, MatCard, MatButton, MatIcon, SyncProgressComponent, MatHint, MatTooltip]
+  imports: [
+    TranslocoModule,
+    NoticeComponent,
+    MatCard,
+    MatButton,
+    MatIcon,
+    SyncProgressComponent,
+    MatHint,
+    MatTooltip,
+    OwnerComponent
+  ]
 })
 export class SyncComponent extends DataLoadingComponent implements OnInit {
+  /** Expose SyncStatus enum to the template. */
+  readonly SyncStatus = SyncStatus;
+
   isAppOnline: boolean = false;
   showParatextLogin = false;
   syncDisabled: boolean = false;
@@ -196,12 +210,6 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
       default:
         return status;
     }
-  }
-
-  /** Returns the display date for a sync entry. */
-  syncEntryDate(metrics: SyncMetrics): string {
-    const date: Date = new Date(metrics.dateQueued);
-    return this.i18n.formatDate(date, { showTimeZone: true });
   }
 
   ngOnInit(): void {

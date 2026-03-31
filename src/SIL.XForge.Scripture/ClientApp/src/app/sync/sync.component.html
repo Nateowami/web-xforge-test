@@ -63,14 +63,19 @@
           <p id="sync-log-empty">{{ t("sync_log_empty") }}</p>
         }
         @for (entry of syncLog; track entry.id) {
-          <mat-card class="sync-log-entry" [class.sync-log-entry-failed]="entry.status === 'Failed'">
+          <mat-card class="sync-log-entry" [class.sync-log-entry-failed]="entry.status === SyncStatus.Failed">
             <div class="sync-log-entry-header">
-              <span class="sync-log-entry-date">{{ syncEntryDate(entry) }}</span>
+              <app-owner
+                [ownerRef]="entry.userRef"
+                [includeAvatar]="true"
+                [dateTime]="entry.dateQueued"
+                [showTimeZone]="true"
+              ></app-owner>
               <span
                 class="sync-log-entry-status"
-                [class.sync-log-status-successful]="entry.status === 'Successful'"
-                [class.sync-log-status-failed]="entry.status === 'Failed'"
-                [class.sync-log-status-cancelled]="entry.status === 'Cancelled'"
+                [class.sync-log-status-successful]="entry.status === SyncStatus.Successful"
+                [class.sync-log-status-failed]="entry.status === SyncStatus.Failed"
+                [class.sync-log-status-cancelled]="entry.status === SyncStatus.Cancelled"
               >
                 {{ syncStatusLabel(entry.status) }}
               </span>

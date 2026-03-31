@@ -19,6 +19,7 @@ import { TestOnlineStatusService } from 'xforge-common/test-online-status.servic
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
+import { UserService } from 'xforge-common/user.service';
 import { SFProjectDoc } from '../core/models/sf-project-doc';
 import { SF_TYPE_REGISTRY } from '../core/models/sf-type-registry';
 import { ParatextService } from '../core/paratext.service';
@@ -39,6 +40,7 @@ const mockedProjectService = mock(SFProjectService);
 const mockedProjectNotificationService = mock(ProjectNotificationService);
 const mockedBugsnagService = mock(BugsnagService);
 const mockedCookieService = mock(CookieService);
+const mockedUserService = mock(UserService);
 
 describe('SyncComponent', () => {
   configureTestingModule(() => ({
@@ -56,7 +58,8 @@ describe('SyncComponent', () => {
       { provide: SFProjectService, useMock: mockedProjectService },
       { provide: BugsnagService, useMock: mockedBugsnagService },
       { provide: CookieService, useMock: mockedCookieService },
-      { provide: OnlineStatusService, useClass: TestOnlineStatusService }
+      { provide: OnlineStatusService, useClass: TestOnlineStatusService },
+      { provide: UserService, useMock: mockedUserService }
     ]
   }));
 
@@ -405,6 +408,7 @@ class TestEnvironment {
     when(mockedAuthService.currentUserRoles).thenReturn(
       userSystemRole === SystemRole.User ? [] : [userSystemRole as SystemRole]
     );
+    when(mockedUserService.currentUserId).thenReturn('user01');
     when(mockedNoticeService.loadingStarted(anything())).thenCall(() => (this.isLoading = true));
     when(mockedNoticeService.loadingFinished(anything())).thenCall(() => (this.isLoading = false));
     when(mockedNoticeService.isAppLoading).thenCall(() => this.isLoading);
