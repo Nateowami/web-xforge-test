@@ -33,7 +33,7 @@ To measure page load times under realistic network conditions, use the `run-perf
 1. Builds the Angular application in production mode (minified and optimized).
 2. Starts the .NET backend to serve the production build.
 3. Runs the `performance_load_times` test with the `slow_network` preset, which throttles the network to simulate a
-   slow connection (Regular 3G: 1.5 Mbps download, 750 Kbps upload, 300 ms latency).
+   slow connection (Regular 4G: 20 Mbps download, 10 Mbps upload, 20 ms latency).
 
 ```bash
 cd src/SIL.XForge.Scripture/ClientApp/e2e

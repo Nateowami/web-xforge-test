@@ -86,7 +86,7 @@ export const presets = {
     outputDir: 'test_output/ci_e2e_test_results',
     maxTries: 5
   },
-  // Simulates a slow network connection (Regular 3G) for performance testing.
+  // Simulates a slow network connection (Regular 4G) for performance testing.
   // Network throttling is only applied when running with Chromium.
   slow_network: {
     rootUrl: 'http://localhost:5000',
@@ -101,10 +101,10 @@ export const presets = {
     outputDir: 'test_output/performance_test_results',
     maxTries: 3,
     networkConditions: {
-      // Regular 3G: 1.5 Mbps download, 750 Kbps upload, 300ms latency
-      downloadThroughput: (1.5 * 1024 * 1024) / 8,
-      uploadThroughput: (750 * 1024) / 8,
-      latency: 300
+      // Regular 4G: 20 Mbps download, 10 Mbps upload, 20ms latency
+      downloadThroughput: (20 * 1024 * 1024) / 8,
+      uploadThroughput: (10 * 1024 * 1024) / 8,
+      latency: 20
     }
   }
 } as const satisfies { [key: string]: TestPreset };
