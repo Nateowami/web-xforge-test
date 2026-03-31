@@ -86,6 +86,13 @@
       <mat-card-header> <mat-card-title>Request Information</mat-card-title> </mat-card-header>
       <mat-card-content>
         <div class="info-row skip-in-data-export">
+          <span class="label">Status:</span>
+          <span class="value" [style.color]="getStatus(request.status).color">
+            <mat-icon>{{ getStatus(request.status).icon }}</mat-icon>
+            {{ getStatus(request.status).label }}
+          </span>
+        </div>
+        <div class="info-row skip-in-data-export">
           <span class="label">Assignee:</span>
           <span class="value">
             <mat-form-field class="assignee-field" subscriptSizing="dynamic">
@@ -100,13 +107,6 @@
                 }
               </mat-select>
             </mat-form-field>
-          </span>
-        </div>
-        <div class="info-row skip-in-data-export">
-          <span class="label">Status:</span>
-          <span class="value" [style.color]="getStatus(request.status).color">
-            <mat-icon>{{ getStatus(request.status).icon }}</mat-icon>
-            {{ getStatus(request.status).label }}
           </span>
         </div>
         <div class="info-row skip-in-data-export">
