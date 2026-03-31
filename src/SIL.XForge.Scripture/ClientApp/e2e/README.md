@@ -45,19 +45,54 @@ the server named **scripture-forge** will appear in the GitHub Copilot MCP tool 
 
 ### Available tools
 
+#### Session & navigation
+
 | Tool | Purpose |
 |---|---|
 | `start_session` | Launch Chromium and log in with a `secrets.json` user |
 | `navigate` | Go to a URL |
-| `snapshot` | Get the ARIA accessibility tree (lets the agent "see" the page) |
-| `screenshot` | Capture a PNG of the current viewport |
-| `click` | Click an element by Playwright selector |
-| `fill` | Fill a form field |
-| `press_key` | Send a keyboard key press |
-| `test_selector` | Count and preview elements matching a selector (for writing/fixing e2e tests) |
-| `evaluate` | Run a JavaScript expression in the page context |
 | `get_url` | Return the current URL |
+| `wait_for_url` | Wait until the page URL contains a string/glob/regex (use after triggering navigation) |
 | `close_session` | Close the browser |
+
+#### Observing the page
+
+| Tool | Purpose |
+|---|---|
+| `snapshot` | Get the ARIA accessibility tree (page structure) |
+| `screenshot` | Capture a PNG of the current viewport |
+| `get_interactive_elements` | **Enumerate all visible interactive elements with ready-to-use selectors.** Each element receives a temporary `data-sf-agent-ref="N"` attribute and the tool returns both an instant ref selector (`[data-sf-agent-ref="N"]`) and a stable selector for e2e tests. Use this tool first whenever you are unsure what selector to use. |
+| `get_text` | Read the visible text content of an element |
+| `get_value` | Read the current value of a form field |
+
+#### Interacting with the page
+
+| Tool | Purpose |
+|---|---|
+| `click` | Click an element by Playwright selector |
+| `fill` | Fill a form field with text |
+| `press_key` | Send a keyboard key press |
+| `select_option` | Choose an option in a `<select>` or ARIA combobox |
+| `wait_for_selector` | Wait until an element becomes visible (use after async operations) |
+
+#### Selector development / debugging
+
+| Tool | Purpose |
+|---|---|
+| `test_selector` | Count and preview elements matching a selector |
+| `evaluate` | Run a JavaScript expression in the page context |
+
+### Selector discovery workflow
+
+When you are not sure which selector to use for an element:
+
+1. Call `get_interactive_elements` (optionally scoped with `parent` to narrow a dialog/panel).
+2. The tool lists every interactive element with:
+   - **ref selector** — `[data-sf-agent-ref="N"]` — injected into the live DOM, works immediately.
+   - **stable selector** — derived from `data-testid`, id, aria-label, or role+name — best for e2e tests.
+   - **playwright api** — the `page.getByRole(...)` / `page.getByLabel(...)` form for writing tests.
+3. Use the ref selector with `click`, `fill`, etc. for the current session.
+4. Use the stable selector or playwright api when writing permanent e2e test code.
 
 ### Playwright REPL
 

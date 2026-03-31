@@ -122,9 +122,18 @@ export async function logInAsPTUser(
   }
 }
 
+/**
+ * Extracts the role segment from a test-user email address of the form
+ * `user+<role>@example.com`. Returns undefined if the email does not follow
+ * this convention.
+ */
+function extractUserRoleFromEmail(email: string): string | undefined {
+  return email.split('@')[0].split('+')[1];
+}
+
 /** Returns the site admin credentials from secrets.json. */
 function siteAdminCredentials(): { email: string; password: string } {
-  const adminCredentials = secrets.users.find(user => user.email.split('@')[0].split('+')[1] === 'sf_e2e_admin');
+  const adminCredentials = secrets.users.find(user => extractUserRoleFromEmail(user.email) === 'sf_e2e_admin');
   if (adminCredentials == null) throw new Error('Admin credentials not found in secrets.json');
   return adminCredentials;
 }
