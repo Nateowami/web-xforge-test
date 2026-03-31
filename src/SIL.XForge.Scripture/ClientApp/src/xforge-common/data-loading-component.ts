@@ -1,4 +1,4 @@
-import { Directive, OnDestroy } from '@angular/core';
+import { Directive, OnDestroy, reflectComponentType, Type } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { NoticeService } from './notice.service';
 
@@ -35,9 +35,20 @@ export abstract class DataLoadingComponent implements OnDestroy {
     this.loadingFinished();
   }
 
+  /**
+   * Returns a stable identifier for this component to use as the caller ID when reporting loading state. The Angular
+   * component selector (e.g. 'app-editor') is preferred because it is a string literal preserved in minified
+   * production builds. Falls back to the constructor name if the component type cannot be reflected (e.g. for abstract
+   * directives under test).
+   */
+  get loadingCallerId(): string {
+    const mirror = reflectComponentType(this.constructor as Type<unknown>);
+    return mirror?.selector ?? this.constructor.name;
+  }
+
   protected loadingStarted(): void {
     if (!this.isLoadingData) {
-      this.noticeService.loadingStarted(this.constructor.name);
+      this.noticeService.loadingStarted(this.loadingCallerId);
       this._isLoading$.next(true);
       this._isLoaded$.next(false);
     }
@@ -45,7 +56,7 @@ export abstract class DataLoadingComponent implements OnDestroy {
 
   protected loadingFinished(): void {
     if (this.isLoadingData) {
-      this.noticeService.loadingFinished(this.constructor.name);
+      this.noticeService.loadingFinished(this.loadingCallerId);
       this._isLoading$.next(false);
       this._isLoaded$.next(true);
     }
