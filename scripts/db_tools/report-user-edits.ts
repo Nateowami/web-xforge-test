@@ -10,6 +10,7 @@
  *        --to [YYYY-MM-DD] (optional)
  *        --outfile [filename] (default: [project]_[report]_([dateFrom]_to_[dateTo]).tsv)
  *        --log-diff [true|false] (default: false)
+ *        --group-by [monthly|daily] (default: monthly)
  */
 
 import { Canon } from '@sillsdev/scripture';
@@ -38,6 +39,7 @@ interface ScriptArgs {
   to?: string;
   outfile: string;
   logDiff: boolean;
+  groupBy: 'monthly' | 'daily';
 }
 
 interface UserEditReportData {
@@ -51,6 +53,8 @@ interface UserEditReportYearData {
 
 interface UserEditReportMonthData {
   month: number;
+  /** Present only when grouping is 'daily'. */
+  day?: number;
   users: UserEditReportUserData[];
 }
 
@@ -85,6 +89,7 @@ class UserEditReport {
   to?: Date;
   outfile: string;
   logDiff: boolean;
+  groupBy: 'monthly' | 'daily';
 
   fromPretty: string;
   toPretty: string;
@@ -100,6 +105,7 @@ class UserEditReport {
     this.to = this.toDate(args.to, 'end-of-day'); // Use end of day for 'to' date if time not specified
     this.outfile = args.outfile;
     this.logDiff = args.logDiff;
+    this.groupBy = args.groupBy;
 
     this.fromPretty = this.formatDate(this.from) ?? 'beginning';
     this.toPretty = this.formatDate(this.to ?? new Date())!;
@@ -125,10 +131,15 @@ class UserEditReport {
           summary.years.push(yearData);
         }
 
-        let monthData = yearData.months.find(m => m.month === doc.month);
+        // In daily mode, match on both month and day; in monthly mode, match on month only.
+        let monthData = yearData.months.find(m => m.month === doc.month && (this.groupBy !== 'daily' || m.day === doc.day));
 
         if (monthData == null) {
-          monthData = { month: doc.month, users: [] };
+          monthData = {
+            month: doc.month,
+            ...(this.groupBy === 'daily' && { day: doc.day }),
+            users: []
+          };
           yearData.months.push(monthData);
         }
 
@@ -175,7 +186,8 @@ class UserEditReport {
             bookChapterData.prevVersion + 1, // Snapshot version is one more than op doc version
             doc.userName,
             doc.year,
-            doc.month
+            doc.month,
+            doc.day
           );
 
           bookChapterData.wordAdds += netWordEdits.inserts;
@@ -188,11 +200,16 @@ class UserEditReport {
         bookChapterData.prevVersion = doc.v;
       }
 
-      // Sort the finished data by year, month, user, book:chapter (sorting in db query is too expensive)
+      // Sort the finished data by year, month (and day when daily), user, book:chapter (sorting in db query is too expensive)
       summary.years.sort((a, b) => a.year - b.year);
 
       for (const yearData of summary.years) {
-        yearData.months.sort((a, b) => a.month - b.month);
+        yearData.months.sort((a, b) => {
+          if (a.month !== b.month) return a.month - b.month;
+          // In daily mode, further sort within the same month by day.
+          if (this.groupBy === 'daily') return (a.day ?? 0) - (b.day ?? 0);
+          return 0;
+        });
 
         for (const monthData of yearData.months) {
           monthData.users.sort((a, b) => a.userName.localeCompare(b.userName));
@@ -210,7 +227,8 @@ class UserEditReport {
                 lastVersion + 1, // Snapshot version is one more than op doc version
                 userData.userName,
                 yearData.year,
-                monthData.month
+                monthData.month,
+                monthData.day
               );
 
               bookChapterData.wordAdds += netWordEdits.inserts;
@@ -299,7 +317,8 @@ class UserEditReport {
     versionB: number,
     userName: string,
     year: number,
-    month: number
+    month: number,
+    day?: number
   ): Promise<{ inserts: number; deletes: number }> {
     if (versionA === versionB) {
       throw new Error('Versions must be different.');
@@ -307,7 +326,9 @@ class UserEditReport {
     const snapshotA = await fetchSnapshotByVersion(conn, 'texts', docId, versionA);
     const snapshotB = await fetchSnapshotByVersion(conn, 'texts', docId, versionB);
 
-    console.log(`\n${yellow(`${this.getMonthName(month)} ${year}`)}`);
+    const periodLabel: string =
+      day != null ? `${year}-${month}-${day}` : `${this.getMonthName(month)} ${year}`;
+    console.log(`\n${yellow(periodLabel)}`);
     console.log(`${yellow(userName)} - Net word edits for ${yellow(docId)} v${versionA} -> v${versionB}`);
 
     const results = SnapshotDiffer.diffDocs(snapshotA.data.ops, snapshotB.data.ops, this.logDiff);
@@ -393,6 +414,13 @@ class UserEditReport {
         default: false,
         requiresArg: false,
         description: 'Whether to log the word diff between snapshots'
+      })
+      .option('group-by', {
+        type: 'string',
+        choices: ['monthly', 'daily'] as const,
+        default: 'monthly' as 'monthly' | 'daily',
+        requiresArg: true,
+        description: 'Aggregation period: monthly or daily'
       })
       .check(argv => {
         // Flexibility for month and day (1 or 2 digits), as this will be normalized later.  Optional timezone suffix.
@@ -507,6 +535,7 @@ class UserEditReport {
           userName: 1,
           year: { $year: '$timestampDate' },
           month: { $month: '$timestampDate' },
+          ...(this.groupBy === 'daily' && { day: { $dayOfMonth: '$timestampDate' } }),
           bookChapter: 1
         }
       }
@@ -519,16 +548,29 @@ class UserEditReport {
    * Converts UserEditReportData object to a TSV string.
    */
   private toTsv(summary: UserEditReportData): string {
-    const header: string[] = [
-      'Year',
-      'Month',
-      'User Name',
-      'Book:Chapter',
-      'Raw Insertions',
-      'Raw Deletions',
-      'Net Word Insertions',
-      'Net Word Deletions'
-    ];
+    const header: string[] =
+      this.groupBy === 'daily'
+        ? [
+            'Year',
+            'Month',
+            'Day',
+            'User Name',
+            'Book:Chapter',
+            'Raw Insertions',
+            'Raw Deletions',
+            'Net Word Insertions',
+            'Net Word Deletions'
+          ]
+        : [
+            'Year',
+            'Month',
+            'User Name',
+            'Book:Chapter',
+            'Raw Insertions',
+            'Raw Deletions',
+            'Net Word Insertions',
+            'Net Word Deletions'
+          ];
 
     const dataRows = [];
 
@@ -536,17 +578,34 @@ class UserEditReport {
       dataRows.push(yearData.year);
 
       for (const monthData of yearData.months) {
-        dataRows.push(`\t${this.getMonthName(monthData.month)}`);
+        if (this.groupBy === 'daily') {
+          dataRows.push(`\t${this.getMonthName(monthData.month)}`);
+          dataRows.push(`\t\t${monthData.day}`);
 
-        for (const userData of monthData.users) {
-          dataRows.push(`\t\t${userData.userName}`);
+          for (const userData of monthData.users) {
+            dataRows.push(`\t\t\t${userData.userName}`);
 
-          for (const bookChapterData of userData.bookChapters) {
-            const countsColumns = `${bookChapterData.inserts}\t${bookChapterData.deletes}\t${bookChapterData.wordAdds}\t${bookChapterData.wordDeletes}`;
-            dataRows.push(`\t\t\t${bookChapterData.bookChapter}\t${countsColumns}`);
-            console.log(
-              `${yearData.year}/${monthData.month} - ${userData.userName} - ${bookChapterData.bookChapter} - ${countsColumns}`
-            );
+            for (const bookChapterData of userData.bookChapters) {
+              const countsColumns = `${bookChapterData.inserts}\t${bookChapterData.deletes}\t${bookChapterData.wordAdds}\t${bookChapterData.wordDeletes}`;
+              dataRows.push(`\t\t\t\t${bookChapterData.bookChapter}\t${countsColumns}`);
+              console.log(
+                `${yearData.year}/${monthData.month}/${monthData.day} - ${userData.userName} - ${bookChapterData.bookChapter} - ${countsColumns}`
+              );
+            }
+          }
+        } else {
+          dataRows.push(`\t${this.getMonthName(monthData.month)}`);
+
+          for (const userData of monthData.users) {
+            dataRows.push(`\t\t${userData.userName}`);
+
+            for (const bookChapterData of userData.bookChapters) {
+              const countsColumns = `${bookChapterData.inserts}\t${bookChapterData.deletes}\t${bookChapterData.wordAdds}\t${bookChapterData.wordDeletes}`;
+              dataRows.push(`\t\t\t${bookChapterData.bookChapter}\t${countsColumns}`);
+              console.log(
+                `${yearData.year}/${monthData.month} - ${userData.userName} - ${bookChapterData.bookChapter} - ${countsColumns}`
+              );
+            }
           }
         }
       }
