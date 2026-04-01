@@ -13,16 +13,17 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
+import { MatSelectModule } from '@angular/material/select';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Canon } from '@sillsdev/scripture';
 import { saveAs } from 'file-saver';
 import Papa from 'papaparse';
 import { catchError, lastValueFrom, of, throwError } from 'rxjs';
-import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DialogService } from 'xforge-common/dialog.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OwnerComponent } from 'xforge-common/owner/owner.component';
 import { RouterLinkDirective } from 'xforge-common/router-link.directive';
+import { UserService } from 'xforge-common/user.service';
 import { ParatextService } from '../core/paratext.service';
 import { DevOnlyComponent } from '../shared/dev-only/dev-only.component';
 import { JsonViewerComponent } from '../shared/json-viewer/json-viewer.component';
@@ -31,10 +32,10 @@ import { projectLabel } from '../shared/utils';
 import {
   DraftingSignupFormData,
   DraftRequestResolutionKey,
-  DraftRequestResolutionMetadata,
   OnboardingRequest,
   OnboardingRequestService
 } from '../translate/draft-generation/onboarding-request.service';
+import { OnboardingRequestBaseComponent } from './onboarding-request-base.component';
 import { ServalAdministrationService } from './serval-administration.service';
 
 /**
@@ -65,10 +66,11 @@ import { ServalAdministrationService } from './serval-administration.service';
     DevOnlyComponent,
     MatFormFieldModule,
     MatInputModule,
+    MatSelectModule,
     MobileNotSupportedComponent
   ]
 })
-export class DraftRequestDetailComponent extends DataLoadingComponent implements OnInit {
+export class DraftRequestDetailComponent extends OnboardingRequestBaseComponent implements OnInit {
   request?: OnboardingRequest;
   projectName?: string;
   projectNames: Map<string, string> = new Map();
@@ -81,14 +83,16 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     private readonly route: ActivatedRoute,
     private readonly router: Router,
     private readonly servalAdministrationService: ServalAdministrationService,
-    private readonly onboardingRequestService: OnboardingRequestService,
+    onboardingRequestService: OnboardingRequestService,
     private readonly dialogService: DialogService,
-    protected readonly noticeService: NoticeService
+    userService: UserService,
+    noticeService: NoticeService
   ) {
-    super(noticeService);
+    super(userService, onboardingRequestService, noticeService);
   }
 
   ngOnInit(): void {
+    this.currentUserId = this.userService.currentUserId;
     const requestId = this.route.snapshot.paramMap.get('id');
     if (requestId != null) {
       void this.loadRequest(requestId);
@@ -103,10 +107,55 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     try {
       this.request = await this.onboardingRequestService.getRequestById(requestId);
       await this.loadProjectNames();
-      this.loadingFinished();
+      this.initializeAssigneeData();
     } finally {
       this.loadingFinished();
     }
+  }
+
+  /**
+   * Initializes derived assignee data from the current request.
+   * Called after loading the request or after updating assignee/resolution.
+   */
+  private initializeAssigneeData(): void {
+    if (this.request == null) {
+      return;
+    }
+
+    // Collect assigned user IDs for the dropdown options (excluding empty string)
+    this.assignedUserIds = new Set(
+      [this.request.assigneeId].filter((id): id is string => id != null && id !== '')
+    );
+
+    // Pre-cache display names for the assigned user and current user
+    this.assignedUserIds.forEach(userId => void this.cacheUserDisplayName(userId));
+    if (this.currentUserId != null) {
+      void this.cacheUserDisplayName(this.currentUserId);
+    }
+  }
+
+  /**
+   * Handles assignee change for the current request.
+   * Calls the backend to persist the change and updates local state with the response.
+   */
+  async onAssigneeChange(newAssigneeId: string): Promise<void> {
+    if (this.request == null) {
+      return;
+    }
+    this.request = await this.onboardingRequestService.setAssignee(this.request.id, newAssigneeId);
+    this.initializeAssigneeData();
+  }
+
+  /**
+   * Handles resolution change for the current request.
+   * Calls the backend to persist the change and updates local state with the response.
+   */
+  async onResolutionChange(newResolution: DraftRequestResolutionKey | null): Promise<void> {
+    if (this.request == null) {
+      return;
+    }
+    this.request = await this.onboardingRequestService.setResolution(this.request.id, newResolution);
+    this.initializeAssigneeData();
   }
 
   private async loadProjectNames(): Promise<void> {
@@ -215,15 +264,9 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     return ParatextService.isResource(paratextId) ? 'Download DBL resource' : 'Download Paratext project';
   }
 
-  getResolution(resolution: DraftRequestResolutionKey): DraftRequestResolutionMetadata {
-    return this.onboardingRequestService.getResolution(resolution);
-  }
-
   get isResolved(): boolean {
     return this.request?.resolution != null && this.request.resolution !== 'unresolved';
   }
-
-  getStatus = this.onboardingRequestService.getStatus;
 
   get formData(): DraftingSignupFormData {
     return this.request!.submission.formData;
@@ -327,9 +370,6 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
       this.newCommentText = '';
 
       this.noticeService.show('Comment added successfully');
-    } catch (error) {
-      console.error('Error adding comment:', error);
-      this.noticeService.showError('Failed to add comment');
     } finally {
       this.isAddingComment = false;
     }
@@ -355,9 +395,6 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
       await this.onboardingRequestService.deleteRequest(this.request.id);
       this.noticeService.show('Draft request deleted');
       void this.router.navigate(['/serval-administration'], { queryParams: { tab: 'draft-requests' } });
-    } catch (error) {
-      console.error('Error deleting draft request:', error);
-      this.noticeService.showError('Failed to delete draft request');
     } finally {
       this.loadingFinished();
     }

@@ -119,3 +119,19 @@
     }
   }
 }
+
+.assignee-field {
+  width: 200px;
+  font-size: 14px;
+
+  .unassigned-option {
+    font-style: italic;
+    color: var(--color-text-secondary);
+  }
+}
+
+.assignee-field,
+.resolution-field {
+  --mat-form-field-container-vertical-padding: 8px;
+  --mat-form-field-container-height: 40px;
+}
