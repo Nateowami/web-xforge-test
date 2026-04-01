@@ -118,22 +118,6 @@ describe('DraftRequestDetailComponent', () => {
       expect(env.component.request?.status).toBe('in_progress');
     }));
 
-    it('should show error if assignee update fails', fakeAsync(() => {
-      const env = new TestEnvironment();
-      env.wait();
-      when(mockedOnboardingRequestService.setAssignee(REQUEST_ID, CURRENT_USER_ID)).thenReject(
-        new Error('Network error')
-      );
-      // Re-mock getRequestById to avoid issues when reloading
-      when(mockedOnboardingRequestService.getRequestById(REQUEST_ID)).thenResolve(createTestRequest());
-
-      // SUT
-      env.component.onAssigneeChange(CURRENT_USER_ID);
-      flush();
-
-      verify(mockedNoticeService.showError('Failed to update assignee')).once();
-    }));
-
     it('should include current user in assignee options', fakeAsync(() => {
       const env = new TestEnvironment();
       env.wait();
@@ -190,22 +174,6 @@ describe('DraftRequestDetailComponent', () => {
       flush();
 
       expect(env.component.request?.resolution).toBe(newResolution);
-    }));
-
-    it('should show error if resolution update fails', fakeAsync(() => {
-      const env = new TestEnvironment();
-      env.wait();
-      const newResolution: DraftRequestResolutionKey = 'approved';
-      when(mockedOnboardingRequestService.setResolution(REQUEST_ID, newResolution)).thenReject(
-        new Error('Network error')
-      );
-      when(mockedOnboardingRequestService.getRequestById(REQUEST_ID)).thenResolve(createTestRequest());
-
-      // SUT
-      env.component.onResolutionChange(newResolution);
-      flush();
-
-      verify(mockedNoticeService.showError('Failed to update resolution')).once();
     }));
 
     it('compareResolutions should return true for equal values', () => {
