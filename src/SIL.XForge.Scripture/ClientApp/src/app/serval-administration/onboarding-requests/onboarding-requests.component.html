@@ -62,18 +62,12 @@
         <ng-container matColumnDef="assignee">
           <th mat-header-cell *matHeaderCellDef>Assignee</th>
           <td mat-cell *matCellDef="let request">
-            <mat-form-field class="assignee-field" subscriptSizing="dynamic">
-              <mat-select [(ngModel)]="request.assigneeId" (selectionChange)="onAssigneeChange(request, $event.value)">
-                <mat-option value="">
-                  <span style="font-style: italic" class="unassigned-option">Unassigned</span>
-                </mat-option>
-                @for (userId of getAssignedUserOptions(); track userId) {
-                  <mat-option [value]="userId">
-                    <app-owner [ownerRef]="userId" [includeAvatar]="true"></app-owner>
-                  </mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
+            <app-assignee-select
+              [value]="request.assigneeId"
+              [knownAssigneeIds]="allAssigneeIds"
+              [currentUserId]="currentUserId"
+              (selectionChange)="onAssigneeChange(request, $event)"
+            ></app-assignee-select>
           </td>
         </ng-container>
 

@@ -35,6 +35,7 @@ import {
   OnboardingRequest,
   OnboardingRequestService
 } from '../translate/draft-generation/onboarding-request.service';
+import { AssigneeSelectComponent } from './assignee-select.component';
 import { OnboardingRequestBaseComponent } from './onboarding-request-base.component';
 import { ServalAdministrationService } from './serval-administration.service';
 
@@ -47,6 +48,7 @@ import { ServalAdministrationService } from './serval-administration.service';
   templateUrl: './draft-request-detail.component.html',
   styleUrls: ['./draft-request-detail.component.scss'],
   imports: [
+    AssigneeSelectComponent,
     CommonModule,
     FormsModule,
     OwnerComponent,
@@ -107,31 +109,14 @@ export class DraftRequestDetailComponent extends OnboardingRequestBaseComponent 
     try {
       this.request = await this.onboardingRequestService.getRequestById(requestId);
       await this.loadProjectNames();
-      this.initializeAssigneeData();
     } finally {
       this.loadingFinished();
     }
   }
 
-  /**
-   * Initializes derived assignee data from the current request.
-   * Called after loading the request or after updating assignee/resolution.
-   */
-  private initializeAssigneeData(): void {
-    if (this.request == null) {
-      return;
-    }
-
-    // Collect assigned user IDs for the dropdown options (excluding empty string)
-    this.assignedUserIds = new Set(
-      [this.request.assigneeId].filter((id): id is string => id != null && id !== '')
-    );
-
-    // Pre-cache display names for the assigned user and current user
-    this.assignedUserIds.forEach(userId => void this.cacheUserDisplayName(userId));
-    if (this.currentUserId != null) {
-      void this.cacheUserDisplayName(this.currentUserId);
-    }
+  /** The non-empty assignee ID of the current request, for the assignee dropdown. */
+  get assigneeIds(): string[] {
+    return [this.request?.assigneeId].filter((id): id is string => id != null && id !== '');
   }
 
   /**
@@ -143,7 +128,6 @@ export class DraftRequestDetailComponent extends OnboardingRequestBaseComponent 
       return;
     }
     this.request = await this.onboardingRequestService.setAssignee(this.request.id, newAssigneeId);
-    this.initializeAssigneeData();
   }
 
   /**
@@ -155,7 +139,6 @@ export class DraftRequestDetailComponent extends OnboardingRequestBaseComponent 
       return;
     }
     this.request = await this.onboardingRequestService.setResolution(this.request.id, newResolution);
-    this.initializeAssigneeData();
   }
 
   private async loadProjectNames(): Promise<void> {

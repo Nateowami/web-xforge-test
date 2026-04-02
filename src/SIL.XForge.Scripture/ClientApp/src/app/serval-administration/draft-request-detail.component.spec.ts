@@ -25,7 +25,6 @@ const mockedUserService = mock(UserService);
 
 const REQUEST_ID = 'request01';
 const CURRENT_USER_ID = 'user01';
-const ASSIGNEE_USER_ID = 'user02';
 
 /** Creates a minimal OnboardingRequest for use in tests. */
 function createTestRequest(overrides: Partial<OnboardingRequest> = {}): OnboardingRequest {
@@ -117,28 +116,6 @@ describe('DraftRequestDetailComponent', () => {
       expect(env.component.request?.assigneeId).toBe(CURRENT_USER_ID);
       expect(env.component.request?.status).toBe('in_progress');
     }));
-
-    it('should include current user in assignee options', fakeAsync(() => {
-      const env = new TestEnvironment();
-      env.wait();
-      const options = env.component.getAssignedUserOptions();
-      expect(options).toContain(CURRENT_USER_ID);
-    }));
-
-    it('should include already-assigned user in options if different from current user', fakeAsync(() => {
-      const env = new TestEnvironment({ assigneeId: ASSIGNEE_USER_ID });
-      env.wait();
-      const options = env.component.getAssignedUserOptions();
-      expect(options).toContain(CURRENT_USER_ID);
-      expect(options).toContain(ASSIGNEE_USER_ID);
-    }));
-
-    it('should list current user first in options', fakeAsync(() => {
-      const env = new TestEnvironment({ assigneeId: ASSIGNEE_USER_ID });
-      env.wait();
-      const options = env.component.getAssignedUserOptions();
-      expect(options[0]).toBe(CURRENT_USER_ID);
-    }));
   });
 
   describe('resolution select', () => {
@@ -199,8 +176,8 @@ describe('DraftRequestDetailComponent', () => {
     readonly component: DraftRequestDetailComponent;
     readonly fixture: ComponentFixture<DraftRequestDetailComponent>;
 
-    constructor({ assigneeId = '' }: { assigneeId?: string } = {}) {
-      const request = createTestRequest({ assigneeId });
+    constructor() {
+      const request = createTestRequest();
 
       when(mockedActivatedRoute.snapshot).thenReturn({
         paramMap: { get: (key: string) => (key === 'id' ? REQUEST_ID : null) }
@@ -212,9 +189,6 @@ describe('DraftRequestDetailComponent', () => {
       );
       when(mockedServalAdministrationService.get(anything())).thenResolve(undefined);
       when(mockedServalAdministrationService.getByParatextId(anything())).thenResolve(undefined);
-      when(mockedUserService.getProfile(anything())).thenResolve({
-        data: { displayName: 'Test User' }
-      } as any);
 
       this.fixture = TestBed.createComponent(DraftRequestDetailComponent);
       this.component = this.fixture.componentInstance;
@@ -222,7 +196,7 @@ describe('DraftRequestDetailComponent', () => {
     }
 
     get assigneeSelect(): DebugElement {
-      return this.fixture.debugElement.query(By.css('mat-select[ng-reflect-name="assigneeId"]'));
+      return this.fixture.debugElement.query(By.css('app-assignee-select'));
     }
 
     get resolutionSelect(): DebugElement {

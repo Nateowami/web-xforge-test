@@ -20,6 +20,7 @@ import {
   OnboardingRequest,
   OnboardingRequestService
 } from '../../translate/draft-generation/onboarding-request.service';
+import { AssigneeSelectComponent } from '../assignee-select.component';
 import { OnboardingRequestBaseComponent } from '../onboarding-request-base.component';
 import { ServalAdministrationService } from '../serval-administration.service';
 
@@ -74,6 +75,7 @@ type FilterName = keyof typeof filterOptions;
   templateUrl: './onboarding-requests.component.html',
   styleUrls: ['./onboarding-requests.component.scss'],
   imports: [
+    AssigneeSelectComponent,
     CommonModule,
     FormsModule,
     TranslocoModule,
@@ -118,33 +120,17 @@ export class OnboardingRequestsComponent extends OnboardingRequestBaseComponent 
       const requests = await this.onboardingRequestService.getAllRequests();
       if (requests != null) {
         this.requests = requests;
-        this.initializeRequestData();
+        this.filterRequests();
+        void this.loadProjectNames();
       }
     } finally {
       this.loadingFinished();
     }
   }
 
-  /**
-   * Initializes derived data from the requests array.
-   * Called after loading all requests or after updating individual requests.
-   */
-  private initializeRequestData(): void {
-    // Collect all assigned user IDs for the dropdown options (excluding empty string)
-    this.assignedUserIds = new Set(
-      this.requests.map(r => r.assigneeId).filter((id): id is string => id != null && id !== '')
-    );
-
-    // Pre-cache display names for all assigned users and the current user
-    this.assignedUserIds.forEach(userId => void this.cacheUserDisplayName(userId));
-    if (this.currentUserId != null) {
-      void this.cacheUserDisplayName(this.currentUserId);
-    }
-
-    this.filterRequests();
-
-    // Load project names for all requests
-    void this.loadProjectNames();
+  /** The unique, non-empty assignee IDs across all loaded requests, for the assignee dropdown. */
+  get allAssigneeIds(): string[] {
+    return this.requests.map(r => r.assigneeId).filter((id): id is string => id != null && id !== '');
   }
 
   /** Loads project names for all requests and caches them in the projectNames map. */
@@ -205,8 +191,7 @@ export class OnboardingRequestsComponent extends OnboardingRequestBaseComponent 
       this.requests = [...this.requests.slice(0, index), updatedRequest, ...this.requests.slice(index + 1)];
     }
 
-    // Re-initialize derived data (assigned users, cached names, etc.)
-    this.initializeRequestData();
+    this.filterRequests();
   }
 
   /**
@@ -223,7 +208,6 @@ export class OnboardingRequestsComponent extends OnboardingRequestBaseComponent 
       this.requests = [...this.requests.slice(0, index), updatedRequest, ...this.requests.slice(index + 1)];
     }
 
-    // Re-initialize derived data
-    this.initializeRequestData();
+    this.filterRequests();
   }
 }

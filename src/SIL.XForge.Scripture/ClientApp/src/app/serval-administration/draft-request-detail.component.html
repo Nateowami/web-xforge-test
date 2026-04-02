@@ -95,18 +95,12 @@
         <div class="info-row skip-in-data-export">
           <span class="label">Assignee:</span>
           <span class="value">
-            <mat-form-field class="assignee-field" subscriptSizing="dynamic">
-              <mat-select [(ngModel)]="request.assigneeId" (selectionChange)="onAssigneeChange($event.value)">
-                <mat-option value="">
-                  <span class="unassigned-option">Unassigned</span>
-                </mat-option>
-                @for (userId of getAssignedUserOptions(); track userId) {
-                  <mat-option [value]="userId">
-                    <app-owner [ownerRef]="userId" [includeAvatar]="true"></app-owner>
-                  </mat-option>
-                }
-              </mat-select>
-            </mat-form-field>
+            <app-assignee-select
+              [value]="request.assigneeId"
+              [knownAssigneeIds]="assigneeIds"
+              [currentUserId]="currentUserId"
+              (selectionChange)="onAssigneeChange($event)"
+            ></app-assignee-select>
           </span>
         </div>
         <div class="info-row skip-in-data-export">
