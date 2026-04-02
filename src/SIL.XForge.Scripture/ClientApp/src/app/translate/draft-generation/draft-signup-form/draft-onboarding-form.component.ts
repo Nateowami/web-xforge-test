@@ -79,6 +79,7 @@ type DraftOnboardingFormUiState = 'editing' | 'submitting' | 'submitted';
   ]
 })
 export class DraftOnboardingFormComponent extends DataLoadingComponent implements OnInit {
+  readonly loadingCallerId = 'DraftOnboardingFormComponent';
   signupForm = new FormGroup({
     // Contact Information
     name: new FormControl<string>('', { nonNullable: true, validators: [Validators.required] }),

@@ -100,6 +100,7 @@ interface Summary {
   ]
 })
 export class CheckingComponent extends DataLoadingComponent implements OnInit, AfterViewInit, OnDestroy {
+  readonly loadingCallerId = 'CheckingComponent';
   @ViewChild('answerPanelContainer') set answersPanelElement(answersPanelContainerElement: ElementRef) {
     // Need to trigger the calculation for the slider after DOM has been updated
     this.answersPanelContainerElement = answersPanelContainerElement;

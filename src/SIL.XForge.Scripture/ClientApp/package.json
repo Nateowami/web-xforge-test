@@ -67,7 +67,7 @@
     "file-saver": "^2.0.5",
     "jszip": "^3.10.1",
     "jwt-decode": "^3.1.2",
-    "lodash-es": "^4.17.23",
+    "lodash-es": "^4.18.1",
     "mingo": "^4.4.1",
     "ng-circle-progress": "^1.7.1",
     "ngx-cookie-service": "^20.1.1",

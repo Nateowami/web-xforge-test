@@ -281,6 +281,7 @@ const UNSUPPORTED_LANGUAGE_CODES = [
 })
 export class EditorComponent extends DataLoadingComponent implements OnDestroy, OnInit, AfterViewInit {
   addingMobileNote: boolean = false;
+  readonly loadingCallerId = 'EditorComponent';
   suggestions: Suggestion[] = [];
   showSuggestions: boolean = false;
   books: number[] = [];

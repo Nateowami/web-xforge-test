@@ -92,6 +92,7 @@ type FilterName = keyof typeof filterOptions;
 })
 export class OnboardingRequestsComponent extends DataLoadingComponent implements OnInit {
   requests: OnboardingRequest[] = [];
+  readonly loadingCallerId = 'OnboardingRequestsComponent';
   filteredRequests: OnboardingRequest[] = [];
   displayedColumns: string[] = ['project', 'languageCode', 'user', 'status', 'assignee', 'resolution'];
   currentUserId?: string;

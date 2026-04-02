@@ -60,6 +60,7 @@ interface Row {
 export class SaUsersComponent extends DataLoadingComponent implements OnInit {
   @HostBinding('class') classes = 'flex-column';
 
+  readonly loadingCallerId = 'SaUsersComponent';
   totalRecordCount: number = 0;
   pageIndex: number = 0;
   pageSize: number = 50;

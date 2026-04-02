@@ -63,6 +63,7 @@ interface Row {
 })
 export class EventMetricsLogComponent extends DataLoadingComponent implements OnInit {
   columnsToDisplay: string[] = ['successful', 'scope', 'eventType', 'author'];
+  readonly loadingCallerId = 'EventMetricsLogComponent';
   rows: Row[] = [];
 
   private pageIndex$ = new BehaviorSubject<number>(0);

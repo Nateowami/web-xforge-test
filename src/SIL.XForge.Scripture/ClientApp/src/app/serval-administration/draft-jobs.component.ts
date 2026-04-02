@@ -140,6 +140,8 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
    * 2025-12-18T17:48:57Z. */
   private static readonly requestIdIntroductionDate: Date = new Date('2025-12-18T17:48:57Z');
 
+  readonly loadingCallerId = 'DraftJobsComponent';
+
   columnsToDisplay: string[] = [
     'status',
     'projectId',
