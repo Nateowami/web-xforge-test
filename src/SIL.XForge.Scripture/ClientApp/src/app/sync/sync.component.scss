@@ -115,6 +115,18 @@ app-sync-progress {
   font-weight: 500;
 }
 
+.sync-log-entry-status {
+  display: flex;
+  align-items: center;
+  column-gap: 0.25rem;
+}
+
+.sync-log-status-icon {
+  font-size: 1.1rem;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
 .sync-log-error-details {
   margin-top: 0.5rem;
   summary {

@@ -55,7 +55,7 @@ const DEFAULT_SYNC_LOG_PAGE_SIZE = 5;
   ]
 })
 export class SyncComponent extends DataLoadingComponent implements OnInit {
-  /** Expose SyncStatus enum to the template. */
+  /** The SyncStatus enum, exposed so the template can reference enum values for class bindings and comparisons. */
   readonly SyncStatus = SyncStatus;
 
   isAppOnline: boolean = false;
@@ -209,6 +209,24 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
         return this.i18n.translateStatic('sync.sync_status_failed');
       default:
         return status;
+    }
+  }
+
+  /** Returns a Material icon name for the given sync status. */
+  syncStatusIcon(status: SyncStatus): string {
+    switch (status) {
+      case SyncStatus.Queued:
+        return 'schedule';
+      case SyncStatus.Running:
+        return 'sync';
+      case SyncStatus.Successful:
+        return 'check_circle';
+      case SyncStatus.Cancelled:
+        return 'cancel';
+      case SyncStatus.Failed:
+        return 'error';
+      default:
+        return 'help';
     }
   }
 

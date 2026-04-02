@@ -77,6 +77,7 @@
                 [class.sync-log-status-failed]="entry.status === SyncStatus.Failed"
                 [class.sync-log-status-cancelled]="entry.status === SyncStatus.Cancelled"
               >
+                <mat-icon class="sync-log-status-icon">{{ syncStatusIcon(entry.status) }}</mat-icon>
                 {{ syncStatusLabel(entry.status) }}
               </span>
             </div>
