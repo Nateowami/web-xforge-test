@@ -77,7 +77,7 @@ import { QuestionDialogService } from '../question-dialog/question-dialog.servic
 })
 export class CheckingOverviewComponent extends DataLoadingComponent implements OnInit, OnDestroy {
   texts: TextInfo[] = [];
-  readonly loadingCallerId = 'app-checking-overview';
+  readonly loadingCallerId = 'CheckingOverviewComponent';
   projectId?: string;
 
   private questionDocs = new Map<string, QuestionDoc[]>();

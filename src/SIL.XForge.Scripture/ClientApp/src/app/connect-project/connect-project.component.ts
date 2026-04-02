@@ -53,7 +53,7 @@ interface ConnectProjectFormValues {
 })
 export class ConnectProjectComponent extends DataLoadingComponent implements OnInit {
   static readonly errorAlreadyConnectedKey: string = 'error-already-connected';
-  readonly loadingCallerId = 'app-connect-project';
+  readonly loadingCallerId = 'ConnectProjectComponent';
   readonly connectProjectForm = new FormGroup({
     settings: new FormGroup({
       sourceParatextId: new FormControl(undefined),

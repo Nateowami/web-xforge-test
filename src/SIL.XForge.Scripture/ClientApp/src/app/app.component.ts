@@ -97,7 +97,7 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   @HostBinding('style.--project-font')
   protected projectFont: string | null = null;
 
-  readonly loadingCallerId = 'app-root';
+  readonly loadingCallerId = 'AppComponent';
 
   version: string = versionData.version;
   issueEmail: string = environment.issueEmail;

@@ -7,9 +7,9 @@ import { NoticeService } from './notice.service';
  * the loading indicator. Subclasses call `loadingStarted()` and `loadingFinished()` to indicate when they are loading
  * data. When the component is destroyed, it automatically calls `loadingFinished()`.
  *
- * Each subclass must provide a `loadingCallerId` string literal matching its component selector (e.g. 'app-editor').
- * Using the selector — rather than a class name — ensures the identifier survives JavaScript minification in
- * production builds, where class names are replaced with single characters.
+ * Each subclass must provide a `loadingCallerId` string literal equal to the name of the subclass (e.g.
+ * 'EditorComponent'). Using a string literal — rather than `this.constructor.name` — ensures the identifier survives
+ * JavaScript minification in production builds, where class names are replaced with single characters.
  */
 // Decorator required by Angular compiler
 @Directive()
@@ -19,8 +19,8 @@ export abstract class DataLoadingComponent implements OnDestroy {
 
   /**
    * A stable string identifier for this component used when reporting loading state to the notice service. Each
-   * subclass must override this with its Angular component selector (e.g. 'app-editor'), which is a string literal
-   * preserved in minified production builds.
+   * subclass must override this with its class name as a string literal (e.g. 'EditorComponent'), which is a string
+   * literal preserved in minified production builds.
    */
   abstract readonly loadingCallerId: string;
 

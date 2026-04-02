@@ -31,7 +31,7 @@ import { SFProjectService } from '../core/sf-project.service';
 import { NoticeComponent } from '../shared/notice/notice.component';
 /** Presents user with list of available projects to open or connect to. */
 @Component({
-  selector: 'app-my-projects',
+  selector: 'MyProjectsComponent',
   templateUrl: './my-projects.component.html',
   styleUrls: ['./my-projects.component.scss'],
   imports: [
@@ -140,7 +140,7 @@ export class MyProjectsComponent implements OnInit {
 
   async joinProject(projectId: string): Promise<void> {
     try {
-      this.noticeService.loadingStarted('app-my-projects');
+      this.noticeService.loadingStarted('MyProjectsComponent');
       this.joiningProjects.push(projectId);
       await this.projectService.onlineAddCurrentUser(projectId);
       void this.router.navigate(['projects', projectId]);
@@ -151,14 +151,14 @@ export class MyProjectsComponent implements OnInit {
         this.noticeService.show(this.i18n.translateStatic('my_projects.failed_to_join_project'));
       }
     } finally {
-      this.noticeService.loadingFinished('app-my-projects');
+      this.noticeService.loadingFinished('MyProjectsComponent');
       this.joiningProjects.pop();
     }
   }
 
   async syncUserRole(projectId: string): Promise<void> {
     try {
-      this.noticeService.loadingStarted('app-my-projects');
+      this.noticeService.loadingStarted('MyProjectsComponent');
       await this.projectService.onlineSyncUserRole(projectId);
       this.noticeService.show(this.i18n.translateStatic('my_projects.user_role_updated'));
       const project = this.userParatextProjects.find(project => project.projectId === projectId);
@@ -166,7 +166,7 @@ export class MyProjectsComponent implements OnInit {
     } catch {
       this.noticeService.showError(this.i18n.translateStatic('my_projects.failed_to_update_user_role'));
     } finally {
-      this.noticeService.loadingFinished('app-my-projects');
+      this.noticeService.loadingFinished('MyProjectsComponent');
     }
   }
 

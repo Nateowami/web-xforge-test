@@ -3,13 +3,13 @@ import { instance, mock, resetCalls, verify } from 'ts-mockito';
 import { DataLoadingComponent } from './data-loading-component';
 import { NoticeService } from './notice.service';
 
-/** A concrete component used to test DataLoadingComponent. Its selector is a stable string literal for testing. */
+/** A concrete component used to test DataLoadingComponent. Its loadingCallerId is a stable string literal for testing. */
 @Component({
   selector: 'xf-test-loading',
   template: ''
 })
 class TestLoadingComponent extends DataLoadingComponent {
-  readonly loadingCallerId = 'xf-test-loading';
+  readonly loadingCallerId = 'TestLoadingComponent';
 
   constructor(noticeService: NoticeService) {
     super(noticeService);
@@ -25,44 +25,44 @@ class TestLoadingComponent extends DataLoadingComponent {
 }
 
 describe('DataLoadingComponent', () => {
-  it('uses the Angular component selector as caller ID rather than the constructor name', () => {
+  it('uses the class name as caller ID rather than the constructor name', () => {
     const env = new TestEnvironment();
 
     // SUT
     const callerId: string = env.component.loadingCallerId;
 
-    // The Angular component selector is a string literal that survives minification, unlike constructor.name
-    expect(callerId).toBe('xf-test-loading');
-    expect(callerId).not.toBe('TestLoadingComponent');
+    // The class name is a string literal that survives minification, unlike constructor.name
+    expect(callerId).toBe('TestLoadingComponent');
+    expect(callerId).not.toBe('xf-test-loading');
   });
 
-  it('passes the component selector to noticeService when loading starts', () => {
+  it('passes the class name to noticeService when loading starts', () => {
     const env = new TestEnvironment();
 
     // SUT
     env.component.triggerLoadingStarted();
 
-    verify(env.mockedNoticeService.loadingStarted('xf-test-loading')).once();
+    verify(env.mockedNoticeService.loadingStarted('TestLoadingComponent')).once();
   });
 
-  it('passes the component selector to noticeService when loading finishes', () => {
+  it('passes the class name to noticeService when loading finishes', () => {
     const env = new TestEnvironment();
     env.component.triggerLoadingStarted();
 
     // SUT
     env.component.triggerLoadingFinished();
 
-    verify(env.mockedNoticeService.loadingFinished('xf-test-loading')).once();
+    verify(env.mockedNoticeService.loadingFinished('TestLoadingComponent')).once();
   });
 
-  it('passes the component selector when ngOnDestroy is called while loading', () => {
+  it('passes the class name when ngOnDestroy is called while loading', () => {
     const env = new TestEnvironment();
     env.component.triggerLoadingStarted();
 
     // SUT
     env.component.ngOnDestroy();
 
-    verify(env.mockedNoticeService.loadingFinished('xf-test-loading')).once();
+    verify(env.mockedNoticeService.loadingFinished('TestLoadingComponent')).once();
   });
 });
 

@@ -108,7 +108,7 @@ class Row {
 })
 export class ServalProjectsComponent extends DataLoadingComponent implements OnInit {
   columnsToDisplay: string[] = ['name', 'preTranslate', 'source', 'draftingSource', 'trainingSource', 'actions'];
-  readonly loadingCallerId = 'app-serval-projects';
+  readonly loadingCallerId = 'ServalProjectsComponent';
   rows: Row[] = [];
 
   length: number = 0;

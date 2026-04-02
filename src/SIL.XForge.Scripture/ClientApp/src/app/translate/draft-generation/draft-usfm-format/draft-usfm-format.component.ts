@@ -76,7 +76,7 @@ import { DraftSourcesService } from '../draft-sources.service';
 })
 export class DraftUsfmFormatComponent extends DataLoadingComponent implements AfterViewInit, ConfirmOnLeave {
   @ViewChild(TextComponent) draftText!: TextComponent;
-  readonly loadingCallerId = 'app-draft-usfm-format';
+  readonly loadingCallerId = 'DraftUsfmFormatComponent';
   booksWithDrafts: number[] = [];
   chapterNum?: number;
   chaptersWithDrafts: number[] = [];

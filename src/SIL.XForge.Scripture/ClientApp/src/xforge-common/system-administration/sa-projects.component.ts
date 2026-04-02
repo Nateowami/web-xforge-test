@@ -90,7 +90,7 @@ class Row {
 export class SaProjectsComponent extends DataLoadingComponent implements OnInit {
   @HostBinding('class') classes = 'flex-column';
 
-  readonly loadingCallerId = 'app-sa-projects';
+  readonly loadingCallerId = 'SaProjectsComponent';
   rows: Row[] = [];
 
   length: number = 0;
