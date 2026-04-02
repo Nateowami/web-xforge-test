@@ -105,6 +105,7 @@ import { SupportedBackTranslationLanguagesDialogComponent } from './supported-ba
 })
 export class DraftGenerationComponent extends DataLoadingComponent implements OnInit {
   @ViewChild(MatTabGroup) tabGroup?: MatTabGroup;
+  readonly loadingCallerId = 'app-draft-generation';
   draftJob?: BuildDto;
 
   // This component url, but with a hash for opening a dialog

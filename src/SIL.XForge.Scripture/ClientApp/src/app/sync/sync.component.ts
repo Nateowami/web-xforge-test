@@ -41,6 +41,7 @@ enum SyncErrorCodes {
 export class SyncComponent extends DataLoadingComponent implements OnInit {
   isAppOnline: boolean = false;
   showParatextLogin = false;
+  readonly loadingCallerId = 'app-sync';
   syncDisabled: boolean = false;
   projectDoc?: SFProjectDoc;
 

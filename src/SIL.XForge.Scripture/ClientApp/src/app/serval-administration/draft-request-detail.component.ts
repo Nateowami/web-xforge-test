@@ -70,6 +70,7 @@ import { ServalAdministrationService } from './serval-administration.service';
 })
 export class DraftRequestDetailComponent extends DataLoadingComponent implements OnInit {
   request?: OnboardingRequest;
+  readonly loadingCallerId = 'app-draft-request-detail';
   projectName?: string;
   projectNames: Map<string, string> = new Map();
   projectIds: Map<string, string> = new Map(); // Maps Paratext ID to SF project ID

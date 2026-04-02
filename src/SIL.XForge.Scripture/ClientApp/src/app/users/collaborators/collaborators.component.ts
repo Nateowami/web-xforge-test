@@ -87,6 +87,7 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
   userInviteForm = new UntypedFormGroup({
     email: new UntypedFormControl('', [XFValidators.email])
   });
+  readonly loadingCallerId = 'app-collaborators';
   isAppOnline = true;
 
   private projectDoc?: SFProjectDoc;

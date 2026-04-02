@@ -228,6 +228,7 @@ class Row {
 })
 export class BiblicalTermsComponent extends DataLoadingComponent implements OnDestroy, OnInit {
   categories: string[] = [];
+  readonly loadingCallerId = 'app-biblical-terms';
   readonly columnsToDisplay = ['term', 'category', 'gloss', 'renderings', 'id'];
   readonly rangeFilters: RangeFilter[] = ['current_verse', 'current_chapter', 'current_book'];
   rows: Row[] = [];

@@ -124,6 +124,7 @@ function projectType(project: TranslateSource | SFProjectProfile): string {
 })
 export class ServalProjectComponent extends DataLoadingComponent implements OnInit {
   @Input() showProjectTitle = true;
+  readonly loadingCallerId = 'app-serval-project';
   preTranslate = false;
   projectName = '';
 

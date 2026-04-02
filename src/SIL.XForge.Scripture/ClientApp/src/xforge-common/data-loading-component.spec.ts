@@ -9,6 +9,8 @@ import { NoticeService } from './notice.service';
   template: ''
 })
 class TestLoadingComponent extends DataLoadingComponent {
+  readonly loadingCallerId = 'xf-test-loading';
+
   constructor(noticeService: NoticeService) {
     super(noticeService);
   }

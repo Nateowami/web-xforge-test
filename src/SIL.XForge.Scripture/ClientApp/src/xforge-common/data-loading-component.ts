@@ -1,4 +1,4 @@
-import { Directive, OnDestroy, reflectComponentType, Type } from '@angular/core';
+import { Directive, OnDestroy } from '@angular/core';
 import { BehaviorSubject, Observable } from 'rxjs';
 import { NoticeService } from './notice.service';
 
@@ -6,12 +6,23 @@ import { NoticeService } from './notice.service';
  * This is the abstract base class for components that need to indicate when they are loading data in order to display
  * the loading indicator. Subclasses call `loadingStarted()` and `loadingFinished()` to indicate when they are loading
  * data. When the component is destroyed, it automatically calls `loadingFinished()`.
+ *
+ * Each subclass must provide a `loadingCallerId` string literal matching its component selector (e.g. 'app-editor').
+ * Using the selector — rather than a class name — ensures the identifier survives JavaScript minification in
+ * production builds, where class names are replaced with single characters.
  */
 // Decorator required by Angular compiler
 @Directive()
 export abstract class DataLoadingComponent implements OnDestroy {
   private _isLoading$ = new BehaviorSubject<boolean>(false);
   private _isLoaded$ = new BehaviorSubject<boolean>(false);
+
+  /**
+   * A stable string identifier for this component used when reporting loading state to the notice service. Each
+   * subclass must override this with its Angular component selector (e.g. 'app-editor'), which is a string literal
+   * preserved in minified production builds.
+   */
+  abstract readonly loadingCallerId: string;
 
   constructor(protected readonly noticeService: NoticeService) {}
 
@@ -33,17 +44,6 @@ export abstract class DataLoadingComponent implements OnDestroy {
 
   ngOnDestroy(): void {
     this.loadingFinished();
-  }
-
-  /**
-   * Returns a stable identifier for this component to use as the caller ID when reporting loading state. The Angular
-   * component selector (e.g. 'app-editor') is preferred because it is a string literal preserved in minified
-   * production builds. Falls back to the constructor name if the component type cannot be reflected (e.g. for abstract
-   * directives under test).
-   */
-  get loadingCallerId(): string {
-    const mirror = reflectComponentType(this.constructor as Type<unknown>);
-    return mirror?.selector ?? this.constructor.name;
   }
 
   protected loadingStarted(): void {

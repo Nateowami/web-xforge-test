@@ -25,6 +25,7 @@ import { RemoteTranslationEngine } from '../../machine-api/remote-translation-en
 })
 export class TrainingProgressComponent extends DataLoadingComponent implements OnInit, OnDestroy {
   showTrainingProgress: boolean = false;
+  readonly loadingCallerId = 'app-training-progress';
   trainingMessage: string = '';
   trainingPercentage: number = 0;
   private _projectId?: string;

@@ -72,6 +72,7 @@ import { DeleteProjectDialogComponent } from './delete-project-dialog/delete-pro
 })
 export class SettingsComponent extends DataLoadingComponent implements OnInit {
   translationSuggestionsEnabled = new FormControl(false);
+  readonly loadingCallerId = 'app-settings';
   sourceParatextId = new FormControl<string | undefined>(undefined);
   biblicalTermsEnabled = new FormControl(false);
   checkingEnabled = new FormControl(false);

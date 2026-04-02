@@ -80,6 +80,7 @@ const TEXT_PATH_TEMPLATE = obj<SFProject>().pathTemplate(p => p.texts[ANY_INDEX]
 })
 export class TranslateOverviewComponent extends DataLoadingComponent implements OnInit, OnDestroy {
   trainingPercentage: number = 0;
+  readonly loadingCallerId = 'app-translate-overview';
   isTraining: boolean = false;
   readonly engineQualityStars: number[];
   engineQuality: number = 0;

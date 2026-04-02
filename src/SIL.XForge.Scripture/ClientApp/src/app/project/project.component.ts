@@ -21,6 +21,7 @@ type TaskType = 'translate' | 'checking';
   styleUrls: ['./project.component.scss']
 })
 export class ProjectComponent extends DataLoadingComponent implements OnInit {
+  readonly loadingCallerId = 'app-projects';
   constructor(
     private readonly route: ActivatedRoute,
     private readonly projectService: SFProjectService,

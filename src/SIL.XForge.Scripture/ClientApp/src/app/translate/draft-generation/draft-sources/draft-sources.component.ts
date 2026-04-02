@@ -80,6 +80,8 @@ export class DraftSourcesComponent extends DataLoadingComponent implements OnIni
   /** Indicator that a project setting change is for clearing a value. */
   static readonly projectSettingValueUnset = 'unset';
 
+  readonly loadingCallerId = 'app-draft-sources';
+
   // Expose ElementState enum to template.
   ElementState = ElementState;
 

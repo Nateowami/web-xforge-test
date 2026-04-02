@@ -59,6 +59,7 @@ export const KNOWN_ERROR_CODES: ObjectPaths<typeof en.join>[] = [
 })
 export class JoinComponent extends DataLoadingComponent {
   name: FormControl<string | null> = new FormControl<string | null>('');
+  readonly loadingCallerId = 'app-join';
   status: 'input' | 'joining' | 'unavailable' = 'unavailable';
   private joiningResponse?: AnonymousShareKeyResponse;
 
