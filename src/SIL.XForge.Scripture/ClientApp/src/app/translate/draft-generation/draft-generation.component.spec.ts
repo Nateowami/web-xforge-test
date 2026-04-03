@@ -331,6 +331,41 @@ describe('DraftGenerationComponent', () => {
       env.fixture.detectChanges();
       expect(env.offlineTextElement).toBeNull();
     });
+
+    it('should re-fetch last completed build when coming back online', () => {
+      const env = new TestEnvironment();
+
+      // Go offline; getLastCompletedBuild is not called while offline
+      env.testOnlineStatusService.setIsOnline(false);
+      const callCountWhileOffline = mockDraftGenerationService.getLastCompletedBuild.calls.count();
+
+      // Update the mock to return a new value so we can confirm it was re-fetched
+      const refreshedBuild: BuildDto = { ...buildDto, revision: 99 };
+      mockDraftGenerationService.getLastCompletedBuild.and.returnValue(of(refreshedBuild));
+
+      // SUT
+      env.testOnlineStatusService.setIsOnline(true);
+
+      // Verify getLastCompletedBuild was called again when going back online and the value was updated
+      expect(mockDraftGenerationService.getLastCompletedBuild.calls.count()).toBeGreaterThan(callCountWhileOffline);
+      expect(env.component.lastCompletedBuild).toEqual(refreshedBuild);
+    });
+
+    it('should preserve last completed build while offline so the previously generated draft remains visible', () => {
+      const completedBuild: BuildDto = { ...buildDto, state: BuildStates.Completed };
+      const env = new TestEnvironment(() => {
+        mockDraftGenerationService.getLastCompletedBuild.and.returnValue(of(completedBuild));
+      });
+
+      // Verify last completed build is set when online
+      expect(env.component.lastCompletedBuild).toEqual(completedBuild);
+
+      // Go offline - last completed build should remain set so the previously generated draft stays visible
+      env.testOnlineStatusService.setIsOnline(false);
+
+      // SUT
+      expect(env.component.lastCompletedBuild).toEqual(completedBuild);
+    });
   });
 
   describe('warnings', () => {
