@@ -60,6 +60,23 @@ try {
 
         const page = await browserContext.newPage();
 
+        // Apply network throttling via CDP if specified in the preset. CDP is only supported in Chromium.
+        if (preset.networkConditions != null) {
+          if (engineName === 'chromium') {
+            const cdpSession = await browserContext.newCDPSession(page);
+            await cdpSession.send('Network.emulateNetworkConditions', {
+              offline: false,
+              downloadThroughput: preset.networkConditions.downloadThroughput,
+              uploadThroughput: preset.networkConditions.uploadThroughput,
+              latency: preset.networkConditions.latency
+            });
+          } else {
+            console.warn(
+              `Network throttling is only supported in Chromium. Skipping network throttling for ${engineName}.`
+            );
+          }
+        }
+
         try {
           const startTime = Date.now();
           await testFn(engine, page, screenshotContext);
