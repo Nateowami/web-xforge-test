@@ -6,7 +6,7 @@ import { mock, when } from 'ts-mockito';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
-import { configureTestingModule } from 'xforge-common/test-utils';
+import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { OnboardingRequestAssigneeSelectComponent } from './onboarding-request-assignee-select.component';
 
@@ -35,7 +35,7 @@ class TestHostComponent {
 
 describe('OnboardingRequestAssigneeSelectComponent', () => {
   configureTestingModule(() => ({
-    imports: [TestHostComponent],
+    imports: [TestHostComponent, getTestTranslocoModule()],
     providers: [
       provideTestOnlineStatus(),
       provideHttpClient(withInterceptorsFromDi()),

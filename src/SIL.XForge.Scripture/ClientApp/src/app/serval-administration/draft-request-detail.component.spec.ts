@@ -10,7 +10,7 @@ import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
-import { configureTestingModule } from 'xforge-common/test-utils';
+import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import {
   DraftRequestResolutionKey,
@@ -65,7 +65,7 @@ function createTestRequest(overrides: Partial<OnboardingRequest> = {}): Onboardi
 
 describe('DraftRequestDetailComponent', () => {
   configureTestingModule(() => ({
-    imports: [DraftRequestDetailComponent],
+    imports: [DraftRequestDetailComponent, getTestTranslocoModule()],
     providers: [
       provideTestOnlineStatus(),
       provideHttpClient(withInterceptorsFromDi()),
