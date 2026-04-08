@@ -300,11 +300,19 @@ export class DraftGenerationComponent extends DataLoadingComponent implements On
         }
       });
 
-    this.activatedProject.changes$
-      .pipe(
+    // Re-fetch the last completed build whenever the project changes or when coming back online.
+    // This ensures a previously generated draft remains visible while a new draft is being generated,
+    // even after an offline interruption.
+    combineLatest([
+      this.activatedProject.changes$.pipe(
         throttleTime(this.projectChangeThrottlingMs, asyncScheduler, { leading: true, trailing: true }),
-        filterNullish(),
-        switchMap(projectDoc => {
+        filterNullish()
+      ),
+      this.onlineStatusService.onlineStatus$
+    ])
+      .pipe(
+        filter(([, isOnline]) => isOnline),
+        switchMap(([projectDoc]) => {
           // Pre-translation must be enabled for the project
           if (!this.hasStartedBuild(projectDoc)) {
             return of(undefined);
