@@ -47,8 +47,8 @@ public class HgWrapper : IHgWrapper
     /// </returns>
     public string GetLastPublicRevision(string repository)
     {
-        string ids = RunCommand(repository, "log --rev \"public()\" --template \"{node}\n\"");
-        string revision = ids.Split(["\n"], StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Trim();
+        string ids = RunCommand(repository, """log --rev "public()" --template "{node}\n" """);
+        string revision = ids.Split('\n', StringSplitOptions.RemoveEmptyEntries).LastOrDefault()?.Trim();
         return revision;
     }
 
@@ -85,6 +85,20 @@ public class HgWrapper : IHgWrapper
     /// </summary>
     /// <param name="repository">The repository.</param>
     public void MarkSharedChangeSetsPublic(string repository) => RunCommand(repository, "phase -p -r 'tip'");
+
+    /// <summary>
+    /// Returns the ids of commits with draft phase.
+    /// </summary>
+    public string[] GetDraftRevisions(string repositoryPath)
+    {
+        string ids = RunCommand(repositoryPath, """log --rev "draft()" --template "{node}\n" """);
+        return
+        [
+            .. ids.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+                .Select(id => id.Trim())
+                .Where(id => id.Length > 0),
+        ];
+    }
 
     /// <summary> Set the default Mercurial installation. Must be called for all other methods to work. </summary>
     public void SetDefault(Hg hgDefault)
