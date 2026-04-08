@@ -13,12 +13,15 @@ using Paratext.Data.Users;
 
 namespace SIL.XForge.Scripture.Services;
 
-/// <summary> An internet shared repository source that networks using JWT authenticated REST clients. </summary>
+/// <summary>
+/// An internet shared repository source that networks using JWT authenticated REST clients.
+/// </summary>
 public class JwtInternetSharedRepositorySource : InternetSharedRepositorySource, IInternetSharedRepositorySource
 {
     private readonly JwtRestClient _registryClient;
     private readonly IHgWrapper _hgWrapper;
     private readonly ILogger _logger;
+    private readonly int _maxJsonLogChars = 200;
 
     public JwtInternetSharedRepositorySource(
         string accessToken,
@@ -62,9 +65,9 @@ public class JwtInternetSharedRepositorySource : InternetSharedRepositorySource,
     /// Uses the a REST client to pull from the Paratext send/receive server. This overrides the base implementation
     /// to avoid needing the current user's Paratext registration code to get the base revision.
     /// </summary>
-    public override string[] Pull(string repository, SharedRepository pullRepo)
+    public override string[] Pull(string repositoryPath, SharedRepository pullRepo)
     {
-        string baseRev = _hgWrapper.GetLastPublicRevision(repository);
+        string baseRev = _hgWrapper.GetLastPublicRevision(repositoryPath);
 
         // Get bundle
         string guid = Guid.NewGuid().ToString();
@@ -92,9 +95,9 @@ public class JwtInternetSharedRepositorySource : InternetSharedRepositorySource,
             return [];
 
         // Use bundle
-        string[] changeSets = HgWrapper.Pull(repository, bundle);
+        string[] changeSets = _hgWrapper.Pull(repositoryPath, bundle);
 
-        _hgWrapper.MarkSharedChangeSetsPublic(repository);
+        _hgWrapper.MarkSharedChangeSetsPublic(repositoryPath);
         return changeSets;
     }
 
@@ -102,14 +105,23 @@ public class JwtInternetSharedRepositorySource : InternetSharedRepositorySource,
     /// Uses the a REST client to push to the Paratext send/receive server. This overrides the base implementation
     /// to avoid needing the current user's Paratext registration code to get the base revision.
     /// </summary>
-    public override void Push(string repository, SharedRepository pushRepo)
+    public override void Push(string repositoryPath, SharedRepository pushRepo)
     {
-        string baseRev = _hgWrapper.GetLastPublicRevision(repository);
+        string baseRev = _hgWrapper.GetLastPublicRevision(repositoryPath);
 
         // Create bundle
-        byte[] bundle = HgWrapper.Bundle(repository, baseRev);
+        byte[] bundle = _hgWrapper.Bundle(repositoryPath, baseRev);
         if (bundle.Length == 0)
+        {
+            _logger.LogInformation($"Not pushing a 0 Byte bundle for project PT ID {pushRepo.SendReceiveId.Id}.");
             return;
+        }
+
+        string localTip = _hgWrapper.GetRepoRevision(repositoryPath);
+        _logger.LogInformation(
+            $"Pushing bundle of {bundle.Length} Bytes to S/R server for project PT ID "
+                + $"{pushRepo.SendReceiveId.Id}. Base revision {baseRev ?? "(null)"}. Local tip {localTip}."
+        );
 
         // Send bundle
         string guid = Guid.NewGuid().ToString();
@@ -128,7 +140,78 @@ public class JwtInternetSharedRepositorySource : InternetSharedRepositorySource,
             "no"
         );
 
-        _hgWrapper.MarkSharedChangeSetsPublic(repository);
+        (bool isRevOnServer, int serverRevCount, string? serverLastRev) = CheckIfRevisionIsOnServer(pushRepo, localTip);
+        if (!isRevOnServer)
+        {
+            throw new InvalidOperationException(
+                $"Push verification failed for project PT ID {pushRepo.SendReceiveId.Id}. "
+                    + $"Expected revision {localTip} was not found in the server's revision history. "
+                    + $"Server has {serverRevCount} revisions. Last server revision: {serverLastRev ?? "(null)"}."
+            );
+        }
+
+        _hgWrapper.MarkSharedChangeSetsPublic(repositoryPath);
+    }
+
+    /// <summary>
+    /// Returns whether the expected revision is present on the Paratext Send/Receive server.
+    /// </summary>
+    internal (bool isRevOnServer, int serverRevCount, string? serverLastRev) CheckIfRevisionIsOnServer(
+        SharedRepository serverRepo,
+        string expectedRevision
+    )
+    {
+        string projRevHistResponse = GetClient()
+            .Get("projrevhist", "proj", serverRepo.ScrTextName, "projid", serverRepo.SendReceiveId.Id, "all", "1");
+
+        JObject jsonResult = JObject.Parse(projRevHistResponse);
+        if (jsonResult["project"]?["revision_history"]?["revisions"] is not JArray revisions)
+        {
+            string truncatedResult = FormatAndTruncate(jsonResult, _maxJsonLogChars);
+            _logger.LogWarning(
+                $"Getting projrevhist unexpectedly received null revisions for PT project ID {serverRepo.SendReceiveId.Id}. The JSON result is: {truncatedResult}"
+            );
+            return (false, 0, null);
+        }
+
+        bool isRevOnServer = revisions.Any(r =>
+            string.Equals(r["id"]?.ToString(), expectedRevision, StringComparison.Ordinal)
+        );
+        int serverRevCount = revisions.Count;
+        string? serverLastRev = GetFirstElementId(revisions);
+
+        return (isRevOnServer, serverRevCount, serverLastRev);
+    }
+
+    /// <summary>
+    /// Returns the first element's "id" value, if possible.
+    /// </summary>
+    private static string? GetFirstElementId(JArray revisions)
+    {
+        if (revisions.Count > 0)
+            return revisions[0]["id"]?.ToString();
+        return null;
+    }
+
+    /// <summary>
+    /// Formats JSON and truncates if too long.
+    /// </summary>
+    private static string FormatAndTruncate(JObject jsonResult, int maxChars)
+    {
+        string prettyJson = jsonResult.ToString(Newtonsoft.Json.Formatting.Indented);
+        return TruncateLogString(prettyJson, maxChars);
+    }
+
+    /// <summary>
+    /// Truncates a string to the configured character count if needed and appends truncation details.
+    /// </summary>
+    private static string TruncateLogString(string value, int maxChars)
+    {
+        if (value.Length <= maxChars)
+            return value;
+
+        int truncatedChars = value.Length - maxChars;
+        return value[..maxChars] + Environment.NewLine + $"... (truncated {truncatedChars} more characters)";
     }
 
     /// <summary>

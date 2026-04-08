@@ -6,7 +6,7 @@ using Paratext.Data.Repository;
 
 namespace SIL.XForge.Scripture.Services;
 
-/// <summary> A wrapper for the <see cref="Hg" /> class for calling Mercurial. </summary>
+/// <summary>A wrapper for the <see cref="Hg" /> class for calling Mercurial.</summary>
 public class HgWrapper : IHgWrapper
 {
     public static string RunCommand(string repository, string cmd)
@@ -16,14 +16,17 @@ public class HgWrapper : IHgWrapper
         return Hg.Default.RunCommand(repository, cmd).StdOut;
     }
 
-    public static byte[] Bundle(string repository, params string[] heads)
+    /// <summary>
+    /// Returns a Mercurial bundle containing changesets above the given base revisions.
+    /// </summary>
+    public byte[] Bundle(string repository, params string[] baseRevisions)
     {
         if (Hg.Default == null)
             throw new InvalidOperationException("Hg default has not been set.");
-        return Hg.Default.Bundle(repository, heads);
+        return Hg.Default.Bundle(repository, baseRevisions);
     }
 
-    public static string[] Pull(string repository, byte[] bundle)
+    public string[] Pull(string repository, byte[] bundle)
     {
         if (Hg.Default == null)
             throw new InvalidOperationException("Hg default has not been set.");
@@ -72,12 +75,12 @@ public class HgWrapper : IHgWrapper
     /// <summary>
     /// Returns the currently checked out revision of an hg repository.
     /// </summary>
-    public string GetRepoRevision(string repositoryPath)
+    public string GetRepoRevision(string repository)
     {
-        string rev = RunCommand(repositoryPath, "log --limit 1 --rev . --template {node}");
+        string rev = RunCommand(repository, "log --limit 1 --rev . --template {node}");
         if (string.IsNullOrWhiteSpace(rev))
         {
-            throw new InvalidDataException($"Unable to determine repo revision for hg repo at {repositoryPath}");
+            throw new InvalidDataException($"Unable to determine repo revision for hg repo at {repository}");
         }
         return rev;
     }
@@ -98,9 +101,9 @@ public class HgWrapper : IHgWrapper
     }
 
     /// <summary>
-    /// Mark all changesets available on the PT server public.
+    /// Mark all changesets as public.
     /// </summary>
-    /// <param name="repository">The repository.</param>
+    /// <param name="repository">The repository path.</param>
     public void MarkSharedChangeSetsPublic(string repository) => RunCommand(repository, "phase -p -r 'tip'");
 
     /// <summary>
@@ -136,5 +139,5 @@ public class HgWrapper : IHgWrapper
     /// `git checkout --force --detach COMMITTISH`
     /// Changes to tracked files will be discarded. Untracked files are left in place without being cleaned up.
     /// </summary>
-    public void Update(string repositoryPath, string rev) => Hg.Default.Update(repositoryPath, rev);
+    public void Update(string repository, string rev) => Hg.Default.Update(repository, rev);
 }
