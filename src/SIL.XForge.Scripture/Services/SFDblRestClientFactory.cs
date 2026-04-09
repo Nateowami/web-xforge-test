@@ -31,6 +31,6 @@ public class SFDblRestClientFactory : ISFRestClientFactory
     public ISFRestClient Create(string baseUri, UserSecret userSecret)
     {
         string jwtToken = _jwtTokenHelper.GetJwtTokenFromUserSecret(userSecret);
-        return new JwtRestClient(baseUri, _siteOptions.Value.Name, jwtToken);
+        return new JwtRestClient(baseUri, _siteOptions.Value.Name ?? string.Empty, jwtToken);
     }
 }

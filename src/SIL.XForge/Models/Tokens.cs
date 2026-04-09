@@ -1,4 +1,3 @@
-#nullable disable warnings
 using System;
 using System.IdentityModel.Tokens.Jwt;
 
@@ -6,8 +5,8 @@ namespace SIL.XForge.Models;
 
 public class Tokens
 {
-    public string AccessToken { get; set; }
-    public string RefreshToken { get; set; }
+    public string? AccessToken { get; set; }
+    public string? RefreshToken { get; set; }
 
     public DateTime IssuedAt
     {
