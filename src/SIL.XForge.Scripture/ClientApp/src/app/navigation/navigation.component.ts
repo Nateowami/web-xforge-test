@@ -159,7 +159,11 @@ export class NavigationComponent {
   }
 
   get answerQuestionsActive(): boolean {
-    return this.urlStartsWithAndHasAnotherPortion(this.getProjectLink('checking').join('/'));
+    const progressLink: string = this.getProjectLink('checking', ['progress']).join('/');
+    return (
+      this.urlStartsWithAndHasAnotherPortion(this.getProjectLink('checking').join('/')) &&
+      !this.router.url.startsWith(progressLink)
+    );
   }
 
   get draftGenerationActive(): boolean {

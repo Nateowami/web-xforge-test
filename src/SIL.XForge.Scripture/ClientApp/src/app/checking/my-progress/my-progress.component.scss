@@ -1,0 +1,188 @@
+@use 'src/variables';
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  column-gap: 8px;
+  h1 {
+    flex-grow: 1;
+  }
+}
+
+#overall-progress-chart {
+  app-donut-chart {
+    width: 36px;
+    height: 36px;
+    cursor: default;
+  }
+}
+
+#books-progress-list {
+  margin-top: 32px;
+  margin-bottom: 32px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.book-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.book-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding-block: 4px;
+  border-bottom: 1px solid var(--mat-divider-color, #e0e0e0);
+}
+
+.book-name {
+  flex: 1;
+  font-weight: 500;
+  font-size: 1rem;
+}
+
+.book-progress-summary {
+  display: flex;
+  align-items: center;
+
+  .book-progress-donut {
+    width: 28px;
+    height: 28px;
+  }
+
+  .book-complete-icon {
+    color: variables.$greenDark;
+    font-size: 28px;
+    width: 28px;
+    height: 28px;
+  }
+}
+
+.chapter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding-block-start: 4px;
+}
+
+.chapter-tile {
+  width: 76px;
+  height: 76px;
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  border: 1px solid var(--mat-divider-color, #e0e0e0);
+  text-decoration: none;
+  color: inherit;
+  gap: 6px;
+  transition:
+    background-color 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover {
+    background-color: var(--mat-expansion-header-hover-state-layer-color, rgba(0, 0, 0, 0.04));
+  }
+
+  &.complete {
+    background-color: rgba(variables.$greenLight, 0.18);
+    border-color: variables.$greenDark;
+
+    .complete-icon {
+      color: variables.$greenDark;
+      font-size: 28px;
+      width: 28px;
+      height: 28px;
+    }
+  }
+
+  .chapter-label {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1;
+  }
+
+  app-donut-chart {
+    width: 28px;
+    height: 28px;
+  }
+}
+
+.centered-message {
+  text-align: center;
+  justify-content: center;
+  color: #666;
+}
+
+#loading-questions-message {
+  text-align: center;
+  color: #666;
+}
+
+.stat-panels {
+  max-width: 800px;
+  flex-flow: wrap;
+  display: flex;
+  place-content: stretch space-between;
+  margin-bottom: 32px;
+}
+
+.flex {
+  display: flex;
+  flex: 1;
+  flex-flow: wrap;
+  align-items: center;
+}
+
+.card {
+  margin: 8px 0;
+  width: 130px;
+
+  .mat-mdc-card-content {
+    display: flex;
+    height: 100%;
+
+    .vertical-center {
+      display: flex;
+      align-items: center;
+    }
+  }
+}
+
+.stat-total {
+  font-size: x-large;
+  width: 100%;
+}
+
+.stat-label {
+  font-size: small;
+}
+
+.card-content-answer {
+  .stat-total,
+  mat-icon {
+    color: variables.$answers;
+  }
+}
+
+.card-content-comment {
+  .stat-total,
+  mat-icon {
+    color: variables.$comments;
+  }
+}
+
+.card-content-like {
+  .stat-total,
+  mat-icon {
+    color: variables.$likes;
+  }
+}

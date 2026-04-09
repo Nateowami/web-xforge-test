@@ -4,6 +4,7 @@ import { SystemAdminAuthGuard } from 'xforge-common/system-admin-auth.guard';
 import { SystemAdministrationComponent } from 'xforge-common/system-administration/system-administration.component';
 import { CheckingOverviewComponent } from './checking/checking-overview/checking-overview.component';
 import { CheckingComponent } from './checking/checking/checking.component';
+import { MyProgressComponent } from './checking/my-progress/my-progress.component';
 import { ConnectProjectComponent } from './connect-project/connect-project.component';
 import { EventMetricsAuthGuard } from './event-metrics/event-metrics-auth.guard';
 import { EventMetricsComponent } from './event-metrics/event-metrics.component';
@@ -41,6 +42,7 @@ export const APP_ROUTES: Routes = [
   { path: 'login', redirectTo: 'projects', pathMatch: 'full' },
   { path: 'join/:shareKey', component: JoinComponent },
   { path: 'join/:shareKey/:locale', component: JoinComponent },
+  { path: 'projects/:projectId/checking/progress', component: MyProgressComponent, canActivate: [CheckingAuthGuard] },
   {
     path: 'projects/:projectId/checking/:bookId/:chapter',
     component: CheckingComponent,
