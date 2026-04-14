@@ -93,7 +93,7 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     private readonly dialogService: DialogService,
     protected readonly noticeService: NoticeService
   ) {
-    super(noticeService);
+    super(noticeService, 'DraftRequestDetailComponent');
   }
 
   ngOnInit(): void {
