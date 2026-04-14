@@ -1,3 +1,4 @@
+import { CdkTextareaAutosize } from '@angular/cdk/text-field';
 import { AsyncPipe, SlicePipe } from '@angular/common';
 import { Component, DestroyRef, Input, OnInit } from '@angular/core';
 import { FormControl, FormGroup, ReactiveFormsModule } from '@angular/forms';
@@ -24,7 +25,11 @@ import { Router } from '@angular/router';
 import { saveAs } from 'file-saver';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { TrainingData } from 'realtime-server/lib/esm/scriptureforge/models/training-data';
-import { DraftConfig, TranslateSource } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
+import {
+  DraftConfig,
+  QualityEstimationConfig,
+  TranslateSource
+} from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
 import {
   catchError,
   filter,
@@ -88,6 +93,7 @@ function projectType(project: TranslateSource | SFProjectProfile): string {
   imports: [
     AsyncPipe,
     SlicePipe,
+    CdkTextareaAutosize,
     InfoComponent,
     NoticeComponent,
     MatButton,
@@ -132,10 +138,13 @@ export class ServalProjectComponent extends DataLoadingComponent implements OnIn
   rows: Row[] = [];
 
   servalConfig = new FormControl<string | undefined>(undefined);
+  qualityEstimationConfig = new FormControl<string | undefined>(undefined);
   form = new FormGroup({
-    servalConfig: this.servalConfig
+    servalConfig: this.servalConfig,
+    qualityEstimationConfig: this.qualityEstimationConfig
   });
-  updateState = ElementState.InSync;
+  qualityEstimationConfigUpdateState = ElementState.InSync;
+  servalConfigUpdateState = ElementState.InSync;
 
   trainingBooksByProject: ProjectAndRange[] = [];
   trainingFiles: string[] = [];
@@ -257,8 +266,11 @@ export class ServalProjectComponent extends DataLoadingComponent implements OnIn
           this.draftConfig = draftConfig;
           this.draftJob$ = this.projectService.hasDraft(project) ? this.getDraftJob(projectDoc.id) : of(undefined);
 
-          // Setup the serval config value
+          // Setup the serval config and quality estimation config values
           this.servalConfig.setValue(project.translateConfig.draftConfig.servalConfig);
+          this.qualityEstimationConfig.setValue(
+            JSON.stringify(project.translateConfig.draftConfig.qualityEstimationConfig)
+          );
 
           // Get the last completed build
           if (this.isOnline && this.projectService.hasDraft(project)) {
@@ -356,6 +368,66 @@ export class ServalProjectComponent extends DataLoadingComponent implements OnIn
     });
   }
 
+  updateQualityEstimationConfig(): void {
+    // Do not save if we do not have the project doc or if the configuration was and is empty
+    const projectId: string | undefined = this.activatedProjectService.projectId;
+    const project: SFProjectProfile | undefined = this.activatedProjectService.projectDoc?.data;
+    if (
+      project == null ||
+      projectId == null ||
+      (this.form.value.qualityEstimationConfig ?? '') ===
+        (project.translateConfig.draftConfig.qualityEstimationConfig == null
+          ? ''
+          : JSON.stringify(project.translateConfig.draftConfig.qualityEstimationConfig))
+    ) {
+      this.qualityEstimationConfigUpdateState = ElementState.InSync;
+      return;
+    }
+
+    // Get the quality estimation config from the JSON
+    let qualityEstimationConfig: QualityEstimationConfig | null = null;
+    const qualityEstimationConfigJsonString: string | null | undefined = this.form.value.qualityEstimationConfig;
+    if (qualityEstimationConfigJsonString != null && qualityEstimationConfigJsonString.trim().length > 0) {
+      try {
+        qualityEstimationConfig = JSON.parse(qualityEstimationConfigJsonString);
+      } catch {
+        this.qualityEstimationConfigUpdateState = ElementState.Error;
+        return;
+      }
+    }
+
+    // Ensure the JSON is valid
+    if (
+      qualityEstimationConfig != null &&
+      (typeof qualityEstimationConfig.version !== 'string' ||
+        typeof qualityEstimationConfig.slope !== 'number' ||
+        typeof qualityEstimationConfig.intercept !== 'number' ||
+        qualityEstimationConfig.version !== '0.1')
+    ) {
+      this.qualityEstimationConfigUpdateState = ElementState.Error;
+      return;
+    }
+
+    // Do not update if the values did not change
+    const existingQualityEstimationConfig: QualityEstimationConfig | undefined =
+      project.translateConfig.draftConfig.qualityEstimationConfig;
+    if (
+      qualityEstimationConfig?.version === existingQualityEstimationConfig?.version &&
+      qualityEstimationConfig?.slope === existingQualityEstimationConfig?.slope &&
+      qualityEstimationConfig?.intercept === existingQualityEstimationConfig?.intercept
+    ) {
+      this.qualityEstimationConfigUpdateState = ElementState.InSync;
+      return;
+    }
+
+    // Update the Quality Estimation Configuration
+    this.qualityEstimationConfigUpdateState = ElementState.Submitting;
+    void this.projectService
+      .onlineSetQualityEstimationConfig(projectId, qualityEstimationConfig)
+      .then(() => (this.qualityEstimationConfigUpdateState = ElementState.Submitted))
+      .catch(() => (this.qualityEstimationConfigUpdateState = ElementState.Error));
+  }
+
   updateServalConfig(): void {
     if (
       this.activatedProjectService.projectDoc?.data == null ||
@@ -367,18 +439,11 @@ export class ServalProjectComponent extends DataLoadingComponent implements OnIn
     }
 
     // Update Serval Configuration
-    const updateTaskPromise = this.projectService.onlineSetServalConfig(
-      this.activatedProjectService.projectDoc.id,
-      this.form.value.servalConfig
-    );
-    this.checkUpdateStatus(updateTaskPromise);
-  }
-
-  private checkUpdateStatus(updatePromise: Promise<void>): void {
-    this.updateState = ElementState.Submitting;
-    updatePromise
-      .then(() => (this.updateState = ElementState.Submitted))
-      .catch(() => (this.updateState = ElementState.Error));
+    this.servalConfigUpdateState = ElementState.Submitting;
+    void this.projectService
+      .onlineSetServalConfig(this.activatedProjectService.projectDoc.id, this.form.value.servalConfig)
+      .then(() => (this.servalConfigUpdateState = ElementState.Submitted))
+      .catch(() => (this.servalConfigUpdateState = ElementState.Error));
   }
 
   private getDraftJob(projectId: string): Observable<BuildDto | undefined> {

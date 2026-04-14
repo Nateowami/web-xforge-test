@@ -3829,7 +3829,7 @@ public class SFProjectServiceTests
 
         // Verify project document
         SFProject project = env.GetProject(Project01);
-        Assert.IsNull(project.TranslateConfig.DraftConfig!.ServalConfig);
+        Assert.IsNull(project.TranslateConfig.DraftConfig.ServalConfig);
     }
 
     [Test]
@@ -3855,7 +3855,7 @@ public class SFProjectServiceTests
 
         // Verify project document
         SFProject project = env.GetProject(Project01);
-        Assert.IsNull(project.TranslateConfig.DraftConfig!.ServalConfig);
+        Assert.IsNull(project.TranslateConfig.DraftConfig.ServalConfig);
     }
 
     [Test]
@@ -3878,14 +3878,14 @@ public class SFProjectServiceTests
 
         // Verify project document
         SFProject project = env.GetProject(Project01);
-        Assert.IsNotNull(project.TranslateConfig.DraftConfig);
+        Assert.IsNotNull(project.TranslateConfig.DraftConfig.ServalConfig);
 
         // SUT
         await env.Service.SetServalConfigAsync(User01, [SystemRole.ServalAdmin], Project01, servalConfig);
 
         // Verify project document
         project = env.GetProject(Project01);
-        Assert.AreEqual(project.TranslateConfig.DraftConfig!.ServalConfig, servalConfig);
+        Assert.AreEqual(project.TranslateConfig.DraftConfig.ServalConfig, servalConfig);
     }
 
     [Test]
@@ -3897,6 +3897,116 @@ public class SFProjectServiceTests
         // SUT
         Assert.ThrowsAsync<ForbiddenException>(() =>
             env.Service.SetServalConfigAsync(User01, [SystemRole.User], Project01, servalConfig)
+        );
+    }
+
+    [Test]
+    public async Task SetQualityEstimationConfigAsync_AllowsNull()
+    {
+        var env = new TestEnvironment();
+
+        // SUT
+        await env.Service.SetQualityEstimationConfigAsync(
+            User01,
+            [SystemRole.ServalAdmin],
+            Project01,
+            qualityEstimationConfig: null
+        );
+
+        // Verify project document
+        SFProject project = env.GetProject(Project01);
+        Assert.That(project.TranslateConfig.DraftConfig!.QualityEstimationConfig, Is.Null);
+    }
+
+    [Test]
+    public void SetQualityEstimationConfigAsync_ProjectMustExist()
+    {
+        var env = new TestEnvironment();
+        var qualityEstimationConfig = new QualityEstimationConfig
+        {
+            Version = "0.1",
+            Slope = 109.6145,
+            Intercept = -14.0633,
+        };
+
+        // SUT
+        Assert.ThrowsAsync<DataNotFoundException>(() =>
+            env.Service.SetQualityEstimationConfigAsync(
+                User01,
+                [SystemRole.ServalAdmin],
+                "invalid_project",
+                qualityEstimationConfig
+            )
+        );
+    }
+
+    [Test]
+    public async Task SetQualityEstimationConfigAsync_UpdatesProjectDocument()
+    {
+        var env = new TestEnvironment();
+        var qualityEstimationConfig = new QualityEstimationConfig
+        {
+            Version = "0.1",
+            Slope = 109.6145,
+            Intercept = -14.0633,
+        };
+
+        // Verify project document
+        SFProject project = env.GetProject(Project01);
+        Assert.IsNotNull(project.TranslateConfig.DraftConfig.QualityEstimationConfig);
+
+        // SUT
+        await env.Service.SetQualityEstimationConfigAsync(
+            User01,
+            [SystemRole.ServalAdmin],
+            Project01,
+            qualityEstimationConfig
+        );
+
+        // Verify project document
+        project = env.GetProject(Project01);
+        Assert.That(
+            project.TranslateConfig.DraftConfig.QualityEstimationConfig,
+            Is.EqualTo(qualityEstimationConfig).UsingPropertiesComparer()
+        );
+    }
+
+    [Test]
+    public void SetQualityEstimationConfigAsync_UnsupportedVersion()
+    {
+        var env = new TestEnvironment();
+        var qualityEstimationConfig = new QualityEstimationConfig
+        {
+            Version = "11.0",
+            Slope = 109.6145,
+            Intercept = -14.0633,
+        };
+
+        // SUT
+        Assert.ThrowsAsync<InvalidOperationException>(() =>
+            env.Service.SetQualityEstimationConfigAsync(
+                User01,
+                [SystemRole.ServalAdmin],
+                Project01,
+                qualityEstimationConfig
+            )
+        );
+    }
+
+    [Test]
+    public void SetQualityEstimationConfigAsync_UserMustBeServalAdmin()
+    {
+        var env = new TestEnvironment();
+        var qualityEstimationConfig = new QualityEstimationConfig
+        {
+            Version = "0.1",
+            Slope = 109.6145,
+            Intercept = -14.0633,
+        };
+
+        // SUT
+        Assert.ThrowsAsync<ForbiddenException>(() =>
+            env.Service.SetQualityEstimationConfigAsync(User01, [SystemRole.User], Project01, qualityEstimationConfig)
         );
     }
 
@@ -4803,6 +4913,12 @@ public class SFProjectServiceTests
                             {
                                 UsfmConfig = new DraftUsfmConfig(),
                                 ServalConfig = "{ existingConfig: true }",
+                                QualityEstimationConfig = new QualityEstimationConfig
+                                {
+                                    Version = string.Empty,
+                                    Slope = 0.0,
+                                    Intercept = 0.0,
+                                },
                             },
                         },
                         CheckingConfig = new CheckingConfig { CheckingEnabled = true },

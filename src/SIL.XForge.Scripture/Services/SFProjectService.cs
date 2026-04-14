@@ -236,11 +236,9 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
         {
             // If it is not a project, see if there is a matching resource
             IReadOnlyList<ParatextResource> resources = await _paratextService.GetResourcesAsync(curUserId);
-            ptProject = resources.SingleOrDefault(r => r.ParatextId == paratextId);
-            if (ptProject == null)
-            {
-                throw new DataNotFoundException("The paratext project or resource does not exist.");
-            }
+            ptProject =
+                resources.SingleOrDefault(r => r.ParatextId == paratextId)
+                ?? throw new DataNotFoundException("The paratext project or resource does not exist.");
         }
 
         await using IConnection conn = await RealtimeService.ConnectAsync(curUserId);
@@ -1235,6 +1233,35 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
         );
     }
 
+    public async Task SetQualityEstimationConfigAsync(
+        string curUserId,
+        string[] systemRoles,
+        string projectId,
+        QualityEstimationConfig? qualityEstimationConfig
+    )
+    {
+        if (!systemRoles.Contains(SystemRole.ServalAdmin))
+            throw new ForbiddenException();
+
+        if ((qualityEstimationConfig?.Version ?? "0.1") != "0.1")
+            throw new InvalidOperationException("Unsupported version number");
+
+        await using IConnection conn = await RealtimeService.ConnectAsync(curUserId);
+        IDocument<SFProject> projectDoc = await GetProjectDocAsync(projectId, conn);
+        if (qualityEstimationConfig is null)
+        {
+            await projectDoc.SubmitJson0OpAsync(op =>
+                op.Unset(p => p.TranslateConfig.DraftConfig.QualityEstimationConfig)
+            );
+        }
+        else
+        {
+            await projectDoc.SubmitJson0OpAsync(op =>
+                op.Set(p => p.TranslateConfig.DraftConfig.QualityEstimationConfig, qualityEstimationConfig)
+            );
+        }
+    }
+
     public Task<string> GetProjectIdFromParatextIdAsync(string[] systemRoles, string paratextId)
     {
         if (!(systemRoles.Contains(SystemRole.ServalAdmin) || systemRoles.Contains(SystemRole.SystemAdmin)))
@@ -2111,15 +2138,11 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
     {
         ParatextProject sourcePTProject = ptProjects.SingleOrDefault(p => p.ParatextId == paratextId);
         string sourceProjectRef;
-        if (sourcePTProject is null)
-        {
-            // If it is not a project, see if there is a matching resource
-            sourcePTProject = resources.SingleOrDefault(r => r.ParatextId == paratextId);
-            if (sourcePTProject is null)
-            {
-                throw new DataNotFoundException("The source paratext project does not exist.");
-            }
-        }
+
+        // If it is not a project, see if there is a matching resource
+        sourcePTProject ??=
+            resources.SingleOrDefault(r => r.ParatextId == paratextId)
+            ?? throw new DataNotFoundException("The source paratext project does not exist.");
 
         // Get the users who will access this source resource or project
         IEnumerable<string> userIds = userRoles is not null ? userRoles.Keys : [curUserId];
