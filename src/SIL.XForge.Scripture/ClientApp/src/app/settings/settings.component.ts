@@ -199,7 +199,11 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
   }
 
   get isReadOnly(): boolean {
-    return this.authService.currentUserRoles.includes(SystemRole.ServalAdmin);
+    if (!this.authService.currentUserRoles.includes(SystemRole.ServalAdmin)) return false;
+    const userId: string | undefined = this.userService.currentUserId;
+    if (userId == null) return true;
+    // If the user is also a project admin, they can use the page normally rather than as read-only
+    return this.projectDoc?.data?.userRoles?.[userId] !== SFProjectRole.ParatextAdministrator;
   }
 
   ngOnInit(): void {

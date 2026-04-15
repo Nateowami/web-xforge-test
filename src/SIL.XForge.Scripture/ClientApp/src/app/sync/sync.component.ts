@@ -6,8 +6,10 @@ import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoModule } from '@ngneat/transloco';
+import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
+import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { firstValueFrom } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { AuthService } from 'xforge-common/auth.service';
@@ -17,6 +19,7 @@ import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { UserService } from 'xforge-common/user.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { environment } from '../../environments/environment';
 import { SFProjectDoc } from '../core/models/sf-project-doc';
@@ -59,6 +62,7 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     private readonly onlineStatusService: OnlineStatusService,
     private readonly dialogService: DialogService,
     private readonly authService: AuthService,
+    private readonly userService: UserService,
     private destroyRef: DestroyRef
   ) {
     super(noticeService, 'SyncComponent');
@@ -149,7 +153,12 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
   }
 
   get isReadOnly(): boolean {
-    return this.authService.currentUserRoles.includes(SystemRole.ServalAdmin);
+    if (!this.authService.currentUserRoles.includes(SystemRole.ServalAdmin)) return false;
+    if (this.projectDoc?.data == null) return true;
+    const userId: string | undefined = this.userService.currentUserId;
+    if (userId == null) return true;
+    // If the user also has project rights to sync, they can use the page normally rather than as read-only
+    return !SF_PROJECT_RIGHTS.hasRight(this.projectDoc.data, userId, SFProjectDomain.Texts, Operation.Edit);
   }
 
   get syncFailureSupportMessage(): string {

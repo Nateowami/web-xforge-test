@@ -6,6 +6,7 @@ import { CookieService } from 'ngx-cookie-service';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { createTestProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
+import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { of } from 'rxjs';
 import { anyString, anything, mock, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
@@ -19,6 +20,7 @@ import { TestOnlineStatusService } from 'xforge-common/test-online-status.servic
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
+import { UserService } from 'xforge-common/user.service';
 import { SFProjectDoc } from '../core/models/sf-project-doc';
 import { SF_TYPE_REGISTRY } from '../core/models/sf-type-registry';
 import { ParatextService } from '../core/paratext.service';
@@ -38,6 +40,7 @@ const mockedProjectService = mock(SFProjectService);
 const mockedProjectNotificationService = mock(ProjectNotificationService);
 const mockedBugsnagService = mock(BugsnagService);
 const mockedCookieService = mock(CookieService);
+const mockedUserService = mock(UserService);
 
 describe('SyncComponent', () => {
   configureTestingModule(() => ({
@@ -55,6 +58,7 @@ describe('SyncComponent', () => {
       { provide: SFProjectService, useMock: mockedProjectService },
       { provide: BugsnagService, useMock: mockedBugsnagService },
       { provide: CookieService, useMock: mockedCookieService },
+      { provide: UserService, useMock: mockedUserService },
       { provide: OnlineStatusService, useClass: TestOnlineStatusService }
     ]
   }));
@@ -231,6 +235,20 @@ describe('SyncComponent', () => {
     expect(env.lastSyncDate).not.toBeNull();
   }));
 
+  it('should allow syncing when Serval admin is also a project admin', fakeAsync(() => {
+    const env = new TestEnvironment({
+      isParatextAccountConnected: true,
+      currentUserRoles: [SystemRole.ServalAdmin],
+      currentUserId: 'user01',
+      projectUserRoles: { user01: SFProjectRole.ParatextAdministrator }
+    });
+
+    // SUT
+    expect(env.logInButton).toBeNull();
+    expect(env.syncButton).not.toBeNull();
+    expect(env.syncButton.nativeElement.disabled).toBe(false);
+  }));
+
   it('should not report if sync was cancelled', fakeAsync(() => {
     const env = new TestEnvironment();
     const previousLastSyncDate = env.component.lastSyncDate;
@@ -274,6 +292,8 @@ interface SyncComponentTestConstructorArgs {
   lastSyncWasSuccessful?: boolean;
   lastSyncErrorCode?: number;
   currentUserRoles?: SystemRole[];
+  currentUserId?: string;
+  projectUserRoles?: { [userId: string]: SFProjectRole };
 }
 
 class TestEnvironment {
@@ -295,9 +315,14 @@ class TestEnvironment {
     const lastSyncWasSuccessful: boolean = args.lastSyncWasSuccessful ?? true;
     const lastSyncErrorCode: number = args.lastSyncErrorCode ?? 0;
     const currentUserRoles: SystemRole[] = args.currentUserRoles ?? [];
+    const currentUserId: string | undefined = args.currentUserId;
+    const projectUserRoles: { [userId: string]: SFProjectRole } = args.projectUserRoles ?? {};
 
     when(mockedActivatedRoute.params).thenReturn(of({ projectId: this.projectId }));
     when(mockedAuthService.currentUserRoles).thenReturn(currentUserRoles);
+    if (currentUserId != null) {
+      when(mockedUserService.currentUserId).thenReturn(currentUserId);
+    }
     const ptUsername = isParatextAccountConnected ? 'Paratext User01' : '';
     when(mockedParatextService.getParatextUsername()).thenReturn(of(ptUsername));
     when(mockedProjectService.onlineSync(anything())).thenCall(id => {
@@ -321,7 +346,8 @@ class TestEnvironment {
           dateLastSuccessfulSync: date.toJSON(),
           lastSyncErrorCode: lastSyncErrorCode
         },
-        syncDisabled: isSyncDisabled
+        syncDisabled: isSyncDisabled,
+        userRoles: projectUserRoles
       })
     });
 

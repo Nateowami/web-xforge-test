@@ -1,9 +1,11 @@
 <ng-container *transloco="let t; read: 'users'">
-  <h1>{{ t("users") }}</h1>
-  @if (isReadOnly) {
-    <app-notice icon="info" type="primary" id="serval-admin-read-only-notice">
-      {{ t("serval_admin_read_only_notice") }}
-    </app-notice>
-  }
+  <div class="users">
+    <h1>{{ t("users") }}</h1>
+    @if (isReadOnly) {
+      <app-notice icon="info" type="primary" id="serval-admin-read-only-notice">
+        {{ t("serval_admin_read_only_notice") }}
+      </app-notice>
+    }
+  </div>
   <app-collaborators [readOnly]="isReadOnly"></app-collaborators>
 </ng-container>

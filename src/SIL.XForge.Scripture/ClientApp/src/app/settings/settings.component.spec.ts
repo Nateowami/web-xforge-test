@@ -162,6 +162,17 @@ describe('SettingsComponent', () => {
       expect(env.basedOnSelectComponent.isDisabled).toBe(true);
     }));
 
+    it('allows editing settings when Serval admin is also a project admin', fakeAsync(() => {
+      when(mockedUserService.currentUserId).thenReturn('user01');
+      const env = new TestEnvironment(true, false, [SystemRole.ServalAdmin]);
+      env.setupProject({ userRoles: { user01: SFProjectRole.ParatextAdministrator } });
+      env.wait();
+
+      // SUT
+      expect(env.component.form.disabled).toBe(false);
+      expect(env.dangerZoneTitle).not.toBeNull();
+    }));
+
     it('enables form even when projects and resources fail to load', fakeAsync(() => {
       const env = new TestEnvironment();
       expect(env.component.form.disabled).toBe(true);
@@ -1082,6 +1093,9 @@ class TestEnvironment {
         rolePermissions[role] = permissions?.filter(p => p != null) ?? [];
       }
       projectData.rolePermissions = rolePermissions;
+    }
+    if (data.userRoles != null) {
+      projectData.userRoles = merge(projectData.userRoles, data.userRoles);
     }
     this.realtimeService.addSnapshot<SFProject>(SFProjectDoc.COLLECTION, {
       id: 'project01',
