@@ -14,7 +14,7 @@ import { CollaboratorsComponent } from './collaborators/collaborators.component'
   styleUrls: ['./users.component.scss'],
   imports: [TranslocoModule, NoticeComponent, CollaboratorsComponent]
 })
-/** Hosts the project users page and configures read-only behavior for Serval admins. */
+/** Hosts the project users page. Displays user collaborators and configures read-only behavior for Serval admins who lack project-level administrative permissions. */
 export class UsersComponent {
   constructor(
     private readonly authService: AuthService,
