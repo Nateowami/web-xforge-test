@@ -3,6 +3,7 @@ import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testin
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
 import { CookieService } from 'ngx-cookie-service';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { createTestProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { of } from 'rxjs';
@@ -217,6 +218,17 @@ describe('SyncComponent', () => {
     expect(env.syncDisabledMessage).toBeNull();
   }));
 
+  it('should show read-only sync view for Serval admins', fakeAsync(() => {
+    const env = new TestEnvironment({
+      isParatextAccountConnected: false,
+      currentUserRoles: [SystemRole.ServalAdmin]
+    });
+
+    expect(env.logInButton).toBeNull();
+    expect(env.syncButton).toBeNull();
+    expect(env.lastSyncDate).not.toBeNull();
+  }));
+
   it('should not report if sync was cancelled', fakeAsync(() => {
     const env = new TestEnvironment();
     const previousLastSyncDate = env.component.lastSyncDate;
@@ -259,6 +271,7 @@ interface SyncComponentTestConstructorArgs {
   isSyncDisabled?: boolean;
   lastSyncWasSuccessful?: boolean;
   lastSyncErrorCode?: number;
+  currentUserRoles?: SystemRole[];
 }
 
 class TestEnvironment {
@@ -279,8 +292,10 @@ class TestEnvironment {
     const isSyncDisabled: boolean = args.isSyncDisabled ?? false;
     const lastSyncWasSuccessful: boolean = args.lastSyncWasSuccessful ?? true;
     const lastSyncErrorCode: number = args.lastSyncErrorCode ?? 0;
+    const currentUserRoles: SystemRole[] = args.currentUserRoles ?? [];
 
     when(mockedActivatedRoute.params).thenReturn(of({ projectId: this.projectId }));
+    when(mockedAuthService.currentUserRoles).thenReturn(currentUserRoles);
     const ptUsername = isParatextAccountConnected ? 'Paratext User01' : '';
     when(mockedParatextService.getParatextUsername()).thenReturn(of(ptUsername));
     when(mockedProjectService.onlineSync(anything())).thenCall(id => {

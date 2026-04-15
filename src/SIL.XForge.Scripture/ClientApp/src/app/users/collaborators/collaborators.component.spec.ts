@@ -134,6 +134,18 @@ describe('CollaboratorsComponent', () => {
     expect(env.userRowsByCategory(UserType.Paratext)[2].nativeElement.querySelector('.user-more-menu')).toBeNull();
   }));
 
+  it('should hide edit controls in read-only mode', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.component.readOnly = true;
+    env.setupProjectData();
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.userRowsByCategory(UserType.Paratext)[1].nativeElement.querySelector('.user-more-menu')).toBeNull();
+    expect(env.shareControl).toBeNull();
+  }));
+
   it('displays invited users', fakeAsync(() => {
     const env = new TestEnvironment();
     when(mockedProjectService.onlineInvitedUsers(env.project01Id)).thenResolve([
@@ -460,6 +472,10 @@ class TestEnvironment {
 
   get offlineMessage(): DebugElement {
     return this.fixture.debugElement.query(By.css('#collaborators-offline-message'));
+  }
+
+  get shareControl(): DebugElement {
+    return this.fixture.debugElement.query(By.css('app-share-control'));
   }
 
   set onlineStatus(hasConnection: boolean) {

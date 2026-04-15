@@ -88,40 +88,40 @@
                 </ng-container>
                 <ng-container matColumnDef="more">
                   <td mat-cell *matCellDef="let userRow">
-                    @if (!userRow.paratextMemberNotConnected) {
+                    @if (!userRow.paratextMemberNotConnected && !readOnly) {
                       <button mat-icon-button class="user-more-menu" [matMenuTriggerFor]="userOptions">
                         <mat-icon>more_vert</mat-icon>
                       </button>
+                      <mat-menu #userOptions="matMenu" class="user-options">
+                        @if (!userRow.inviteeStatus && !isCurrentUser(userRow)) {
+                          <button
+                            mat-menu-item
+                            class="remove-user"
+                            (click)="removeProjectUserClicked(userRow)"
+                            [disabled]="!isAppOnline"
+                          >
+                            {{ t("remove_from_project") }}
+                          </button>
+                        } @else if (userRow.inviteeStatus) {
+                          <button
+                            mat-menu-item
+                            class="cancel-invite"
+                            (click)="uninviteProjectUser(userRow.user.email)"
+                            [disabled]="!isAppOnline"
+                          >
+                            {{ t("cancel_invite") }}
+                          </button>
+                        }
+                        <button
+                          mat-menu-item
+                          (click)="openRolesDialog(userRow)"
+                          [disabled]="isAdmin(userRow.role) || userRow.inviteeStatus"
+                          data-test-id="edit-roles-and-permissions"
+                        >
+                          {{ t("edit_roles_and_permissions") }}
+                        </button>
+                      </mat-menu>
                     }
-                    <mat-menu #userOptions="matMenu" class="user-options">
-                      @if (!userRow.inviteeStatus && !isCurrentUser(userRow)) {
-                        <button
-                          mat-menu-item
-                          class="remove-user"
-                          (click)="removeProjectUserClicked(userRow)"
-                          [disabled]="!isAppOnline"
-                        >
-                          {{ t("remove_from_project") }}
-                        </button>
-                      } @else if (userRow.inviteeStatus) {
-                        <button
-                          mat-menu-item
-                          class="cancel-invite"
-                          (click)="uninviteProjectUser(userRow.user.email)"
-                          [disabled]="!isAppOnline"
-                        >
-                          {{ t("cancel_invite") }}
-                        </button>
-                      }
-                      <button
-                        mat-menu-item
-                        (click)="openRolesDialog(userRow)"
-                        [disabled]="isAdmin(userRow.role) || userRow.inviteeStatus"
-                        data-test-id="edit-roles-and-permissions"
-                      >
-                        {{ t("edit_roles_and_permissions") }}
-                      </button>
-                    </mat-menu>
                   </td>
                 </ng-container>
                 <tr mat-row *matRowDef="let userRow; columns: tableColumns"></tr>
@@ -135,6 +135,8 @@
         }
       </div>
     }
-    <app-share-control [projectId]="projectId" (invited)="onInvitationSent()"></app-share-control>
+    @if (!readOnly) {
+      <app-share-control [projectId]="projectId" (invited)="onInvitationSent()"></app-share-control>
+    }
   </div>
 </ng-container>

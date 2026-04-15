@@ -1,5 +1,7 @@
 import { Component } from '@angular/core';
 import { TranslocoModule } from '@ngneat/transloco';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
+import { AuthService } from 'xforge-common/auth.service';
 import { CollaboratorsComponent } from './collaborators/collaborators.component';
 
 @Component({
@@ -7,4 +9,10 @@ import { CollaboratorsComponent } from './collaborators/collaborators.component'
   templateUrl: './users.component.html',
   imports: [TranslocoModule, CollaboratorsComponent]
 })
-export class UsersComponent {}
+export class UsersComponent {
+  constructor(private readonly authService: AuthService) {}
+
+  get isReadOnly(): boolean {
+    return this.authService.currentUserRoles.includes(SystemRole.ServalAdmin);
+  }
+}

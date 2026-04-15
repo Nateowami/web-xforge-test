@@ -6,6 +6,7 @@ import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoModule } from '@ngneat/transloco';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { firstValueFrom } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
@@ -147,6 +148,10 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     return this.projectDoc?.data?.sync.lastSyncSuccessful === false;
   }
 
+  get isReadOnly(): boolean {
+    return this.authService.currentUserRoles.includes(SystemRole.ServalAdmin);
+  }
+
   get syncFailureSupportMessage(): string {
     return this.i18n.translateAndInsertTags('sync.sync_failure_support_message', {
       email: `<a target="_blank" href="mailto:${environment.issueEmail}">${environment.issueEmail}</a>`
@@ -191,7 +196,7 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
   }
 
   logInWithParatext(): void {
-    if (this.projectDoc == null) {
+    if (this.isReadOnly || this.projectDoc == null) {
       return;
     }
     const url = '/projects/' + this.projectDoc.id + '/sync';
@@ -199,7 +204,7 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
   }
 
   syncProject(): void {
-    if (this.projectDoc == null) {
+    if (this.isReadOnly || this.projectDoc == null) {
       return;
     }
     this._syncActive = true;
@@ -214,7 +219,7 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
   }
 
   cancelSync(): void {
-    if (this.projectDoc == null) {
+    if (this.isReadOnly || this.projectDoc == null) {
       return;
     }
     void this.projectService.onlineCancelSync(this.projectDoc.id);

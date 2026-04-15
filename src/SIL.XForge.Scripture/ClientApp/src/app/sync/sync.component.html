@@ -17,37 +17,41 @@
     }
     <mat-card class="sync-card">
       <div class="card-content">
-        @if (showParatextLogin && isAppOnline) {
+        @if (!isReadOnly && showParatextLogin && isAppOnline) {
           <button mat-flat-button type="button" (click)="logInWithParatext()" id="btn-log-in">
             <mat-icon><img src="/assets/images/logo-pt9.png" alt="Paratext Logo" class="paratext-logo" /></mat-icon>
             {{ t("log_in_to_paratext") }}
           </button>
         }
-        @if (isLoggedIntoParatext || isLoadingData || !isAppOnline) {
+        @if (isReadOnly || isLoggedIntoParatext || isLoadingData || !isAppOnline) {
           @if (!syncActive) {
-            <button
-              mat-flat-button
-              color="primary"
-              type="button"
-              (click)="syncProject()"
-              [disabled]="isLoadingData || !isAppOnline || syncDisabled"
-              id="btn-sync"
-            >
-              <mat-icon>sync</mat-icon>
-              {{ t("synchronize") }}
-            </button>
+            @if (!isReadOnly) {
+              <button
+                mat-flat-button
+                color="primary"
+                type="button"
+                (click)="syncProject()"
+                [disabled]="isLoadingData || !isAppOnline || syncDisabled"
+                id="btn-sync"
+              >
+                <mat-icon>sync</mat-icon>
+                {{ t("synchronize") }}
+              </button>
+            }
           }
           @if (syncActive) {
             <app-sync-progress [projectDoc]="projectDoc" (inProgress)="syncActive = $event"></app-sync-progress>
-            <button
-              mat-button
-              type="button"
-              (click)="cancelSync()"
-              [disabled]="isLoadingData || !isAppOnline || syncDisabled"
-              id="btn-cancel-sync"
-            >
-              {{ t("cancel") }}
-            </button>
+            @if (!isReadOnly) {
+              <button
+                mat-button
+                type="button"
+                (click)="cancelSync()"
+                [disabled]="isLoadingData || !isAppOnline || syncDisabled"
+                id="btn-cancel-sync"
+              >
+                {{ t("cancel") }}
+              </button>
+            }
           } @else {
             <mat-hint [matTooltip]="lastSyncDisplayDate" id="date-last-sync">
               {{ lastSyncNotice }}

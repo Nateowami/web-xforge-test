@@ -8,6 +8,7 @@ import { ActivatedRoute, provideRouter, Route } from '@angular/router';
 import { cloneDeep, merge } from 'lodash-es';
 import { TranslocoMarkupModule } from 'ngx-transloco-markup';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { obj } from 'realtime-server/lib/esm/common/utils/obj-path';
 import { RecursivePartial } from 'realtime-server/lib/esm/common/utils/type-utils';
 import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
@@ -147,6 +148,16 @@ describe('SettingsComponent', () => {
       expect(env.offlineMessage).toBeNull();
       expect(env.deleteProjectButton.disabled).toBe(false);
       expect(env.component.form.enabled).toBe(true);
+    }));
+
+    it('keeps settings read-only for Serval admins', fakeAsync(() => {
+      const env = new TestEnvironment(true, false, [SystemRole.ServalAdmin]);
+      env.setupProject();
+      env.wait();
+
+      expect(env.component.form.disabled).toBe(true);
+      expect(env.dangerZoneTitle).toBeNull();
+      expect(env.loginButton).toBeNull();
     }));
 
     it('enables form even when projects and resources fail to load', fakeAsync(() => {
@@ -761,9 +772,9 @@ class TestEnvironment {
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
   private mockedDialogRef = mock<MatDialogRef<DeleteProjectDialogComponent>>(MatDialogRef);
 
-  constructor(hasConnection: boolean = true, isSource: boolean = false) {
+  constructor(hasConnection: boolean = true, isSource: boolean = false, currentUserRoles: SystemRole[] = []) {
     when(mockedActivatedRoute.params).thenReturn(of({ projectId: 'project01' }));
-    when(mockedAuthService.currentUserRoles).thenReturn([]);
+    when(mockedAuthService.currentUserRoles).thenReturn(currentUserRoles);
     when(mockedFeatureFlagService.showDeveloperTools).thenReturn(createTestFeatureFlag(false));
     when(mockedSFProjectService.onlineIsSourceProject('project01')).thenResolve(isSource);
     when(mockedSFProjectService.onlineDelete(anything())).thenResolve();

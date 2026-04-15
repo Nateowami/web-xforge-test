@@ -12,6 +12,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { TranslocoModule } from '@ngneat/transloco';
 import { TranslocoMarkupComponent } from 'ngx-transloco-markup';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { CheckingAnswerExport } from 'realtime-server/lib/esm/scriptureforge/models/checking-config';
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
@@ -192,7 +193,11 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
   }
 
   get deleteButtonDisabled(): boolean {
-    return !this.isAppOnline || !this.mainSettingsLoaded || this.isActiveSourceProject || this.isProjectSyncing;
+    return this.isReadOnly || !this.isAppOnline || !this.mainSettingsLoaded || this.isActiveSourceProject || this.isProjectSyncing;
+  }
+
+  get isReadOnly(): boolean {
+    return this.authService.currentUserRoles.includes(SystemRole.ServalAdmin);
   }
 
   ngOnInit(): void {
@@ -273,7 +278,7 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
   }
 
   logInWithParatext(): void {
-    if (this.projectDoc == null) {
+    if (this.isReadOnly || this.projectDoc == null) {
       return;
     }
 
@@ -282,7 +287,7 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
   }
 
   openDeleteProjectDialog(): void {
-    if (this.projectDoc == null || this.projectDoc.data == null) {
+    if (this.isReadOnly || this.projectDoc == null || this.projectDoc.data == null) {
       return;
     }
 
@@ -305,6 +310,11 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
   }
 
   updateFormEnabled(): void {
+    if (this.isReadOnly) {
+      this.form.disable();
+      return;
+    }
+
     if (this._isAppOnline && this.mainSettingsLoaded) {
       this.form.enable();
       this.setIndividualControlDisabledStates();

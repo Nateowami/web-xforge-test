@@ -1,4 +1,4 @@
 <ng-container *transloco="let t; read: 'users'">
   <h1>{{ t("users") }}</h1>
-  <app-collaborators></app-collaborators>
+  <app-collaborators [readOnly]="isReadOnly"></app-collaborators>
 </ng-container>

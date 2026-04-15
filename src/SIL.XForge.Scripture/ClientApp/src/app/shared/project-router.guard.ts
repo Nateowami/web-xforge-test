@@ -1,11 +1,13 @@
 import { Injectable } from '@angular/core';
 import { ActivatedRouteSnapshot, CanDeactivate, Router, RouterStateSnapshot } from '@angular/router';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { from, Observable, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { AuthGuard } from 'xforge-common/auth.guard';
+import { AuthService } from 'xforge-common/auth.service';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { PermissionsService } from '../core/permissions.service';
@@ -43,12 +45,16 @@ export class SettingsAuthGuard extends RouterGuard {
   constructor(
     authGuard: AuthGuard,
     projectService: SFProjectService,
-    private userService: UserService
+    private userService: UserService,
+    private authService: AuthService
   ) {
     super(authGuard, projectService);
   }
 
   check(projectDoc: SFProjectProfileDoc): boolean {
+    if (this.authService.currentUserRoles.includes(SystemRole.ServalAdmin)) {
+      return true;
+    }
     return (
       projectDoc.data != null &&
       projectDoc.data.userRoles[this.userService.currentUserId] === SFProjectRole.ParatextAdministrator
@@ -63,12 +69,16 @@ export class UsersAuthGuard extends RouterGuard {
   constructor(
     authGuard: AuthGuard,
     projectService: SFProjectService,
-    private userService: UserService
+    private userService: UserService,
+    private authService: AuthService
   ) {
     super(authGuard, projectService);
   }
 
   check(projectDoc: SFProjectProfileDoc): boolean {
+    if (this.authService.currentUserRoles.includes(SystemRole.ServalAdmin)) {
+      return true;
+    }
     return (
       projectDoc.data != null &&
       projectDoc.data.userRoles[this.userService.currentUserId] === SFProjectRole.ParatextAdministrator
@@ -83,12 +93,16 @@ export class SyncAuthGuard extends RouterGuard {
   constructor(
     authGuard: AuthGuard,
     projectService: SFProjectService,
-    private userService: UserService
+    private userService: UserService,
+    private authService: AuthService
   ) {
     super(authGuard, projectService);
   }
 
   check(projectDoc: SFProjectProfileDoc): boolean {
+    if (this.authService.currentUserRoles.includes(SystemRole.ServalAdmin)) {
+      return true;
+    }
     if (projectDoc.data == null) return false;
     return SF_PROJECT_RIGHTS.hasRight(
       projectDoc.data,

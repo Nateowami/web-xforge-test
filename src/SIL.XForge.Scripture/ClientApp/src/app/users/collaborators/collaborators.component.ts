@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit } from '@angular/core';
+import { Component, DestroyRef, Input, OnInit } from '@angular/core';
 import { FormsModule, ReactiveFormsModule, UntypedFormControl, UntypedFormGroup } from '@angular/forms';
 import { MatIconButton } from '@angular/material/button';
 import { MatHint } from '@angular/material/form-field';
@@ -84,6 +84,8 @@ export enum UserType {
   ]
 })
 export class CollaboratorsComponent extends DataLoadingComponent implements OnInit {
+  @Input() readOnly: boolean = false;
+
   userInviteForm = new UntypedFormGroup({
     email: new UntypedFormControl('', [XFValidators.email])
   });
@@ -166,6 +168,9 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
   }
 
   async removeProjectUserClicked(row: Row): Promise<void> {
+    if (this.readOnly) {
+      return;
+    }
     const confirmed: boolean = await this.dialogService.confirm(
       this.i18n.translate('collaborators.confirm_remove_user', { user: row.user.displayName }),
       'collaborators.remove_user'
@@ -176,6 +181,9 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
   }
 
   async uninviteProjectUser(emailToUninvite: string): Promise<void> {
+    if (this.readOnly) {
+      return;
+    }
     await this.projectService.onlineUninviteUser(this.projectId, emailToUninvite);
     this.loadUsers$.next();
   }
@@ -185,6 +193,9 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
   }
 
   async openRolesDialog(row: Row): Promise<void> {
+    if (this.readOnly) {
+      return;
+    }
     this.dialogService.openMatDialog(RolesAndPermissionsDialogComponent, {
       data: {
         projectId: this.projectId,
