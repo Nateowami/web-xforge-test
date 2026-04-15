@@ -1,6 +1,11 @@
 <ng-container *transloco="let t; read: 'sync'">
   <div class="base-container">
     <h1 id="title" class="h2">{{ t("synchronize_project", { projectName: projectName }) }}</h1>
+    @if (isReadOnly) {
+      <app-notice icon="info" type="primary" id="serval-admin-read-only-notice">
+        {{ t("serval_admin_read_only_notice") }}
+      </app-notice>
+    }
     @if (!isAppOnline) {
       <span class="offline-text"> {{ t("connect_network_to_synchronize") }} </span>
     }
@@ -25,19 +30,17 @@
         }
         @if (isReadOnly || isLoggedIntoParatext || isLoadingData || !isAppOnline) {
           @if (!syncActive) {
-            @if (!isReadOnly) {
-              <button
-                mat-flat-button
-                color="primary"
-                type="button"
-                (click)="syncProject()"
-                [disabled]="isLoadingData || !isAppOnline || syncDisabled"
-                id="btn-sync"
-              >
-                <mat-icon>sync</mat-icon>
-                {{ t("synchronize") }}
-              </button>
-            }
+            <button
+              mat-flat-button
+              color="primary"
+              type="button"
+              (click)="syncProject()"
+              [disabled]="isReadOnly || isLoadingData || !isAppOnline || syncDisabled"
+              id="btn-sync"
+            >
+              <mat-icon>sync</mat-icon>
+              {{ t("synchronize") }}
+            </button>
           }
           @if (syncActive) {
             <app-sync-progress [projectDoc]="projectDoc" (inProgress)="syncActive = $event"></app-sync-progress>

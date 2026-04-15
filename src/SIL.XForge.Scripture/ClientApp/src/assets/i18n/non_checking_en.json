@@ -790,7 +790,8 @@
     "insights_allowed_character_checker_description": "Works for Latin-script languages",
     "insights_allowed_character_checker_help": "Check for characters that are not allowed in your writing system.",
     "beta_tag": "beta",
-    "will_not_delete_paratext_project": "This will {{ boldStart }}not{{ boldEnd }} delete your Paratext project, but it will delete any unsynchronized data stored in Scripture Forge. It is recommended to {{ templateTagBoundary }}Synchronize{{ templateTagBoundary }} first before deleting."
+    "will_not_delete_paratext_project": "This will {{ boldStart }}not{{ boldEnd }} delete your Paratext project, but it will delete any unsynchronized data stored in Scripture Forge. It is recommended to {{ templateTagBoundary }}Synchronize{{ templateTagBoundary }} first before deleting.",
+    "serval_admin_read_only_notice": "This page is in read-only mode. Serval admins can view but not modify project settings."
   },
   "editor_add_tab_resource_dialog": {
     "dialog_title": "Open Resource Tab",
@@ -856,7 +857,8 @@
     "sync_is_disabled": "Synchronization for this project needed to be disabled, so it is not available at this time. Please contact {{ email }} to discuss what needs to be done so project synchronization can be enabled again.",
     "sync_failure_support_message": "Something went wrong the last time Scripture Forge attempted to synchronize the project with Paratext. If it still doesn't work after you try again, please report the problem by writing to {{email}}.",
     "sync_user_permissions_failure_message": "The last user to synchronize this project no longer has permission to sync. Please contact the project administrator.",
-    "user_permissions_failure_dialog_message": "You no longer have permission to synchronize this project with Paratext. Please contact the project administrator."
+    "user_permissions_failure_dialog_message": "You no longer have permission to synchronize this project with Paratext. Please contact the project administrator.",
+    "serval_admin_read_only_notice": "This page is in read-only mode. Serval admins can view but not synchronize this project."
   },
   "tab_group_header": {
     "no_tabs_available": "No tabs available."
@@ -974,7 +976,8 @@
   },
   "users": {
     "collaborators": "Collaborators",
-    "users": "Users"
+    "users": "Users",
+    "serval_admin_read_only_notice": "This page is in read-only mode. Serval admins can view but not modify project users."
   },
   "warnings": {
     "cancel": "Cancel",

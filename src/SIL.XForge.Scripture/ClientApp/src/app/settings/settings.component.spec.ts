@@ -155,9 +155,11 @@ describe('SettingsComponent', () => {
       env.setupProject();
       env.wait();
 
+      // SUT
       expect(env.component.form.disabled).toBe(true);
       expect(env.dangerZoneTitle).toBeNull();
       expect(env.loginButton).toBeNull();
+      expect(env.basedOnSelectComponent.isDisabled).toBe(true);
     }));
 
     it('enables form even when projects and resources fail to load', fakeAsync(() => {

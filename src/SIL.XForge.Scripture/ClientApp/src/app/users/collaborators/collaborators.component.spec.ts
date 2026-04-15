@@ -146,6 +146,18 @@ describe('CollaboratorsComponent', () => {
     expect(env.shareControl).toBeNull();
   }));
 
+  it('should not load invited users in read-only mode', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.component.readOnly = true;
+    env.setupProjectData();
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+
+    // SUT
+    verify(mockedProjectService.onlineInvitedUsers(env.project01Id)).never();
+  }));
+
   it('displays invited users', fakeAsync(() => {
     const env = new TestEnvironment();
     when(mockedProjectService.onlineInvitedUsers(env.project01Id)).thenResolve([

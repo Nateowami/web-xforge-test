@@ -42,6 +42,7 @@ import { ParatextService } from '../core/paratext.service';
 import { SFProjectService } from '../core/sf-project.service';
 import { ProjectSelectComponent } from '../project-select/project-select.component';
 import { InfoComponent } from '../shared/info/info.component';
+import { NoticeComponent } from '../shared/notice/notice.component';
 import { DeleteProjectDialogComponent } from './delete-project-dialog/delete-project-dialog.component';
 
 /** Allows user to configure high-level settings of how SF will use their Paratext project. */
@@ -63,6 +64,7 @@ import { DeleteProjectDialogComponent } from './delete-project-dialog/delete-pro
     MatError,
     MatCheckbox,
     InfoComponent,
+    NoticeComponent,
     MatHint,
     MatRadioGroup,
     MatRadioButton,

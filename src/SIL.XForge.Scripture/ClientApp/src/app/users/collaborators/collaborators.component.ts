@@ -263,17 +263,19 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
     );
 
     try {
-      inviteeRows.push(
-        ...(await this.projectService.onlineInvitedUsers(this.projectId)).map(
-          invitee =>
-            ({
-              id: '',
-              user: { email: invitee.email },
-              role: invitee.role,
-              inviteeStatus: invitee
-            }) as Row
-        )
-      );
+      if (!this.isReadOnlyMode()) {
+        inviteeRows.push(
+          ...(await this.projectService.onlineInvitedUsers(this.projectId)).map(
+            invitee =>
+              ({
+                id: '',
+                user: { email: invitee.email },
+                role: invitee.role,
+                inviteeStatus: invitee
+              }) as Row
+          )
+        );
+      }
     } catch {
       this.noticeService.show(this.i18n.translateStatic('collaborators.problem_loading_invited_users'));
     }

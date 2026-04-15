@@ -225,7 +225,9 @@ describe('SyncComponent', () => {
     });
 
     expect(env.logInButton).toBeNull();
-    expect(env.syncButton).toBeNull();
+    // Sync button is present but disabled for Serval admins
+    expect(env.syncButton).not.toBeNull();
+    expect(env.syncButton.nativeElement.disabled).toBe(true);
     expect(env.lastSyncDate).not.toBeNull();
   }));
 
