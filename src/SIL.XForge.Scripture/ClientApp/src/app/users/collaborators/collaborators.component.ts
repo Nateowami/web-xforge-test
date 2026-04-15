@@ -84,7 +84,7 @@ export enum UserType {
   ]
 })
 export class CollaboratorsComponent extends DataLoadingComponent implements OnInit {
-  @Input() readOnly: boolean = false;
+  @Input() readOnly?: boolean;
 
   userInviteForm = new UntypedFormGroup({
     email: new UntypedFormControl('', [XFValidators.email])
@@ -168,7 +168,7 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
   }
 
   async removeProjectUserClicked(row: Row): Promise<void> {
-    if (this.readOnly) {
+    if (this.isReadOnlyMode()) {
       return;
     }
     const confirmed: boolean = await this.dialogService.confirm(
@@ -181,7 +181,7 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
   }
 
   async uninviteProjectUser(emailToUninvite: string): Promise<void> {
-    if (this.readOnly) {
+    if (this.isReadOnlyMode()) {
       return;
     }
     await this.projectService.onlineUninviteUser(this.projectId, emailToUninvite);
@@ -193,7 +193,7 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
   }
 
   async openRolesDialog(row: Row): Promise<void> {
-    if (this.readOnly) {
+    if (this.isReadOnlyMode()) {
       return;
     }
     this.dialogService.openMatDialog(RolesAndPermissionsDialogComponent, {
@@ -210,6 +210,10 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
 
   isAdmin(role: string): boolean {
     return role === SFProjectRole.ParatextAdministrator;
+  }
+
+  private isReadOnlyMode(): boolean {
+    return this.readOnly === true;
   }
 
   private async loadUsers(): Promise<void> {

@@ -196,19 +196,21 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
   }
 
   logInWithParatext(): void {
-    if (this.isReadOnly || this.projectDoc == null) {
+    if (this.shouldBlockActions()) {
       return;
     }
-    const url = '/projects/' + this.projectDoc.id + '/sync';
+    const projectDoc: SFProjectDoc = this.projectDoc!;
+    const url = '/projects/' + projectDoc.id + '/sync';
     this.paratextService.linkParatext(url);
   }
 
   syncProject(): void {
-    if (this.isReadOnly || this.projectDoc == null) {
+    if (this.shouldBlockActions()) {
       return;
     }
+    const projectDoc: SFProjectDoc = this.projectDoc!;
     this._syncActive = true;
-    this.projectService.onlineSync(this.projectDoc.id).catch((error: any) => {
+    this.projectService.onlineSync(projectDoc.id).catch((error: any) => {
       this.checkSyncStatus();
       if ('code' in error && error.code === CommandErrorCode.Forbidden) {
         this.authService.requestParatextCredentialUpdate();
@@ -219,10 +221,11 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
   }
 
   cancelSync(): void {
-    if (this.isReadOnly || this.projectDoc == null) {
+    if (this.shouldBlockActions()) {
       return;
     }
-    void this.projectService.onlineCancelSync(this.projectDoc.id);
+    const projectDoc: SFProjectDoc = this.projectDoc!;
+    void this.projectService.onlineCancelSync(projectDoc.id);
     this.isSyncCancelled = true;
   }
 
@@ -237,5 +240,9 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     if (this.projectDoc.data.sync.lastSyncSuccessful) {
       this.previousLastSyncDate = this.lastSyncDate;
     }
+  }
+
+  private shouldBlockActions(): boolean {
+    return this.isReadOnly || this.projectDoc == null;
   }
 }

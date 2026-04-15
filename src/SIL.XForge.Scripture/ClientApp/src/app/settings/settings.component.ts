@@ -278,16 +278,17 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
   }
 
   logInWithParatext(): void {
-    if (this.isReadOnly || this.projectDoc == null) {
+    if (this.shouldBlockSettingsAction()) {
       return;
     }
 
-    const url = '/projects/' + this.projectDoc.id + '/settings';
+    const projectDoc: SFProjectDoc = this.projectDoc!;
+    const url = '/projects/' + projectDoc.id + '/settings';
     this.paratextService.linkParatext(url);
   }
 
   openDeleteProjectDialog(): void {
-    if (this.isReadOnly || this.projectDoc == null || this.projectDoc.data == null) {
+    if (this.shouldBlockSettingsAction() || this.projectDoc?.data == null) {
       return;
     }
 
@@ -571,5 +572,9 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
         name: project.name
       });
     }
+  }
+
+  private shouldBlockSettingsAction(): boolean {
+    return this.isReadOnly || this.projectDoc == null;
   }
 }

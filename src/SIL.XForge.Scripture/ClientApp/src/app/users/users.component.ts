@@ -9,6 +9,7 @@ import { CollaboratorsComponent } from './collaborators/collaborators.component'
   templateUrl: './users.component.html',
   imports: [TranslocoModule, CollaboratorsComponent]
 })
+/** Hosts the project users page and configures read-only behavior for Serval admins. */
 export class UsersComponent {
   constructor(private readonly authService: AuthService) {}
 
