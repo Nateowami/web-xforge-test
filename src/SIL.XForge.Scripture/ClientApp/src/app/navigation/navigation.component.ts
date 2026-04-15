@@ -6,9 +6,10 @@ import { MatListItem, MatNavList } from '@angular/material/list';
 import { Router } from '@angular/router';
 import { TranslocoModule } from '@ngneat/transloco';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
-import { combineLatest, Observable, of } from 'rxjs';
+import { combineLatest, from, Observable, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
@@ -38,10 +39,17 @@ export class NavigationComponent {
   canSync$: Observable<boolean> = this.activatedProjectService.projectId$.pipe(
     switchMap(projectId => (projectId == null ? of(false) : this.syncAuthGuard.allowTransition(projectId)))
   );
-  /** Whether the user can see at least one of settings, users, or sync page */
-  canSeeAdminPages$: Observable<boolean> = combineLatest([this.canSeeSettings$, this.canSeeUsers$, this.canSync$]).pipe(
-    map(([settings, users, sync]) => settings || users || sync)
+  canSeeServalAdminPage$: Observable<boolean> = from(this.userService.getCurrentUser()).pipe(
+    map(userDoc => userDoc.data?.roles?.includes(SystemRole.ServalAdmin) === true)
   );
+
+  /** Whether the user can see at least one of settings, users, or sync page */
+  canSeeAdminPages$: Observable<boolean> = combineLatest([
+    this.canSeeSettings$,
+    this.canSeeUsers$,
+    this.canSync$,
+    this.canSeeServalAdminPage$
+  ]).pipe(map(([settings, users, sync, servalAdmin]) => settings || users || sync || servalAdmin));
   canGenerateDraft$: Observable<boolean> = this.activatedProjectService.projectId$.pipe(
     switchMap(projectId => (projectId == null ? of(false) : this.nmtDraftAuthGuard.allowTransition(projectId)))
   );
@@ -164,6 +172,10 @@ export class NavigationComponent {
 
   get draftGenerationActive(): boolean {
     return this.router.url.startsWith(this.getProjectLink('draft-generation').join('/'));
+  }
+
+  get servalAdministraionLink(): string[] {
+    return ['/serval-administration', this.activatedProjectService.projectId!];
   }
 
   private urlStartsWithAndHasAnotherPortion(link: string): boolean {

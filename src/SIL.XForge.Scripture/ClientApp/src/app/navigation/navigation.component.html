@@ -71,6 +71,12 @@
           {{ t("settings") }}
         </a>
       }
+      @if (canSeeServalAdminPage$ | async) {
+        <a mat-list-item [appRouterLink]="servalAdministraionLink">
+          <mat-icon>engineering</mat-icon>
+          Serval Administration
+        </a>
+      }
     </mat-nav-list>
   }
 </ng-container>
