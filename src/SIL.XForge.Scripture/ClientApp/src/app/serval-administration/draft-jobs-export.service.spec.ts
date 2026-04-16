@@ -5,7 +5,7 @@ import { DraftJobsExportService, SpreadsheetRow } from './draft-jobs-export.serv
 
 describe('DraftJobsExportService', () => {
   describe('createSpreadsheetRows', () => {
-    it('should use project name in training and translation books when available', () => {
+    it('should put project names and book codes in separate columns', () => {
       const env = new TestEnvironment();
       const spreadsheetRows: SpreadsheetRow[] = (env.service as any).createSpreadsheetRows([
         {
@@ -34,12 +34,44 @@ describe('DraftJobsExportService', () => {
         sfProjectId: 'project1',
         projectName: 'Test Project',
         sfUserId: 'user123',
-        trainingBooks: 'Source Project: GEN',
-        translationBooks: 'Reference Project: MAT'
+        trainingProjectNames: 'Source Project',
+        trainingBooks: 'GEN',
+        translationProjectNames: 'Reference Project',
+        translationBooks: 'MAT'
       });
     });
 
-    it('should fall back to project ID when project name is absent', () => {
+    it('should put project names and books from multiple source projects in separate columns', () => {
+      const env = new TestEnvironment();
+      const spreadsheetRows: SpreadsheetRow[] = (env.service as any).createSpreadsheetRows([
+        {
+          job: {
+            buildId: 'build-123',
+            startTime: new Date('2025-01-15T10:00:00Z'),
+            finishTime: new Date('2025-01-15T11:00:00Z'),
+            duration: 3600000
+          },
+          projectId: 'project1',
+          projectName: 'Test Project',
+          status: 'Success',
+          userId: 'user123',
+          trainingBooks: [
+            { projectId: 'projA', projectName: 'Project A', books: ['MRK'] },
+            { projectId: 'projB', projectName: 'Project B', books: ['MRK'] }
+          ],
+          translationBooks: [{ projectId: 'projC', projectName: 'Project C', books: ['OBA'] }]
+        }
+      ]);
+
+      // SUT
+      expect(spreadsheetRows.length).toEqual(1);
+      expect(spreadsheetRows[0].trainingProjectNames).toEqual('Project A; Project B');
+      expect(spreadsheetRows[0].trainingBooks).toEqual('MRK; MRK');
+      expect(spreadsheetRows[0].translationProjectNames).toEqual('Project C');
+      expect(spreadsheetRows[0].translationBooks).toEqual('OBA');
+    });
+
+    it('should fall back to project ID in trainingProjectNames when project name is absent', () => {
       const env = new TestEnvironment();
       const spreadsheetRows: SpreadsheetRow[] = (env.service as any).createSpreadsheetRows([
         {
@@ -68,8 +100,10 @@ describe('DraftJobsExportService', () => {
         sfProjectId: 'project1',
         projectName: 'Test Project',
         sfUserId: 'user123',
-        trainingBooks: 'project1: GEN',
-        translationBooks: 'project1: MAT'
+        trainingProjectNames: 'project1',
+        trainingBooks: 'GEN',
+        translationProjectNames: 'project1',
+        translationBooks: 'MAT'
       });
     });
   });

@@ -24,7 +24,13 @@ export interface SpreadsheetRow {
   sfProjectId: string;
   projectName?: string;
   sfUserId?: string;
+  /** Semicolon-separated list of training source project names (or project IDs when names are unavailable). */
+  trainingProjectNames: string;
+  /** Semicolon-separated list of book codes used for training, across all training source projects. */
   trainingBooks: string;
+  /** Semicolon-separated list of translation (drafting target) project names or IDs. */
+  translationProjectNames: string;
+  /** Semicolon-separated list of book codes used for translation. */
   translationBooks: string;
 }
 
@@ -74,7 +80,9 @@ export class DraftJobsExportService {
       'sfProjectId',
       'projectName',
       'sfUserId',
+      'trainingProjectNames',
       'trainingBooks',
+      'translationProjectNames',
       'translationBooks'
     ];
 
@@ -87,7 +95,9 @@ export class DraftJobsExportService {
       row.sfProjectId,
       row.projectName ?? null,
       row.sfUserId ?? null,
+      row.trainingProjectNames,
       row.trainingBooks,
+      row.translationProjectNames,
       row.translationBooks
     ]);
 
@@ -117,7 +127,9 @@ export class DraftJobsExportService {
     const blankRow: SpreadsheetRow = {
       status: '',
       sfProjectId: '',
+      trainingProjectNames: '',
       trainingBooks: '',
+      translationProjectNames: '',
       translationBooks: ''
     };
     dataRows.push(blankRow);
@@ -128,7 +140,9 @@ export class DraftJobsExportService {
       startTime: meanDuration != null ? this.msToMinutes(meanDuration).toFixed(0) : '0',
       status: '',
       sfProjectId: '',
+      trainingProjectNames: '',
       trainingBooks: '',
+      translationProjectNames: '',
       translationBooks: ''
     };
     dataRows.push(meanRow);
@@ -139,7 +153,9 @@ export class DraftJobsExportService {
       startTime: maxDuration != null ? this.msToMinutes(maxDuration).toFixed(0) : '0',
       status: '',
       sfProjectId: '',
+      trainingProjectNames: '',
       trainingBooks: '',
+      translationProjectNames: '',
       translationBooks: ''
     };
     dataRows.push(maxRow);
@@ -152,8 +168,10 @@ export class DraftJobsExportService {
    */
   protected createSpreadsheetRows(rows: DraftJobsTableRow[]): SpreadsheetRow[] {
     return rows.map<SpreadsheetRow>((row: DraftJobsTableRow) => {
-      const trainingBooksList = row.trainingBooks.map(pb => `${pb.projectName ?? pb.projectId}: ${pb.books.join('; ')}`).join('. ');
-      const translationBooksList = row.translationBooks.map(pb => `${pb.projectName ?? pb.projectId}: ${pb.books.join('; ')}`).join('. ');
+      const trainingProjectNames = row.trainingBooks.map(pb => pb.projectName ?? pb.projectId).join('; ');
+      const trainingBooksList = row.trainingBooks.flatMap(pb => pb.books).join('; ');
+      const translationProjectNames = row.translationBooks.map(pb => pb.projectName ?? pb.projectId).join('; ');
+      const translationBooksList = row.translationBooks.flatMap(pb => pb.books).join('; ');
 
       let durationMinutes: string = '';
       if (row.job.startTime != null && row.job.finishTime != null) {
@@ -171,7 +189,9 @@ export class DraftJobsExportService {
         sfProjectId: row.projectId,
         projectName: row.projectName,
         sfUserId: row.userId,
+        trainingProjectNames,
         trainingBooks: trainingBooksList,
+        translationProjectNames,
         translationBooks: translationBooksList
       };
     });
