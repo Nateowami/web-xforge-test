@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Configuration;
+using SIL.XForge.Configuration;
 using SIL.XForge.Scripture.Services;
 using SIL.XForge.Services;
 
@@ -28,12 +29,30 @@ public static class SFServiceCollectionExtensions
         services.AddSingleton<IProjectService, SFProjectService>();
         services.AddSingleton<IJwtTokenHelper, JwtTokenHelper>();
         services.AddSingleton<IParatextDataHelper, ParatextDataHelper>();
-        services.AddSingleton<IInternetSharedRepositorySourceProvider, InternetSharedRepositorySourceProvider>();
         services.AddSingleton<ITransceleratorService, TransceleratorService>();
         services.AddSingleton<ISFRestClientFactory, SFDblRestClientFactory>();
         services.AddSingleton<IHgWrapper, HgWrapper>();
         services.AddSingleton<ISFProjectRights, SFProjectRights>();
         services.AddTransient<IParatextSyncRunner, ParatextSyncRunner>();
+
+        var authOptions = configuration?.GetOptions<SIL.XForge.Configuration.AuthOptions>();
+        if (authOptions?.UseLocalAuth == true)
+        {
+            // In local dev mode, use the stub source provider that reads from LocalDevParatextOptions
+            // and operates on local Hg repos rather than the real Paratext servers.
+            services.Configure<SIL.XForge.Configuration.LocalDevParatextOptions>(
+                configuration!.GetSection("LocalDevParatext")
+            );
+            services.AddSingleton<
+                IInternetSharedRepositorySourceProvider,
+                LocalDevInternetSharedRepositorySourceProvider
+            >();
+        }
+        else
+        {
+            services.AddSingleton<IInternetSharedRepositorySourceProvider, InternetSharedRepositorySourceProvider>();
+        }
+
         return services;
     }
 }
