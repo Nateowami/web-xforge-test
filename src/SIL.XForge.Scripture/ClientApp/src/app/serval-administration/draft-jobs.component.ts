@@ -45,7 +45,7 @@ export type DraftJobStatus = 'running' | 'success' | 'failed' | 'cancelled' | 'i
 
 interface ProjectBooks {
   projectId: string;
-  /** Human-readable project name, populated when project data is available. Falls back to projectId if absent. */
+  /** Human-readable project name when project data is available. Callers should fall back to projectId if absent. */
   projectName?: string;
   books: string[];
 }
