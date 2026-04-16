@@ -78,6 +78,7 @@ export interface DraftJobsTableRow {
   job: DraftJob;
   projectId: string;
   projectName: string;
+  projectShortName?: string;
   projectDeleted: boolean;
   startTimeStamp: string;
   duration?: string;
@@ -736,6 +737,7 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
 
     for (const job of this.draftJobs) {
       const projectName = this.projectNames.get(job.projectId);
+      const projectShortName = this.projectShortNames.get(job.projectId);
       const projectDeleted = this.projectNames.get(job.projectId) === null;
 
       const clearmlUrl = job.buildId
@@ -751,6 +753,7 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
         job,
         projectId: job.projectId,
         projectName: projectDeleted ? `${job.projectId} [deleted]` : (projectName ?? job.projectId),
+        projectShortName: projectDeleted ? undefined : projectShortName,
         projectDeleted,
         startTimeStamp: job.startTime ? this.i18n.formatDate(job.startTime, { showTimeZone: true }) : 'N/A',
         duration,

@@ -810,6 +810,7 @@ class TestEnvironment {
       },
       projectId: 'project1',
       projectName: 'Test Project',
+      projectShortName: undefined,
       projectDeleted: false,
       startTimeStamp: '2025-01-15 10:00 UTC',
       duration: duration != null ? '1h 0m 0s' : undefined,

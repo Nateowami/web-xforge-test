@@ -23,6 +23,7 @@ export interface SpreadsheetRow {
   status: string;
   sfProjectId: string;
   projectName?: string;
+  projectShortName?: string;
   sfUserId?: string;
   trainingBooks: string;
   translationBooks: string;
@@ -73,6 +74,7 @@ export class DraftJobsExportService {
       'status',
       'sfProjectId',
       'projectName',
+      'projectShortName',
       'sfUserId',
       'trainingBooks',
       'translationBooks'
@@ -86,6 +88,7 @@ export class DraftJobsExportService {
       row.status,
       row.sfProjectId,
       row.projectName ?? null,
+      row.projectShortName ?? null,
       row.sfUserId ?? null,
       row.trainingBooks,
       row.translationBooks
@@ -170,6 +173,7 @@ export class DraftJobsExportService {
         status: row.status,
         sfProjectId: row.projectId,
         projectName: row.projectName,
+        projectShortName: row.projectShortName,
         sfUserId: row.userId,
         trainingBooks: trainingBooksList,
         translationBooks: translationBooksList
