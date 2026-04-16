@@ -15,33 +15,21 @@ jobs:
     permissions:
       statuses: write
     steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # v2.0.3
+        with:
+          deno-version: v2.x
+
       - name: Check labels and set commit status
+        run: scripts/check_pr_labels.mts
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SHA: ${{ github.event.pull_request.head.sha }}
           REPO: ${{ github.repository }}
           # toJSON produces a JSON array of label name strings, e.g. ["testing complete","do not merge"]
           LABELS_JSON: ${{ toJSON(github.event.pull_request.labels.*.name) }}
-        run: |
-          set -euo pipefail
-
-          HAS_TESTING_COMPLETE=$(echo "$LABELS_JSON" | jq 'map(select(. == "testing complete")) | length > 0')
-          HAS_TESTING_NOT_REQUIRED=$(echo "$LABELS_JSON" | jq 'map(select(. == "testing not required")) | length > 0')
-          HAS_DO_NOT_MERGE=$(echo "$LABELS_JSON" | jq 'map(select(. == "do not merge")) | length > 0')
-
-          if [ "$HAS_DO_NOT_MERGE" = "true" ]; then
-            STATE="pending"
-            DESCRIPTION="Remove the 'do not merge' label before merging"
-          elif [ "$HAS_TESTING_COMPLETE" = "true" ] || [ "$HAS_TESTING_NOT_REQUIRED" = "true" ]; then
-            STATE="success"
-            DESCRIPTION="PR is ready to merge"
-          else
-            STATE="pending"
-            DESCRIPTION="Add 'testing complete' or 'testing not required' label before merging"
-          fi
-
-          gh api \
-            "repos/${REPO}/statuses/${SHA}" \
-            -f "state=${STATE}" \
-            -f "description=${DESCRIPTION}" \
-            -f "context=Merge readiness"
