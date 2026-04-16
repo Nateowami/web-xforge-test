@@ -84,8 +84,11 @@ export class LocalAuthComponent implements OnInit {
         };
         // Store the token temporarily; LocalAuth0Client.handleRedirectCallback() picks it up
         localStorage.setItem(LOCAL_AUTH_TOKEN_KEY, JSON.stringify(tokenToStore));
-        // Navigate to the auth0 callback path so AuthService processes the login
-        void this.router.navigateByUrl('/callback/auth0');
+        // Use a full page navigation to mimic how Auth0 redirects back to the callback URL.
+        // This causes the Angular app to reload so that AuthService.tryLogIn() runs fresh with
+        // the callback URL, rather than resolving immediately from the already-emitted
+        // _loggedInState$ value of { loggedIn: false } (which would redirect back to the login page).
+        window.location.href = '/callback/auth0';
       },
       error: () => {
         this.isLoading = false;
