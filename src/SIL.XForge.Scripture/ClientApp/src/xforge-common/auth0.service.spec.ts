@@ -1,5 +1,6 @@
 import { HttpClient } from '@angular/common/http';
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { Auth0ClientOptions, GenericError, GetTokenSilentlyVerboseResponse } from '@auth0/auth0-spa-js';
 import { CookieService } from 'ngx-cookie-service';
 import { of } from 'rxjs';
@@ -12,13 +13,15 @@ import { environment } from '../environments/environment';
 const mockedHttpClient = mock(HttpClient);
 const mockedCookieService = mock(CookieService);
 const mockedReportingService = mock(ErrorReportingService);
+const mockedRouter = mock(Router);
 
 describe('Auth0Service', () => {
   configureTestingModule(() => ({
     providers: [
       { provide: HttpClient, useMock: mockedHttpClient },
       { provide: CookieService, useMock: mockedCookieService },
-      { provide: ErrorReportingService, useMock: mockedReportingService }
+      { provide: ErrorReportingService, useMock: mockedReportingService },
+      { provide: Router, useMock: mockedRouter }
     ]
   }));
 
@@ -34,10 +37,14 @@ describe('Auth0Service', () => {
     tick();
   }));
 
-  it('should generate a new change password request', fakeAsync(() => {
+  it('should generate a new change password request when not using local auth', fakeAsync(() => {
     const env = new TestEnvironment();
     const email = 'test@example.com';
+    // Temporarily disable local auth so the real Auth0 code path is exercised
+    const savedUseLocalAuth: boolean = environment.useLocalAuth;
+    (environment as any).useLocalAuth = false;
     env.service.changePassword(email);
+    (environment as any).useLocalAuth = savedUseLocalAuth;
     const httpOptions = capture(mockedHttpClient.post).last();
     expect(httpOptions[0].includes('dbconnections/change_password')).toBe(true);
     expect(httpOptions[1]).toEqual({
@@ -45,6 +52,15 @@ describe('Auth0Service', () => {
       connection: 'Username-Password-Authentication',
       email
     });
+  }));
+
+  it('should return a message when changing password in local auth mode', fakeAsync(() => {
+    const env = new TestEnvironment();
+    let result: string | undefined;
+    env.service.changePassword('test@example.com').then(r => (result = r));
+    tick();
+    expect(result).toBeDefined();
+    expect(result).toContain('not supported in local development');
   }));
 
   it('should authenticate transparently with a cookie', fakeAsync(() => {

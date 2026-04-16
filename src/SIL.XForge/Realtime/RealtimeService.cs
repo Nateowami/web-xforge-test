@@ -321,7 +321,11 @@ public class RealtimeService : DisposableBase, IRealtimeService
             _realtimeOptions.Value.SecurePort,
             CertificatePath = certificatePath,
             PrivateKeyPath = privateKeyPath,
-            Authority = $"https://{_authOptions.Value.Domain}/",
+            Authority = _authOptions.Value.UseLocalAuth
+                // The local stub runs on http, not https; use http:// so the RealtimeServer
+                // fetches JWKS via plain HTTP rather than trying to do TLS.
+                ? $"http://{_authOptions.Value.Domain}/"
+                : $"https://{_authOptions.Value.Domain}/",
             _authOptions.Value.Audience,
             _authOptions.Value.Scope,
             Origin = _configuration.GetValue<string>("Site:Origin"),
@@ -331,6 +335,9 @@ public class RealtimeService : DisposableBase, IRealtimeService
             _realtimeOptions.Value.DataValidationDisabled,
             SiteId = _siteOptions.Value.Id,
             Product.Version,
+            // The RealtimeServer always validates JWTs via JWKS discovery from the configured
+            // Authority: the local stub when UseLocalAuth is true, Auth0 when false.
+            LocalSigningKey = (string?)null,
         };
     }
 }
