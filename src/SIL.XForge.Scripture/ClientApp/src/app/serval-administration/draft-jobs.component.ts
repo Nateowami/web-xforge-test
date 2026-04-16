@@ -785,7 +785,7 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
   }
 
   private async loadProjectNames(): Promise<void> {
-    // Collect unique project IDs referenced across all draft jobs
+    // Collect unique project IDs from both the main job and its training/translation book entries
     const projectIds = new Set(this.draftJobs.map(job => job.projectId));
     for (const job of this.draftJobs) {
       for (const pb of job.trainingBooks ?? []) {

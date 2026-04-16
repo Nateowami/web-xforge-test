@@ -43,6 +43,7 @@ describe('DraftJobsExportService', () => {
 
     it('should put project names and books from multiple source projects in separate columns', () => {
       const env = new TestEnvironment();
+      // SUT
       const spreadsheetRows: SpreadsheetRow[] = (env.service as any).createSpreadsheetRows([
         {
           job: {
@@ -63,7 +64,6 @@ describe('DraftJobsExportService', () => {
         }
       ]);
 
-      // SUT
       expect(spreadsheetRows.length).toEqual(1);
       expect(spreadsheetRows[0].trainingProjectNames).toEqual('Project A; Project B');
       expect(spreadsheetRows[0].trainingBooks).toEqual('MRK; MRK');
