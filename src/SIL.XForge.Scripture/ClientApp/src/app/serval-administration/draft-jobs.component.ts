@@ -759,13 +759,15 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
         durationTooltip,
         status: this.getStatusDisplay(job.status),
         userId: job.userId,
-        trainingBooks: (job.trainingBooks || []).map(pb => ({
-          ...pb,
-          projectName: this.projectNames.get(pb.projectId) ?? pb.projectId
+        trainingBooks: (job.trainingBooks ?? []).map(pb => ({
+          projectId: pb.projectId,
+          projectName: this.projectNames.get(pb.projectId) ?? pb.projectId,
+          books: pb.books
         })),
-        translationBooks: (job.translationBooks || []).map(pb => ({
-          ...pb,
-          projectName: this.projectNames.get(pb.projectId) ?? pb.projectId
+        translationBooks: (job.translationBooks ?? []).map(pb => ({
+          projectId: pb.projectId,
+          projectName: this.projectNames.get(pb.projectId) ?? pb.projectId,
+          books: pb.books
         })),
         clearmlUrl
       });
@@ -783,32 +785,20 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
   }
 
   private async loadProjectNames(): Promise<void> {
-    // Get unique project IDs from draft jobs
+    // Collect unique project IDs referenced across all draft jobs
     const projectIds = new Set(this.draftJobs.map(job => job.projectId));
-    // Also collect project IDs from training and translation book ranges
     for (const job of this.draftJobs) {
-      if (job.trainingBooks) {
-        for (const projectBook of job.trainingBooks) {
-          projectIds.add(projectBook.projectId);
-        }
+      for (const pb of job.trainingBooks ?? []) {
+        projectIds.add(pb.projectId);
       }
-      if (job.translationBooks) {
-        for (const projectBook of job.translationBooks) {
-          projectIds.add(projectBook.projectId);
-        }
+      for (const pb of job.translationBooks ?? []) {
+        projectIds.add(pb.projectId);
       }
     }
-    // Clear existing caches
+
     this.projectNames.clear();
     this.projectShortNames.clear();
-    // Initialize all project IDs as not found, so rows show IDs when a project can't be resolved
-    for (const projectId of projectIds) {
-      this.projectNames.set(projectId, undefined);
-      this.projectShortNames.set(projectId, undefined);
-    }
-    // Fetch project data for all unique project IDs in a single batch query. Using onlineGetMany
-    // (which issues an online query) rather than individual subscribe calls ensures that admin
-    // users can retrieve names for all projects, not just those they are subscribed to.
+
     const projectDocs = await this.servalAdministrationService.onlineGetMany(Array.from(projectIds));
     for (const projectDoc of projectDocs) {
       if (projectDoc?.data != null) {
@@ -816,7 +806,7 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
         this.projectShortNames.set(projectDoc.id, projectDoc.data.shortName || undefined);
       }
     }
-    // Regenerate rows with project names
+
     this.generateRows();
   }
 
