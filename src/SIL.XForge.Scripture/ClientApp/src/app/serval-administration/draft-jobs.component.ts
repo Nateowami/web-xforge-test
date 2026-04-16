@@ -801,15 +801,19 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
     // Clear existing caches
     this.projectNames.clear();
     this.projectShortNames.clear();
-    // Fetch project data for each unique project ID
+    // Initialize all project IDs as not found, so rows show IDs when a project can't be resolved
     for (const projectId of projectIds) {
-      const projectDoc = await this.servalAdministrationService.get(projectId);
+      this.projectNames.set(projectId, undefined);
+      this.projectShortNames.set(projectId, undefined);
+    }
+    // Fetch project data for all unique project IDs in a single batch query. Using onlineGetMany
+    // (which issues an online query) rather than individual subscribe calls ensures that admin
+    // users can retrieve names for all projects, not just those they are subscribed to.
+    const projectDocs = await this.servalAdministrationService.onlineGetMany(Array.from(projectIds));
+    for (const projectDoc of projectDocs) {
       if (projectDoc?.data != null) {
-        this.projectNames.set(projectId, projectLabel(projectDoc.data));
-        this.projectShortNames.set(projectId, projectDoc.data.shortName || undefined);
-      } else {
-        this.projectNames.set(projectId, undefined);
-        this.projectShortNames.set(projectId, undefined);
+        this.projectNames.set(projectDoc.id, projectLabel(projectDoc.data));
+        this.projectShortNames.set(projectDoc.id, projectDoc.data.shortName || undefined);
       }
     }
     // Regenerate rows with project names

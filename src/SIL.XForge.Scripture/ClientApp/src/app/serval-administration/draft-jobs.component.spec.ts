@@ -831,13 +831,14 @@ class TestEnvironment {
       return { results: events, unpagedCount: events.length };
     });
 
-    // Mock project names via ServalAdministrationService for projects in JSON
-    const projectIds = [...new Set(eventMetrics.map(e => e.projectId).filter((id): id is string => id != null))];
-    projectIds.forEach(projectId => {
-      when(mockedServalAdministrationService.get(projectId)).thenResolve({
-        id: projectId,
-        data: { name: `Project ${projectId.substring(0, 8)}`, shortName: projectId.substring(0, 4) }
-      } as any);
+    // Mock project names via ServalAdministrationService batch query
+    when(mockedServalAdministrationService.onlineGetMany(anything())).thenCall((ids: string[]) => {
+      return Promise.resolve(
+        ids.map(projectId => ({
+          id: projectId,
+          data: { name: `Project ${projectId.substring(0, 8)}`, shortName: projectId.substring(0, 4) }
+        }))
+      );
     });
   }
 
