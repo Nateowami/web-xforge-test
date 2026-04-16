@@ -6,9 +6,11 @@ using Newtonsoft.Json.Linq;
 namespace SIL.XForge.Services;
 
 /// <summary>
-/// Provides a locally generated RSA signing key for development-mode JWT issuance and validation.
-/// This key is generated once at startup and is only used when <see cref="Configuration.AuthOptions.UseLocalAuth"/>
-/// is true.
+/// Provides a locally generated RSA signing key used by <see cref="LocalDevAuthService"/> to
+/// generate short-lived Paratext access tokens in local development mode.
+/// This is separate from the fixed dev key pair used for Scripture Forge JWT authentication;
+/// SF authentication tokens are issued by the dev-stubs server and validated using the
+/// public key configured in <c>appsettings.Development.json</c>.
 /// </summary>
 public class LocalDevKeyProvider : IDisposable
 {

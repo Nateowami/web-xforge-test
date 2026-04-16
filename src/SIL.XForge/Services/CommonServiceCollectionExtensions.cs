@@ -31,9 +31,10 @@ public static class CommonServiceCollectionExtensions
             services.AddSingleton<IAuthService, AuthService>();
         }
 
-        // LocalDevKeyProvider is used by LocalDevAuthService to generate Paratext access tokens
-        // for the management API stub. The Paratext tokens only need a username claim, not
-        // signature validation, so any key works here.
+        // LocalDevKeyProvider is used by LocalDevAuthService to generate short-lived Paratext
+        // access tokens for local development. It is always registered so that LocalDevAuthService
+        // can be resolved by DI even in environments where UseLocalAuth is false (where
+        // LocalDevAuthService itself is never instantiated, but the singleton registration is harmless).
         services.AddSingleton<LocalDevKeyProvider>();
 
         services.AddSingleton<IUserService, UserService>();

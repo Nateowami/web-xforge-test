@@ -12,7 +12,6 @@ using MongoDB.Driver;
 using SIL.ObjectModel;
 using SIL.XForge.Configuration;
 using SIL.XForge.Models;
-using SIL.XForge.Services;
 
 namespace SIL.XForge.Realtime;
 
@@ -31,7 +30,6 @@ public class RealtimeService : DisposableBase, IRealtimeService
     private readonly IRecurringJobManager _recurringJobManager;
     private readonly Dictionary<Type, DocConfig> _docConfigs;
     private readonly IConfiguration _configuration;
-    private readonly LocalDevKeyProvider? _localDevKeyProvider;
     private int restartDelay = 0;
 
     public RealtimeService(
@@ -43,8 +41,7 @@ public class RealtimeService : DisposableBase, IRealtimeService
         IOptions<AuthOptions> authOptions,
         IMongoClient mongoClient,
         IRecurringJobManager recurringJobManager,
-        IConfiguration configuration,
-        LocalDevKeyProvider? localDevKeyProvider = null
+        IConfiguration configuration
     )
     {
         Server = server;
@@ -56,7 +53,6 @@ public class RealtimeService : DisposableBase, IRealtimeService
         _authOptions = authOptions;
         _database = mongoClient.GetDatabase(_dataAccessOptions.Value.MongoDatabaseName);
         _configuration = configuration;
-        _localDevKeyProvider = localDevKeyProvider;
 
         RealtimeOptions options = _realtimeOptions.Value;
         _docConfigs = [];
@@ -339,9 +335,9 @@ public class RealtimeService : DisposableBase, IRealtimeService
             _realtimeOptions.Value.DataValidationDisabled,
             SiteId = _siteOptions.Value.Id,
             Product.Version,
-            // When local auth is enabled the stub server owns the signing key and serves JWKS,
-            // so we do not pass a local key here – the RealtimeServer will use JWKS discovery.
-            LocalSigningKey = _authOptions.Value.UseLocalAuth ? null : _localDevKeyProvider?.GetPublicKeyPem(),
+            // The RealtimeServer always validates JWTs via JWKS discovery from the configured
+            // Authority: the local stub when UseLocalAuth is true, Auth0 when false.
+            LocalSigningKey = (string?)null,
         };
     }
 }
