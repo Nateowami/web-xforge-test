@@ -8,7 +8,6 @@ using idunno.Authentication.Basic;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
-using Microsoft.IdentityModel.Tokens;
 using SIL.XForge;
 using SIL.XForge.Configuration;
 using SIL.XForge.Services;
@@ -26,16 +25,11 @@ public static class AuthServiceCollectionExtensions
             {
                 if (authOptions.UseLocalAuth)
                 {
-                    // In local dev mode, validate tokens using the locally generated RSA key.
-                    // The signing key is injected via PostConfigure after the DI container is built.
-                    // This avoids any network calls to an external OIDC provider.
-                    options.TokenValidationParameters = new TokenValidationParameters
-                    {
-                        ValidateAudience = true,
-                        ValidAudience = authOptions.Audience,
-                        ValidateIssuer = false,
-                        ValidateIssuerSigningKey = true,
-                    };
+                    // In local dev mode, validate tokens via JWKS discovery from the local stub server.
+                    // The stub runs on http (not https) so we disable the https requirement.
+                    options.Authority = $"http://{authOptions.Domain}/";
+                    options.RequireHttpsMetadata = false;
+                    options.Audience = authOptions.Audience;
                 }
                 else
                 {
@@ -89,18 +83,6 @@ public static class AuthServiceCollectionExtensions
                     },
                 };
             });
-
-        if (authOptions.UseLocalAuth)
-        {
-            // Inject the local RSA signing key into the JWT bearer options once the DI container is built,
-            // so LocalDevKeyProvider (a singleton) is available.
-            services
-                .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
-                .PostConfigure<LocalDevKeyProvider>(
-                    (jwtOptions, keyProvider) =>
-                        jwtOptions.TokenValidationParameters.IssuerSigningKeys = [keyProvider.SecurityKey]
-                );
-        }
 
         return services;
     }

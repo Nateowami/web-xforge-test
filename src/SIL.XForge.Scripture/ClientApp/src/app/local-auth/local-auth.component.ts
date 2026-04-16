@@ -58,8 +58,8 @@ export class LocalAuthComponent implements OnInit {
       void this.router.navigateByUrl('/projects');
       return;
     }
-    // Fetch the list of available dev users from the backend
-    this.http.get<DevUser[]>(`${environment.masterUrl}/dev-auth/users`).subscribe({
+    // Fetch the list of available dev users from the dev stub server
+    this.http.get<DevUser[]>(`${environment.localAuthServerUrl}/dev-auth/users`).subscribe({
       next: users => (this.devUsers = users),
       error: () => {
         // Fall back to a default user if the endpoint is not available
@@ -74,7 +74,7 @@ export class LocalAuthComponent implements OnInit {
   protected loginAs(userId: string): void {
     this.isLoading = true;
     this.errorMessage = '';
-    this.http.post<TokenResponse>(`${environment.masterUrl}/dev-auth/token`, { userId }).subscribe({
+    this.http.post<TokenResponse>(`${environment.localAuthServerUrl}/dev-auth/token`, { userId }).subscribe({
       next: tokenResponse => {
         const tokenToStore: LocalAuthToken = {
           access_token: tokenResponse.access_token,
@@ -92,7 +92,8 @@ export class LocalAuthComponent implements OnInit {
       },
       error: () => {
         this.isLoading = false;
-        this.errorMessage = 'Failed to get token from local dev auth server. Is the backend running?';
+        this.errorMessage =
+          'Failed to get token from local dev stub server. Is the stub running? (run: dotnet run --project src/dev-stubs)';
       }
     });
   }

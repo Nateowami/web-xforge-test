@@ -17,5 +17,6 @@ export const environment = {
   authDomain: 'dev-sillsdev.auth0.com',
   authClientId: '4eHLjo40mAEGFU6zUxdYjnpnC1K1Ydnj',
   offlineDBVersion: 8,
-  useLocalAuth: false
+  useLocalAuth: false,
+  localAuthServerUrl: ''
 };

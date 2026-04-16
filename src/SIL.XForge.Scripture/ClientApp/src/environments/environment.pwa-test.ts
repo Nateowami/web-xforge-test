@@ -17,5 +17,6 @@ export const environment = {
   authDomain: 'sil-appbuilder.auth0.com',
   authClientId: 'aoAGb9Yx1H5WIsvCW6JJCteJhSa37ftH',
   offlineDBVersion: 8,
-  useLocalAuth: false
+  useLocalAuth: false,
+  localAuthServerUrl: ''
 };

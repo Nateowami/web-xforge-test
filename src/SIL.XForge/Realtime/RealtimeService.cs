@@ -325,7 +325,11 @@ public class RealtimeService : DisposableBase, IRealtimeService
             _realtimeOptions.Value.SecurePort,
             CertificatePath = certificatePath,
             PrivateKeyPath = privateKeyPath,
-            Authority = $"https://{_authOptions.Value.Domain}/",
+            Authority = _authOptions.Value.UseLocalAuth
+                // The local stub runs on http, not https; use http:// so the RealtimeServer
+                // fetches JWKS via plain HTTP rather than trying to do TLS.
+                ? $"http://{_authOptions.Value.Domain}/"
+                : $"https://{_authOptions.Value.Domain}/",
             _authOptions.Value.Audience,
             _authOptions.Value.Scope,
             Origin = _configuration.GetValue<string>("Site:Origin"),
@@ -335,9 +339,9 @@ public class RealtimeService : DisposableBase, IRealtimeService
             _realtimeOptions.Value.DataValidationDisabled,
             SiteId = _siteOptions.Value.Id,
             Product.Version,
-            // When local auth is enabled, pass the public key PEM directly so the RealtimeServer
-            // does not need to fetch it from an external JWKS endpoint.
-            LocalSigningKey = _localDevKeyProvider?.GetPublicKeyPem(),
+            // When local auth is enabled the stub server owns the signing key and serves JWKS,
+            // so we do not pass a local key here – the RealtimeServer will use JWKS discovery.
+            LocalSigningKey = _authOptions.Value.UseLocalAuth ? null : _localDevKeyProvider?.GetPublicKeyPem(),
         };
     }
 }

@@ -31,9 +31,9 @@ public static class CommonServiceCollectionExtensions
             services.AddSingleton<IAuthService, AuthService>();
         }
 
-        // LocalDevKeyProvider is always registered so LocalDevAuthController can be resolved by DI even in
-        // production environments where UseLocalAuth is false. The controller itself checks UseLocalAuth and
-        // returns 404 when it is false, so no local dev functionality is exposed in production.
+        // LocalDevKeyProvider is used by LocalDevAuthService to generate Paratext access tokens
+        // for the management API stub. The Paratext tokens only need a username claim, not
+        // signature validation, so any key works here.
         services.AddSingleton<LocalDevKeyProvider>();
 
         services.AddSingleton<IUserService, UserService>();
