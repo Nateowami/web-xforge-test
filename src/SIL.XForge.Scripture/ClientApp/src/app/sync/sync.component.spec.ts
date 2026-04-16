@@ -6,6 +6,7 @@ import { CookieService } from 'ngx-cookie-service';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { createTestProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
+import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { of } from 'rxjs';
 import { anyString, anything, mock, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
@@ -274,6 +275,24 @@ describe('SyncComponent', () => {
     expect(env.syncLog).not.toBeNull();
   }));
 
+  it('should show sync log for project admins', fakeAsync(() => {
+    const env = new TestEnvironment({ userProjectRole: SFProjectRole.ParatextAdministrator });
+    expect(env.component.showSyncLog).toBe(true);
+    expect(env.syncLog).not.toBeNull();
+  }));
+
+  it('should show sync log for project translators', fakeAsync(() => {
+    const env = new TestEnvironment({ userProjectRole: SFProjectRole.ParatextTranslator });
+    expect(env.component.showSyncLog).toBe(true);
+    expect(env.syncLog).not.toBeNull();
+  }));
+
+  it('should not show sync log for community checkers', fakeAsync(() => {
+    const env = new TestEnvironment({ userProjectRole: SFProjectRole.CommunityChecker });
+    expect(env.component.showSyncLog).toBe(false);
+    expect(env.syncLog).toBeNull();
+  }));
+
   it('should show empty message when no sync log entries exist', fakeAsync(() => {
     const env = new TestEnvironment({ userSystemRole: SystemRole.SystemAdmin, syncLogEntries: [] });
     expect(env.syncLogEmpty).not.toBeNull();
@@ -364,6 +383,7 @@ interface SyncComponentTestConstructorArgs {
   lastSyncWasSuccessful?: boolean;
   lastSyncErrorCode?: number;
   userSystemRole?: SystemRole;
+  userProjectRole?: SFProjectRole;
   syncLogEntries?: SyncMetrics[];
   syncLogTotalCount?: number;
 }
@@ -389,6 +409,7 @@ class TestEnvironment {
     lastSyncWasSuccessful = true,
     lastSyncErrorCode = 0,
     userSystemRole = SystemRole.User,
+    userProjectRole,
     syncLogEntries = [],
     syncLogTotalCount
   }: SyncComponentTestConstructorArgs = {}) {
@@ -414,6 +435,10 @@ class TestEnvironment {
     when(mockedNoticeService.isAppLoading).thenCall(() => this.isLoading);
     this.testOnlineStatusService.setIsOnline(isOnline);
 
+    const userRoles: { [userId: string]: string } = {};
+    if (userProjectRole != null) {
+      userRoles['user01'] = userProjectRole;
+    }
     const date = new Date();
     date.setMonth(date.getMonth() - 2);
     this.realtimeService.addSnapshot<SFProject>(SFProjectDoc.COLLECTION, {
@@ -426,7 +451,8 @@ class TestEnvironment {
           dateLastSuccessfulSync: date.toJSON(),
           lastSyncErrorCode: lastSyncErrorCode
         },
-        syncDisabled: isSyncDisabled
+        syncDisabled: isSyncDisabled,
+        userRoles
       })
     });
 

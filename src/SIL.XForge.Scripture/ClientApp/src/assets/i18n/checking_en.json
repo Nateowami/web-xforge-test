@@ -500,7 +500,7 @@
     "select_text_error_message": "Select verses to attach to your answer."
   },
   "sync": {
-    "sync_log_title": "Sync Log",
+    "sync_log_title": "Recent Syncs",
     "sync_log_empty": "No sync history available.",
     "sync_log_error_details": "Error details",
     "sync_log_load_more": "Load more",

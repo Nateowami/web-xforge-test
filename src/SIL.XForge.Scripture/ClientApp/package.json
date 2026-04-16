@@ -55,7 +55,7 @@
     "@sillsdev/lynx-delta": "^0.2.4",
     "@sillsdev/lynx-punctuation-checker": "^0.2.0",
     "@sillsdev/machine": "^2.4.2",
-    "@sillsdev/scripture": "1.4.1",
+    "@sillsdev/scripture": "^1.4.1",
     "angular-file": "^4.0.2",
     "angular-split": "^16.2.1",
     "arraydiff": "^0.1.3",

@@ -58,7 +58,7 @@
     </mat-card>
     @if (showSyncLog) {
       <div id="sync-log" class="sync-log">
-        <h2 class="h3">{{ t("sync_log_title") }}</h2>
+        <h2>{{ t("sync_log_title") }}</h2>
         @if (syncLog.length === 0 && !syncLogLoading) {
           <p id="sync-log-empty">{{ t("sync_log_empty") }}</p>
         }

@@ -1089,11 +1089,9 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
             throw new FormatException($"{nameof(pageSize)} is not a valid page size.");
         }
 
-        // Only system admins and serval admins can view sync metrics, as they contain full stack traces
-        if (!(systemRoles.Contains(SystemRole.SystemAdmin) || systemRoles.Contains(SystemRole.ServalAdmin)))
-        {
-            throw new ForbiddenException();
-        }
+        // System admins and serval admins can view full stack traces; project admins and translators can view
+        // the log, but errorDetails (stack traces) are stripped from results.
+        bool isSystemAdmin = systemRoles.Contains(SystemRole.SystemAdmin) || systemRoles.Contains(SystemRole.ServalAdmin);
 
         // Verify the project exists
         await using IConnection conn = await RealtimeService.ConnectAsync(curUserId);
@@ -1101,6 +1099,17 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
         if (!projectDoc.IsLoaded)
         {
             throw new DataNotFoundException("The project does not exist.");
+        }
+
+        // Check that the user has permission: system admins have full access; project admins and translators
+        // can view the log (but will have errorDetails stripped below).
+        if (
+            !isSystemAdmin
+            && !IsProjectAdmin(projectDoc.Data, curUserId)
+            && !IsProjectTranslator(projectDoc.Data, curUserId)
+        )
+        {
+            throw new ForbiddenException();
         }
 
         // Query the sync metrics, ordered by most recent first
@@ -1111,7 +1120,18 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
         var resultsTask = orderedQuery.Skip(pageIndex * pageSize).Take(pageSize).ToListAsync();
 
         await Task.WhenAll(countTask, resultsTask);
-        return new QueryResults<SyncMetrics> { Results = resultsTask.Result, UnpagedCount = countTask.Result };
+        List<SyncMetrics> results = resultsTask.Result;
+
+        // Strip error details (stack traces) for non-system-admin users
+        if (!isSystemAdmin)
+        {
+            foreach (SyncMetrics entry in results)
+            {
+                entry.ErrorDetails = null;
+            }
+        }
+
+        return new QueryResults<SyncMetrics> { Results = results, UnpagedCount = countTask.Result };
     }
 
     public SFProjectSecret GetProjectSecretByShareKey(string shareKey)
