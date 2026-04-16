@@ -146,7 +146,13 @@ export class WebSocketStreamListener {
       return;
     }
 
-    this.jwksClient!.getSigningKey(header.kid)
+    if (this.jwksClient == null) {
+      done(new Error('JWKS client is not configured. Provide a localSigningKey or an authority with a JWKS endpoint.'));
+      return;
+    }
+
+    this.jwksClient
+      .getSigningKey(header.kid)
       .then(key => done(null, key.getPublicKey()))
       .catch(done);
   }

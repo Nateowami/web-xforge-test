@@ -9,7 +9,9 @@ using SIL.XForge.Models;
 namespace SIL.XForge.Services;
 
 /// <summary>
-/// Provides a pre-defined set of dev users for local development authentication.
+/// Represents a pre-defined test user for local development authentication.
+/// Instances of this class are created in <see cref="LocalDevAuthService.DevUsers"/> and are used to
+/// issue mock JWT tokens and Auth0-style user profiles without any external Auth0 dependency.
 /// </summary>
 public class LocalDevUser
 {

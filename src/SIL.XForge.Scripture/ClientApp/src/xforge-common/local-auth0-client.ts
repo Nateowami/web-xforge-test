@@ -55,6 +55,10 @@ export class LocalAuth0Client implements IAuth0Client {
   getTokenSilently(options?: GetTokenSilentlyOptions): Promise<string | GetTokenSilentlyVerboseResponse> {
     const cached: LocalAuthCachedToken | null = this.getCachedToken();
     if (cached == null || this.isExpired(cached)) {
+      // Remove expired token from localStorage to avoid repeated validation attempts
+      if (cached != null) {
+        localStorage.removeItem(LOCAL_AUTH_CACHED_TOKEN_KEY);
+      }
       return Promise.reject({ error: 'login_required' });
     }
     if ((options as any)?.detailedResponse) {
@@ -125,6 +129,8 @@ export class LocalAuth0Client implements IAuth0Client {
     try {
       return JSON.parse(tokenJson) as LocalAuthCachedToken;
     } catch {
+      // Remove the corrupted data so subsequent calls don't keep failing to parse it
+      localStorage.removeItem(LOCAL_AUTH_CACHED_TOKEN_KEY);
       return null;
     }
   }
