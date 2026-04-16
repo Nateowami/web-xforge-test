@@ -154,7 +154,6 @@ describe('TrainingDataMultiSelectComponent', () => {
     component.downloadTrainingData(mockTrainingData[0]);
     tick();
 
-    // SUT
     verify(mockFileService.onlineDownloadFile(FileType.TrainingData, mockTrainingData[0].fileUrl, mockTrainingData[0].title)).once();
   }));
 });
