@@ -2,12 +2,14 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Security.Claims;
+using System.Security.Cryptography;
 using System.Threading.Tasks;
 using Duende.IdentityModel;
 using idunno.Authentication.Basic;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
 using SIL.XForge;
 using SIL.XForge.Configuration;
 using SIL.XForge.Services;
@@ -25,11 +27,19 @@ public static class AuthServiceCollectionExtensions
             {
                 if (authOptions.UseLocalAuth)
                 {
-                    // In local dev mode, validate tokens via JWKS discovery from the local stub server.
-                    // The stub runs on http (not https) so we disable the https requirement.
-                    options.Authority = $"http://{authOptions.Domain}/";
-                    options.RequireHttpsMetadata = false;
-                    options.Audience = authOptions.Audience;
+                    // In local dev mode, validate tokens directly without OIDC discovery.
+                    // The signing key (public key PEM from Auth:LocalDevPublicKeyPem) is injected
+                    // via PostConfigure below, after the DI container is built.
+                    // Using a fixed key pair avoids any timing dependency on the stub server being
+                    // available when the main app starts.
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateAudience = true,
+                        ValidAudience = authOptions.Audience,
+                        ValidateIssuer = true,
+                        ValidIssuer = $"http://{authOptions.Domain}/",
+                        ValidateIssuerSigningKey = true,
+                    };
                 }
                 else
                 {
@@ -83,6 +93,33 @@ public static class AuthServiceCollectionExtensions
                     },
                 };
             });
+
+        if (authOptions.UseLocalAuth)
+        {
+            // Inject the dev stub's public key into the JWT bearer options once the DI container is
+            // built so that configuration is fully available.  The public key is the counterpart of
+            // the private key stored in dev-stubs/appsettings.json and is never used in production.
+            services
+                .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+                .PostConfigure(
+                    (JwtBearerOptions jwtOptions) =>
+                    {
+                        string publicKeyPem =
+                            configuration.GetValue<string>("Auth:LocalDevPublicKeyPem") ?? string.Empty;
+                        if (!string.IsNullOrWhiteSpace(publicKeyPem))
+                        {
+                            // RSA instance is intentionally not disposed here – it must remain alive for
+                            // the lifetime of the application since RsaSecurityKey holds a reference to it.
+                            var rsa = RSA.Create();
+                            rsa.ImportFromPem(publicKeyPem);
+                            jwtOptions.TokenValidationParameters.IssuerSigningKey = new RsaSecurityKey(rsa)
+                            {
+                                KeyId = "dev-stub-key",
+                            };
+                        }
+                    }
+                );
+        }
 
         return services;
     }

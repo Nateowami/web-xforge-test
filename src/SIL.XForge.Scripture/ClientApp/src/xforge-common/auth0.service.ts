@@ -1,6 +1,5 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { Router } from '@angular/router';
 import { Auth0Client, Auth0ClientOptions, GetTokenSilentlyVerboseResponse } from '@auth0/auth0-spa-js';
 import { CookieService } from 'ngx-cookie-service';
 import { lastValueFrom } from 'rxjs';
@@ -36,13 +35,12 @@ export class Auth0Service {
   constructor(
     private readonly http: HttpClient,
     private readonly cookieService: CookieService,
-    private readonly reportingService: ErrorReportingService,
-    private readonly router: Router
+    private readonly reportingService: ErrorReportingService
   ) {}
 
   init(options: Auth0ClientOptions): IAuth0Client {
     if (environment.useLocalAuth) {
-      return new LocalAuth0Client(this.router);
+      return new LocalAuth0Client();
     }
     return new Auth0Client(options);
   }

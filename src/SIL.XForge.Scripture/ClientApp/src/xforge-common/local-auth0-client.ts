@@ -8,13 +8,10 @@ import {
   RedirectLoginResult
 } from '@auth0/auth0-spa-js';
 import jwtDecode from 'jwt-decode';
-import { Router } from '@angular/router';
+import { environment } from '../environments/environment';
 
 /** localStorage key for the pending auth state (set before the local login redirect). */
 const LOCAL_AUTH_PENDING_STATE_KEY = 'local_auth_pending_state';
-
-/** localStorage key for the token returned by the local dev login page. */
-const LOCAL_AUTH_TOKEN_KEY = 'local_auth_token';
 
 /** localStorage key for the cached token used across browser refreshes. */
 const LOCAL_AUTH_CACHED_TOKEN_KEY = 'local_auth_cached_token';
@@ -45,13 +42,12 @@ export interface IAuth0Client {
 
 /**
  * Local development replacement for Auth0Client.
- * Stores tokens in localStorage and communicates with the backend's
- * local dev auth endpoint (/dev-auth/token) instead of Auth0.
+ * Redirects to the stub server's standalone HTML login page instead of Auth0, so the
+ * login UI is served entirely by the stub rather than embedded in the Angular app.
+ * Tokens are passed back from the stub as a URL fragment on the callback redirect.
  * Only used when environment.useLocalAuth is true.
  */
 export class LocalAuth0Client implements IAuth0Client {
-  constructor(private readonly router: Router) {}
-
   getTokenSilently(options?: GetTokenSilentlyOptions): Promise<string | GetTokenSilentlyVerboseResponse> {
     const cached: LocalAuthCachedToken | null = this.getCachedToken();
     if (cached == null || this.isExpired(cached)) {
@@ -90,19 +86,37 @@ export class LocalAuth0Client implements IAuth0Client {
   loginWithRedirect(options?: RedirectLoginOptions): Promise<void> {
     // Save the app state so handleRedirectCallback can restore it after login
     localStorage.setItem(LOCAL_AUTH_PENDING_STATE_KEY, options?.appState ?? '{}');
-    this.router.navigateByUrl('/local-auth/login');
+    // Redirect to the stub server's standalone HTML login page.
+    // The stub will issue tokens and redirect back to the callback URL with the token
+    // embedded as a URL fragment (e.g. /callback/auth0#access_token=...&id_token=...).
+    const callbackUrl: string = `${window.location.origin}/callback/auth0`;
+    window.location.href = `${environment.localAuthServerUrl}/login?redirect_uri=${encodeURIComponent(callbackUrl)}`;
     return Promise.resolve();
   }
 
   handleRedirectCallback(): Promise<RedirectLoginResult | ConnectAccountRedirectResult> {
     const appState: string = localStorage.getItem(LOCAL_AUTH_PENDING_STATE_KEY) ?? '{}';
-    const tokenJson: string | null = localStorage.getItem(LOCAL_AUTH_TOKEN_KEY);
     localStorage.removeItem(LOCAL_AUTH_PENDING_STATE_KEY);
-    localStorage.removeItem(LOCAL_AUTH_TOKEN_KEY);
 
-    if (tokenJson != null) {
-      // Persist the token for subsequent getTokenSilently calls and browser refreshes
-      localStorage.setItem(LOCAL_AUTH_CACHED_TOKEN_KEY, tokenJson);
+    // Read the token that the stub embedded in the URL fragment after login.
+    // The fragment has the form #access_token=...&id_token=...&expires_in=...&token_type=Bearer
+    const fragment: string = window.location.hash.slice(1); // strip leading '#'
+    if (fragment !== '') {
+      const params: URLSearchParams = new URLSearchParams(fragment);
+      const accessToken: string | null = params.get('access_token');
+      const idToken: string | null = params.get('id_token');
+      const expiresInStr: string | null = params.get('expires_in');
+      if (accessToken != null && idToken != null) {
+        const tokenToCache: LocalAuthCachedToken = {
+          access_token: accessToken,
+          id_token: idToken,
+          expires_in: expiresInStr != null ? parseInt(expiresInStr, 10) : 86400,
+          stored_at: Date.now()
+        };
+        localStorage.setItem(LOCAL_AUTH_CACHED_TOKEN_KEY, JSON.stringify(tokenToCache));
+      }
+      // Clear the fragment from the browser history so the token is not visible in the URL bar
+      history.replaceState(null, '', window.location.pathname + window.location.search);
     }
 
     return Promise.resolve({ appState } as RedirectLoginResult);
@@ -146,4 +160,4 @@ export class LocalAuth0Client implements IAuth0Client {
   }
 }
 
-export { LOCAL_AUTH_TOKEN_KEY, LOCAL_AUTH_CACHED_TOKEN_KEY };
+export { LOCAL_AUTH_CACHED_TOKEN_KEY };

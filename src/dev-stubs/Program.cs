@@ -29,10 +29,16 @@ app.UseCors();
 
 // ─── Key material ────────────────────────────────────────────────────────────
 
-// Generate a fresh RSA key each time the stub starts.  The main app validates
-// JWTs via JWKS discovery (GET /.well-known/jwks.json) so no key persistence is
-// needed – the key only has to be consistent within one run.
-using var rsa = RSA.Create(2048);
+// Load the fixed dev private key from config.  Using a fixed key means the main
+// app never has to re-fetch the public key when the stub restarts, and it removes
+// any timing dependency between the two processes.
+string privateKeyPem =
+    app.Configuration["Auth:LocalDevPrivateKeyPem"]
+    ?? throw new InvalidOperationException(
+        "Auth:LocalDevPrivateKeyPem is not configured in dev-stubs appsettings.json"
+    );
+using var rsa = RSA.Create();
+rsa.ImportFromPem(privateKeyPem);
 var securityKey = new RsaSecurityKey(rsa) { KeyId = "dev-stub-key" };
 var signingCredentials = new SigningCredentials(securityKey, SecurityAlgorithms.RsaSha256);
 
@@ -114,8 +120,119 @@ app.MapGet(
 // ─── Auth0-replacement endpoints ─────────────────────────────────────────────
 
 /// <summary>
-/// Returns the list of pre-defined dev users so the local login page can show them.
-/// Called by the Angular LocalAuthComponent on page load.
+/// Serves the standalone HTML login page for local development.
+/// The Angular app's LocalAuth0Client redirects here via a full-page navigation when login is
+/// required, so the login UI lives entirely in the stub rather than in the Angular app.
+/// After the user selects a dev user, the page issues a token and redirects back to the
+/// <c>redirect_uri</c> (normally <c>http://localhost:5000/callback/auth0</c>) with the token
+/// embedded as a URL fragment so no cross-origin localStorage writes are needed.
+/// </summary>
+app.MapGet(
+    "/login",
+    (HttpRequest request) =>
+    {
+        string redirectUri = request.Query["redirect_uri"].FirstOrDefault() ?? "/";
+        string html = $$"""
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+          <title>Dev Login – Scripture Forge</title>
+          <style>
+            *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+            body { font-family: Roboto, sans-serif; background: #f5f5f5;
+                   display: flex; justify-content: center; align-items: center;
+                   min-height: 100vh; padding: 16px; }
+            .card { background: #fff; border-radius: 8px; padding: 32px;
+                    max-width: 480px; width: 100%; box-shadow: 0 2px 8px rgba(0,0,0,.15); }
+            h1 { font-size: 1.4rem; margin-bottom: 8px; }
+            .subtitle { color: #555; margin-bottom: 24px; font-size: .9rem; }
+            .error { color: #c62828; background: #ffebee; border-radius: 4px;
+                     padding: 10px 14px; margin-bottom: 16px; font-size: .9rem; display: none; }
+            .user-row { display: flex; align-items: center; justify-content: space-between;
+                        gap: 16px; padding: 12px; border: 1px solid #e0e0e0;
+                        border-radius: 4px; margin-bottom: 10px; }
+            .user-info .name { font-weight: 500; }
+            .user-info .email,
+            .user-info .roles { font-size: .82rem; color: #666; }
+            button { background: #1976d2; color: #fff; border: none; border-radius: 4px;
+                     padding: 8px 16px; font-size: .9rem; cursor: pointer;
+                     white-space: nowrap; }
+            button:hover { background: #1565c0; }
+            button:disabled { background: #90caf9; cursor: not-allowed; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>Local Development Login</h1>
+            <p class="subtitle">Select a test user to log in as. This page is only available in local development mode.</p>
+            <div id="error" class="error"></div>
+            <div id="users"></div>
+          </div>
+          <script>
+            const redirectUri = {{(System.Text.Json.JsonSerializer.Serialize(redirectUri))}};
+            function showError(msg) {
+              const el = document.getElementById('error');
+              el.textContent = msg;
+              el.style.display = 'block';
+            }
+            async function loginAs(userId, btn) {
+              btn.disabled = true;
+              document.getElementById('error').style.display = 'none';
+              try {
+                const resp = await fetch('/dev-auth/token', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ userId })
+                });
+                if (!resp.ok) throw new Error('Token endpoint returned ' + resp.status);
+                const token = await resp.json();
+                const params = new URLSearchParams({
+                  access_token: token.access_token,
+                  id_token:     token.id_token,
+                  expires_in:   String(token.expires_in),
+                  token_type:   'Bearer'
+                });
+                window.location.href = redirectUri + '#' + params.toString();
+              } catch (err) {
+                showError('Login failed: ' + err.message);
+                btn.disabled = false;
+              }
+            }
+            fetch('/dev-auth/users')
+              .then(r => r.json())
+              .then(users => {
+                const container = document.getElementById('users');
+                users.forEach(u => {
+                  const row = document.createElement('div');
+                  row.className = 'user-row';
+                  const info = document.createElement('div');
+                  info.className = 'user-info';
+                  info.innerHTML =
+                    '<div class="name">' + u.name + '</div>' +
+                    '<div class="email">' + u.email + '</div>' +
+                    (u.roles.length ? '<div class="roles">Roles: ' + u.roles.join(', ') + '</div>' : '');
+                  const btn = document.createElement('button');
+                  btn.textContent = 'Log in as ' + u.name;
+                  btn.onclick = () => loginAs(u.userId, btn);
+                  row.appendChild(info);
+                  row.appendChild(btn);
+                  container.appendChild(row);
+                });
+              })
+              .catch(() => showError('Could not load user list from stub server.'));
+          </script>
+        </body>
+        </html>
+        """;
+        return Results.Content(html, "text/html; charset=utf-8");
+    }
+);
+
+/// <summary>
+/// Returns the list of pre-defined dev users.
+/// Fetched by the stub's own login HTML page (same-origin, no CORS needed).
 /// </summary>
 app.MapGet(
     "/dev-auth/users",
@@ -133,7 +250,7 @@ app.MapGet(
 
 /// <summary>
 /// Issues an SF access token and ID token for the requested dev user.
-/// Called by the Angular LocalAuthComponent when the user clicks "Log in as…".
+/// Called by the stub's own login HTML page when the user clicks "Log in as…".
 /// </summary>
 app.MapPost(
     "/dev-auth/token",
