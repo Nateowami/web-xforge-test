@@ -8,6 +8,7 @@ using idunno.Authentication.Basic;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.Configuration;
+using Microsoft.IdentityModel.Tokens;
 using SIL.XForge;
 using SIL.XForge.Configuration;
 using SIL.XForge.Services;
@@ -23,38 +24,35 @@ public static class AuthServiceCollectionExtensions
             .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(options =>
             {
-                options.Authority = $"https://{authOptions.Domain}/";
-                options.Audience = authOptions.Audience;
+                if (authOptions.UseLocalAuth)
+                {
+                    // In local dev mode, validate tokens using the locally generated RSA key.
+                    // The signing key is injected via PostConfigure after the DI container is built.
+                    // This avoids any network calls to an external OIDC provider.
+                    options.TokenValidationParameters = new TokenValidationParameters
+                    {
+                        ValidateAudience = true,
+                        ValidAudience = authOptions.Audience,
+                        ValidateIssuer = false,
+                        ValidateIssuerSigningKey = true,
+                    };
+                }
+                else
+                {
+                    options.Authority = $"https://{authOptions.Domain}/";
+                    options.Audience = authOptions.Audience;
+                }
+
                 options.Events = new JwtBearerEvents
                 {
                     OnMessageReceived = context =>
                     {
-                        // If the request is for our SignalR hub
-                        string? accessToken = context.Request.Query["access_token"];
-                        if (
-                            !string.IsNullOrEmpty(accessToken)
-                            && (
-                                context.HttpContext.Request.Path.StartsWithSegments(
-                                    $"/{UrlConstants.ProjectNotifications}"
-                                )
-                                || context.HttpContext.Request.Path.StartsWithSegments(
-                                    $"/{UrlConstants.DraftNotifications}"
-                                )
-                            )
-                        )
-                        {
-                            // Get the token from the query string
-                            context.Token = accessToken;
-                        }
-
+                        ExtractSignalRToken(context, authOptions);
                         return Task.CompletedTask;
                     },
                     OnTokenValidated = context =>
                     {
-                        string scopeClaim = context.Principal.FindFirst(c => c.Type == JwtClaimTypes.Scope)?.Value;
-                        var scopes = new HashSet<string>(scopeClaim?.Split(' ') ?? Enumerable.Empty<string>());
-                        if (!scopes.Contains(authOptions.Scope))
-                            context.Fail("A required scope has not been granted.");
+                        ValidateScope(context, authOptions);
                         return Task.CompletedTask;
                     },
                 };
@@ -91,6 +89,43 @@ public static class AuthServiceCollectionExtensions
                     },
                 };
             });
+
+        if (authOptions.UseLocalAuth)
+        {
+            // Inject the local RSA signing key into the JWT bearer options once the DI container is built,
+            // so LocalDevKeyProvider (a singleton) is available.
+            services
+                .AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+                .PostConfigure<LocalDevKeyProvider>(
+                    (jwtOptions, keyProvider) =>
+                        jwtOptions.TokenValidationParameters.IssuerSigningKeys = [keyProvider.SecurityKey]
+                );
+        }
+
         return services;
+    }
+
+    private static void ExtractSignalRToken(MessageReceivedContext context, AuthOptions authOptions)
+    {
+        // If the request is for our SignalR hub, extract the token from the query string
+        string? accessToken = context.Request.Query["access_token"];
+        if (
+            !string.IsNullOrEmpty(accessToken)
+            && (
+                context.HttpContext.Request.Path.StartsWithSegments($"/{UrlConstants.ProjectNotifications}")
+                || context.HttpContext.Request.Path.StartsWithSegments($"/{UrlConstants.DraftNotifications}")
+            )
+        )
+        {
+            context.Token = accessToken;
+        }
+    }
+
+    private static void ValidateScope(TokenValidatedContext context, AuthOptions authOptions)
+    {
+        string scopeClaim = context.Principal.FindFirst(c => c.Type == JwtClaimTypes.Scope)?.Value;
+        var scopes = new HashSet<string>(scopeClaim?.Split(' ') ?? Enumerable.Empty<string>());
+        if (!scopes.Contains(authOptions.Scope))
+            context.Fail("A required scope has not been granted.");
     }
 }

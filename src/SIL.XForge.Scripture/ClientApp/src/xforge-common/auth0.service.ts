@@ -1,11 +1,13 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
+import { Router } from '@angular/router';
 import { Auth0Client, Auth0ClientOptions, GetTokenSilentlyVerboseResponse } from '@auth0/auth0-spa-js';
 import { CookieService } from 'ngx-cookie-service';
 import { lastValueFrom } from 'rxjs';
 import { AUTH0_SCOPE } from 'xforge-common/auth.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { environment } from '../environments/environment';
+import { IAuth0Client, LocalAuth0Client } from './local-auth0-client';
 
 interface ResourceOwnerTokenEndpoint {
   audience: string;
@@ -34,14 +36,21 @@ export class Auth0Service {
   constructor(
     private readonly http: HttpClient,
     private readonly cookieService: CookieService,
-    private readonly reportingService: ErrorReportingService
+    private readonly reportingService: ErrorReportingService,
+    private readonly router: Router
   ) {}
 
-  init(options: Auth0ClientOptions): Auth0Client {
+  init(options: Auth0ClientOptions): IAuth0Client {
+    if (environment.useLocalAuth) {
+      return new LocalAuth0Client(this.router);
+    }
     return new Auth0Client(options);
   }
 
   changePassword(email: string): Promise<string> {
+    if (environment.useLocalAuth) {
+      return Promise.resolve('Password change is not supported in local development mode.');
+    }
     const body = { client_id: environment.authClientId, connection: 'Username-Password-Authentication', email };
     return this.post('dbconnections/change_password', body);
   }

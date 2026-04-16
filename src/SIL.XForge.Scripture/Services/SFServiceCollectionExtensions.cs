@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using SIL.XForge.Scripture.Services;
 using SIL.XForge.Services;
 
@@ -7,10 +8,15 @@ public static class SFServiceCollectionExtensions
 {
     /// <summary>
     /// Adds miscellaneous services that are common to all xForge applications to the DI container.
+    /// Pass <paramref name="configuration"/> to enable local dev auth services when
+    /// <c>Auth:UseLocalAuth</c> is true.
     /// </summary>
-    public static IServiceCollection AddSFServices(this IServiceCollection services)
+    public static IServiceCollection AddSFServices(
+        this IServiceCollection services,
+        IConfiguration? configuration = null
+    )
     {
-        services.AddCommonServices();
+        services.AddCommonServices(configuration);
         services.AddTransient<IRazorPageSettings, RazorPageSettings>();
         services.AddSingleton<IAnonymousService, AnonymousService>();
         services.AddSingleton<ISyncService, SyncService>();

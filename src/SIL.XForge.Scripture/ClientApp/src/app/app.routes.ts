@@ -8,6 +8,7 @@ import { ConnectProjectComponent } from './connect-project/connect-project.compo
 import { EventMetricsAuthGuard } from './event-metrics/event-metrics-auth.guard';
 import { EventMetricsComponent } from './event-metrics/event-metrics.component';
 import { JoinComponent } from './join/join.component';
+import { LocalAuthComponent } from './local-auth/local-auth.component';
 import { MyProjectsComponent } from './my-projects/my-projects.component';
 import { PermissionsViewerComponent } from './permissions-viewer/permissions-viewer.component';
 import { ProjectComponent } from './project/project.component';
@@ -38,6 +39,8 @@ import { UsersComponent } from './users/users.component';
 export const APP_ROUTES: Routes = [
   { path: 'callback/auth0', component: MyProjectsComponent, canActivate: [AuthGuard] },
   { path: 'connect-project', component: ConnectProjectComponent, canActivate: [AuthGuard] },
+  // Local dev auth login page - only usable when useLocalAuth is true in the environment
+  { path: 'local-auth/login', component: LocalAuthComponent },
   { path: 'login', redirectTo: 'projects', pathMatch: 'full' },
   { path: 'join/:shareKey', component: JoinComponent },
   { path: 'join/:shareKey/:locale', component: JoinComponent },

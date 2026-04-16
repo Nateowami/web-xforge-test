@@ -75,6 +75,7 @@ public class Startup
         // Application routes
         "callback",
         "connect-project",
+        "local-auth",
         "login",
         "projects",
         "join",
@@ -163,7 +164,7 @@ public class Startup
         string? nodeOptions = Configuration.GetValue<string>("Realtime:NodeOptions");
         services.AddSFRealtimeServer(LoggerFactory, Configuration, nodeOptions);
 
-        services.AddSFServices();
+        services.AddSFServices(Configuration);
 
         services.AddXFAuthentication(Configuration);
 
@@ -373,13 +374,23 @@ public class Startup
                 options => options.AllowStatefulReconnects = true
             );
             var authOptions = Configuration.GetOptions<AuthOptions>();
-            endpoints.MapHangfireDashboard(
-                new DashboardOptions
+            DashboardOptions hangfireDashboardOptions;
+            if (authOptions.UseLocalAuth)
+            {
+                // In local dev mode, skip Hangfire token validation since the OIDC key resolver
+                // requires a live connection to Auth0 on startup.
+                hangfireDashboardOptions = new DashboardOptions { IgnoreAntiforgeryToken = true };
+            }
+            else
+            {
+                hangfireDashboardOptions = new DashboardOptions
                 {
                     Authorization = [new HangfireDashboardAuthorizationFilter(authOptions)],
                     IgnoreAntiforgeryToken = true,
-                }
-            );
+                };
+            }
+
+            endpoints.MapHangfireDashboard(hangfireDashboardOptions);
         });
 
         // Map JSON-RPC controllers after MVC controllers, so that MVC controllers take precedence.

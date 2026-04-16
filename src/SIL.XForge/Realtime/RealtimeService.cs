@@ -12,6 +12,7 @@ using MongoDB.Driver;
 using SIL.ObjectModel;
 using SIL.XForge.Configuration;
 using SIL.XForge.Models;
+using SIL.XForge.Services;
 
 namespace SIL.XForge.Realtime;
 
@@ -30,6 +31,7 @@ public class RealtimeService : DisposableBase, IRealtimeService
     private readonly IRecurringJobManager _recurringJobManager;
     private readonly Dictionary<Type, DocConfig> _docConfigs;
     private readonly IConfiguration _configuration;
+    private readonly LocalDevKeyProvider? _localDevKeyProvider;
     private int restartDelay = 0;
 
     public RealtimeService(
@@ -41,7 +43,8 @@ public class RealtimeService : DisposableBase, IRealtimeService
         IOptions<AuthOptions> authOptions,
         IMongoClient mongoClient,
         IRecurringJobManager recurringJobManager,
-        IConfiguration configuration
+        IConfiguration configuration,
+        LocalDevKeyProvider? localDevKeyProvider = null
     )
     {
         Server = server;
@@ -53,6 +56,7 @@ public class RealtimeService : DisposableBase, IRealtimeService
         _authOptions = authOptions;
         _database = mongoClient.GetDatabase(_dataAccessOptions.Value.MongoDatabaseName);
         _configuration = configuration;
+        _localDevKeyProvider = localDevKeyProvider;
 
         RealtimeOptions options = _realtimeOptions.Value;
         _docConfigs = [];
@@ -331,6 +335,9 @@ public class RealtimeService : DisposableBase, IRealtimeService
             _realtimeOptions.Value.DataValidationDisabled,
             SiteId = _siteOptions.Value.Id,
             Product.Version,
+            // When local auth is enabled, pass the public key PEM directly so the RealtimeServer
+            // does not need to fetch it from an external JWKS endpoint.
+            LocalSigningKey = _localDevKeyProvider?.GetPublicKeyPem(),
         };
     }
 }
