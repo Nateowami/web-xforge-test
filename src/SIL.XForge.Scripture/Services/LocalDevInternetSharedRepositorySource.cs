@@ -54,10 +54,7 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
     /// Returns a <see cref="SharedRepository"/> for each configured dev project that lists the current
     /// Paratext user in its roles.
     /// </summary>
-    public override IEnumerable<SharedRepository> GetRepositories()
-    {
-        return GetRepositories(null);
-    }
+    public override IEnumerable<SharedRepository> GetRepositories() => GetRepositories(null);
 
     public new IEnumerable<SharedRepository> GetRepositories(List<ProjectLicense> licenses)
     {
@@ -83,9 +80,7 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
     /// </summary>
     public IEnumerable<ProjectMetadata> GetProjectsMetaData()
     {
-        return _config
-            .Projects.Where(p => p.UserRoles.ContainsKey(_ptUsername))
-            .Select(p => BuildProjectMetadata(p));
+        return _config.Projects.Where(p => p.UserRoles.ContainsKey(_ptUsername)).Select(p => BuildProjectMetadata(p));
     }
 
     /// <summary>
@@ -114,8 +109,7 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
 
         // Build a minimal valid license that ParatextData will accept (not invalid, not expired, not revoked).
         DateTime farFuture = DateTime.UtcNow.AddYears(10);
-        string licenseJson =
-            $$$"""
+        string licenseJson = $$$"""
             {
               "type": "translator",
               "licensedToParatextId": "{{{project.ParatextId}}}",
@@ -208,20 +202,22 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
         string fullName = project?.FullName ?? shortName;
         string languageIsoCode = project?.LanguageIsoCode ?? "eng";
 
-        // Paratext projects are stored in a "target" subdirectory inside the Hg repo.
-        string targetDir = Path.Combine(serverRepoDir, "target");
-        Directory.CreateDirectory(targetDir);
+        // The server-side Hg repo stores project files at its root. When the client calls
+        // CloneProjectRepo, ParatextService.LocalProjectDir() already provides the path
+        // "{SyncDir}/{paratextId}/target/" and passes that as repositoryPath to Pull(). So the files
+        // from this server repo land directly in that directory — no extra subdirectory needed here.
+        Directory.CreateDirectory(serverRepoDir);
 
         // Write the minimal Settings.xml so that ParatextData can identify the project by its GUID.
         // The GUID is the paratextId expressed as a standard UUID (with dashes).
         string guidFormatted = FormatAsGuid(paratextId);
         string settingsXml = BuildSettingsXml(guidFormatted, shortName, fullName, languageIsoCode);
-        File.WriteAllText(Path.Combine(targetDir, "Settings.xml"), settingsXml, Encoding.UTF8);
+        File.WriteAllText(Path.Combine(serverRepoDir, "Settings.xml"), settingsXml, Encoding.UTF8);
 
         // Write a ProjectUsers.xml so that the ScrText reports a valid user role without needing to
         // call SearchForBestProjectUsersData against a remote server.
         string usersXml = BuildProjectUsersXml(project);
-        File.WriteAllText(Path.Combine(targetDir, "ProjectUsers.xml"), usersXml, Encoding.UTF8);
+        File.WriteAllText(Path.Combine(serverRepoDir, "ProjectUsers.xml"), usersXml, Encoding.UTF8);
 
         // Initialize the Hg repo, add all files, and commit.
         _hgWrapper.Init(serverRepoDir);
@@ -342,8 +338,8 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
     }
 
     private static ProjectMetadata BuildProjectMetadata(LocalDevParatextProject project)
-    {        string json =
-            $$$"""
+    {
+        string json = $$$"""
             {
               "identification_name": "{{{project.FullName}}}",
               "identification_systemId": [{"type": "paratext", "text": "{{{project.ParatextId}}}"}],

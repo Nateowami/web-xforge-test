@@ -64,10 +64,7 @@ public class LocalDevAuthService : IAuthService
 
     private readonly LocalDevKeyProvider _keyProvider;
 
-    public LocalDevAuthService(LocalDevKeyProvider keyProvider)
-    {
-        _keyProvider = keyProvider;
-    }
+    public LocalDevAuthService(LocalDevKeyProvider keyProvider) => _keyProvider = keyProvider;
 
     public bool ValidateWebhookCredentials(string username, string password) => false;
 
@@ -120,7 +117,10 @@ public class LocalDevAuthService : IAuthService
             identities.Add(
                 new JObject(
                     new JProperty("connection", "paratext"),
-                    new JProperty("user_id", user.ParatextUsername),
+                    // Auth0 stores the Paratext numeric user ID as "oauth2|{id}".
+                    // UserService.GetIdpIdFromAuthId splits on '|' and takes index 1,
+                    // so this must be in the "provider|id" format.
+                    new JProperty("user_id", $"oauth2|{user.ParatextUsername}"),
                     new JProperty("provider", "oauth2"),
                     new JProperty("isSocial", true),
                     new JProperty("access_token", ptAccessToken),
