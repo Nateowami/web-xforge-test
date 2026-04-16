@@ -168,5 +168,8 @@
   },
   "browser": {
     "moment": false
+  },
+  "overrides": {
+    "axios": "1.15.0"
   }
 }
