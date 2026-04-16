@@ -5,7 +5,41 @@ import { DraftJobsExportService, SpreadsheetRow } from './draft-jobs-export.serv
 
 describe('DraftJobsExportService', () => {
   describe('createSpreadsheetRows', () => {
-    it('should export with correct headers and data', () => {
+    it('should use project name in training and translation books when available', () => {
+      const env = new TestEnvironment();
+      const spreadsheetRows: SpreadsheetRow[] = (env.service as any).createSpreadsheetRows([
+        {
+          job: {
+            buildId: 'build-123',
+            startTime: new Date('2025-01-15T10:00:00Z'),
+            finishTime: new Date('2025-01-15T11:00:00Z'),
+            duration: 3600000 // 1 hour in milliseconds
+          },
+          projectId: 'project1',
+          projectName: 'Test Project',
+          status: 'Success',
+          userId: 'user123',
+          trainingBooks: [{ projectId: 'project1', projectName: 'Source Project', books: ['GEN'] }],
+          translationBooks: [{ projectId: 'project2', projectName: 'Reference Project', books: ['MAT'] }]
+        }
+      ]);
+
+      expect(spreadsheetRows.length).toEqual(1);
+      expect(spreadsheetRows[0]).toEqual({
+        servalBuildId: 'build-123',
+        startTime: '2025-01-15T10:00:00.000Z',
+        endTime: '2025-01-15T11:00:00.000Z',
+        durationMinutes: '60',
+        status: 'Success',
+        sfProjectId: 'project1',
+        projectName: 'Test Project',
+        sfUserId: 'user123',
+        trainingBooks: 'Source Project: GEN',
+        translationBooks: 'Reference Project: MAT'
+      });
+    });
+
+    it('should fall back to project ID when project name is absent', () => {
       const env = new TestEnvironment();
       const spreadsheetRows: SpreadsheetRow[] = (env.service as any).createSpreadsheetRows([
         {

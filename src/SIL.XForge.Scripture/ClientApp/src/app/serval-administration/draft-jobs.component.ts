@@ -45,6 +45,8 @@ export type DraftJobStatus = 'running' | 'success' | 'failed' | 'cancelled' | 'i
 
 interface ProjectBooks {
   projectId: string;
+  /** Human-readable project name, populated when project data is available. Falls back to projectId if absent. */
+  projectName?: string;
   books: string[];
 }
 
@@ -757,8 +759,14 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
         durationTooltip,
         status: this.getStatusDisplay(job.status),
         userId: job.userId,
-        trainingBooks: job.trainingBooks || [],
-        translationBooks: job.translationBooks || [],
+        trainingBooks: (job.trainingBooks || []).map(pb => ({
+          ...pb,
+          projectName: this.projectNames.get(pb.projectId) ?? pb.projectId
+        })),
+        translationBooks: (job.translationBooks || []).map(pb => ({
+          ...pb,
+          projectName: this.projectNames.get(pb.projectId) ?? pb.projectId
+        })),
         clearmlUrl
       });
     }
