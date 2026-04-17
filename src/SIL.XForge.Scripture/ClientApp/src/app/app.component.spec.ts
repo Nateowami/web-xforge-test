@@ -472,6 +472,7 @@ describe('AppComponent', () => {
     env.init();
 
     expect(env.avatarIcon).toBeNull();
+    expect(env.userMenuButton).not.toBeNull();
   }));
 
   it('show avatar after user logs in', fakeAsync(() => {
@@ -481,6 +482,17 @@ describe('AppComponent', () => {
     expect(env.avatarIcon).toBeNull();
     env.triggerLogin();
     expect(env.avatarIcon).not.toBeNull();
+  }));
+
+  it('log out button is accessible even when not logged in', fakeAsync(() => {
+    const env = new TestEnvironment('online', false);
+    env.init();
+
+    expect(env.userMenuButton).not.toBeNull();
+    // SUT
+    env.showHideUserMenuButton();
+    expect(env.logOutButton).not.toBeNull();
+    env.showHideUserMenuButton();
   }));
 
   it('navigate to the hangfire dashboard and set the cookie', fakeAsync(async () => {
@@ -808,6 +820,14 @@ class TestEnvironment {
     this.ngZone.run(() => this.router.initialNavigation());
   }
 
+  get userMenuButton(): DebugElement {
+    return this.navBar.query(By.css('.user-menu-btn'));
+  }
+
+  get logOutButton(): DebugElement {
+    return this.fixture.debugElement.query(By.css('#log-out-link'));
+  }
+
   get menuDrawer(): DebugElement {
     return this.fixture.debugElement.query(By.css('#menu-drawer'));
   }
@@ -983,6 +1003,12 @@ class TestEnvironment {
 
   showHideUserMenu(): void {
     this.avatarIcon.nativeElement.click();
+    this.wait();
+  }
+
+  /** Toggles the user menu by clicking the user-menu-btn directly. Works even when the user is not logged in. */
+  showHideUserMenuButton(): void {
+    this.userMenuButton.nativeElement.click();
     this.wait();
   }
 
