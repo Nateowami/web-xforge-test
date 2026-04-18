@@ -37,8 +37,28 @@ function startHttpServer(directory) {
   const server = spawn('python3', ['-m', 'http.server', String(SERVER_PORT), '--directory', directory], {
     stdio: ['ignore', 'pipe', 'pipe']
   });
-  server.stderr.on('data', () => {}); // suppress "Serving HTTP on..." output
+  // Log HTTP server output so problems are visible in CI logs.
+  server.stderr.on('data', data => process.stderr.write(data));
+  server.stdout.on('data', data => process.stdout.write(data));
   return server;
+}
+
+/**
+ * Polls the local HTTP server until it is accepting connections, then resolves.
+ * Throws if the server does not respond within the allotted attempts.
+ */
+async function waitForServer(port, maxAttempts = 30, intervalMs = 500) {
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const response = await fetch(`http://localhost:${port}/`);
+      // Any HTTP response (including 404) means the server is up.
+      if (response.status != null) return;
+    } catch {
+      // Server not ready yet; wait before retrying.
+    }
+    await sleep(intervalMs);
+  }
+  throw new Error(`HTTP server on port ${port} did not start within ${maxAttempts * intervalMs} ms`);
 }
 
 async function main() {
@@ -70,8 +90,8 @@ async function main() {
 
   const server = startHttpServer(absStorybookDir);
 
-  // Give the HTTP server a moment to start accepting connections.
-  await sleep(2000);
+  // Wait until the HTTP server is actually accepting connections rather than using a fixed sleep.
+  await waitForServer(SERVER_PORT);
 
   let browser;
   let exitCode = 0;
