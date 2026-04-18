@@ -1,0 +1,192 @@
+name: "Storybook Screenshots"
+permissions: {}
+
+# Runs on every PR and merge-group event to produce a visual diff between the target branch and
+# the PR branch.  Two screenshot jobs run in parallel, one for each commit, and a third job then
+# compares the results and uploads a ZIP of any changed screenshots as a workflow artifact.
+#
+# For manual runs the 'base_ref' input lets you choose which ref to treat as the baseline.
+
+on:
+  pull_request:
+  merge_group:
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base ref to compare against (branch name, tag, or commit SHA)"
+        required: false
+        default: "master"
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Job 1 – screenshot the base/target-branch commit
+  # ---------------------------------------------------------------------------
+  screenshots-base:
+    name: "Screenshots: Base"
+    strategy:
+      matrix:
+        os: ["ubuntu-24.04"]
+        node_version: ["22.13.0"]
+        npm_version: ["11.11.0"]
+    runs-on: ${{matrix.os}}
+    steps:
+      - name: Checkout base
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          # Resolve the base ref in priority order: PR base SHA → merge-group base SHA → manual
+          # input → default branch.
+          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || inputs.base_ref || 'master' }}
+
+      - name: "Deps: Node"
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{matrix.node_version}}
+          cache: "npm"
+          cache-dependency-path: |
+            src/SIL.XForge.Scripture/ClientApp/package-lock.json
+            src/RealtimeServer/package-lock.json
+      - name: "Deps: npm"
+        env:
+          NPM_VERSION: ${{matrix.npm_version}}
+        run: |
+          set -xueo pipefail
+          npm install --global npm@${NPM_VERSION}
+      - name: "Ensure desired tool versions"
+        env:
+          NODE_VERSION: ${{matrix.node_version}}
+          NPM_VERSION: ${{matrix.npm_version}}
+        run: |
+          set -xueo pipefail
+          [[ $(node --version) == v${NODE_VERSION} ]]
+          [[ $(npm --version) == ${NPM_VERSION} ]]
+
+      - name: "Deps: RealtimeServer npm"
+        run: cd src/RealtimeServer && (npm ci || (sleep 3m && npm ci))
+      - name: "Deps: Frontend npm"
+        run: cd src/SIL.XForge.Scripture/ClientApp && (npm ci || (sleep 3m && npm ci))
+
+      - name: "Build: RealtimeServer"
+        run: cd src/RealtimeServer && npm run build
+      - name: "Build: Frontend"
+        run: cd src/SIL.XForge.Scripture/ClientApp && npm run build
+      - name: "Build: Storybook"
+        run: cd src/SIL.XForge.Scripture/ClientApp && npm run build-storybook
+
+      - name: "Install Playwright browsers"
+        run: cd src/SIL.XForge.Scripture/ClientApp && npx playwright install --with-deps chromium
+      - name: "Take screenshots"
+        run: >
+          cd src/SIL.XForge.Scripture/ClientApp &&
+          node scripts/take-storybook-screenshots.mjs storybook-static screenshots
+
+      - name: "Upload screenshots"
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: screenshots-base
+          path: src/SIL.XForge.Scripture/ClientApp/screenshots
+
+  # ---------------------------------------------------------------------------
+  # Job 2 – screenshot the PR / head commit (runs in parallel with job 1)
+  # ---------------------------------------------------------------------------
+  screenshots-branch:
+    name: "Screenshots: Branch"
+    strategy:
+      matrix:
+        os: ["ubuntu-24.04"]
+        node_version: ["22.13.0"]
+        npm_version: ["11.11.0"]
+    runs-on: ${{matrix.os}}
+    steps:
+      - name: Checkout branch
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          # For PR events use the PR head SHA; for all other events use the triggering commit.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: "Deps: Node"
+        uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: ${{matrix.node_version}}
+          cache: "npm"
+          cache-dependency-path: |
+            src/SIL.XForge.Scripture/ClientApp/package-lock.json
+            src/RealtimeServer/package-lock.json
+      - name: "Deps: npm"
+        env:
+          NPM_VERSION: ${{matrix.npm_version}}
+        run: |
+          set -xueo pipefail
+          npm install --global npm@${NPM_VERSION}
+      - name: "Ensure desired tool versions"
+        env:
+          NODE_VERSION: ${{matrix.node_version}}
+          NPM_VERSION: ${{matrix.npm_version}}
+        run: |
+          set -xueo pipefail
+          [[ $(node --version) == v${NODE_VERSION} ]]
+          [[ $(npm --version) == ${NPM_VERSION} ]]
+
+      - name: "Deps: RealtimeServer npm"
+        run: cd src/RealtimeServer && (npm ci || (sleep 3m && npm ci))
+      - name: "Deps: Frontend npm"
+        run: cd src/SIL.XForge.Scripture/ClientApp && (npm ci || (sleep 3m && npm ci))
+
+      - name: "Build: RealtimeServer"
+        run: cd src/RealtimeServer && npm run build
+      - name: "Build: Frontend"
+        run: cd src/SIL.XForge.Scripture/ClientApp && npm run build
+      - name: "Build: Storybook"
+        run: cd src/SIL.XForge.Scripture/ClientApp && npm run build-storybook
+
+      - name: "Install Playwright browsers"
+        run: cd src/SIL.XForge.Scripture/ClientApp && npx playwright install --with-deps chromium
+      - name: "Take screenshots"
+        run: >
+          cd src/SIL.XForge.Scripture/ClientApp &&
+          node scripts/take-storybook-screenshots.mjs storybook-static screenshots
+
+      - name: "Upload screenshots"
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: screenshots-branch
+          path: src/SIL.XForge.Scripture/ClientApp/screenshots
+
+  # ---------------------------------------------------------------------------
+  # Job 3 – compare the two screenshot sets and publish a diff ZIP
+  # ---------------------------------------------------------------------------
+  compare:
+    name: "Compare Screenshots"
+    needs: [screenshots-base, screenshots-branch]
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: "Download base screenshots"
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: screenshots-base
+          path: screenshots-base
+
+      - name: "Download branch screenshots"
+        uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
+        with:
+          name: screenshots-branch
+          path: screenshots-branch
+
+      - name: "Compare screenshots"
+        run: >
+          python3 scripts/compare-storybook-screenshots.py
+          screenshots-base screenshots-branch screenshots-diff.zip
+
+      # Only upload the diff ZIP when it was actually created (i.e. when there are differences).
+      - name: "Upload diff ZIP"
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: screenshots-diff
+          path: screenshots-diff.zip
+          if-no-files-found: ignore
