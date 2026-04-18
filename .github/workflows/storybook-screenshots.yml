@@ -166,6 +166,11 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: "Set up Deno"
+        uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # v2.0.3
+        with:
+          deno-version: v2.x
+
       - name: "Download base screenshots"
         uses: actions/download-artifact@018cc2cf5baa6db3ef3c5f8a56943fffe632ef53 # v6.0.0
         with:
@@ -180,7 +185,7 @@ jobs:
 
       - name: "Compare screenshots"
         run: >
-          python3 scripts/compare-storybook-screenshots.py
+          scripts/compare-storybook-screenshots.mts
           screenshots-base screenshots-branch screenshots-diff.zip
 
       # Only upload the diff ZIP when it was actually created (i.e. when there are differences).
