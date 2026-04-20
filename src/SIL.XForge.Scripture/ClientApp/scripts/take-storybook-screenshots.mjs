@@ -99,14 +99,26 @@ async function screenshotStory(story, context, absOutputDir) {
       // Wait one animation frame for the style to take effect, then finish any Web Animations API
       // animations (e.g. Angular Material) that are already in-flight.
       await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
-      await page.evaluate(() => document.getAnimations().forEach(a => { try { a.finish(); } catch (e) {} }));
+      await page.evaluate(() =>
+        document.getAnimations().forEach(a => {
+          try {
+            a.finish();
+          } catch (e) {}
+        })
+      );
 
       // Wait for Angular change-detection cycles triggered by the finish() calls to settle.
       await page.waitForTimeout(ANIMATION_SETTLE_MS);
 
       // Second pass: finish any animations that were started during the settle period
       // (e.g. by Angular responding to the first round of finish() calls).
-      await page.evaluate(() => document.getAnimations().forEach(a => { try { a.finish(); } catch (e) {} }));
+      await page.evaluate(() =>
+        document.getAnimations().forEach(a => {
+          try {
+            a.finish();
+          } catch (e) {}
+        })
+      );
 
       await page.screenshot({ path: screenshotPath, fullPage: true });
       success = true;
