@@ -188,9 +188,17 @@ jobs:
           path: screenshots-branch
 
       - name: "Compare screenshots"
-        run: >
-          scripts/compare-storybook-screenshots.mts
-          screenshots-base screenshots-branch screenshots-deploy
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          set -euo pipefail
+          ARGS=(screenshots-base screenshots-branch screenshots-deploy)
+          # Pass the PR URL so the diff page can link back to the PR.
+          # PR_URL is empty for non-PR events (merge groups, manual dispatches).
+          if [ -n "${PR_URL-}" ]; then
+            ARGS+=(--pr-url "$PR_URL")
+          fi
+          scripts/compare-storybook-screenshots.mts "${ARGS[@]}"
 
       - name: "Check for visual differences"
         id: check
