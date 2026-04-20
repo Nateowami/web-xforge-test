@@ -801,7 +801,8 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
   /** Returns true when the given row matches all terms in the current draft job search query. */
   private rowMatchesDraftJobQuery(row: DraftJobsTableRow): boolean {
     for (const term of this.draftJobSearchQuery.terms) {
-      const searchValue = (term.value as string).toLowerCase();
+      if (typeof term.value !== 'string') continue;
+      const searchValue = term.value.toLowerCase();
       switch (term.fieldId) {
         case 'project':
           if (!row.projectName.toLowerCase().includes(searchValue)) {

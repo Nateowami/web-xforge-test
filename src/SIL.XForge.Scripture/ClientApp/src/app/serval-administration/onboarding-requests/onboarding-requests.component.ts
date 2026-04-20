@@ -289,7 +289,8 @@ export class OnboardingRequestsComponent extends DataLoadingComponent implements
   /** Returns true when the request matches all terms in the current advanced search query. */
   private requestMatchesSearchQuery(request: OnboardingRequest): boolean {
     for (const term of this.searchQuery.terms) {
-      const searchValue = (term.value as string).toLowerCase();
+      if (typeof term.value !== 'string') continue;
+      const searchValue = term.value.toLowerCase();
       switch (term.fieldId) {
         case 'project': {
           const projectName = this.getProjectName(request.submission.projectId).toLowerCase();
