@@ -75,6 +75,22 @@ jobs:
 
       - name: "Install Playwright browsers"
         run: cd src/SIL.XForge.Scripture/ClientApp && npx playwright install --with-deps chromium
+
+      # The screenshot script may not exist on the base branch (or may be outdated). Always use the
+      # version from the PR branch so that any script improvements in the PR also apply to the base
+      # branch screenshots, and so the base branch screenshots can be taken even if the script
+      # didn't exist on the base branch at all.
+      - name: "Checkout screenshot script from PR branch"
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: pr-branch-scripts
+          sparse-checkout: src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mjs
+          sparse-checkout-cone-mode: false
+      - name: "Use screenshot script from PR branch"
+        run: cp pr-branch-scripts/src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mjs src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mjs
+
       - name: "Take screenshots"
         run: >
           cd src/SIL.XForge.Scripture/ClientApp &&

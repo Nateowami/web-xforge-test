@@ -206,7 +206,9 @@
     /* Two images; only one is shown at a time (toggled by body class). */
     .strobe-col { margin-top: 4px; }
 
-    .strobe-wrap { display: block; max-width: 100%; }
+    /* Constrain the strobe images to match a single SBS grid column so that card height is
+       consistent between strobe mode and side-by-side mode and doesn't reflow on mode switch. */
+    .strobe-wrap { display: block; max-width: calc(50% - 8px); }
 
     .strobe-img-base,
     .strobe-img-branch {
@@ -216,10 +218,11 @@
       display: block;
     }
 
-    /* When showing "A" (base), hide branch; when showing "B" (branch), hide base. */
-    /* display:none rather than opacity so each image shows at its natural dimensions. */
-    body.mode-strobe.strobe-a .strobe-img-branch { display: none; }
-    body.mode-strobe.strobe-b .strobe-img-base   { display: none; }
+    /* When showing "A" (base), hide branch; when showing "B" (branch), hide base.
+       visibility:hidden (not display:none) keeps the hidden image's space reserved so the
+       container height stays at max(base_height, branch_height) and doesn't reflow each tick. */
+    body.mode-strobe.strobe-a .strobe-img-branch { visibility: hidden; }
+    body.mode-strobe.strobe-b .strobe-img-base   { visibility: hidden; }
 
     /* ── Diff canvas container ───────────────────────────────────────── */
     .diff-canvas-wrap {
