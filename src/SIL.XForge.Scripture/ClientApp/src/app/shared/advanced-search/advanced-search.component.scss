@@ -1,0 +1,100 @@
+.search-field {
+  width: 100%;
+}
+
+.search-errors {
+  margin-top: 4px;
+}
+
+.search-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--mat-sys-error);
+  font-size: 0.8rem;
+}
+
+.error-icon {
+  font-size: 1rem;
+  width: 1rem;
+  height: 1rem;
+  line-height: 1rem;
+}
+
+.field-reference {
+  margin-top: 4px;
+}
+
+.field-reference-toggle {
+  padding: 0;
+  font-size: 0.8rem;
+  color: var(--mat-sys-on-surface-variant);
+  display: flex;
+  align-items: center;
+  height: auto;
+  line-height: 1.4;
+}
+
+.toggle-icon {
+  font-size: 1rem;
+  width: 1rem;
+  height: 1rem;
+  line-height: 1rem;
+  margin-right: 2px;
+}
+
+.field-ids-preview {
+  margin-left: 4px;
+  opacity: 0.75;
+}
+
+.field-list {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0 0 0 8px;
+}
+
+.field-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 8px;
+  row-gap: 0;
+  padding: 4px 0;
+  font-size: 0.8rem;
+  align-items: baseline;
+}
+
+.field-id {
+  grid-column: 1;
+  grid-row: 1;
+  font-family: monospace;
+  font-weight: bold;
+  color: var(--mat-sys-primary);
+  white-space: nowrap;
+}
+
+.field-label {
+  grid-column: 2;
+  grid-row: 1;
+  color: var(--mat-sys-on-surface);
+}
+
+.field-description {
+  grid-column: 2;
+  grid-row: 2;
+  color: var(--mat-sys-on-surface-variant);
+  font-size: 0.75rem;
+}
+
+.field-example {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  font-family: monospace;
+  background-color: var(--mat-sys-surface-container);
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: var(--mat-sys-on-surface);
+  display: inline-block;
+  margin-top: 2px;
+}
