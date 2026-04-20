@@ -2,8 +2,9 @@
  * The supported types for a search field.
  * - 'text': the field accepts any string value (quoted or unquoted)
  * - 'boolean': the field accepts only the literal strings "true" or "false"
+ * - 'date': the field accepts an ISO 8601 date string (e.g. "2025-01-15")
  */
-export type SearchFieldType = 'text' | 'boolean';
+export type SearchFieldType = 'text' | 'boolean' | 'date';
 
 /** Definition of a single searchable field */
 export interface SearchFieldDef {
@@ -193,6 +194,17 @@ export function parseSearchQuery(input: string, fieldsDef: SearchFieldsDef): Par
           message: `Field "${fieldId}" is a boolean field and must be "true" or "false", but got "${value}"`,
           position: valueStart
         });
+      }
+    } else if (fieldDef.type === 'date') {
+      // Accept any string that Date.parse can interpret as a valid date.
+      const dateMs = Date.parse(value);
+      if (Number.isNaN(dateMs)) {
+        errors.push({
+          message: `Field "${fieldId}" expects a date in ISO format (e.g. 2025-01-15), but "${value}" is not a valid date`,
+          position: valueStart
+        });
+      } else {
+        terms.push({ fieldId, value });
       }
     } else {
       // text type — any non-empty string is valid.

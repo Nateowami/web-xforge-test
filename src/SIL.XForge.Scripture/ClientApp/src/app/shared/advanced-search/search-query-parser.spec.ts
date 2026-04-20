@@ -7,7 +7,9 @@ const fieldsDef: SearchFieldsDef = {
     { id: 'shortName', label: 'Short name', type: 'text' },
     { id: 'drafting', label: 'Drafting enabled', type: 'boolean' },
     { id: 'customConfig', label: 'Has custom config', type: 'boolean' },
-    { id: 'description', label: 'Description', type: 'text', description: 'A longer description of the project' }
+    { id: 'description', label: 'Description', type: 'text', description: 'A longer description of the project' },
+    { id: 'dateBefore', label: 'Submitted before', type: 'date' },
+    { id: 'dateAfter', label: 'Submitted after', type: 'date' }
   ]
 };
 
@@ -305,6 +307,45 @@ describe('parseSearchQuery', () => {
       const result: ParsedSearchQuery = parseSearchQuery(query, fieldsDef);
       expect(result.isValid).toBe(true);
       expect(result.terms.length).toBe(5);
+    });
+  });
+
+  describe('date fields', () => {
+    it('accepts a valid ISO date as an unquoted value', () => {
+      const result: ParsedSearchQuery = parseSearchQuery('dateBefore:2025-01-15', fieldsDef);
+      expect(result.isValid).toBe(true);
+      expect(result.terms).toEqual([{ fieldId: 'dateBefore', value: '2025-01-15' }]);
+    });
+
+    it('accepts a full ISO datetime string', () => {
+      const result: ParsedSearchQuery = parseSearchQuery('dateAfter:2025-06-30T12:00:00Z', fieldsDef);
+      expect(result.isValid).toBe(true);
+      expect(result.terms).toEqual([{ fieldId: 'dateAfter', value: '2025-06-30T12:00:00Z' }]);
+    });
+
+    it('accepts a quoted ISO date', () => {
+      const result: ParsedSearchQuery = parseSearchQuery('dateBefore:"2025-01-15"', fieldsDef);
+      expect(result.isValid).toBe(true);
+      expect(result.terms).toEqual([{ fieldId: 'dateBefore', value: '2025-01-15' }]);
+    });
+
+    it('reports an error for a non-date value on a date field', () => {
+      const result: ParsedSearchQuery = parseSearchQuery('dateBefore:notadate', fieldsDef);
+      expect(result.isValid).toBe(false);
+      expect(result.errors.length).toBe(1);
+      expect(result.errors[0].message).toContain('dateBefore');
+      expect(result.errors[0].message).toContain('notadate');
+    });
+
+    it('does not add a term when the date value is invalid', () => {
+      const result: ParsedSearchQuery = parseSearchQuery('dateBefore:notadate', fieldsDef);
+      expect(result.terms).toEqual([]);
+    });
+
+    it('still parses other valid terms alongside an invalid date', () => {
+      const result: ParsedSearchQuery = parseSearchQuery('name:Foo dateBefore:bad', fieldsDef);
+      expect(result.isValid).toBe(false);
+      expect(result.terms).toEqual([{ fieldId: 'name', value: 'Foo' }]);
     });
   });
 });

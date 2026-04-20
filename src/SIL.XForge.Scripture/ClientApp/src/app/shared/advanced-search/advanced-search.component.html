@@ -1,4 +1,4 @@
-<mat-form-field class="search-field">
+<mat-form-field class="search-field" subscriptSizing="dynamic">
   <mat-label>Search</mat-label>
   <input
     matInput
@@ -42,12 +42,12 @@
     <ul class="field-list">
       @for (field of fieldsDef.fields; track field.id) {
         <li class="field-item">
-          <span class="field-id">{{ field.id }}</span>
+          <code class="field-id">{{ field.id }}</code>
           <span class="field-label">{{ field.label }}</span>
+          <code class="field-example">{{ exampleFor(field.id) }}</code>
           @if (field.description != null) {
             <span class="field-description">{{ field.description }}</span>
           }
-          <code class="field-example">{{ exampleFor(field.id) }}</code>
         </li>
       }
     </ul>

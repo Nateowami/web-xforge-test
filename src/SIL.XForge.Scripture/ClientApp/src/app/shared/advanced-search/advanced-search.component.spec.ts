@@ -9,7 +9,8 @@ const fieldsDef: SearchFieldsDef = {
   fields: [
     { id: 'name', label: 'Project name', type: 'text', description: 'The full name of the project' },
     { id: 'shortName', label: 'Short name', type: 'text' },
-    { id: 'drafting', label: 'Drafting enabled', type: 'boolean' }
+    { id: 'drafting', label: 'Drafting enabled', type: 'boolean' },
+    { id: 'dateBefore', label: 'Submitted before', type: 'date' }
   ]
 };
 
@@ -197,6 +198,11 @@ describe('AdvancedSearchComponent', () => {
     expect(env.component.exampleFor('name')).toBe('name:"example value"');
   });
 
+  it('should return the correct example for a date field', () => {
+    const env = new TestEnvironment();
+    expect(env.component.exampleFor('dateBefore')).toBe('dateBefore:2025-01-15');
+  });
+
   it('should return an empty string for an unknown field id', () => {
     const env = new TestEnvironment();
     expect(env.component.exampleFor('doesNotExist')).toBe('');
@@ -204,7 +210,7 @@ describe('AdvancedSearchComponent', () => {
 
   it('should provide the fieldIdsPreview property', () => {
     const env = new TestEnvironment();
-    expect(env.component.fieldIdsPreview).toBe('name, shortName, drafting');
+    expect(env.component.fieldIdsPreview).toBe('name, shortName, drafting, dateBefore');
   });
 
   it('should emit the initial query when started with a non-empty queryText', () => {

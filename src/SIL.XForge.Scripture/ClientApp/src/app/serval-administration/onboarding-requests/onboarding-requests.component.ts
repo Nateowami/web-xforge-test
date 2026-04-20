@@ -116,7 +116,9 @@ export class OnboardingRequestsComponent extends DataLoadingComponent implements
         label: 'Status',
         type: 'text',
         description: 'Filter by status key: new, in_progress, or completed.'
-      }
+      },
+      { id: 'dateBefore', label: 'Submitted before', type: 'date' },
+      { id: 'dateAfter', label: 'Submitted after', type: 'date' }
     ]
   };
 
@@ -304,6 +306,18 @@ export class OnboardingRequestsComponent extends DataLoadingComponent implements
         }
         case 'status': {
           if (!request.status.toLowerCase().includes(searchValue)) return false;
+          break;
+        }
+        case 'dateBefore': {
+          const submittedAt = new Date(request.submission.timestamp);
+          const filterDate = new Date(term.value);
+          if (submittedAt >= filterDate) return false;
+          break;
+        }
+        case 'dateAfter': {
+          const submittedAt = new Date(request.submission.timestamp);
+          const filterDate = new Date(term.value);
+          if (submittedAt <= filterDate) return false;
           break;
         }
       }

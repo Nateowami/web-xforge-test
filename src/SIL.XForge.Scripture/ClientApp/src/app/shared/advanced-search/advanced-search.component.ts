@@ -63,13 +63,17 @@ export class AdvancedSearchComponent implements OnInit {
 
   /**
    * Returns an example query string for the given field so users know how to specify it.
-   * Text fields show a quoted-value example; boolean fields show a true/false example.
+   * Text fields show a quoted-value example; boolean fields show a true/false example;
+   * date fields show an ISO date example.
    */
   exampleFor(fieldId: string): string {
     const field = this.fieldsDef.fields.find(f => f.id === fieldId);
     if (field == null) return '';
     if (field.type === 'boolean') {
       return `${fieldId}:true`;
+    }
+    if (field.type === 'date') {
+      return `${fieldId}:2025-01-15`;
     }
     return `${fieldId}:"example value"`;
   }
