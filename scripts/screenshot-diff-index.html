@@ -23,17 +23,20 @@
       padding: 10px 24px;
       display: flex;
       align-items: center;
-      gap: 24px;
+      gap: 16px;
       flex-wrap: wrap;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
     }
 
-    #header h1 {
-      font-size: 15px;
-      font-weight: 600;
+    #header h1 { font-size: 15px; font-weight: 600; color: #fff; white-space: nowrap; }
+
+    #pr-link {
+      font-size: 12px;
+      color: #818cf8;
+      text-decoration: none;
       white-space: nowrap;
-      color: #fff;
     }
+    #pr-link:hover { text-decoration: underline; }
 
     #summary {
       display: flex;
@@ -50,13 +53,14 @@
     .removed  .stat-num { color: #f87171; }
     .identical .stat-num { color: #9ca3af; }
 
-    #mode-controls {
+    #controls {
       display: flex;
       gap: 6px;
       align-items: center;
+      flex-wrap: wrap;
     }
 
-    #mode-controls span { font-size: 12px; color: #94a3b8; white-space: nowrap; }
+    #controls > .ctrl-label { font-size: 12px; color: #94a3b8; white-space: nowrap; }
 
     .mode-btn {
       padding: 5px 12px;
@@ -68,14 +72,19 @@
       font-size: 12px;
       transition: background 0.15s, border-color 0.15s;
     }
-
-    .mode-btn.active {
-      background: #4338ca;
-      border-color: #6366f1;
-      color: #fff;
-    }
-
+    .mode-btn.active { background: #4338ca; border-color: #6366f1; color: #fff; }
     .mode-btn:hover:not(.active) { border-color: #9ca3af; }
+
+    #threshold-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-left: 8px;
+      font-size: 12px;
+      color: #94a3b8;
+    }
+    #threshold-slider { width: 80px; accent-color: #6366f1; cursor: pointer; }
+    #threshold-val { color: #e2e8f0; font-weight: 600; min-width: 2ch; display: inline-block; }
 
     /* ── Content area ───────────────────────────────────────────────── */
     #content {
@@ -104,7 +113,6 @@
       font-size: 14px;
       font-weight: 600;
     }
-
     .section-changed  .section-header { background: #fef3c7; color: #78350f; }
     .section-added    .section-header { background: #d1fae5; color: #065f46; }
     .section-removed  .section-header { background: #fee2e2; color: #991b1b; }
@@ -118,32 +126,52 @@
       box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
     }
 
+    .card-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+      flex-wrap: wrap;
+    }
+
     .story-name {
       font-family: 'Courier New', monospace;
       font-size: 12px;
       color: #6b7280;
-      margin-bottom: 8px;
       word-break: break-all;
     }
+
+    .card-actions { display: flex; gap: 6px; flex-shrink: 0; }
+
+    .action-btn {
+      padding: 3px 9px;
+      border: 1.5px solid #d1d5db;
+      background: transparent;
+      color: #6b7280;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 11px;
+      white-space: nowrap;
+      transition: border-color 0.15s, color 0.15s;
+    }
+    .action-btn:hover { border-color: #9ca3af; color: #374151; }
+    .action-btn.copied { border-color: #059669; color: #059669; }
 
     .story-meta {
       font-size: 11px;
       color: #9ca3af;
       margin-bottom: 10px;
     }
-
     .story-meta.size-warn { color: #d97706; }
 
-    /* ── Side-by-side layout ────────────────────────────────────────── */
-    .side-by-side {
+    /* ── Two-column diff layout ──────────────────────────────────────── */
+    .diff-cols {
       display: grid;
       grid-template-columns: 1fr 1fr;
       gap: 16px;
     }
-
-    @media (max-width: 640px) {
-      .side-by-side { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 640px) { .diff-cols { grid-template-columns: 1fr; } }
 
     .img-label {
       font-size: 10px;
@@ -152,11 +180,11 @@
       letter-spacing: 0.06em;
       margin-bottom: 6px;
     }
-
     .lbl-base    { color: #6b7280; }
     .lbl-branch  { color: #4338ca; }
     .lbl-added   { color: #059669; }
     .lbl-removed { color: #dc2626; }
+    .lbl-diff    { color: #7c3aed; }
 
     .story-img {
       max-width: 100%;
@@ -165,11 +193,15 @@
       display: block;
     }
 
-    /* ── Diff overlay ───────────────────────────────────────────────── */
-    .diff-overlay {
+    /* ── Mode-controlled visibility ─────────────────────────────────── */
+    /* Mode "sbs" shows the branch column; mode "diff" shows the diff column. */
+    body.mode-sbs  .diff-col    { display: none; }
+    body.mode-diff .branch-col  { display: none; }
+
+    /* ── Diff canvas container ───────────────────────────────────────── */
+    .diff-canvas-wrap {
       display: flex;
       flex-direction: column;
-      align-items: flex-start;
       gap: 8px;
     }
 
@@ -177,7 +209,10 @@
       max-width: 100%;
       border: 1px solid #e5e7eb;
       border-radius: 4px;
+      display: block;
     }
+
+    .diff-computing { color: #9ca3af; font-size: 12px; padding: 20px 0; }
 
     .diff-legend {
       display: flex;
@@ -185,21 +220,12 @@
       font-size: 11px;
       color: #6b7280;
     }
-
     .legend-item { display: flex; align-items: center; gap: 4px; }
+    .legend-swatch { width: 12px; height: 12px; border-radius: 2px; flex-shrink: 0; }
 
-    .legend-swatch {
-      width: 12px;
-      height: 12px;
-      border-radius: 2px;
-      flex-shrink: 0;
-    }
+    .size-diff-note { font-size: 11px; color: #d97706; }
 
-    .size-diff-note {
-      font-size: 11px;
-      color: #d97706;
-    }
-
+    /* ── Badges ──────────────────────────────────────────────────────── */
     .badge {
       display: inline-block;
       font-size: 10px;
@@ -211,41 +237,64 @@
       margin-left: 6px;
       vertical-align: middle;
     }
-
     .badge-added   { background: #d1fae5; color: #065f46; }
     .badge-removed { background: #fee2e2; color: #991b1b; }
 
     .error-msg { color: #dc2626; font-size: 12px; padding: 8px 0; }
   </style>
 </head>
-<body>
+<body class="mode-sbs">
 
 <div id="header">
   <h1>Screenshot Diff</h1>
-  <div id="summary"><span style="color:#94a3b8">Loading…</span></div>
-  <div id="mode-controls">
-    <span>Diff mode:</span>
-    <button class="mode-btn active" id="btn-side-by-side" onclick="setMode('side-by-side')">Side by side</button>
-    <button class="mode-btn"        id="btn-diff"         onclick="setMode('diff')">Diff overlay</button>
+  <a id="pr-link" href="" target="_blank" rel="noopener noreferrer" hidden>&#8592; View PR</a>
+  <div id="summary"><span style="color:#94a3b8">Loading&#8230;</span></div>
+  <div id="controls">
+    <span class="ctrl-label">Mode:</span>
+    <button class="mode-btn active" id="btn-sbs"  onclick="setMode('sbs')">Side by side</button>
+    <button class="mode-btn"        id="btn-diff" onclick="setMode('diff')">With diff</button>
+    <div id="threshold-group">
+      <span>Threshold:</span>
+      <input type="range" id="threshold-slider" min="0" max="50" value="8"
+             oninput="setThreshold(+this.value)">
+      <span id="threshold-val">8</span>
+    </div>
   </div>
 </div>
 
 <div id="content">
-  <div class="loading">Loading diff data…</div>
+  <div class="loading">Loading diff data&#8230;</div>
 </div>
 
 <script>
 'use strict';
 
-let mode = 'side-by-side';
+let mode = 'sbs';
+let threshold = 8;
 let data = null;
 
+// Cache of loaded image elements per changed-story index: idx -> { img1, img2 }
+const imgCache = {};
+
 // ── Mode toggle ──────────────────────────────────────────────────────
+// Switching modes only changes a CSS class on <body>; the DOM is not rebuilt,
+// so the scroll position is automatically preserved.
 function setMode(m) {
   mode = m;
-  document.getElementById('btn-side-by-side').classList.toggle('active', m === 'side-by-side');
+  document.body.classList.toggle('mode-sbs',  m === 'sbs');
+  document.body.classList.toggle('mode-diff', m === 'diff');
+  document.getElementById('btn-sbs') .classList.toggle('active', m === 'sbs');
   document.getElementById('btn-diff').classList.toggle('active', m === 'diff');
-  if (data) renderAll();
+}
+
+// ── Threshold slider ─────────────────────────────────────────────────
+function setThreshold(v) {
+  threshold = v;
+  document.getElementById('threshold-val').textContent = String(v);
+  // Re-render all diff canvases with the new per-channel threshold.
+  if (data != null) {
+    data.changed.forEach((item, idx) => renderDiff(idx, item.filename));
+  }
 }
 
 // ── Entry point ──────────────────────────────────────────────────────
@@ -253,8 +302,25 @@ fetch('screenshots.json')
   .then(r => r.json())
   .then(d => {
     data = d;
+    // Initialise the threshold from the value the compare script used.
+    if (d.threshold != null) {
+      threshold = d.threshold;
+      const slider = document.getElementById('threshold-slider');
+      slider.value = String(threshold);
+      document.getElementById('threshold-val').textContent = String(threshold);
+    }
+    // Show PR link if the compare script recorded one.
+    if (d.prUrl != null) {
+      const link = document.getElementById('pr-link');
+      link.href = d.prUrl;
+      link.hidden = false;
+    }
     renderSummary();
     renderAll();
+    // Build diff canvases eagerly so they are ready when the user switches to "With diff" mode.
+    data.changed.forEach((item, idx) => renderDiff(idx, item.filename));
+    // Attach copy-button handlers once, using event delegation on the stable #content element.
+    setupCopyButtons();
   })
   .catch(e => {
     const el = document.getElementById('content');
@@ -279,7 +345,8 @@ function stat(cls, count, label) {
   return '<span class="stat ' + cls + '"><span class="stat-num">' + count + '</span>&nbsp;' + label + '</span>';
 }
 
-// ── Main render ──────────────────────────────────────────────────────
+// ── Main render — builds the full DOM once ───────────────────────────
+// The DOM is never rebuilt after this; mode switching uses CSS classes only.
 function renderAll() {
   let html = '';
 
@@ -287,29 +354,19 @@ function renderAll() {
     html += section('changed', '&#9888; Changed (' + data.changed.length + ')',
       data.changed.map(changedCard).join(''));
   }
-
   if (data.added.length) {
     html += section('added', '&#10010; Added (' + data.added.length + ')',
       data.added.map(addedCard).join(''));
   }
-
   if (data.removed.length) {
     html += section('removed', '&#10008; Removed (' + data.removed.length + ')',
       data.removed.map(removedCard).join(''));
   }
-
   if (!html) {
     html = '<div class="loading">No visual differences found.</div>';
   }
 
   document.getElementById('content').innerHTML = html;
-
-  // Kick off canvas diff rendering after DOM update
-  if (mode === 'diff') {
-    data.changed.forEach((item, idx) => {
-      renderDiff(idx, item.filename);
-    });
-  }
 }
 
 function section(cls, title, body) {
@@ -320,59 +377,88 @@ function section(cls, title, body) {
 }
 
 // ── Story cards ──────────────────────────────────────────────────────
+
+// Returns a stable HTML id attribute value for a story card, used for anchor links.
+function cardId(filename) {
+  return 'card-' + filename.replace(/\.png$/, '');
+}
+
 function changedCard(item, idx) {
   const name = storyName(item.filename);
+  const id   = cardId(item.filename);
 
   const metaCls = item.diffPixels === -1 ? 'story-meta size-warn' : 'story-meta';
   const metaTxt = item.diffPixels === -1
     ? '&#9888; Image dimensions differ'
     : item.diffPixels + ' pixel' + (item.diffPixels === 1 ? '' : 's') + ' differ';
-  const metaHtml = '<div class="' + metaCls + '">' + metaTxt + '</div>';
 
-  let bodyHtml;
-  if (mode === 'side-by-side') {
-    bodyHtml = '<div class="side-by-side">'
-      + imgPanel('base/' + item.filename, 'Base', 'lbl-base')
-      + imgPanel('branch/' + item.filename, 'Branch', 'lbl-branch')
-      + '</div>';
-  } else {
-    bodyHtml = '<div class="diff-overlay" id="diff-' + idx + '">'
-      + '<div style="color:#9ca3af;font-size:12px;padding:20px 0;">Computing diff…</div>'
-      + '</div>';
-  }
+  // Both branch-col (side-by-side mode) and diff-col (with-diff mode) are always in the DOM;
+  // CSS visibility is controlled by the mode class on <body>.
+  const body = '<div class="diff-cols">'
+    + '<div class="img-col">'
+    +   '<div class="img-label lbl-base">Base</div>'
+    +   '<img class="story-img" src="base/' + item.filename + '" loading="lazy">'
+    + '</div>'
+    + '<div class="img-col branch-col">'
+    +   '<div class="img-label lbl-branch">Branch</div>'
+    +   '<img class="story-img" src="branch/' + item.filename + '" loading="lazy">'
+    + '</div>'
+    + '<div class="img-col diff-col">'
+    +   '<div class="img-label lbl-diff">Diff</div>'
+    +   '<div class="diff-canvas-wrap" id="diff-' + idx + '">'
+    +     '<div class="diff-computing">Computing diff&#8230;</div>'
+    +   '</div>'
+    + '</div>'
+    + '</div>';
 
-  return card(name, metaHtml + bodyHtml);
+  return '<div class="story-card" id="' + id + '">'
+    + '<div class="card-header">'
+    +   '<span class="story-name">' + name + '</span>'
+    +   '<div class="card-actions">'
+    +     '<button class="action-btn" data-copy-link="' + id + '">Copy link</button>'
+    +     '<button class="action-btn" data-copy-img="branch/' + item.filename + '">Copy image URL</button>'
+    +   '</div>'
+    + '</div>'
+    + '<div class="' + metaCls + '">' + metaTxt + '</div>'
+    + body
+    + '</div>';
 }
 
 function addedCard(filename) {
   const name = storyName(filename);
+  const id   = cardId(filename);
   const body = '<div>'
     + '<div class="img-label lbl-added">Branch (added)</div>'
     + '<img class="story-img" src="branch/' + filename + '" loading="lazy">'
     + '</div>';
-  return card(name + '<span class="badge badge-added">Added</span>', body);
+  return '<div class="story-card" id="' + id + '">'
+    + '<div class="card-header">'
+    +   '<span class="story-name">' + name + '<span class="badge badge-added">Added</span></span>'
+    +   '<div class="card-actions">'
+    +     '<button class="action-btn" data-copy-link="' + id + '">Copy link</button>'
+    +     '<button class="action-btn" data-copy-img="branch/' + filename + '">Copy image URL</button>'
+    +   '</div>'
+    + '</div>'
+    + body
+    + '</div>';
 }
 
 function removedCard(filename) {
   const name = storyName(filename);
+  const id   = cardId(filename);
   const body = '<div>'
     + '<div class="img-label lbl-removed">Base (removed)</div>'
     + '<img class="story-img" src="base/' + filename + '" loading="lazy">'
     + '</div>';
-  return card(name + '<span class="badge badge-removed">Removed</span>', body);
-}
-
-function card(nameHtml, bodyHtml) {
-  return '<div class="story-card">'
-    + '<div class="story-name">' + nameHtml + '</div>'
-    + bodyHtml
-    + '</div>';
-}
-
-function imgPanel(src, label, labelCls) {
-  return '<div>'
-    + '<div class="img-label ' + labelCls + '">' + label + '</div>'
-    + '<img class="story-img" src="' + src + '" loading="lazy">'
+  return '<div class="story-card" id="' + id + '">'
+    + '<div class="card-header">'
+    +   '<span class="story-name">' + name + '<span class="badge badge-removed">Removed</span></span>'
+    +   '<div class="card-actions">'
+    +     '<button class="action-btn" data-copy-link="' + id + '">Copy link</button>'
+    +     '<button class="action-btn" data-copy-img="base/' + filename + '">Copy image URL</button>'
+    +   '</div>'
+    + '</div>'
+    + body
     + '</div>';
 }
 
@@ -381,71 +467,89 @@ function storyName(filename) {
 }
 
 // ── Canvas-based pixel diff ──────────────────────────────────────────
-// For each changed story in diff-overlay mode, draws a diff image where
-// identical pixels are dimmed and changed pixels are highlighted red.
+// Draws a diff image for a changed story: pixels that differ by more than `threshold` on any
+// channel are highlighted red; unchanged pixels are dimmed.  The canvas lives in a container
+// that is already in the DOM (built by changedCard) and is hidden/shown via CSS mode classes.
+// Images are cached in imgCache so that threshold changes can re-render without re-fetching.
 function renderDiff(idx, filename) {
   const container = document.getElementById('diff-' + idx);
-  if (!container) return;
+  if (container == null) return;
 
-  Promise.all([loadImg('base/' + filename), loadImg('branch/' + filename)])
-    .then(imgs => {
-      const img1 = imgs[0];
-      const img2 = imgs[1];
-      const maxW = Math.max(img1.naturalWidth, img2.naturalWidth);
-      const maxH = Math.max(img1.naturalHeight, img2.naturalHeight);
+  const doRender = (img1, img2) => {
+    const maxW = Math.max(img1.naturalWidth,  img2.naturalWidth);
+    const maxH = Math.max(img1.naturalHeight, img2.naturalHeight);
 
-      // Draw both images onto off-screen canvases at the max size so pixels
-      // outside a smaller image default to transparent (all zeros).
-      const c1 = makeCanvas(maxW, maxH);
-      c1.getContext('2d').drawImage(img1, 0, 0);
-      const d1 = c1.getContext('2d').getImageData(0, 0, maxW, maxH).data;
+    // Draw both images onto off-screen canvases at max dimensions so pixels outside a
+    // smaller image default to transparent (all zeros).
+    const c1 = makeCanvas(maxW, maxH);
+    c1.getContext('2d').drawImage(img1, 0, 0);
+    const d1 = c1.getContext('2d').getImageData(0, 0, maxW, maxH).data;
 
-      const c2 = makeCanvas(maxW, maxH);
-      c2.getContext('2d').drawImage(img2, 0, 0);
-      const d2 = c2.getContext('2d').getImageData(0, 0, maxW, maxH).data;
+    const c2 = makeCanvas(maxW, maxH);
+    c2.getContext('2d').drawImage(img2, 0, 0);
+    const d2 = c2.getContext('2d').getImageData(0, 0, maxW, maxH).data;
 
-      // Build the diff image: changed pixels → red, unchanged → dimmed.
-      const out = makeCanvas(maxW, maxH);
-      const outCtx = out.getContext('2d');
-      const outImg = outCtx.createImageData(maxW, maxH);
-      const od = outImg.data;
+    const out    = makeCanvas(maxW, maxH);
+    const outCtx = out.getContext('2d');
+    const outImg = outCtx.createImageData(maxW, maxH);
+    const od     = outImg.data;
 
-      for (let i = 0; i < od.length; i += 4) {
-        const same = d1[i] === d2[i] && d1[i + 1] === d2[i + 1] &&
-                     d1[i + 2] === d2[i + 2] && d1[i + 3] === d2[i + 3];
-        if (same) {
-          od[i]     = Math.round(d2[i]     * 0.45);
-          od[i + 1] = Math.round(d2[i + 1] * 0.45);
-          od[i + 2] = Math.round(d2[i + 2] * 0.45);
-          od[i + 3] = d2[i + 3];
-        } else {
-          od[i] = 255; od[i + 1] = 0; od[i + 2] = 0; od[i + 3] = 255;
-        }
+    for (let i = 0; i < od.length; i += 4) {
+      // A pixel is "the same" when every channel is within the current threshold.
+      const same =
+        Math.abs(d1[i]     - d2[i])     <= threshold &&
+        Math.abs(d1[i + 1] - d2[i + 1]) <= threshold &&
+        Math.abs(d1[i + 2] - d2[i + 2]) <= threshold &&
+        Math.abs(d1[i + 3] - d2[i + 3]) <= threshold;
+      if (same) {
+        od[i]     = Math.round(d2[i]     * 0.45);
+        od[i + 1] = Math.round(d2[i + 1] * 0.45);
+        od[i + 2] = Math.round(d2[i + 2] * 0.45);
+        od[i + 3] = d2[i + 3];
+      } else {
+        od[i] = 255; od[i + 1] = 0; od[i + 2] = 0; od[i + 3] = 255;
       }
+    }
 
-      outCtx.putImageData(outImg, 0, 0);
-      out.className = 'diff-canvas';
+    outCtx.putImageData(outImg, 0, 0);
+    out.className = 'diff-canvas';
 
-      const sizeDiffHtml = (img1.naturalWidth !== img2.naturalWidth || img1.naturalHeight !== img2.naturalHeight)
-        ? '<div class="size-diff-note">Base: ' + img1.naturalWidth + '\xd7' + img1.naturalHeight
-            + ' \u2192 Branch: ' + img2.naturalWidth + '\xd7' + img2.naturalHeight + '</div>'
-        : '';
+    const children = [out];
 
-      const legendHtml = '<div class="diff-legend">'
-        + '<div class="legend-item"><div class="legend-swatch" style="background:#f00"></div>Changed pixels</div>'
-        + '<div class="legend-item"><div class="legend-swatch" style="background:#1a1a1a;border:1px solid #ccc"></div>Unchanged pixels (dimmed)</div>'
-        + '</div>';
+    if (img1.naturalWidth !== img2.naturalWidth || img1.naturalHeight !== img2.naturalHeight) {
+      const note = document.createElement('div');
+      note.className = 'size-diff-note';
+      note.textContent = 'Base: ' + img1.naturalWidth + '\xd7' + img1.naturalHeight
+        + ' \u2192 Branch: ' + img2.naturalWidth + '\xd7' + img2.naturalHeight;
+      children.push(note);
+    }
 
-      container.innerHTML = '';
-      container.appendChild(out);
-      container.insertAdjacentHTML('beforeend', sizeDiffHtml + legendHtml);
-    })
-    .catch(e => {
-      const msg = document.createElement('div');
-      msg.className = 'error-msg';
-      msg.textContent = 'Error computing diff: ' + e.message;
-      container.replaceChildren(msg);
-    });
+    const legend = document.createElement('div');
+    legend.className = 'diff-legend';
+    legend.innerHTML =
+      '<div class="legend-item"><div class="legend-swatch" style="background:#f00"></div>Changed pixels</div>'
+      + '<div class="legend-item"><div class="legend-swatch" style="background:#1a1a1a;border:1px solid #ccc"></div>Unchanged (dimmed)</div>';
+    children.push(legend);
+
+    container.replaceChildren(...children);
+  };
+
+  if (imgCache[idx] != null) {
+    // Images already loaded — re-render synchronously (e.g. on threshold change).
+    doRender(imgCache[idx].img1, imgCache[idx].img2);
+  } else {
+    Promise.all([loadImg('base/' + filename), loadImg('branch/' + filename)])
+      .then(([img1, img2]) => {
+        imgCache[idx] = { img1, img2 };
+        doRender(img1, img2);
+      })
+      .catch(e => {
+        const msg = document.createElement('div');
+        msg.className = 'error-msg';
+        msg.textContent = 'Error computing diff: ' + e.message;
+        container.replaceChildren(msg);
+      });
+  }
 }
 
 function makeCanvas(w, h) {
@@ -458,10 +562,59 @@ function makeCanvas(w, h) {
 function loadImg(src) {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onload = () => resolve(img);
+    img.onload  = () => resolve(img);
     img.onerror = () => reject(new Error('Failed to load: ' + src));
     img.src = src;
   });
+}
+
+// ── Copy buttons — event delegation ─────────────────────────────────
+// A single listener on #content handles all copy buttons.  This works because
+// the DOM is built once and never rebuilt.
+function setupCopyButtons() {
+  document.getElementById('content').addEventListener('click', e => {
+    const btn = e.target.closest('[data-copy-link], [data-copy-img]');
+    if (btn == null) return;
+
+    let textToCopy;
+    if (btn.dataset.copyLink !== undefined) {
+      // Construct a URL that points directly to this story card.
+      textToCopy = location.href.split('#')[0] + '#' + btn.dataset.copyLink;
+    } else {
+      // Construct the absolute URL to the image file (branch/ or base/).
+      const pageBase = location.href.split('#')[0].replace(/\/?$/, '/');
+      textToCopy = pageBase + btn.dataset.copyImg;
+    }
+
+    doCopy(btn, textToCopy);
+  });
+}
+
+function doCopy(btn, text) {
+  const finish = () => {
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => {
+      btn.textContent = orig;
+      btn.classList.remove('copied');
+    }, 1500);
+  };
+
+  if (navigator.clipboard != null) {
+    navigator.clipboard.writeText(text).then(finish).catch(finish);
+  } else {
+    // Fallback for environments that block clipboard API (e.g. non-HTTPS).
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.cssText = 'position:fixed;opacity:0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    finish();
+  }
 }
 </script>
 </body>

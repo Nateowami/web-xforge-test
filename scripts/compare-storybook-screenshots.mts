@@ -5,7 +5,8 @@
 //
 // Reads PNG files from two directories (one for the base commit, one for the PR branch commit),
 // decodes each PNG to raw RGBA pixel data, and compares every pixel. Any screenshots that are
-// pixel-identical are excluded. Screenshots with different dimensions are always treated as changed.
+// within the per-channel threshold on all channels are treated as identical. Screenshots with
+// different dimensions are always treated as changed.
 //
 // Output deploy directory layout:
 //   index.html         — interactive diff UI (side-by-side and pixel-diff overlay modes)
@@ -14,12 +15,18 @@
 //   branch/<story-id>.png  — screenshot from the PR branch commit (changed and added stories)
 //
 // Usage:
-//   scripts/compare-storybook-screenshots.mts <base-dir> <branch-dir> <deploy-dir>
+//   scripts/compare-storybook-screenshots.mts <base-dir> <branch-dir> <deploy-dir> [options]
 //
 // Arguments:
 //   base-dir     Directory containing screenshots from the base/target branch
 //   branch-dir   Directory containing screenshots from the PR branch
 //   deploy-dir   Path where the deploy directory should be written (only created if there are differences)
+//
+// Options:
+//   --threshold N   Per-channel pixel difference threshold (default: 8). Pixels where every
+//                   channel differs by at most N are treated as identical. Higher values reduce
+//                   false positives from font hinting, sub-pixel rendering, or lossy compression.
+//   --pr-url URL    GitHub PR URL to link back from the diff page
 
 import { Buffer } from 'node:buffer';
 import { join } from 'node:path';
@@ -45,15 +52,21 @@ function readPng(filePath: string): DecodedPng {
 }
 
 /**
- * Compares two decoded PNGs at the pixel level.
+ * Compares two decoded PNGs at the pixel level using a per-channel threshold.
+ * A pixel is considered different if any channel (R, G, B, A) differs by more than the threshold.
  * Returns the number of differing pixels, or -1 if the images have different dimensions.
  */
-function countDifferingPixels(a: DecodedPng, b: DecodedPng): number {
+function countDifferingPixels(a: DecodedPng, b: DecodedPng, threshold: number): number {
   if (a.width !== b.width || a.height !== b.height) return -1;
   let diffCount = 0;
-  // Each pixel is 4 bytes (R, G, B, A). Compare all channels for each pixel.
+  // Each pixel is 4 bytes (R, G, B, A). A pixel is changed if any channel exceeds the threshold.
   for (let i = 0; i < a.data.length; i += 4) {
-    if (a.data[i] !== b.data[i] || a.data[i + 1] !== b.data[i + 1] || a.data[i + 2] !== b.data[i + 2] || a.data[i + 3] !== b.data[i + 3]) {
+    if (
+      Math.abs(a.data[i]     - b.data[i])     > threshold ||
+      Math.abs(a.data[i + 1] - b.data[i + 1]) > threshold ||
+      Math.abs(a.data[i + 2] - b.data[i + 2]) > threshold ||
+      Math.abs(a.data[i + 3] - b.data[i + 3]) > threshold
+    ) {
       diffCount++;
     }
   }
@@ -61,10 +74,32 @@ function countDifferingPixels(a: DecodedPng, b: DecodedPng): number {
 }
 
 function main(): void {
-  const [baseDir, branchDir, deployDir] = Deno.args;
+  // Parse positional arguments and named flags.
+  const positional: string[] = [];
+  let threshold = 8; // Default per-channel threshold; higher values tolerate minor rendering variance.
+  let prUrl: string | undefined;
+
+  for (let i = 0; i < Deno.args.length; i++) {
+    if (Deno.args[i] === '--threshold' && i + 1 < Deno.args.length) {
+      const parsed = parseInt(Deno.args[++i], 10);
+      if (isNaN(parsed) || parsed < 0) {
+        console.error('Error: --threshold must be a non-negative integer');
+        Deno.exit(1);
+      }
+      threshold = parsed;
+    } else if (Deno.args[i] === '--pr-url' && i + 1 < Deno.args.length) {
+      const raw = Deno.args[++i];
+      // Treat an empty string as absent (e.g. when run outside of a PR context).
+      prUrl = raw.length > 0 ? raw : undefined;
+    } else {
+      positional.push(Deno.args[i]);
+    }
+  }
+
+  const [baseDir, branchDir, deployDir] = positional;
 
   if (baseDir == null || branchDir == null || deployDir == null) {
-    console.error(`Usage: ${import.meta.filename} <base-dir> <branch-dir> <deploy-dir>`);
+    console.error(`Usage: ${import.meta.filename} <base-dir> <branch-dir> <deploy-dir> [--threshold N] [--pr-url URL]`);
     Deno.exit(1);
   }
 
@@ -85,7 +120,7 @@ function main(): void {
     if (inBase && inBranch) {
       const basePng = readPng(join(baseDir, filename));
       const branchPng = readPng(join(branchDir, filename));
-      const diffPixels = countDifferingPixels(basePng, branchPng);
+      const diffPixels = countDifferingPixels(basePng, branchPng, threshold);
       if (diffPixels !== 0) {
         changedStories.push([filename, diffPixels]);
       }
@@ -158,6 +193,8 @@ function main(): void {
 
   // Write screenshots.json so that index.html knows which stories to display.
   const screenshotsJson = {
+    prUrl: prUrl ?? null,
+    threshold,
     changed: changedStories.map(([filename, diffPixels]) => ({ filename, diffPixels })),
     removed: removedStories,
     added: addedStories,

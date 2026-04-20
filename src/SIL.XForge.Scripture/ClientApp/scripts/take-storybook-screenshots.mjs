@@ -22,8 +22,21 @@ import { spawn } from 'child_process';
 
 const SERVER_PORT = 6006;
 const STORY_LOAD_TIMEOUT_MS = 30_000;
-// Extra wait after page load to allow Angular animations to settle before taking the screenshot.
+// Wait after disabling animations to allow any in-flight animation frames to settle.
 const ANIMATION_SETTLE_MS = 500;
+
+// CSS injected into every story page to force all CSS animations and transitions to complete
+// immediately, producing deterministic screenshots regardless of animation state.
+const DISABLE_ANIMATIONS_CSS = `
+  *, *::before, *::after {
+    animation: none !important;
+    animation-duration: 0s !important;
+    animation-delay: 0s !important;
+    transition: none !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+`;
 
 function sleep(ms) {
   return new Promise(r => setTimeout(r, ms));
@@ -98,7 +111,9 @@ async function main() {
 
   try {
     browser = await chromium.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
-    const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+    // reducedMotion: 'reduce' causes the browser to honour prefers-reduced-motion media queries,
+    // which Angular Material and other libraries use to skip or shorten animations.
+    const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, reducedMotion: 'reduce' });
 
     let succeeded = 0;
     let failed = 0;
@@ -115,6 +130,9 @@ async function main() {
         try {
           page = await context.newPage();
           await page.goto(url, { waitUntil: 'load', timeout: STORY_LOAD_TIMEOUT_MS });
+          // Force all CSS animations and transitions to zero duration so that screenshots are
+          // not affected by animation mid-frames or timing differences across runs.
+          await page.addStyleTag({ content: DISABLE_ANIMATIONS_CSS });
           await page.waitForTimeout(ANIMATION_SETTLE_MS);
           await page.screenshot({ path: screenshotPath, fullPage: true });
           success = true;
