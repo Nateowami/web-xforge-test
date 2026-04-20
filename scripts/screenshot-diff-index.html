@@ -203,10 +203,10 @@
     body.mode-strobe .diff-cols   { display: none; }
 
     /* ── Strobe column ───────────────────────────────────────────────── */
-    /* Two images overlaid; JS toggles which is visible via body classes. */
+    /* Two images; only one is shown at a time (toggled by body class). */
     .strobe-col { margin-top: 4px; }
 
-    .strobe-wrap { position: relative; display: inline-block; max-width: 100%; }
+    .strobe-wrap { display: block; max-width: 100%; }
 
     .strobe-img-base,
     .strobe-img-branch {
@@ -216,19 +216,10 @@
       display: block;
     }
 
-    /* Branch image sits on top of base; toggled by body class */
-    .strobe-img-branch {
-      position: absolute;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: fill;
-    }
-
-    /* When showing "A" (base), hide branch; when showing "B" (branch), hide base */
-    body.mode-strobe.strobe-a .strobe-img-branch { opacity: 0; }
-    body.mode-strobe.strobe-b .strobe-img-base   { opacity: 0; }
+    /* When showing "A" (base), hide branch; when showing "B" (branch), hide base. */
+    /* display:none rather than opacity so each image shows at its natural dimensions. */
+    body.mode-strobe.strobe-a .strobe-img-branch { display: none; }
+    body.mode-strobe.strobe-b .strobe-img-base   { display: none; }
 
     /* ── Diff canvas container ───────────────────────────────────────── */
     .diff-canvas-wrap {
@@ -288,10 +279,10 @@
     <button class="mode-btn"        id="btn-strobe" onclick="setMode('strobe')">Strobe</button>
     <div id="threshold-group">
       <span>Threshold:</span>
-      <input type="range" id="threshold-slider" min="0" max="50" value="12"
+      <input type="range" id="threshold-slider" min="0" max="50" value="8"
              oninput="onThresholdInput(+this.value)"
              onchange="onThresholdChange(+this.value)">
-      <span id="threshold-val">12</span>
+      <span id="threshold-val">8</span>
     </div>
   </div>
 </div>
@@ -304,7 +295,7 @@
 'use strict';
 
 let mode = 'sbs';
-let threshold = 12;
+let threshold = 8;
 let data = null;
 
 // Cache of loaded image elements per changed-story index: idx -> { img1, img2 }

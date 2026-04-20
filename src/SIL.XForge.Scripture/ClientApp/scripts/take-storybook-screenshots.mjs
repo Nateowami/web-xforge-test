@@ -24,6 +24,8 @@ const SERVER_PORT = 6006;
 const STORY_LOAD_TIMEOUT_MS = 30_000;
 // Wait after disabling animations to allow any in-flight animation frames to settle.
 const ANIMATION_SETTLE_MS = 1000;
+// Number of stories to process in parallel. Each worker gets its own browser page so waits overlap.
+const CONCURRENCY = 4;
 
 // CSS injected into every story page to force all CSS animations and transitions to complete
 // immediately, producing deterministic screenshots regardless of animation state.
@@ -74,6 +76,51 @@ async function waitForServer(port, maxAttempts = 30, intervalMs = 500) {
   throw new Error(`HTTP server on port ${port} did not start within ${maxAttempts * intervalMs} ms`);
 }
 
+/**
+ * Takes a screenshot of a single story, retrying once on failure.
+ * Returns { storyId, success }.
+ */
+async function screenshotStory(story, context, absOutputDir) {
+  const { id: storyId } = story;
+  const url = `http://localhost:${SERVER_PORT}/iframe.html?id=${storyId}&viewMode=story`;
+  const screenshotPath = join(absOutputDir, `${storyId}.png`);
+
+  let success = false;
+  for (let attempt = 1; attempt <= 2 && !success; attempt++) {
+    let page;
+    try {
+      page = await context.newPage();
+      await page.goto(url, { waitUntil: 'networkidle', timeout: STORY_LOAD_TIMEOUT_MS });
+
+      // Inject CSS that sets all animation and transition durations to zero so no new animations
+      // can start or continue after this point.
+      await page.addStyleTag({ content: DISABLE_ANIMATIONS_CSS });
+
+      // Wait one animation frame for the style to take effect, then finish any Web Animations API
+      // animations (e.g. Angular Material) that are already in-flight.
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(resolve)));
+      await page.evaluate(() => document.getAnimations().forEach(a => { try { a.finish(); } catch (e) {} }));
+
+      // Wait for Angular change-detection cycles triggered by the finish() calls to settle.
+      await page.waitForTimeout(ANIMATION_SETTLE_MS);
+
+      // Second pass: finish any animations that were started during the settle period
+      // (e.g. by Angular responding to the first round of finish() calls).
+      await page.evaluate(() => document.getAnimations().forEach(a => { try { a.finish(); } catch (e) {} }));
+
+      await page.screenshot({ path: screenshotPath, fullPage: true });
+      success = true;
+    } catch (err) {
+      if (attempt === 2) {
+        console.error(`  ✗ ${storyId}: ${err.message}`);
+      }
+    } finally {
+      await page?.close();
+    }
+  }
+  return { storyId, success };
+}
+
 async function main() {
   const [, , storybookDir, outputDir] = process.argv;
 
@@ -119,43 +166,26 @@ async function main() {
     let failed = 0;
     const failedStories = [];
 
-    for (const story of stories) {
-      const { id: storyId } = story;
-      const url = `http://localhost:${SERVER_PORT}/iframe.html?id=${storyId}&viewMode=story`;
-      const screenshotPath = join(absOutputDir, `${storyId}.png`);
-
-      let success = false;
-      for (let attempt = 1; attempt <= 2 && !success; attempt++) {
-        let page;
-        try {
-          page = await context.newPage();
-          await page.goto(url, { waitUntil: 'networkidle', timeout: STORY_LOAD_TIMEOUT_MS });
-          // Force all CSS animations and transitions to zero duration so that screenshots are
-          // not affected by animation mid-frames or timing differences across runs.
-          await page.addStyleTag({ content: DISABLE_ANIMATIONS_CSS });
-          // Finish any Web Animations API animations (e.g. Angular Material) that are still
-          // running so they jump to their final state before the screenshot is taken.
-          await page.evaluate(() => document.getAnimations().forEach(a => { try { a.finish(); } catch (e) {} }));
-          await page.waitForTimeout(ANIMATION_SETTLE_MS);
-          await page.screenshot({ path: screenshotPath, fullPage: true });
-          success = true;
-        } catch (err) {
-          if (attempt === 2) {
-            console.error(`  ✗ ${storyId}: ${err.message}`);
-          }
-        } finally {
-          await page?.close();
+    // Process stories in parallel using a shared work queue. Each worker picks the next story
+    // from the queue until it is empty, so slow stories do not block faster ones.
+    const queue = [...stories];
+    async function worker() {
+      while (queue.length > 0) {
+        const story = queue.shift();
+        if (story == null) break;
+        const { storyId, success } = await screenshotStory(story, context, absOutputDir);
+        if (success) {
+          console.log(`  ✓ ${storyId}`);
+          succeeded++;
+        } else {
+          failedStories.push(storyId);
+          failed++;
         }
       }
-
-      if (success) {
-        console.log(`  ✓ ${storyId}`);
-        succeeded++;
-      } else {
-        failedStories.push(storyId);
-        failed++;
-      }
     }
+
+    // Launch CONCURRENCY workers; they all draw from the same queue so the total work is evenly spread.
+    await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 
     console.log(`\nCompleted: ${succeeded} succeeded, ${failed} failed`);
     if (failedStories.length > 0) {
