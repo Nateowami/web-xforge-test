@@ -1,4 +1,8 @@
-/** The supported types for a search field */
+/**
+ * The supported types for a search field.
+ * - 'text': the field accepts any string value (quoted or unquoted)
+ * - 'boolean': the field accepts only the literal strings "true" or "false"
+ */
 export type SearchFieldType = 'text' | 'boolean';
 
 /** Definition of a single searchable field */
@@ -66,22 +70,22 @@ export function parseSearchQuery(input: string, fieldsDef: SearchFieldsDef): Par
     fieldMap.set(field.id, field);
   }
 
-  let i = 0;
+  let charIndex = 0;
 
-  while (i < input.length) {
+  while (charIndex < input.length) {
     // Skip leading whitespace.
-    while (i < input.length && /\s/.test(input[i])) {
-      i++;
+    while (charIndex < input.length && /\s/.test(input[charIndex])) {
+      charIndex++;
     }
-    if (i >= input.length) break;
+    if (charIndex >= input.length) break;
 
-    const termStart = i;
+    const termStart = charIndex;
 
     // Read the field ID — everything up to ':' or whitespace.
     let fieldId = '';
-    while (i < input.length && input[i] !== ':' && !/\s/.test(input[i])) {
-      fieldId += input[i];
-      i++;
+    while (charIndex < input.length && input[charIndex] !== ':' && !/\s/.test(input[charIndex])) {
+      fieldId += input[charIndex];
+      charIndex++;
     }
 
     if (fieldId.length === 0) {
@@ -91,56 +95,56 @@ export function parseSearchQuery(input: string, fieldsDef: SearchFieldsDef): Par
         position: termStart
       });
       // Skip until the next whitespace so we can continue parsing.
-      while (i < input.length && !/\s/.test(input[i])) i++;
+      while (charIndex < input.length && !/\s/.test(input[charIndex])) charIndex++;
       continue;
     }
 
-    if (i >= input.length || input[i] !== ':') {
+    if (charIndex >= input.length || input[charIndex] !== ':') {
       // A word without ':' — the user forgot to specify a value.
       errors.push({
         message: `Expected ':' after field name "${fieldId}" (use the format ${fieldId}:value or ${fieldId}:"quoted value")`,
-        position: i
+        position: charIndex
       });
       // We already consumed all non-whitespace, so move on to the next term.
       continue;
     }
 
     // Consume the ':'.
-    i++;
+    charIndex++;
 
-    if (i >= input.length || /\s/.test(input[i])) {
+    if (charIndex >= input.length || /\s/.test(input[charIndex])) {
       // There is nothing after the colon.
       errors.push({
         message: `Expected a value after "${fieldId}:" — for example, ${fieldId}:someValue`,
-        position: i
+        position: charIndex
       });
       continue;
     }
 
     // Read the value — either a quoted string or an unquoted word.
     let value: string;
-    const valueStart = i;
+    const valueStart = charIndex;
 
-    if (input[i] === '"') {
-      i++; // skip the opening quote
+    if (input[charIndex] === '"') {
+      charIndex++; // skip the opening quote
       let quotedValue = '';
       let closed = false;
 
-      while (i < input.length) {
-        if (input[i] === '"') {
-          if (i + 1 < input.length && input[i + 1] === '"') {
+      while (charIndex < input.length) {
+        if (input[charIndex] === '"') {
+          if (charIndex + 1 < input.length && input[charIndex + 1] === '"') {
             // Escaped double-quote ("").
             quotedValue += '"';
-            i += 2;
+            charIndex += 2;
           } else {
             // Closing quote.
             closed = true;
-            i++;
+            charIndex++;
             break;
           }
         } else {
-          quotedValue += input[i];
-          i++;
+          quotedValue += input[charIndex];
+          charIndex++;
         }
       }
 
@@ -157,9 +161,9 @@ export function parseSearchQuery(input: string, fieldsDef: SearchFieldsDef): Par
     } else {
       // Unquoted: read until whitespace.
       let unquotedValue = '';
-      while (i < input.length && !/\s/.test(input[i])) {
-        unquotedValue += input[i];
-        i++;
+      while (charIndex < input.length && !/\s/.test(input[charIndex])) {
+        unquotedValue += input[charIndex];
+        charIndex++;
       }
       value = unquotedValue;
     }
@@ -167,12 +171,12 @@ export function parseSearchQuery(input: string, fieldsDef: SearchFieldsDef): Par
     // Validate the field ID against the definition.
     const fieldDef = fieldMap.get(fieldId);
     if (fieldDef == null) {
-      const knownIds: string = fieldsDef.fields.map(f => f.id).join(', ');
+      const availableFieldIds: string = fieldsDef.fields.map(f => f.id).join(', ');
       errors.push({
         message:
           fieldsDef.fields.length === 0
             ? `Unknown field "${fieldId}": no fields are defined`
-            : `Unknown field "${fieldId}". Available fields: ${knownIds}`,
+            : `Unknown field "${fieldId}". Available fields: ${availableFieldIds}`,
         position: termStart
       });
       continue;

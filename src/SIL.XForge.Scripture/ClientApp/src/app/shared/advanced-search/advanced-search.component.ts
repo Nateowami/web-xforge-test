@@ -11,7 +11,7 @@ import { ParsedSearchQuery, parseSearchQuery, SearchFieldsDef } from './search-q
  * string into structured terms that can be used to filter a realtime server query.
  *
  * Usage:
- *   <app-advanced-search [fieldsDef]="myFieldsDef" (searchChange)="onSearch($event)" />
+ *   <app-advanced-search [fieldsDef]="myFieldsDef" (searchChange)="onSearch($event)"></app-advanced-search>
  *
  * The caller provides a definition of available fields and receives a ParsedSearchQuery on every
  * keystroke. Each term in the result carries a fieldId and a typed value (string or boolean) so
