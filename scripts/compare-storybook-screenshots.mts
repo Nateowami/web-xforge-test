@@ -1,28 +1,29 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write
 
-// Compares two sets of Storybook screenshots at the pixel level and creates a ZIP of any that differ.
+// Compares two sets of Storybook screenshots at the pixel level and creates a Netlify deploy
+// directory containing an interactive diff UI for any screenshots that differ.
 //
 // Reads PNG files from two directories (one for the base commit, one for the PR branch commit),
 // decodes each PNG to raw RGBA pixel data, and compares every pixel. Any screenshots that are
-// pixel-identical are discarded so the resulting artifact stays small. Screenshots with different
-// dimensions are always treated as changed.
+// pixel-identical are excluded. Screenshots with different dimensions are always treated as changed.
 //
-// Output ZIP layout:
-//   base/<story-id>.png    — screenshot from the base commit
-//   branch/<story-id>.png  — screenshot from the PR branch commit
+// Output deploy directory layout:
+//   index.html         — interactive diff UI (side-by-side and pixel-diff overlay modes)
+//   screenshots.json   — diff metadata fetched by index.html
+//   base/<story-id>.png    — screenshot from the base commit (changed and removed stories)
+//   branch/<story-id>.png  — screenshot from the PR branch commit (changed and added stories)
 //
 // Usage:
-//   scripts/compare-storybook-screenshots.mts <base-dir> <branch-dir> <output-zip>
+//   scripts/compare-storybook-screenshots.mts <base-dir> <branch-dir> <deploy-dir>
 //
 // Arguments:
 //   base-dir     Directory containing screenshots from the base/target branch
 //   branch-dir   Directory containing screenshots from the PR branch
-//   output-zip   Path where the ZIP artifact should be written (only created if there are differences)
+//   deploy-dir   Path where the deploy directory should be written (only created if there are differences)
 
 import { Buffer } from 'node:buffer';
 import { join } from 'node:path';
 import { PNG } from 'npm:pngjs@7.0.0';
-import { zipSync } from 'npm:fflate@0.8.2';
 
 /** Decoded PNG image with raw RGBA pixel data. */
 interface DecodedPng {
@@ -60,10 +61,10 @@ function countDifferingPixels(a: DecodedPng, b: DecodedPng): number {
 }
 
 function main(): void {
-  const [baseDir, branchDir, outputZip] = Deno.args;
+  const [baseDir, branchDir, deployDir] = Deno.args;
 
-  if (baseDir == null || branchDir == null || outputZip == null) {
-    console.error(`Usage: ${import.meta.filename} <base-dir> <branch-dir> <output-zip>`);
+  if (baseDir == null || branchDir == null || deployDir == null) {
+    console.error(`Usage: ${import.meta.filename} <base-dir> <branch-dir> <deploy-dir>`);
     Deno.exit(1);
   }
 
@@ -71,7 +72,7 @@ function main(): void {
   const branchFiles = new Set([...Deno.readDirSync(branchDir)].filter(entry => entry.isFile && entry.name.endsWith('.png')).map(entry => entry.name));
   const allFiles: string[] = [...new Set([...baseFiles, ...branchFiles])].sort();
 
-  // Track which stories were removed, added, or changed so we can report and include them in the ZIP.
+  // Track which stories were removed, added, or changed so we can report and include them in the deploy.
   const removedStories: string[] = [];
   const addedStories: string[] = [];
   // Each entry is [filename, differingPixelCount] where -1 means dimensions differ.
@@ -136,29 +137,44 @@ function main(): void {
   const totalChanged = changedStories.length + removedStories.length + addedStories.length;
 
   if (totalChanged === 0) {
-    console.log('\nNo visual differences found. No ZIP file created.');
+    console.log('\nNo visual differences found. No deploy directory created.');
     return;
   }
 
-  // Build the ZIP in memory using fflate. PNG files are already compressed, so we store them
-  // without additional compression (level: 0) to keep the process fast.
-  const zipEntries: Record<string, [Uint8Array, { level: 0 }]> = {};
+  // Build the deploy directory structure for Netlify.
+  Deno.mkdirSync(join(deployDir, 'base'), { recursive: true });
+  Deno.mkdirSync(join(deployDir, 'branch'), { recursive: true });
 
-  for (const [filename, _pixels] of changedStories) {
-    zipEntries[`base/${filename}`] = [Deno.readFileSync(join(baseDir, filename)), { level: 0 }];
-    zipEntries[`branch/${filename}`] = [Deno.readFileSync(join(branchDir, filename)), { level: 0 }];
+  for (const [filename] of changedStories) {
+    Deno.copyFileSync(join(baseDir, filename), join(deployDir, 'base', filename));
+    Deno.copyFileSync(join(branchDir, filename), join(deployDir, 'branch', filename));
   }
   for (const filename of removedStories) {
-    zipEntries[`base/${filename}`] = [Deno.readFileSync(join(baseDir, filename)), { level: 0 }];
+    Deno.copyFileSync(join(baseDir, filename), join(deployDir, 'base', filename));
   }
   for (const filename of addedStories) {
-    zipEntries[`branch/${filename}`] = [Deno.readFileSync(join(branchDir, filename)), { level: 0 }];
+    Deno.copyFileSync(join(branchDir, filename), join(deployDir, 'branch', filename));
   }
 
-  const zipData = zipSync(zipEntries);
-  Deno.writeFileSync(outputZip, zipData);
+  // Write screenshots.json so that index.html knows which stories to display.
+  const screenshotsJson = {
+    changed: changedStories.map(([filename, diffPixels]) => ({ filename, diffPixels })),
+    removed: removedStories,
+    added: addedStories,
+    summary: {
+      identical: identicalCount,
+      changed: changedStories.length,
+      removed: removedStories.length,
+      added: addedStories.length
+    }
+  };
+  Deno.writeTextFileSync(join(deployDir, 'screenshots.json'), JSON.stringify(screenshotsJson, null, 2));
 
-  console.log(`\nZIP artifact created: ${outputZip}`);
+  // Copy the self-contained diff UI (lives next to this script in the repo).
+  const scriptDir = import.meta.dirname!;
+  Deno.copyFileSync(join(scriptDir, 'screenshot-diff-index.html'), join(deployDir, 'index.html'));
+
+  console.log(`\nDeploy directory created: ${deployDir}`);
   console.log(`  ${changedStories.length} changed stories (both base and branch screenshots included)`);
   console.log(`  ${removedStories.length + addedStories.length} stories present in only one commit`);
 }

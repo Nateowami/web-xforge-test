@@ -3,7 +3,7 @@ permissions: {}
 
 # Runs on every PR and merge-group event to produce a visual diff between the target branch and
 # the PR branch.  Two screenshot jobs run in parallel, one for each commit, and a third job then
-# compares the results and uploads a ZIP of any changed screenshots as a workflow artifact.
+# compares the results and deploys any changed screenshots to Netlify for visual review.
 #
 # For manual runs the 'base_ref' input lets you choose which ref to treat as the baseline.
 
@@ -154,12 +154,16 @@ jobs:
           path: src/SIL.XForge.Scripture/ClientApp/screenshots
 
   # ---------------------------------------------------------------------------
-  # Job 3 – compare the two screenshot sets and publish a diff ZIP
+  # Job 3 – compare the two screenshot sets and deploy a visual diff to Netlify
   # ---------------------------------------------------------------------------
   compare:
     name: "Compare Screenshots"
     needs: [screenshots-base, screenshots-branch]
     runs-on: ubuntu-24.04
+    environment: screenshot_diff
+    permissions:
+      contents: read
+      pull-requests: write
     steps:
       - name: Checkout
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -186,12 +190,65 @@ jobs:
       - name: "Compare screenshots"
         run: >
           scripts/compare-storybook-screenshots.mts
-          screenshots-base screenshots-branch screenshots-diff.zip
+          screenshots-base screenshots-branch screenshots-deploy
 
-      # Only upload the diff ZIP when it was actually created (i.e. when there are differences).
-      - name: "Upload diff ZIP"
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+      - name: "Check for visual differences"
+        id: check
+        run: |
+          if [ -f screenshots-deploy/index.html ]; then
+            echo "has_diff=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_diff=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: "Deploy diff to Netlify"
+        id: deploy
+        if: steps.check.outputs.has_diff == 'true'
+        env:
+          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          NETLIFY_SITE_ID: ${{ vars.NETLIFY_SITE_ID }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          # Use a stable alias for PRs so each push overwrites the previous preview.
+          # Fall back to the run ID for non-PR events (merge groups, manual dispatches).
+          ALIAS="${PR_NUMBER:+pr-${PR_NUMBER}}"
+          ALIAS="${ALIAS:-run-${RUN_ID}}"
+          DEPLOY_OUTPUT=$(npx --yes netlify-cli deploy \
+            --dir screenshots-deploy \
+            --alias "$ALIAS" \
+            --json)
+          DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | jq -r '.deploy_url')
+          echo "url=${DEPLOY_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: "Comment on PR with preview URL"
+        if: github.event_name == 'pull_request' && steps.deploy.outputs.url != ''
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
-          name: screenshots-diff
-          path: screenshots-diff.zip
-          if-no-files-found: ignore
+          script: |
+            const marker = '<!-- screenshot-diff-preview -->';
+            const url = '${{ steps.deploy.outputs.url }}';
+            const body = marker + '\n📸 **Screenshot diff deployed!**\n\nView the visual diff at: ' + url;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              issue_number: context.payload.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({
+                comment_id: existing.id,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                issue_number: context.payload.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body,
+              });
+            }

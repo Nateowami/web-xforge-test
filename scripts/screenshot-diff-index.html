@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Storybook Screenshot Diff</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #f3f4f6;
+      color: #111827;
+    }
+
+    /* ── Sticky header ──────────────────────────────────────────────── */
+    #header {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: #1e1e2e;
+      color: #e2e8f0;
+      padding: 10px 24px;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      flex-wrap: wrap;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+    }
+
+    #header h1 {
+      font-size: 15px;
+      font-weight: 600;
+      white-space: nowrap;
+      color: #fff;
+    }
+
+    #summary {
+      display: flex;
+      gap: 16px;
+      flex-wrap: wrap;
+      font-size: 13px;
+      flex: 1;
+    }
+
+    .stat { display: flex; align-items: center; gap: 5px; }
+    .stat-num { font-weight: 700; font-size: 16px; }
+    .changed  .stat-num { color: #fbbf24; }
+    .added    .stat-num { color: #34d399; }
+    .removed  .stat-num { color: #f87171; }
+    .identical .stat-num { color: #9ca3af; }
+
+    #mode-controls {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    #mode-controls span { font-size: 12px; color: #94a3b8; white-space: nowrap; }
+
+    .mode-btn {
+      padding: 5px 12px;
+      border: 1.5px solid #4b5563;
+      background: transparent;
+      color: #d1d5db;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 12px;
+      transition: background 0.15s, border-color 0.15s;
+    }
+
+    .mode-btn.active {
+      background: #4338ca;
+      border-color: #6366f1;
+      color: #fff;
+    }
+
+    .mode-btn:hover:not(.active) { border-color: #9ca3af; }
+
+    /* ── Content area ───────────────────────────────────────────────── */
+    #content {
+      max-width: 1440px;
+      margin: 0 auto;
+      padding: 24px 20px;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 80px 20px;
+      color: #6b7280;
+      font-size: 15px;
+    }
+
+    /* ── Sections ───────────────────────────────────────────────────── */
+    .section { margin-bottom: 36px; }
+
+    .section-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      margin-bottom: 14px;
+      font-size: 14px;
+      font-weight: 600;
+    }
+
+    .section-changed  .section-header { background: #fef3c7; color: #78350f; }
+    .section-added    .section-header { background: #d1fae5; color: #065f46; }
+    .section-removed  .section-header { background: #fee2e2; color: #991b1b; }
+
+    /* ── Story cards ─────────────────────────────────────────────────── */
+    .story-card {
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px;
+      margin-bottom: 14px;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+    }
+
+    .story-name {
+      font-family: 'Courier New', monospace;
+      font-size: 12px;
+      color: #6b7280;
+      margin-bottom: 8px;
+      word-break: break-all;
+    }
+
+    .story-meta {
+      font-size: 11px;
+      color: #9ca3af;
+      margin-bottom: 10px;
+    }
+
+    .story-meta.size-warn { color: #d97706; }
+
+    /* ── Side-by-side layout ────────────────────────────────────────── */
+    .side-by-side {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    @media (max-width: 640px) {
+      .side-by-side { grid-template-columns: 1fr; }
+    }
+
+    .img-label {
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      margin-bottom: 6px;
+    }
+
+    .lbl-base    { color: #6b7280; }
+    .lbl-branch  { color: #4338ca; }
+    .lbl-added   { color: #059669; }
+    .lbl-removed { color: #dc2626; }
+
+    .story-img {
+      max-width: 100%;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      display: block;
+    }
+
+    /* ── Diff overlay ───────────────────────────────────────────────── */
+    .diff-overlay {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 8px;
+    }
+
+    .diff-canvas {
+      max-width: 100%;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+    }
+
+    .diff-legend {
+      display: flex;
+      gap: 16px;
+      font-size: 11px;
+      color: #6b7280;
+    }
+
+    .legend-item { display: flex; align-items: center; gap: 4px; }
+
+    .legend-swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 2px;
+      flex-shrink: 0;
+    }
+
+    .size-diff-note {
+      font-size: 11px;
+      color: #d97706;
+    }
+
+    .badge {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 2px 7px;
+      border-radius: 4px;
+      margin-left: 6px;
+      vertical-align: middle;
+    }
+
+    .badge-added   { background: #d1fae5; color: #065f46; }
+    .badge-removed { background: #fee2e2; color: #991b1b; }
+
+    .error-msg { color: #dc2626; font-size: 12px; padding: 8px 0; }
+  </style>
+</head>
+<body>
+
+<div id="header">
+  <h1>Screenshot Diff</h1>
+  <div id="summary"><span style="color:#94a3b8">Loading…</span></div>
+  <div id="mode-controls">
+    <span>Diff mode:</span>
+    <button class="mode-btn active" id="btn-side-by-side" onclick="setMode('side-by-side')">Side by side</button>
+    <button class="mode-btn"        id="btn-diff"         onclick="setMode('diff')">Diff overlay</button>
+  </div>
+</div>
+
+<div id="content">
+  <div class="loading">Loading diff data…</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  var mode = 'side-by-side';
+  var data = null;
+
+  // ── Mode toggle ──────────────────────────────────────────────────────
+  window.setMode = function (m) {
+    mode = m;
+    document.getElementById('btn-side-by-side').classList.toggle('active', m === 'side-by-side');
+    document.getElementById('btn-diff').classList.toggle('active', m === 'diff');
+    if (data) renderAll();
+  };
+
+  // ── Entry point ──────────────────────────────────────────────────────
+  fetch('screenshots.json')
+    .then(function (r) { return r.json(); })
+    .then(function (d) {
+      data = d;
+      renderSummary();
+      renderAll();
+    })
+    .catch(function (e) {
+      document.getElementById('content').innerHTML =
+        '<div style="color:#dc2626;padding:40px;">Failed to load screenshots.json: ' + e.message + '</div>';
+    });
+
+  // ── Summary bar ──────────────────────────────────────────────────────
+  function renderSummary() {
+    var s = data.summary;
+    var parts = [];
+    if (s.changed)   parts.push(stat('changed',   s.changed,   'changed'));
+    if (s.added)     parts.push(stat('added',     s.added,     'added'));
+    if (s.removed)   parts.push(stat('removed',   s.removed,   'removed'));
+    if (s.identical) parts.push(stat('identical', s.identical, 'identical'));
+    document.getElementById('summary').innerHTML = parts.join('');
+  }
+
+  function stat(cls, count, label) {
+    return '<span class="stat ' + cls + '"><span class="stat-num">' + count + '</span>&nbsp;' + label + '</span>';
+  }
+
+  // ── Main render ──────────────────────────────────────────────────────
+  function renderAll() {
+    var html = '';
+
+    if (data.changed.length) {
+      html += section('changed', '&#9888; Changed (' + data.changed.length + ')',
+        data.changed.map(changedCard).join(''));
+    }
+
+    if (data.added.length) {
+      html += section('added', '&#10010; Added (' + data.added.length + ')',
+        data.added.map(addedCard).join(''));
+    }
+
+    if (data.removed.length) {
+      html += section('removed', '&#10008; Removed (' + data.removed.length + ')',
+        data.removed.map(removedCard).join(''));
+    }
+
+    if (!html) {
+      html = '<div class="loading">No visual differences found.</div>';
+    }
+
+    document.getElementById('content').innerHTML = html;
+
+    // Kick off canvas diff rendering after DOM update
+    if (mode === 'diff') {
+      data.changed.forEach(function (item, idx) {
+        renderDiff(idx, item.filename);
+      });
+    }
+  }
+
+  function section(cls, title, body) {
+    return '<div class="section section-' + cls + '">'
+      + '<div class="section-header">' + title + '</div>'
+      + body
+      + '</div>';
+  }
+
+  // ── Story cards ──────────────────────────────────────────────────────
+  function changedCard(item, idx) {
+    var name = storyName(item.filename);
+
+    var metaCls = item.diffPixels === -1 ? 'story-meta size-warn' : 'story-meta';
+    var metaTxt = item.diffPixels === -1
+      ? '&#9888; Image dimensions differ'
+      : item.diffPixels + ' pixel' + (item.diffPixels === 1 ? '' : 's') + ' differ';
+    var metaHtml = '<div class="' + metaCls + '">' + metaTxt + '</div>';
+
+    var bodyHtml;
+    if (mode === 'side-by-side') {
+      bodyHtml = '<div class="side-by-side">'
+        + imgPanel('base/' + item.filename, 'Base', 'lbl-base')
+        + imgPanel('branch/' + item.filename, 'Branch', 'lbl-branch')
+        + '</div>';
+    } else {
+      bodyHtml = '<div class="diff-overlay" id="diff-' + idx + '">'
+        + '<div style="color:#9ca3af;font-size:12px;padding:20px 0;">Computing diff…</div>'
+        + '</div>';
+    }
+
+    return card(name, metaHtml + bodyHtml);
+  }
+
+  function addedCard(filename) {
+    var name = storyName(filename);
+    var body = '<div>'
+      + '<div class="img-label lbl-added">Branch (added)</div>'
+      + '<img class="story-img" src="branch/' + filename + '" loading="lazy">'
+      + '</div>';
+    return card(name + '<span class="badge badge-added">Added</span>', body);
+  }
+
+  function removedCard(filename) {
+    var name = storyName(filename);
+    var body = '<div>'
+      + '<div class="img-label lbl-removed">Base (removed)</div>'
+      + '<img class="story-img" src="base/' + filename + '" loading="lazy">'
+      + '</div>';
+    return card(name + '<span class="badge badge-removed">Removed</span>', body);
+  }
+
+  function card(nameHtml, bodyHtml) {
+    return '<div class="story-card">'
+      + '<div class="story-name">' + nameHtml + '</div>'
+      + bodyHtml
+      + '</div>';
+  }
+
+  function imgPanel(src, label, labelCls) {
+    return '<div>'
+      + '<div class="img-label ' + labelCls + '">' + label + '</div>'
+      + '<img class="story-img" src="' + src + '" loading="lazy">'
+      + '</div>';
+  }
+
+  function storyName(filename) {
+    return filename.replace(/\.png$/, '');
+  }
+
+  // ── Canvas-based pixel diff ──────────────────────────────────────────
+  // For each changed story in diff-overlay mode, draws a diff image where
+  // identical pixels are dimmed and changed pixels are highlighted red.
+  function renderDiff(idx, filename) {
+    var container = document.getElementById('diff-' + idx);
+    if (!container) return;
+
+    Promise.all([loadImg('base/' + filename), loadImg('branch/' + filename)])
+      .then(function (imgs) {
+        var img1 = imgs[0];
+        var img2 = imgs[1];
+        var maxW = Math.max(img1.naturalWidth, img2.naturalWidth);
+        var maxH = Math.max(img1.naturalHeight, img2.naturalHeight);
+
+        // Draw both images onto off-screen canvases at the max size so pixels
+        // outside a smaller image default to transparent (all zeros).
+        var c1 = makeCanvas(maxW, maxH);
+        c1.getContext('2d').drawImage(img1, 0, 0);
+        var d1 = c1.getContext('2d').getImageData(0, 0, maxW, maxH).data;
+
+        var c2 = makeCanvas(maxW, maxH);
+        c2.getContext('2d').drawImage(img2, 0, 0);
+        var d2 = c2.getContext('2d').getImageData(0, 0, maxW, maxH).data;
+
+        // Build the diff image: changed pixels → red, unchanged → dimmed.
+        var out = makeCanvas(maxW, maxH);
+        var outCtx = out.getContext('2d');
+        var outImg = outCtx.createImageData(maxW, maxH);
+        var od = outImg.data;
+
+        for (var i = 0; i < od.length; i += 4) {
+          var same = d1[i] === d2[i] && d1[i + 1] === d2[i + 1] &&
+                     d1[i + 2] === d2[i + 2] && d1[i + 3] === d2[i + 3];
+          if (same) {
+            od[i]     = Math.round(d2[i]     * 0.45);
+            od[i + 1] = Math.round(d2[i + 1] * 0.45);
+            od[i + 2] = Math.round(d2[i + 2] * 0.45);
+            od[i + 3] = d2[i + 3];
+          } else {
+            od[i] = 255; od[i + 1] = 0; od[i + 2] = 0; od[i + 3] = 255;
+          }
+        }
+
+        outCtx.putImageData(outImg, 0, 0);
+        out.className = 'diff-canvas';
+
+        var sizeDiffHtml = (img1.naturalWidth !== img2.naturalWidth || img1.naturalHeight !== img2.naturalHeight)
+          ? '<div class="size-diff-note">Base: ' + img1.naturalWidth + '\xd7' + img1.naturalHeight
+              + ' \u2192 Branch: ' + img2.naturalWidth + '\xd7' + img2.naturalHeight + '</div>'
+          : '';
+
+        var legendHtml = '<div class="diff-legend">'
+          + '<div class="legend-item"><div class="legend-swatch" style="background:#f00"></div>Changed pixels</div>'
+          + '<div class="legend-item"><div class="legend-swatch" style="background:#1a1a1a;border:1px solid #ccc"></div>Unchanged pixels (dimmed)</div>'
+          + '</div>';
+
+        container.innerHTML = '';
+        container.appendChild(out);
+        container.insertAdjacentHTML('beforeend', sizeDiffHtml + legendHtml);
+      })
+      .catch(function (e) {
+        container.innerHTML = '<div class="error-msg">Error computing diff: ' + e.message + '</div>';
+      });
+  }
+
+  function makeCanvas(w, h) {
+    var c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    return c;
+  }
+
+  function loadImg(src) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () { resolve(img); };
+      img.onerror = function () { reject(new Error('Failed to load: ' + src)); };
+      img.src = src;
+    });
+  }
+
+}());
+</script>
+</body>
+</html>
