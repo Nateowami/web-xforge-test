@@ -24,6 +24,10 @@ const SERVER_PORT = 6006;
 const STORY_LOAD_TIMEOUT_MS = 30_000;
 // Wait after disabling animations to allow any in-flight animation frames to settle.
 const ANIMATION_SETTLE_MS = 1000;
+// Final wait before taking the screenshot, after all stability checks. This gives the browser
+// additional time to paint any last-frame UI updates (e.g. Angular change detection triggered
+// by play-function side-effects) that land after all other checks have passed.
+const PRE_SCREENSHOT_WAIT_MS = 1000;
 // Number of stories to process in parallel. Each worker gets its own browser page so waits overlap.
 const CONCURRENCY = 4;
 
@@ -158,6 +162,9 @@ async function screenshotStory(story, context, absOutputDir) {
           } catch (e) {}
         })
       );
+
+      // Final wait before capturing: gives the browser time to paint any remaining UI updates.
+      await page.waitForTimeout(PRE_SCREENSHOT_WAIT_MS);
 
       await page.screenshot({ path: screenshotPath, fullPage: true });
       success = true;
