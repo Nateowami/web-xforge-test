@@ -23,7 +23,7 @@
 //   deploy-dir   Path where the deploy directory should be written (only created if there are differences)
 //
 // Options:
-//   --threshold N   Per-channel pixel difference threshold (default: 8). Pixels where every
+//   --threshold N   Per-channel pixel difference threshold (default: 12). Pixels where every
 //                   channel differs by at most N are treated as identical. Higher values reduce
 //                   false positives from font hinting, sub-pixel rendering, or lossy compression.
 //   --pr-url URL    GitHub PR URL to link back from the diff page
