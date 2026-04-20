@@ -76,7 +76,7 @@ function countDifferingPixels(a: DecodedPng, b: DecodedPng, threshold: number): 
 function main(): void {
   // Parse positional arguments and named flags.
   const positional: string[] = [];
-  let threshold = 8; // Default per-channel threshold; higher values tolerate minor rendering variance.
+  let threshold: number = 8; // Default per-channel threshold; higher values tolerate minor rendering variance.
   let prUrl: string | undefined;
 
   for (let i = 0; i < Deno.args.length; i++) {

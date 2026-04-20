@@ -172,7 +172,6 @@ async function main() {
     async function worker() {
       while (queue.length > 0) {
         const story = queue.shift();
-        if (story == null) break;
         const { storyId, success } = await screenshotStory(story, context, absOutputDir);
         if (success) {
           console.log(`  ✓ ${storyId}`);
