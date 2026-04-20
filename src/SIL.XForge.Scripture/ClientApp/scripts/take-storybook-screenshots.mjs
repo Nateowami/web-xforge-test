@@ -125,6 +125,12 @@ async function screenshotStory(story, context, absOutputDir) {
       // STORY_RENDERED after both the component render and the play function complete.
       await waitForPlayFunction(page);
 
+      // The play function promise resolves (and the Storybook phase becomes 'played') before
+      // Angular's zone-scheduled change detection has had a chance to flush the resulting DOM
+      // updates. Wait two animation frames: the first allows Angular's final change-detection
+      // cycle to run; the second ensures those mutations are committed to the rendered frame.
+      await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
+
       // Inject CSS that sets all animation and transition durations to zero so no new animations
       // can start or continue after this point.
       await page.addStyleTag({ content: DISABLE_ANIMATIONS_CSS });
