@@ -171,7 +171,8 @@ function main(): void {
   Deno.writeTextFileSync(join(deployDir, 'screenshots.json'), JSON.stringify(screenshotsJson, null, 2));
 
   // Copy the self-contained diff UI (lives next to this script in the repo).
-  const scriptDir = import.meta.dirname!;
+  const scriptDir = import.meta.dirname;
+  if (scriptDir == null) throw new Error('import.meta.dirname is unavailable; cannot locate screenshot-diff-index.html');
   Deno.copyFileSync(join(scriptDir, 'screenshot-diff-index.html'), join(deployDir, 'index.html'));
 
   console.log(`\nDeploy directory created: ${deployDir}`);
