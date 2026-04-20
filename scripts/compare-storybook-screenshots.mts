@@ -89,8 +89,8 @@ function main(): void {
       threshold = parsed;
     } else if (Deno.args[i] === '--pr-url' && i + 1 < Deno.args.length) {
       const raw = Deno.args[++i];
-      // Treat an empty string as absent (e.g. when run outside of a PR context).
-      prUrl = raw.length > 0 ? raw : undefined;
+      // Treat an empty or whitespace-only string as absent (e.g. when run outside of a PR context).
+      prUrl = raw.trim().length > 0 ? raw.trim() : undefined;
     } else {
       positional.push(Deno.args[i]);
     }
