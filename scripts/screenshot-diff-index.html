@@ -257,8 +257,11 @@ fetch('screenshots.json')
     renderAll();
   })
   .catch(e => {
-    document.getElementById('content').innerHTML =
-      '<div style="color:#dc2626;padding:40px;">Failed to load screenshots.json: ' + e.message + '</div>';
+    const el = document.getElementById('content');
+    const div = document.createElement('div');
+    div.style.cssText = 'color:#dc2626;padding:40px;';
+    div.textContent = 'Failed to load screenshots.json: ' + e.message;
+    el.replaceChildren(div);
   });
 
 // ── Summary bar ──────────────────────────────────────────────────────
@@ -438,7 +441,10 @@ function renderDiff(idx, filename) {
       container.insertAdjacentHTML('beforeend', sizeDiffHtml + legendHtml);
     })
     .catch(e => {
-      container.innerHTML = '<div class="error-msg">Error computing diff: ' + e.message + '</div>';
+      const msg = document.createElement('div');
+      msg.className = 'error-msg';
+      msg.textContent = 'Error computing diff: ' + e.message;
+      container.replaceChildren(msg);
     });
 }
 
