@@ -45,6 +45,65 @@ function sleep(ms) {
 }
 
 /**
+ * Waits for the Storybook story's play function (if any) to complete.
+ *
+ * Storybook 8 emits STORY_RENDERED on the preview channel after both the component
+ * render and the play function have finished. If the story has already reached a
+ * terminal render phase by the time we set up the listener (which can happen when
+ * networkidle resolves before the play function starts or finishes), we detect that
+ * via the current render phase and resolve immediately.
+ */
+async function waitForPlayFunction(page) {
+  await page.evaluate(
+    timeout =>
+      new Promise((resolve, reject) => {
+        const preview = window.__STORYBOOK_PREVIEW__;
+        const channel = preview?.channel;
+
+        // No Storybook preview available — proceed without waiting.
+        if (channel == null) {
+          resolve();
+          return;
+        }
+
+        const timer = setTimeout(
+          () => reject(new Error(`Timed out after ${timeout} ms waiting for STORY_RENDERED`)),
+          timeout
+        );
+
+        const cleanup = () => {
+          clearTimeout(timer);
+          channel.removeListener('STORY_RENDERED', onRendered);
+          channel.removeListener('STORY_ERRORED', onError);
+          channel.removeListener('STORY_THREW_EXCEPTION', onError);
+        };
+        const onRendered = () => {
+          cleanup();
+          resolve();
+        };
+        const onError = err => {
+          cleanup();
+          reject(err instanceof Error ? err : new Error(String(err)));
+        };
+
+        channel.on('STORY_RENDERED', onRendered);
+        channel.on('STORY_ERRORED', onError);
+        channel.on('STORY_THREW_EXCEPTION', onError);
+
+        // Guard against the race condition where STORY_RENDERED already fired before we
+        // registered the listener. Detect this by checking the current render phase: any
+        // phase outside the set of "still in progress" phases means rendering is done.
+        const phase = preview?.currentRender?.phase;
+        const inProgressPhases = new Set(['preparing', 'loading', 'rendering', 'playing']);
+        if (phase != null && !inProgressPhases.has(phase)) {
+          onRendered();
+        }
+      }),
+    STORY_LOAD_TIMEOUT_MS
+  );
+}
+
+/**
  * Starts a local HTTP server serving the given directory using Python's built-in http.server module.
  * Returns the child process so it can be killed when no longer needed.
  */
@@ -91,6 +150,10 @@ async function screenshotStory(story, context, absOutputDir) {
     try {
       page = await context.newPage();
       await page.goto(url, { waitUntil: 'networkidle', timeout: STORY_LOAD_TIMEOUT_MS });
+
+      // Wait for the story's play function (if any) to finish. Storybook 8 fires
+      // STORY_RENDERED after both the component render and the play function complete.
+      await waitForPlayFunction(page);
 
       // Inject CSS that sets all animation and transition durations to zero so no new animations
       // can start or continue after this point.

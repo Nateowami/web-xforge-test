@@ -207,11 +207,17 @@
     .strobe-col { margin-top: 4px; }
 
     /* Constrain the strobe images to match a single SBS grid column so that card height is
-       consistent between strobe mode and side-by-side mode and doesn't reflow on mode switch. */
-    .strobe-wrap { display: block; max-width: calc(50% - 8px); }
+       consistent between strobe mode and side-by-side mode and doesn't reflow on mode switch.
+       Both images occupy the same CSS grid cell so they are overlaid at the same position;
+       toggling visibility between them does not shift the visible image. */
+    .strobe-wrap {
+      display: grid;
+      max-width: calc(50% - 8px);
+    }
 
     .strobe-img-base,
     .strobe-img-branch {
+      grid-area: 1 / 1;
       max-width: 100%;
       border: 1px solid #e5e7eb;
       border-radius: 4px;
