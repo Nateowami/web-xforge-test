@@ -365,7 +365,7 @@
   },
   "join": {
     "error_occurred_login": "An error occurred trying to join the project",
-    "explain_your_name": "Enter the name you want other people to see",
+    "explain_your_name": "Enter thy name",
     "invited_to_join": "You've been invited to join {{ boldStart }}{{ projectName }}{{ boldEnd }}",
     "join": "Join",
     "key_already_used": "The project link has already been used by another user. Please contact the person who sent you the link and ask for a new one.",
