@@ -52,7 +52,12 @@ function countDifferingPixels(a: DecodedPng, b: DecodedPng): number {
   let diffCount = 0;
   // Each pixel is 4 bytes (R, G, B, A). Compare all channels for each pixel.
   for (let i = 0; i < a.data.length; i += 4) {
-    if (a.data[i] !== b.data[i] || a.data[i + 1] !== b.data[i + 1] || a.data[i + 2] !== b.data[i + 2] || a.data[i + 3] !== b.data[i + 3]) {
+    if (
+      a.data[i] !== b.data[i] ||
+      a.data[i + 1] !== b.data[i + 1] ||
+      a.data[i + 2] !== b.data[i + 2] ||
+      a.data[i + 3] !== b.data[i + 3]
+    ) {
       diffCount++;
     }
   }
@@ -67,8 +72,14 @@ function main(): void {
     Deno.exit(1);
   }
 
-  const baseFiles = new Set([...Deno.readDirSync(baseDir)].filter(entry => entry.isFile && entry.name.endsWith('.png')).map(entry => entry.name));
-  const branchFiles = new Set([...Deno.readDirSync(branchDir)].filter(entry => entry.isFile && entry.name.endsWith('.png')).map(entry => entry.name));
+  const baseFiles = new Set(
+    [...Deno.readDirSync(baseDir)].filter(entry => entry.isFile && entry.name.endsWith('.png')).map(entry => entry.name)
+  );
+  const branchFiles = new Set(
+    [...Deno.readDirSync(branchDir)]
+      .filter(entry => entry.isFile && entry.name.endsWith('.png'))
+      .map(entry => entry.name)
+  );
   const allFiles: string[] = [...new Set([...baseFiles, ...branchFiles])].sort();
 
   // Track which stories were removed, added, or changed so we can report and include them in the ZIP.
