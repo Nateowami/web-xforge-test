@@ -536,6 +536,7 @@ function renderDiff(idx, filename) {
 
   if (imgCache[idx] != null) {
     // Images already loaded — re-render synchronously (e.g. on threshold change).
+    // Caching avoids re-fetching the same images every time the threshold slider moves.
     doRender(imgCache[idx].img1, imgCache[idx].img2);
   } else {
     Promise.all([loadImg('base/' + filename), loadImg('branch/' + filename)])
@@ -604,7 +605,8 @@ function doCopy(btn, text) {
   if (navigator.clipboard != null) {
     navigator.clipboard.writeText(text).then(finish).catch(finish);
   } else {
-    // Fallback for environments that block clipboard API (e.g. non-HTTPS).
+    // Fallback for environments where the Clipboard API is unavailable (e.g. non-HTTPS).
+    // execCommand is deprecated but remains widely supported as a last resort.
     const ta = document.createElement('textarea');
     ta.value = text;
     ta.style.cssText = 'position:fixed;opacity:0';
