@@ -291,30 +291,33 @@ export class OnboardingRequestsComponent extends DataLoadingComponent implements
   /** Returns true when the request matches all terms in the current advanced search query. */
   private requestMatchesSearchQuery(request: OnboardingRequest): boolean {
     for (const term of this.searchQuery.terms) {
-      if (typeof term.value !== 'string') continue;
-      const searchValue = term.value.toLowerCase();
       switch (term.fieldId) {
         case 'project': {
+          if (typeof term.value !== 'string') break;
           const projectName = this.getProjectName(request.submission.projectId).toLowerCase();
-          if (!projectName.includes(searchValue)) return false;
+          if (!projectName.includes(term.value.toLowerCase())) return false;
           break;
         }
         case 'languageCode': {
+          if (typeof term.value !== 'string') break;
           const langCode = request.submission.formData.translationLanguageIsoCode.toLowerCase();
-          if (!langCode.includes(searchValue)) return false;
+          if (!langCode.includes(term.value.toLowerCase())) return false;
           break;
         }
         case 'status': {
-          if (!request.status.toLowerCase().includes(searchValue)) return false;
+          if (typeof term.value !== 'string') break;
+          if (!request.status.toLowerCase().includes(term.value.toLowerCase())) return false;
           break;
         }
         case 'dateBefore': {
+          if (typeof term.value !== 'string') break;
           const submittedAt = new Date(request.submission.timestamp);
           const filterDate = new Date(term.value);
           if (submittedAt >= filterDate) return false;
           break;
         }
         case 'dateAfter': {
+          if (typeof term.value !== 'string') break;
           const submittedAt = new Date(request.submission.timestamp);
           const filterDate = new Date(term.value);
           if (submittedAt <= filterDate) return false;
