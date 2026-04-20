@@ -392,7 +392,7 @@
     "overview_translated_project": "Translated project",
     "previous": "Previous",
     "project_always_used": "Your project ({{ currentProjectShortName }}) will always be used to train the language model.",
-    "reference_projects": "Reference projects",
+    "reference_projects": "Training sources",
     "save_and_sync": "Save & sync",
     "saving_draft_sources": "Saving draft sources",
     "saving": "Saving",
