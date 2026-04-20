@@ -23,7 +23,7 @@ import { spawn } from 'child_process';
 const SERVER_PORT = 6006;
 const STORY_LOAD_TIMEOUT_MS = 30_000;
 // Wait after disabling animations to allow any in-flight animation frames to settle.
-const ANIMATION_SETTLE_MS = 500;
+const ANIMATION_SETTLE_MS = 1000;
 
 // CSS injected into every story page to force all CSS animations and transitions to complete
 // immediately, producing deterministic screenshots regardless of animation state.
@@ -129,10 +129,13 @@ async function main() {
         let page;
         try {
           page = await context.newPage();
-          await page.goto(url, { waitUntil: 'load', timeout: STORY_LOAD_TIMEOUT_MS });
+          await page.goto(url, { waitUntil: 'networkidle', timeout: STORY_LOAD_TIMEOUT_MS });
           // Force all CSS animations and transitions to zero duration so that screenshots are
           // not affected by animation mid-frames or timing differences across runs.
           await page.addStyleTag({ content: DISABLE_ANIMATIONS_CSS });
+          // Finish any Web Animations API animations (e.g. Angular Material) that are still
+          // running so they jump to their final state before the screenshot is taken.
+          await page.evaluate(() => document.getAnimations().forEach(a => { try { a.finish(); } catch (e) {} }));
           await page.waitForTimeout(ANIMATION_SETTLE_MS);
           await page.screenshot({ path: screenshotPath, fullPage: true });
           success = true;
