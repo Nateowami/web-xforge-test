@@ -1,24 +1,26 @@
 import { Component, DestroyRef, HostBinding, OnInit } from '@angular/core';
 import { MatOption } from '@angular/material/autocomplete';
 import { MatCheckbox } from '@angular/material/checkbox';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
-import { MatInput } from '@angular/material/input';
+import { MatFormField } from '@angular/material/form-field';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatSelect } from '@angular/material/select';
 import { MatCell, MatCellDef, MatColumnDef, MatRow, MatRowDef, MatTable } from '@angular/material/table';
 import { TranslocoModule } from '@ngneat/transloco';
+import { escapeRegExp } from 'lodash-es';
 import { Project } from 'realtime-server/lib/esm/common/models/project';
 import { obj } from 'realtime-server/lib/esm/common/utils/obj-path';
 import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { BehaviorSubject } from 'rxjs';
 import { I18nService } from 'xforge-common/i18n.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
+import { AdvancedSearchComponent } from '../../app/shared/advanced-search/advanced-search.component';
+import { ParsedSearchQuery, SearchFieldsDef } from '../../app/shared/advanced-search/search-query-parser';
 import { SFProjectDoc } from '../../app/core/models/sf-project-doc';
 import { SFProjectService } from '../../app/core/sf-project.service';
 import { DataLoadingComponent } from '../data-loading-component';
 import { NONE_ROLE, ProjectRoleInfo } from '../models/project-role-info';
 import { NoticeService } from '../notice.service';
-import { QueryParameters } from '../query-parameters';
+import { QueryFilter, QueryParameters } from '../query-parameters';
 import { RouterLinkDirective } from '../router-link.directive';
 import { UserService } from '../user.service';
 
@@ -70,9 +72,8 @@ class Row {
   templateUrl: './sa-projects.component.html',
   styleUrls: ['./sa-projects.component.scss'],
   imports: [
+    AdvancedSearchComponent,
     MatFormField,
-    MatLabel,
-    MatInput,
     MatTable,
     MatColumnDef,
     MatCellDef,
@@ -95,6 +96,19 @@ export class SaProjectsComponent extends DataLoadingComponent implements OnInit 
   length: number = 0;
   pageIndex: number = 0;
   pageSize: number = 50;
+
+  /** Fields available for the advanced search box. */
+  readonly searchFieldsDef: SearchFieldsDef = {
+    fields: [
+      { id: 'name', label: 'Project name', type: 'text' },
+      { id: 'shortName', label: 'Project short name', type: 'text' },
+      { id: 'syncDisabled', label: 'Sync disabled', type: 'boolean' },
+      { id: 'preTranslate', label: 'NMT forward drafting enabled', type: 'boolean' }
+    ]
+  };
+
+  /** The last valid search query emitted by the advanced search component. */
+  private searchQuery: ParsedSearchQuery = { terms: [], isValid: true, errors: [] };
 
   private projectDocs?: Readonly<SFProjectDoc[]>;
 
@@ -138,11 +152,11 @@ export class SaProjectsComponent extends DataLoadingComponent implements OnInit 
       });
   }
 
-  updateSearchTerm(target: EventTarget | null): void {
-    const termTarget = target as HTMLInputElement;
-    if (termTarget?.value != null) {
-      this.searchTerm$.next(termTarget.value);
-    }
+  /** Called when the advanced search emits a new query; rebuilds the realtime query parameters. */
+  onSearch(query: ParsedSearchQuery): void {
+    this.pageIndex = 0;
+    this.searchQuery = query;
+    this.queryParameters$.next(this.getQueryParameters());
   }
 
   updatePage(pageIndex: number, pageSize: number): void {
@@ -194,10 +208,41 @@ export class SaProjectsComponent extends DataLoadingComponent implements OnInit 
   }
 
   private getQueryParameters(): QueryParameters {
-    return {
+    const params: QueryParameters = {
       $sort: { [obj<Project>().pathStr(p => p.name)]: 1 },
       $skip: this.pageIndex * this.pageSize,
       $limit: this.pageSize
     };
+
+    if (this.searchQuery.isValid && this.searchQuery.terms.length > 0) {
+      const termFilters: QueryFilter[] = [];
+      for (const term of this.searchQuery.terms) {
+        switch (term.fieldId) {
+          case 'name':
+            termFilters.push({
+              [obj<Project>().pathStr(p => p.name)]: { $regex: `.*${escapeRegExp(term.value as string)}.*`, $options: 'i' }
+            });
+            break;
+          case 'shortName':
+            termFilters.push({
+              [obj<SFProject>().pathStr(p => p.shortName)]: { $regex: `.*${escapeRegExp(term.value as string)}.*`, $options: 'i' }
+            });
+            break;
+          case 'syncDisabled':
+            termFilters.push({ [obj<SFProject>().pathStr(p => p.syncDisabled)]: term.value });
+            break;
+          case 'preTranslate':
+            termFilters.push({ [obj<SFProject>().pathStr(p => p.translateConfig.preTranslate)]: term.value });
+            break;
+        }
+      }
+      if (termFilters.length === 1) {
+        Object.assign(params, termFilters[0]);
+      } else if (termFilters.length > 1) {
+        params.$and = termFilters;
+      }
+    }
+
+    return params;
   }
 }

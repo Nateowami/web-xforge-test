@@ -157,7 +157,11 @@ describe('SaProjectsComponent', () => {
     tick();
     env.fixture.detectChanges();
 
-    env.setInputValue(env.filterInput, '02');
+    // SUT
+    env.component.onSearch({ terms: [{ fieldId: 'name', value: '02' }], isValid: true, errors: [] });
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
 
     expect(env.rows.length).toEqual(1);
   }));
@@ -267,10 +271,6 @@ class TestEnvironment {
     return Array.from(this.table.nativeElement.querySelectorAll('tr')).map(r => getDebugNode(r) as DebugElement);
   }
 
-  get filterInput(): DebugElement {
-    return this.fixture.debugElement.query(By.css('#project-filter'));
-  }
-
   get paginator(): DebugElement {
     return this.fixture.debugElement.query(By.css('mat-paginator'));
   }
@@ -319,15 +319,6 @@ class TestEnvironment {
     options[option].nativeElement.click();
     this.fixture.detectChanges();
     tick(1000);
-  }
-
-  setInputValue(input: DebugElement, value: string): void {
-    const inputElem = input.nativeElement as HTMLInputElement;
-    inputElem.value = value;
-    inputElem.dispatchEvent(new Event('keyup'));
-    this.fixture.detectChanges();
-    tick();
-    this.fixture.detectChanges();
   }
 
   clickButton(button: DebugElement): void {

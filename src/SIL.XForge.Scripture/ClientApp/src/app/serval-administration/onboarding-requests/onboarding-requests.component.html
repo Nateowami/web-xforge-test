@@ -10,6 +10,8 @@
       as resolved does not automatically enable drafting on the project.
     </app-notice>
 
+    <app-advanced-search [fieldsDef]="searchFieldsDef" (searchChange)="onSearchChange($event)"></app-advanced-search>
+
     <p>
       <mat-button-toggle-group [(ngModel)]="activeFilter" class="status-filter">
         @for (option of filterOptions | keyvalue: null; track option.key) {

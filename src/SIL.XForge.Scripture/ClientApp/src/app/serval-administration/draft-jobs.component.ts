@@ -32,6 +32,8 @@ import { OwnerComponent } from 'xforge-common/owner/owner.component';
 import { hasElements, isPopulatedString, notNull, PopulatedArray } from '../../type-utils';
 import { SFProjectService } from '../core/sf-project.service';
 import { EventMetric } from '../event-metrics/event-metric';
+import { AdvancedSearchComponent } from '../shared/advanced-search/advanced-search.component';
+import { ParsedSearchQuery, SearchFieldsDef } from '../shared/advanced-search/search-query-parser';
 import { InfoComponent } from '../shared/info/info.component';
 import { NoticeComponent } from '../shared/notice/notice.component';
 import { projectLabel } from '../shared/utils';
@@ -132,7 +134,8 @@ const DRAFTING_EVENTS = [
     OwnerComponent,
     RouterLink,
     DateRangePickerComponent,
-    InfoComponent
+    InfoComponent,
+    AdvancedSearchComponent
   ]
 })
 export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
@@ -153,6 +156,35 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
   groupingMode: 'requestId' | 'timing' = 'timing';
 
   currentProjectFilter: string | null = null;
+
+  /** Fields available for the advanced search box. */
+  readonly draftJobSearchFieldsDef: SearchFieldsDef = {
+    fields: [
+      { id: 'project', label: 'Project name', type: 'text' },
+      {
+        id: 'status',
+        label: 'Job status',
+        type: 'text',
+        description: 'Filter by status text: Running, Success, Failed, Cancelled, or Incomplete.'
+      }
+    ]
+  };
+
+  /** The last valid search query emitted by the advanced search component. */
+  private draftJobSearchQuery: ParsedSearchQuery = { terms: [], isValid: true, errors: [] };
+
+  /** Rows after applying the advanced search filter on top of the date range / project filter. */
+  get filteredRows(): DraftJobsTableRow[] {
+    if (!this.draftJobSearchQuery.isValid || this.draftJobSearchQuery.terms.length === 0) {
+      return this.rows;
+    }
+    return this.rows.filter(row => this.rowMatchesDraftJobQuery(row));
+  }
+
+  /** Called when the advanced search emits a new query. */
+  onDraftJobSearchChange(query: ParsedSearchQuery): void {
+    this.draftJobSearchQuery = query;
+  }
 
   get isOnline(): boolean {
     return this.onlineStatusService.isOnline;
@@ -764,6 +796,26 @@ export class DraftJobsComponent extends DataLoadingComponent implements OnInit {
     }
 
     this.rows = rows;
+  }
+
+  /** Returns true when the given row matches all terms in the current draft job search query. */
+  private rowMatchesDraftJobQuery(row: DraftJobsTableRow): boolean {
+    for (const term of this.draftJobSearchQuery.terms) {
+      const searchValue = (term.value as string).toLowerCase();
+      switch (term.fieldId) {
+        case 'project':
+          if (!row.projectName.toLowerCase().includes(searchValue)) {
+            return false;
+          }
+          break;
+        case 'status':
+          if (!row.status.toLowerCase().includes(searchValue)) {
+            return false;
+          }
+          break;
+      }
+    }
+    return true;
   }
 
   private formatDurationInHours(milliseconds: number): string {
