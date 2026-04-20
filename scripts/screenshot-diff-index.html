@@ -185,6 +185,7 @@
     .lbl-added   { color: #059669; }
     .lbl-removed { color: #dc2626; }
     .lbl-diff    { color: #7c3aed; }
+    .lbl-strobe  { color: #0891b2; }
 
     .story-img {
       max-width: 100%;
@@ -194,9 +195,40 @@
     }
 
     /* ── Mode-controlled visibility ─────────────────────────────────── */
-    /* Mode "sbs" shows the branch column; mode "diff" shows the diff column. */
-    body.mode-sbs  .diff-col    { display: none; }
-    body.mode-diff .branch-col  { display: none; }
+    /* "sbs": base | branch.  "diff": base | diff-canvas.  "strobe": strobe column only. */
+    body.mode-sbs    .diff-col    { display: none; }
+    body.mode-sbs    .strobe-col  { display: none; }
+    body.mode-diff   .branch-col  { display: none; }
+    body.mode-diff   .strobe-col  { display: none; }
+    body.mode-strobe .diff-cols   { display: none; }
+
+    /* ── Strobe column ───────────────────────────────────────────────── */
+    /* Two images overlaid; JS toggles which is visible via body classes. */
+    .strobe-col { margin-top: 4px; }
+
+    .strobe-wrap { position: relative; display: inline-block; max-width: 100%; }
+
+    .strobe-img-base,
+    .strobe-img-branch {
+      max-width: 100%;
+      border: 1px solid #e5e7eb;
+      border-radius: 4px;
+      display: block;
+    }
+
+    /* Branch image sits on top of base; toggled by body class */
+    .strobe-img-branch {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: fill;
+    }
+
+    /* When showing "A" (base), hide branch; when showing "B" (branch), hide base */
+    body.mode-strobe.strobe-a .strobe-img-branch { opacity: 0; }
+    body.mode-strobe.strobe-b .strobe-img-base   { opacity: 0; }
 
     /* ── Diff canvas container ───────────────────────────────────────── */
     .diff-canvas-wrap {
@@ -243,7 +275,7 @@
     .error-msg { color: #dc2626; font-size: 12px; padding: 8px 0; }
   </style>
 </head>
-<body class="mode-sbs">
+<body class="mode-sbs strobe-a">
 
 <div id="header">
   <h1>Screenshot Diff</h1>
@@ -251,13 +283,15 @@
   <div id="summary"><span style="color:#94a3b8">Loading&#8230;</span></div>
   <div id="controls">
     <span class="ctrl-label">Mode:</span>
-    <button class="mode-btn active" id="btn-sbs"  onclick="setMode('sbs')">Side by side</button>
-    <button class="mode-btn"        id="btn-diff" onclick="setMode('diff')">With diff</button>
+    <button class="mode-btn active" id="btn-sbs"    onclick="setMode('sbs')">Side by side</button>
+    <button class="mode-btn"        id="btn-diff"   onclick="setMode('diff')">With diff</button>
+    <button class="mode-btn"        id="btn-strobe" onclick="setMode('strobe')">Strobe</button>
     <div id="threshold-group">
       <span>Threshold:</span>
-      <input type="range" id="threshold-slider" min="0" max="50" value="8"
-             oninput="setThreshold(+this.value)">
-      <span id="threshold-val">8</span>
+      <input type="range" id="threshold-slider" min="0" max="50" value="12"
+             oninput="onThresholdInput(+this.value)"
+             onchange="onThresholdChange(+this.value)">
+      <span id="threshold-val">12</span>
     </div>
   </div>
 </div>
@@ -270,28 +304,69 @@
 'use strict';
 
 let mode = 'sbs';
-let threshold = 8;
+let threshold = 12;
 let data = null;
 
 // Cache of loaded image elements per changed-story index: idx -> { img1, img2 }
 const imgCache = {};
 
+// IntersectionObserver used to prioritise rendering diff canvases for visible cards.
+let diffObserver = null;
+
+// Tracks which diff indices have been queued for rendering, to avoid duplicates.
+const renderQueued = new Set();
+
+// Strobe mode interval handle.
+let strobeInterval = null;
+
 // ── Mode toggle ──────────────────────────────────────────────────────
 // Switching modes only changes a CSS class on <body>; the DOM is not rebuilt,
 // so the scroll position is automatically preserved.
 function setMode(m) {
+  if (mode === 'strobe' && m !== 'strobe') stopStrobe();
   mode = m;
-  document.body.classList.toggle('mode-sbs',  m === 'sbs');
-  document.body.classList.toggle('mode-diff', m === 'diff');
-  document.getElementById('btn-sbs') .classList.toggle('active', m === 'sbs');
-  document.getElementById('btn-diff').classList.toggle('active', m === 'diff');
+  document.body.classList.toggle('mode-sbs',    m === 'sbs');
+  document.body.classList.toggle('mode-diff',   m === 'diff');
+  document.body.classList.toggle('mode-strobe', m === 'strobe');
+  document.getElementById('btn-sbs')   .classList.toggle('active', m === 'sbs');
+  document.getElementById('btn-diff')  .classList.toggle('active', m === 'diff');
+  document.getElementById('btn-strobe').classList.toggle('active', m === 'strobe');
+  if (m === 'strobe') startStrobe();
+}
+
+// ── Strobe management ────────────────────────────────────────────────
+// Alternates the body class between strobe-a (show base) and strobe-b (show branch)
+// at approximately 4 Hz so differences are easy to spot.
+function startStrobe() {
+  if (strobeInterval != null) return;
+  document.body.classList.add('strobe-a');
+  document.body.classList.remove('strobe-b');
+  strobeInterval = setInterval(() => {
+    const showingA = document.body.classList.contains('strobe-a');
+    document.body.classList.toggle('strobe-a', !showingA);
+    document.body.classList.toggle('strobe-b',  showingA);
+  }, 250);
+}
+
+function stopStrobe() {
+  if (strobeInterval != null) {
+    clearInterval(strobeInterval);
+    strobeInterval = null;
+  }
+  document.body.classList.remove('strobe-b');
+  document.body.classList.add('strobe-a');
 }
 
 // ── Threshold slider ─────────────────────────────────────────────────
-function setThreshold(v) {
+// oninput: update the numeric display while dragging (cheap, no canvas work).
+function onThresholdInput(v) {
+  document.getElementById('threshold-val').textContent = String(v);
+}
+
+// onchange: fires when the slider is released; re-render all diff canvases.
+function onThresholdChange(v) {
   threshold = v;
   document.getElementById('threshold-val').textContent = String(v);
-  // Re-render all diff canvases with the new per-channel threshold.
   if (data != null) {
     data.changed.forEach((item, idx) => renderDiff(idx, item.filename));
   }
@@ -317,10 +392,16 @@ fetch('screenshots.json')
     }
     renderSummary();
     renderAll();
-    // Build diff canvases eagerly so they are ready when the user switches to "With diff" mode.
-    data.changed.forEach((item, idx) => renderDiff(idx, item.filename));
+    // If the URL has a fragment (e.g. from a "Copy link"), scroll to that card.
+    // The scroll must happen after renderAll() populates the DOM.
+    if (location.hash) {
+      const target = document.getElementById(location.hash.slice(1));
+      if (target != null) target.scrollIntoView();
+    }
     // Attach copy-button handlers once, using event delegation on the stable #content element.
     setupCopyButtons();
+    // Kick off diff rendering: visible cards are prioritised, the rest are scheduled later.
+    scheduleDiffRenders();
   })
   .catch(e => {
     const el = document.getElementById('content');
@@ -387,13 +468,13 @@ function changedCard(item, idx) {
   const name = storyName(item.filename);
   const id   = cardId(item.filename);
 
+  // The pixel-count span is populated asynchronously by renderDiff().
   const metaCls = item.diffPixels === -1 ? 'story-meta size-warn' : 'story-meta';
-  const metaTxt = item.diffPixels === -1
+  const metaInitial = item.diffPixels === -1
     ? '&#9888; Image dimensions differ'
-    : item.diffPixels + ' pixel' + (item.diffPixels === 1 ? '' : 's') + ' differ';
+    : '<span id="pixel-count-' + idx + '">Computing&#8230;</span>';
 
-  // Both branch-col (side-by-side mode) and diff-col (with-diff mode) are always in the DOM;
-  // CSS visibility is controlled by the mode class on <body>.
+  // All three right-side columns are always in the DOM; CSS hides the inactive ones.
   const body = '<div class="diff-cols">'
     + '<div class="img-col">'
     +   '<div class="img-label lbl-base">Base</div>'
@@ -409,6 +490,14 @@ function changedCard(item, idx) {
     +     '<div class="diff-computing">Computing diff&#8230;</div>'
     +   '</div>'
     + '</div>'
+    + '</div>'
+    // Strobe column: two images overlaid; opacity toggled by body class.
+    + '<div class="strobe-col">'
+    +   '<div class="img-label lbl-strobe">Strobe (base &#8596; branch)</div>'
+    +   '<div class="strobe-wrap">'
+    +     '<img class="strobe-img-base" src="base/' + item.filename + '" loading="lazy">'
+    +     '<img class="strobe-img-branch" src="branch/' + item.filename + '" loading="lazy">'
+    +   '</div>'
     + '</div>';
 
   return '<div class="story-card" id="' + id + '">'
@@ -419,7 +508,7 @@ function changedCard(item, idx) {
     +     '<button class="action-btn" data-copy-img="branch/' + item.filename + '">Copy image URL</button>'
     +   '</div>'
     + '</div>'
-    + '<div class="' + metaCls + '">' + metaTxt + '</div>'
+    + '<div class="' + metaCls + '">' + metaInitial + '</div>'
     + body
     + '</div>';
 }
@@ -466,11 +555,54 @@ function storyName(filename) {
   return filename.replace(/\.png$/, '');
 }
 
+// ── Diff render scheduling — visible items first ─────────────────────
+// Uses IntersectionObserver to render diff canvases for cards that are currently
+// visible (or about to become visible) before spending time on off-screen cards.
+function scheduleDiffRenders() {
+  if (data.changed.length === 0) return;
+
+  // Use a 300 px root margin so cards are pre-rendered just before they scroll in.
+  diffObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        const idx = Number(entry.target.dataset.diffIdx);
+        diffObserver.unobserve(entry.target);
+        queueDiffRender(idx);
+      }
+    }
+  }, { rootMargin: '300px' });
+
+  data.changed.forEach((item, idx) => {
+    const container = document.getElementById('diff-' + idx);
+    if (container != null) {
+      container.dataset.diffIdx = String(idx);
+      diffObserver.observe(container);
+    }
+  });
+
+  // After a short idle period, render any remaining items that have not yet entered
+  // the viewport (e.g. for pre-loading images the user will scroll to later).
+  const scheduleIdle = typeof requestIdleCallback !== 'undefined'
+    ? (fn) => requestIdleCallback(fn, { timeout: 3000 })
+    : (fn) => setTimeout(fn, 500);
+
+  scheduleIdle(() => {
+    data.changed.forEach((item, idx) => queueDiffRender(idx));
+  });
+}
+
+// Renders a diff canvas for the given index unless it has already been queued.
+function queueDiffRender(idx) {
+  if (renderQueued.has(idx)) return;
+  renderQueued.add(idx);
+  renderDiff(idx, data.changed[idx].filename);
+}
+
 // ── Canvas-based pixel diff ──────────────────────────────────────────
-// Draws a diff image for a changed story: pixels that differ by more than `threshold` on any
-// channel are highlighted red; unchanged pixels are dimmed.  The canvas lives in a container
-// that is already in the DOM (built by changedCard) and is hidden/shown via CSS mode classes.
-// Images are cached in imgCache so that threshold changes can re-render without re-fetching.
+// Draws a diff canvas for a changed story and updates the per-card pixel-count meta.
+// Pixels that differ by more than `threshold` on any channel are highlighted red;
+// unchanged pixels are dimmed.  Images are cached in imgCache so that threshold
+// changes can re-render without re-fetching.
 function renderDiff(idx, filename) {
   const container = document.getElementById('diff-' + idx);
   if (container == null) return;
@@ -494,6 +626,7 @@ function renderDiff(idx, filename) {
     const outImg = outCtx.createImageData(maxW, maxH);
     const od     = outImg.data;
 
+    let diffPixelCount = 0;
     for (let i = 0; i < od.length; i += 4) {
       // A pixel is "the same" when every channel is within the current threshold.
       const same =
@@ -508,6 +641,7 @@ function renderDiff(idx, filename) {
         od[i + 3] = d2[i + 3];
       } else {
         od[i] = 255; od[i + 1] = 0; od[i + 2] = 0; od[i + 3] = 255;
+        diffPixelCount++;
       }
     }
 
@@ -532,11 +666,22 @@ function renderDiff(idx, filename) {
     children.push(legend);
 
     container.replaceChildren(...children);
+
+    // Update the per-card pixel count with the value computed at the current threshold.
+    const countSpan = document.getElementById('pixel-count-' + idx);
+    if (countSpan != null) {
+      if (img1.naturalWidth !== img2.naturalWidth || img1.naturalHeight !== img2.naturalHeight) {
+        countSpan.textContent = 'Image dimensions differ';
+      } else {
+        countSpan.textContent = diffPixelCount + ' pixel' + (diffPixelCount === 1 ? '' : 's')
+          + ' differ at threshold\u00a0' + threshold;
+      }
+    }
   };
 
   if (imgCache[idx] != null) {
     // Images already loaded — re-render synchronously (e.g. on threshold change).
-    // Caching avoids re-fetching the same images every time the threshold slider moves.
+    // Caching avoids re-fetching the same images every time the threshold changes.
     doRender(imgCache[idx].img1, imgCache[idx].img2);
   } else {
     Promise.all([loadImg('base/' + filename), loadImg('branch/' + filename)])
@@ -592,12 +737,12 @@ function setupCopyButtons() {
 }
 
 function doCopy(btn, text) {
+  const origText = btn.textContent;
   const finish = () => {
-    const orig = btn.textContent;
     btn.textContent = 'Copied!';
     btn.classList.add('copied');
     setTimeout(() => {
-      btn.textContent = orig;
+      btn.textContent = origText;
       btn.classList.remove('copied');
     }, 1500);
   };
