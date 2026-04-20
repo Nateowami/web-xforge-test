@@ -235,231 +235,228 @@
 </div>
 
 <script>
-(function () {
-  'use strict';
+'use strict';
 
-  var mode = 'side-by-side';
-  var data = null;
+let mode = 'side-by-side';
+let data = null;
 
-  // ── Mode toggle ──────────────────────────────────────────────────────
-  window.setMode = function (m) {
-    mode = m;
-    document.getElementById('btn-side-by-side').classList.toggle('active', m === 'side-by-side');
-    document.getElementById('btn-diff').classList.toggle('active', m === 'diff');
-    if (data) renderAll();
-  };
+// ── Mode toggle ──────────────────────────────────────────────────────
+function setMode(m) {
+  mode = m;
+  document.getElementById('btn-side-by-side').classList.toggle('active', m === 'side-by-side');
+  document.getElementById('btn-diff').classList.toggle('active', m === 'diff');
+  if (data) renderAll();
+}
 
-  // ── Entry point ──────────────────────────────────────────────────────
-  fetch('screenshots.json')
-    .then(function (r) { return r.json(); })
-    .then(function (d) {
-      data = d;
-      renderSummary();
-      renderAll();
-    })
-    .catch(function (e) {
-      document.getElementById('content').innerHTML =
-        '<div style="color:#dc2626;padding:40px;">Failed to load screenshots.json: ' + e.message + '</div>';
+// ── Entry point ──────────────────────────────────────────────────────
+fetch('screenshots.json')
+  .then(r => r.json())
+  .then(d => {
+    data = d;
+    renderSummary();
+    renderAll();
+  })
+  .catch(e => {
+    document.getElementById('content').innerHTML =
+      '<div style="color:#dc2626;padding:40px;">Failed to load screenshots.json: ' + e.message + '</div>';
+  });
+
+// ── Summary bar ──────────────────────────────────────────────────────
+function renderSummary() {
+  const s = data.summary;
+  const parts = [];
+  if (s.changed)   parts.push(stat('changed',   s.changed,   'changed'));
+  if (s.added)     parts.push(stat('added',     s.added,     'added'));
+  if (s.removed)   parts.push(stat('removed',   s.removed,   'removed'));
+  if (s.identical) parts.push(stat('identical', s.identical, 'identical'));
+  document.getElementById('summary').innerHTML = parts.join('');
+}
+
+function stat(cls, count, label) {
+  return '<span class="stat ' + cls + '"><span class="stat-num">' + count + '</span>&nbsp;' + label + '</span>';
+}
+
+// ── Main render ──────────────────────────────────────────────────────
+function renderAll() {
+  let html = '';
+
+  if (data.changed.length) {
+    html += section('changed', '&#9888; Changed (' + data.changed.length + ')',
+      data.changed.map(changedCard).join(''));
+  }
+
+  if (data.added.length) {
+    html += section('added', '&#10010; Added (' + data.added.length + ')',
+      data.added.map(addedCard).join(''));
+  }
+
+  if (data.removed.length) {
+    html += section('removed', '&#10008; Removed (' + data.removed.length + ')',
+      data.removed.map(removedCard).join(''));
+  }
+
+  if (!html) {
+    html = '<div class="loading">No visual differences found.</div>';
+  }
+
+  document.getElementById('content').innerHTML = html;
+
+  // Kick off canvas diff rendering after DOM update
+  if (mode === 'diff') {
+    data.changed.forEach((item, idx) => {
+      renderDiff(idx, item.filename);
     });
-
-  // ── Summary bar ──────────────────────────────────────────────────────
-  function renderSummary() {
-    var s = data.summary;
-    var parts = [];
-    if (s.changed)   parts.push(stat('changed',   s.changed,   'changed'));
-    if (s.added)     parts.push(stat('added',     s.added,     'added'));
-    if (s.removed)   parts.push(stat('removed',   s.removed,   'removed'));
-    if (s.identical) parts.push(stat('identical', s.identical, 'identical'));
-    document.getElementById('summary').innerHTML = parts.join('');
   }
+}
 
-  function stat(cls, count, label) {
-    return '<span class="stat ' + cls + '"><span class="stat-num">' + count + '</span>&nbsp;' + label + '</span>';
-  }
+function section(cls, title, body) {
+  return '<div class="section section-' + cls + '">'
+    + '<div class="section-header">' + title + '</div>'
+    + body
+    + '</div>';
+}
 
-  // ── Main render ──────────────────────────────────────────────────────
-  function renderAll() {
-    var html = '';
+// ── Story cards ──────────────────────────────────────────────────────
+function changedCard(item, idx) {
+  const name = storyName(item.filename);
 
-    if (data.changed.length) {
-      html += section('changed', '&#9888; Changed (' + data.changed.length + ')',
-        data.changed.map(changedCard).join(''));
-    }
+  const metaCls = item.diffPixels === -1 ? 'story-meta size-warn' : 'story-meta';
+  const metaTxt = item.diffPixels === -1
+    ? '&#9888; Image dimensions differ'
+    : item.diffPixels + ' pixel' + (item.diffPixels === 1 ? '' : 's') + ' differ';
+  const metaHtml = '<div class="' + metaCls + '">' + metaTxt + '</div>';
 
-    if (data.added.length) {
-      html += section('added', '&#10010; Added (' + data.added.length + ')',
-        data.added.map(addedCard).join(''));
-    }
-
-    if (data.removed.length) {
-      html += section('removed', '&#10008; Removed (' + data.removed.length + ')',
-        data.removed.map(removedCard).join(''));
-    }
-
-    if (!html) {
-      html = '<div class="loading">No visual differences found.</div>';
-    }
-
-    document.getElementById('content').innerHTML = html;
-
-    // Kick off canvas diff rendering after DOM update
-    if (mode === 'diff') {
-      data.changed.forEach(function (item, idx) {
-        renderDiff(idx, item.filename);
-      });
-    }
-  }
-
-  function section(cls, title, body) {
-    return '<div class="section section-' + cls + '">'
-      + '<div class="section-header">' + title + '</div>'
-      + body
+  let bodyHtml;
+  if (mode === 'side-by-side') {
+    bodyHtml = '<div class="side-by-side">'
+      + imgPanel('base/' + item.filename, 'Base', 'lbl-base')
+      + imgPanel('branch/' + item.filename, 'Branch', 'lbl-branch')
+      + '</div>';
+  } else {
+    bodyHtml = '<div class="diff-overlay" id="diff-' + idx + '">'
+      + '<div style="color:#9ca3af;font-size:12px;padding:20px 0;">Computing diff…</div>'
       + '</div>';
   }
 
-  // ── Story cards ──────────────────────────────────────────────────────
-  function changedCard(item, idx) {
-    var name = storyName(item.filename);
+  return card(name, metaHtml + bodyHtml);
+}
 
-    var metaCls = item.diffPixels === -1 ? 'story-meta size-warn' : 'story-meta';
-    var metaTxt = item.diffPixels === -1
-      ? '&#9888; Image dimensions differ'
-      : item.diffPixels + ' pixel' + (item.diffPixels === 1 ? '' : 's') + ' differ';
-    var metaHtml = '<div class="' + metaCls + '">' + metaTxt + '</div>';
+function addedCard(filename) {
+  const name = storyName(filename);
+  const body = '<div>'
+    + '<div class="img-label lbl-added">Branch (added)</div>'
+    + '<img class="story-img" src="branch/' + filename + '" loading="lazy">'
+    + '</div>';
+  return card(name + '<span class="badge badge-added">Added</span>', body);
+}
 
-    var bodyHtml;
-    if (mode === 'side-by-side') {
-      bodyHtml = '<div class="side-by-side">'
-        + imgPanel('base/' + item.filename, 'Base', 'lbl-base')
-        + imgPanel('branch/' + item.filename, 'Branch', 'lbl-branch')
-        + '</div>';
-    } else {
-      bodyHtml = '<div class="diff-overlay" id="diff-' + idx + '">'
-        + '<div style="color:#9ca3af;font-size:12px;padding:20px 0;">Computing diff…</div>'
-        + '</div>';
-    }
+function removedCard(filename) {
+  const name = storyName(filename);
+  const body = '<div>'
+    + '<div class="img-label lbl-removed">Base (removed)</div>'
+    + '<img class="story-img" src="base/' + filename + '" loading="lazy">'
+    + '</div>';
+  return card(name + '<span class="badge badge-removed">Removed</span>', body);
+}
 
-    return card(name, metaHtml + bodyHtml);
-  }
+function card(nameHtml, bodyHtml) {
+  return '<div class="story-card">'
+    + '<div class="story-name">' + nameHtml + '</div>'
+    + bodyHtml
+    + '</div>';
+}
 
-  function addedCard(filename) {
-    var name = storyName(filename);
-    var body = '<div>'
-      + '<div class="img-label lbl-added">Branch (added)</div>'
-      + '<img class="story-img" src="branch/' + filename + '" loading="lazy">'
-      + '</div>';
-    return card(name + '<span class="badge badge-added">Added</span>', body);
-  }
+function imgPanel(src, label, labelCls) {
+  return '<div>'
+    + '<div class="img-label ' + labelCls + '">' + label + '</div>'
+    + '<img class="story-img" src="' + src + '" loading="lazy">'
+    + '</div>';
+}
 
-  function removedCard(filename) {
-    var name = storyName(filename);
-    var body = '<div>'
-      + '<div class="img-label lbl-removed">Base (removed)</div>'
-      + '<img class="story-img" src="base/' + filename + '" loading="lazy">'
-      + '</div>';
-    return card(name + '<span class="badge badge-removed">Removed</span>', body);
-  }
+function storyName(filename) {
+  return filename.replace(/\.png$/, '');
+}
 
-  function card(nameHtml, bodyHtml) {
-    return '<div class="story-card">'
-      + '<div class="story-name">' + nameHtml + '</div>'
-      + bodyHtml
-      + '</div>';
-  }
+// ── Canvas-based pixel diff ──────────────────────────────────────────
+// For each changed story in diff-overlay mode, draws a diff image where
+// identical pixels are dimmed and changed pixels are highlighted red.
+function renderDiff(idx, filename) {
+  const container = document.getElementById('diff-' + idx);
+  if (!container) return;
 
-  function imgPanel(src, label, labelCls) {
-    return '<div>'
-      + '<div class="img-label ' + labelCls + '">' + label + '</div>'
-      + '<img class="story-img" src="' + src + '" loading="lazy">'
-      + '</div>';
-  }
+  Promise.all([loadImg('base/' + filename), loadImg('branch/' + filename)])
+    .then(imgs => {
+      const img1 = imgs[0];
+      const img2 = imgs[1];
+      const maxW = Math.max(img1.naturalWidth, img2.naturalWidth);
+      const maxH = Math.max(img1.naturalHeight, img2.naturalHeight);
 
-  function storyName(filename) {
-    return filename.replace(/\.png$/, '');
-  }
+      // Draw both images onto off-screen canvases at the max size so pixels
+      // outside a smaller image default to transparent (all zeros).
+      const c1 = makeCanvas(maxW, maxH);
+      c1.getContext('2d').drawImage(img1, 0, 0);
+      const d1 = c1.getContext('2d').getImageData(0, 0, maxW, maxH).data;
 
-  // ── Canvas-based pixel diff ──────────────────────────────────────────
-  // For each changed story in diff-overlay mode, draws a diff image where
-  // identical pixels are dimmed and changed pixels are highlighted red.
-  function renderDiff(idx, filename) {
-    var container = document.getElementById('diff-' + idx);
-    if (!container) return;
+      const c2 = makeCanvas(maxW, maxH);
+      c2.getContext('2d').drawImage(img2, 0, 0);
+      const d2 = c2.getContext('2d').getImageData(0, 0, maxW, maxH).data;
 
-    Promise.all([loadImg('base/' + filename), loadImg('branch/' + filename)])
-      .then(function (imgs) {
-        var img1 = imgs[0];
-        var img2 = imgs[1];
-        var maxW = Math.max(img1.naturalWidth, img2.naturalWidth);
-        var maxH = Math.max(img1.naturalHeight, img2.naturalHeight);
+      // Build the diff image: changed pixels → red, unchanged → dimmed.
+      const out = makeCanvas(maxW, maxH);
+      const outCtx = out.getContext('2d');
+      const outImg = outCtx.createImageData(maxW, maxH);
+      const od = outImg.data;
 
-        // Draw both images onto off-screen canvases at the max size so pixels
-        // outside a smaller image default to transparent (all zeros).
-        var c1 = makeCanvas(maxW, maxH);
-        c1.getContext('2d').drawImage(img1, 0, 0);
-        var d1 = c1.getContext('2d').getImageData(0, 0, maxW, maxH).data;
-
-        var c2 = makeCanvas(maxW, maxH);
-        c2.getContext('2d').drawImage(img2, 0, 0);
-        var d2 = c2.getContext('2d').getImageData(0, 0, maxW, maxH).data;
-
-        // Build the diff image: changed pixels → red, unchanged → dimmed.
-        var out = makeCanvas(maxW, maxH);
-        var outCtx = out.getContext('2d');
-        var outImg = outCtx.createImageData(maxW, maxH);
-        var od = outImg.data;
-
-        for (var i = 0; i < od.length; i += 4) {
-          var same = d1[i] === d2[i] && d1[i + 1] === d2[i + 1] &&
+      for (let i = 0; i < od.length; i += 4) {
+        const same = d1[i] === d2[i] && d1[i + 1] === d2[i + 1] &&
                      d1[i + 2] === d2[i + 2] && d1[i + 3] === d2[i + 3];
-          if (same) {
-            od[i]     = Math.round(d2[i]     * 0.45);
-            od[i + 1] = Math.round(d2[i + 1] * 0.45);
-            od[i + 2] = Math.round(d2[i + 2] * 0.45);
-            od[i + 3] = d2[i + 3];
-          } else {
-            od[i] = 255; od[i + 1] = 0; od[i + 2] = 0; od[i + 3] = 255;
-          }
+        if (same) {
+          od[i]     = Math.round(d2[i]     * 0.45);
+          od[i + 1] = Math.round(d2[i + 1] * 0.45);
+          od[i + 2] = Math.round(d2[i + 2] * 0.45);
+          od[i + 3] = d2[i + 3];
+        } else {
+          od[i] = 255; od[i + 1] = 0; od[i + 2] = 0; od[i + 3] = 255;
         }
+      }
 
-        outCtx.putImageData(outImg, 0, 0);
-        out.className = 'diff-canvas';
+      outCtx.putImageData(outImg, 0, 0);
+      out.className = 'diff-canvas';
 
-        var sizeDiffHtml = (img1.naturalWidth !== img2.naturalWidth || img1.naturalHeight !== img2.naturalHeight)
-          ? '<div class="size-diff-note">Base: ' + img1.naturalWidth + '\xd7' + img1.naturalHeight
-              + ' \u2192 Branch: ' + img2.naturalWidth + '\xd7' + img2.naturalHeight + '</div>'
-          : '';
+      const sizeDiffHtml = (img1.naturalWidth !== img2.naturalWidth || img1.naturalHeight !== img2.naturalHeight)
+        ? '<div class="size-diff-note">Base: ' + img1.naturalWidth + '\xd7' + img1.naturalHeight
+            + ' \u2192 Branch: ' + img2.naturalWidth + '\xd7' + img2.naturalHeight + '</div>'
+        : '';
 
-        var legendHtml = '<div class="diff-legend">'
-          + '<div class="legend-item"><div class="legend-swatch" style="background:#f00"></div>Changed pixels</div>'
-          + '<div class="legend-item"><div class="legend-swatch" style="background:#1a1a1a;border:1px solid #ccc"></div>Unchanged pixels (dimmed)</div>'
-          + '</div>';
+      const legendHtml = '<div class="diff-legend">'
+        + '<div class="legend-item"><div class="legend-swatch" style="background:#f00"></div>Changed pixels</div>'
+        + '<div class="legend-item"><div class="legend-swatch" style="background:#1a1a1a;border:1px solid #ccc"></div>Unchanged pixels (dimmed)</div>'
+        + '</div>';
 
-        container.innerHTML = '';
-        container.appendChild(out);
-        container.insertAdjacentHTML('beforeend', sizeDiffHtml + legendHtml);
-      })
-      .catch(function (e) {
-        container.innerHTML = '<div class="error-msg">Error computing diff: ' + e.message + '</div>';
-      });
-  }
-
-  function makeCanvas(w, h) {
-    var c = document.createElement('canvas');
-    c.width = w;
-    c.height = h;
-    return c;
-  }
-
-  function loadImg(src) {
-    return new Promise(function (resolve, reject) {
-      var img = new Image();
-      img.onload = function () { resolve(img); };
-      img.onerror = function () { reject(new Error('Failed to load: ' + src)); };
-      img.src = src;
+      container.innerHTML = '';
+      container.appendChild(out);
+      container.insertAdjacentHTML('beforeend', sizeDiffHtml + legendHtml);
+    })
+    .catch(e => {
+      container.innerHTML = '<div class="error-msg">Error computing diff: ' + e.message + '</div>';
     });
-  }
+}
 
-}());
+function makeCanvas(w, h) {
+  const c = document.createElement('canvas');
+  c.width = w;
+  c.height = h;
+  return c;
+}
+
+function loadImg(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = () => reject(new Error('Failed to load: ' + src));
+    img.src = src;
+  });
+}
 </script>
 </body>
 </html>
