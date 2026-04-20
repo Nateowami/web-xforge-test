@@ -89,7 +89,10 @@ jobs:
           sparse-checkout: src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mjs
           sparse-checkout-cone-mode: false
       - name: "Use screenshot script from PR branch"
-        run: cp pr-branch-scripts/src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mjs src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mjs
+        run: |
+          set -euo pipefail
+          mkdir -p src/SIL.XForge.Scripture/ClientApp/scripts
+          cp pr-branch-scripts/src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mjs src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mjs
 
       - name: "Take screenshots"
         run: >
@@ -249,10 +252,12 @@ jobs:
       - name: "Comment on PR with preview URL"
         if: github.event_name == 'pull_request' && steps.deploy.outputs.url != ''
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        env:
+          DEPLOY_URL: ${{ steps.deploy.outputs.url }}
         with:
           script: |
             const marker = '<!-- screenshot-diff-preview -->';
-            const url = '${{ steps.deploy.outputs.url }}';
+            const url = process.env.DEPLOY_URL;
             const body = marker + '\n📸 **Screenshot diff deployed!**\n\nView the visual diff at: ' + url;
 
             const { data: comments } = await github.rest.issues.listComments({
