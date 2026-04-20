@@ -209,9 +209,10 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
         Directory.CreateDirectory(serverRepoDir);
 
         // Write the minimal Settings.xml so that ParatextData can identify the project by its GUID.
-        // The GUID is the paratextId expressed as a standard UUID (with dashes).
-        string guidFormatted = FormatAsGuid(paratextId);
-        string settingsXml = BuildSettingsXml(guidFormatted, shortName, fullName, languageIsoCode);
+        // ParatextData's HexId.Id setter calls StringUtils.HexToByteArr internally, which only accepts
+        // plain hex characters (no dashes). So the <Guid> element must use the 32-character hex format
+        // without dashes, not the UUID format with dashes.
+        string settingsXml = BuildSettingsXml(paratextId, shortName, fullName, languageIsoCode);
         File.WriteAllText(Path.Combine(serverRepoDir, "Settings.xml"), settingsXml, Encoding.UTF8);
 
         // Write a ProjectUsers.xml so that the ScrText reports a valid user role without needing to
@@ -229,24 +230,13 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
     }
 
     /// <summary>
-    /// Converts a 32-character hex Paratext ID (e.g. <c>4e51b77b2c18ee2c2bde5a18bcc880a2</c>) to a
-    /// standard UUID string with dashes (e.g. <c>4e51b77b-2c18-ee2c-2bde-5a18bcc880a2</c>).
-    /// </summary>
-    private static string FormatAsGuid(string hexId)
-    {
-        if (hexId.Length == 32)
-        {
-            return $"{hexId[..8]}-{hexId[8..12]}-{hexId[12..16]}-{hexId[16..20]}-{hexId[20..]}";
-        }
-        return hexId;
-    }
-
-    /// <summary>
     /// Builds a minimal Paratext <c>Settings.xml</c> containing the fields that ParatextData requires
     /// to identify a project and read its basic properties.
+    /// The <paramref name="paratextId"/> must be in the 32-character hex format (no dashes), as
+    /// ParatextData's <c>HexId.Id</c> setter only accepts plain hexadecimal characters.
     /// </summary>
-    private static string BuildSettingsXml(
-        string guidFormatted,
+    internal static string BuildSettingsXml(
+        string paratextId,
         string shortName,
         string fullName,
         string languageIsoCode
@@ -255,7 +245,7 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
         return $"""
             <?xml version="1.0" encoding="utf-8"?>
             <ScriptureText>
-              <Guid>{guidFormatted}</Guid>
+              <Guid>{paratextId}</Guid>
               <Name>{shortName}</Name>
               <FullName>{fullName}</FullName>
               <DefaultStylesheet>usfm.sty</DefaultStylesheet>
