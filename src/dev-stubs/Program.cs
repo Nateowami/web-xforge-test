@@ -272,9 +272,9 @@ app.MapPost(
                 ClaimValueTypes.Integer64
             ),
             new Claim("scope", $"openid profile email {scope} offline_access"),
-            new Claim("https://scriptureforge.org/userid", user.UserId),
+            new Claim("http://xforge.org/userid", user.UserId),
         }
-            .Concat(user.Roles.Select(r => new Claim("https://scriptureforge.org/role", r)))
+            .Concat(user.Roles.Select(r => new Claim("http://xforge.org/role", r)))
             .ToArray();
 
         var accessToken = new JwtSecurityToken(
@@ -298,9 +298,9 @@ app.MapPost(
             new Claim(JwtRegisteredClaimNames.Email, user.Email),
             new Claim(JwtRegisteredClaimNames.Name, user.Name),
             new Claim("picture", ""),
-            new Claim("https://scriptureforge.org/userid", user.UserId),
+            new Claim("http://xforge.org/userid", user.UserId),
         }
-            .Concat(user.Roles.Select(r => new Claim("https://scriptureforge.org/role", r)))
+            .Concat(user.Roles.Select(r => new Claim("http://xforge.org/role", r)))
             .ToArray();
 
         var idToken = new JwtSecurityToken(
