@@ -47,59 +47,29 @@ function sleep(ms) {
 /**
  * Waits for the Storybook story's play function (if any) to complete.
  *
- * Storybook 8 emits STORY_RENDERED on the preview channel after both the component
- * render and the play function have finished. If the story has already reached a
- * terminal render phase by the time we set up the listener (which can happen when
- * networkidle resolves before the play function starts or finishes), we detect that
- * via the current render phase and resolve immediately.
+ * Polls window.__STORYBOOK_PREVIEW__.currentRender.phase until it is no longer
+ * one of the known in-progress values. Using waitForFunction (polling) rather
+ * than an event listener avoids the race condition where STORY_RENDERED fires
+ * before the listener is registered.
+ *
+ * Resolves immediately when Storybook is absent, when there is no active render,
+ * or when the phase is unknown. Only waits while the phase is a known busy value.
  */
 async function waitForPlayFunction(page) {
-  await page.evaluate(
-    timeout =>
-      new Promise((resolve, reject) => {
-        const preview = window.__STORYBOOK_PREVIEW__;
-        const channel = preview?.channel;
-
-        // No Storybook preview available — proceed without waiting.
-        if (channel == null) {
-          resolve();
-          return;
-        }
-
-        const timer = setTimeout(
-          () => reject(new Error(`Timed out after ${timeout} ms waiting for STORY_RENDERED`)),
-          timeout
-        );
-
-        const cleanup = () => {
-          clearTimeout(timer);
-          channel.removeListener('STORY_RENDERED', onRendered);
-          channel.removeListener('STORY_ERRORED', onError);
-          channel.removeListener('STORY_THREW_EXCEPTION', onError);
-        };
-        const onRendered = () => {
-          cleanup();
-          resolve();
-        };
-        const onError = err => {
-          cleanup();
-          reject(err instanceof Error ? err : new Error(String(err)));
-        };
-
-        channel.on('STORY_RENDERED', onRendered);
-        channel.on('STORY_ERRORED', onError);
-        channel.on('STORY_THREW_EXCEPTION', onError);
-
-        // Guard against the race condition where STORY_RENDERED already fired before we
-        // registered the listener. Detect this by checking the current render phase: any
-        // phase outside the set of "still in progress" phases means rendering is done.
-        const phase = preview?.currentRender?.phase;
-        const inProgressPhases = new Set(['preparing', 'loading', 'rendering', 'playing']);
-        if (phase != null && !inProgressPhases.has(phase)) {
-          onRendered();
-        }
-      }),
-    STORY_LOAD_TIMEOUT_MS
+  await page.waitForFunction(
+    () => {
+      const preview = window.__STORYBOOK_PREVIEW__;
+      if (preview == null) return true;
+      const phase = preview?.currentRender?.phase;
+      // Proceed if there is no active render or the phase is not recognisable.
+      if (phase == null) return true;
+      // Wait while the story is known to be actively preparing, rendering, or
+      // executing its play function. Any other phase (completed, played, errored,
+      // aborted, …) is treated as terminal and we proceed.
+      const busyPhases = ['preparing', 'preparing_args', 'preparing_story', 'loading', 'rendering', 'playing'];
+      return !busyPhases.includes(phase);
+    },
+    { timeout: STORY_LOAD_TIMEOUT_MS }
   );
 }
 
