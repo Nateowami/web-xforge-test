@@ -1,5 +1,5 @@
 @use 'src/variables' as vars;
-@use '../lynx-insights' as insights;
+@use '../lynx-insights-tokens' as insights;
 
 $indentPadding: 2.5rem; // Per level indentation
 $restoreActionColor: #5485e7;
