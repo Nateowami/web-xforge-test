@@ -16,7 +16,7 @@
  */
 
 import { chromium } from 'playwright';
-import { readFileSync, mkdirSync } from 'fs';
+import { readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join, resolve } from 'path';
 import { spawn } from 'child_process';
 
@@ -67,6 +67,14 @@ async function waitForPlayFunction(page) {
       const phase = preview?.currentRender?.phase;
       // Proceed if there is no active render or the phase is not recognisable.
       if (phase == null) return true;
+      // Cache story parameters in a window global the moment they are available.
+      // currentRender.story (and its parameters) can be cleared once the play function
+      // completes, so we must capture them while they are still present. The cached
+      // value is read after this waitForFunction resolves.
+      const params = preview?.currentRender?.story?.parameters;
+      if (params != null) {
+        window.__SCREENSHOT_STORY_PARAMS__ = params;
+      }
       // Wait while the story is known to be actively preparing, rendering, or
       // executing its play function. Any other phase (completed, played, errored,
       // aborted, …) is treated as terminal and we proceed.
@@ -111,8 +119,10 @@ async function waitForServer(port, maxAttempts = 30, intervalMs = 500) {
 
 /**
  * Takes a screenshot of a single story, retrying once on failure.
- * Returns { storyId, success, skipped } where skipped is true when the story opts out via
- * chromatic: { disableSnapshot: true } and no screenshot was taken.
+ * Returns { storyId, success, skipped, maxDiffPixels } where:
+ *   skipped      is true when the story opts out via chromatic: { disableSnapshot: true }
+ *   maxDiffPixels is the per-story pixel-count threshold from parameters.screenshot.maxDiffPixels,
+ *                or null if not set
  */
 async function screenshotStory(story, context, absOutputDir) {
   const { id: storyId } = story;
@@ -120,6 +130,7 @@ async function screenshotStory(story, context, absOutputDir) {
   const screenshotPath = join(absOutputDir, `${storyId}.png`);
 
   let success = false;
+  let maxDiffPixels = null;
   for (let attempt = 1; attempt <= 2 && !success; attempt++) {
     let page;
     try {
@@ -128,16 +139,26 @@ async function screenshotStory(story, context, absOutputDir) {
 
       // Wait for the story's play function (if any) to finish. Storybook 8 fires
       // STORY_RENDERED after both the component render and the play function complete.
+      // waitForPlayFunction also caches story parameters into window.__SCREENSHOT_STORY_PARAMS__
+      // while currentRender.story is still accessible (it may be cleared afterwards).
       await waitForPlayFunction(page);
 
-      // Check whether this story has opted out of snapshots (chromatic: { disableSnapshot: true }).
-      // Parameters are only available at runtime via the Storybook preview API, not in index.json.
-      const disableSnapshot = await page.evaluate(() => {
+      // Read story parameters from the window global cached during the poll loop, falling
+      // back to currentRender in case the cache was not populated (e.g. very fast renders).
+      const storyParams = await page.evaluate(() => {
         const preview = window.__STORYBOOK_PREVIEW__;
-        return preview?.currentRender?.story?.parameters?.chromatic?.disableSnapshot === true;
+        return window.__SCREENSHOT_STORY_PARAMS__ ?? preview?.currentRender?.story?.parameters ?? null;
       });
-      if (disableSnapshot) {
-        return { storyId, success: true, skipped: true };
+
+      // Check whether this story has opted out of snapshots (chromatic: { disableSnapshot: true }).
+      if (storyParams?.chromatic?.disableSnapshot === true) {
+        return { storyId, success: true, skipped: true, maxDiffPixels: null };
+      }
+
+      // Read the per-story pixel-count threshold for the diff comparison step.
+      // Set via parameters.screenshot.maxDiffPixels in the story file.
+      if (maxDiffPixels === null && typeof storyParams?.screenshot?.maxDiffPixels === 'number') {
+        maxDiffPixels = storyParams.screenshot.maxDiffPixels;
       }
 
       // The play function promise resolves (and the Storybook phase becomes 'played') before
@@ -187,7 +208,7 @@ async function screenshotStory(story, context, absOutputDir) {
       await page?.close();
     }
   }
-  return { storyId, success };
+  return { storyId, success, maxDiffPixels };
 }
 
 async function main() {
@@ -235,6 +256,9 @@ async function main() {
     let skipped = 0;
     let failed = 0;
     const failedStories = [];
+    const skippedStories = [];
+    // Maps story ID → maxDiffPixels for use by the compare script.
+    const storyMaxDiffPixels = {};
 
     // Process stories in parallel using a shared work queue. Each worker picks the next story
     // from the queue until it is empty, so slow stories do not block faster ones.
@@ -242,9 +266,10 @@ async function main() {
     async function worker() {
       while (queue.length > 0) {
         const story = queue.shift();
-        const { storyId, success, skipped: wasSkipped } = await screenshotStory(story, context, absOutputDir);
+        const { storyId, success, skipped: wasSkipped, maxDiffPixels } = await screenshotStory(story, context, absOutputDir);
         if (wasSkipped) {
           console.log(`  - ${storyId} (skipped: chromatic.disableSnapshot)`);
+          skippedStories.push(storyId);
           skipped++;
         } else if (success) {
           console.log(`  ✓ ${storyId}`);
@@ -253,11 +278,20 @@ async function main() {
           failedStories.push(storyId);
           failed++;
         }
+        if (maxDiffPixels != null) {
+          storyMaxDiffPixels[storyId] = maxDiffPixels;
+        }
       }
     }
 
     // Launch CONCURRENCY workers; they all draw from the same queue so the total work is evenly spread.
     await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
+
+    // Write metadata alongside the screenshots so the compare script can:
+    //   • exclude stories skipped via chromatic.disableSnapshot from the diff report, and
+    //   • apply per-story pixel-count thresholds (parameters.screenshot.maxDiffPixels).
+    const metadata = { skipped: skippedStories, maxDiffPixels: storyMaxDiffPixels };
+    writeFileSync(join(absOutputDir, 'metadata.json'), JSON.stringify(metadata, null, 2));
 
     console.log(`\nCompleted: ${succeeded} succeeded, ${skipped} skipped, ${failed} failed`);
     if (failedStories.length > 0) {

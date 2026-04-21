@@ -40,6 +40,41 @@ interface DecodedPng {
   data: Uint8Array;
 }
 
+/**
+ * Metadata written by the screenshot script alongside the PNG files.
+ * Used by this script to exclude intentionally-skipped stories and apply per-story
+ * pixel-count thresholds.
+ */
+interface Metadata {
+  /** Story IDs skipped because chromatic.disableSnapshot is true. */
+  skipped: string[];
+  /**
+   * Per-story maximum number of differing pixels that is still treated as "no change".
+   * Set in a story via parameters.screenshot.maxDiffPixels.
+   * A value of 0 (the default) means any differing pixel is a change.
+   */
+  maxDiffPixels: Record<string, number>;
+}
+
+/** Reads metadata.json from a screenshot directory, returning empty defaults if absent or invalid. */
+function readMetadata(dir: string): Metadata {
+  const filePath = join(dir, 'metadata.json');
+  try {
+    const text = Deno.readTextFileSync(filePath);
+    const data = JSON.parse(text);
+    return {
+      skipped: Array.isArray(data.skipped) ? data.skipped : [],
+      maxDiffPixels:
+        data.maxDiffPixels != null && typeof data.maxDiffPixels === 'object' && !Array.isArray(data.maxDiffPixels)
+          ? data.maxDiffPixels
+          : {}
+    };
+  } catch {
+    // Missing or malformed metadata — treat as empty (no stories skipped, no per-story thresholds).
+    return { skipped: [], maxDiffPixels: {} };
+  }
+}
+
 /** Decodes a PNG file synchronously to raw RGBA pixel data. */
 function readPng(filePath: string): DecodedPng {
   const fileData = Deno.readFileSync(filePath);
@@ -103,6 +138,18 @@ function main(): void {
     Deno.exit(1);
   }
 
+  // Read metadata from both screenshot sets. We union the skip lists so that a story skipped
+  // on either side (e.g. due to a disableSnapshot check race on one runner) is excluded from
+  // the diff report. Per-story maxDiffPixels come from branch metadata; base fills in gaps.
+  const baseMetadata = readMetadata(baseDir);
+  const branchMetadata = readMetadata(branchDir);
+  const skippedStories = new Set([...baseMetadata.skipped, ...branchMetadata.skipped]);
+  // Branch takes precedence for per-story thresholds (reflects the current state of the code).
+  const storyMaxDiffPixels: Record<string, number> = {
+    ...baseMetadata.maxDiffPixels,
+    ...branchMetadata.maxDiffPixels
+  };
+
   const baseFiles = new Set([...Deno.readDirSync(baseDir)].filter(entry => entry.isFile && entry.name.endsWith('.png')).map(entry => entry.name));
   const branchFiles = new Set([...Deno.readDirSync(branchDir)].filter(entry => entry.isFile && entry.name.endsWith('.png')).map(entry => entry.name));
   const allFiles: string[] = [...new Set([...baseFiles, ...branchFiles])].sort();
@@ -116,12 +163,23 @@ function main(): void {
   for (const filename of allFiles) {
     const inBase = baseFiles.has(filename);
     const inBranch = branchFiles.has(filename);
+    const storyId = filename.slice(0, -4); // strip .png suffix
+
+    // Exclude stories that were intentionally skipped (chromatic.disableSnapshot) on either side.
+    // Taking the union of both skip lists handles cases where the disableSnapshot check succeeded
+    // on one runner but failed on the other, which would otherwise produce a spurious add/remove.
+    if (skippedStories.has(storyId)) continue;
 
     if (inBase && inBranch) {
       const basePng = readPng(join(baseDir, filename));
       const branchPng = readPng(join(branchDir, filename));
       const diffPixels = countDifferingPixels(basePng, branchPng, threshold);
-      if (diffPixels !== 0) {
+      // Per-story maxDiffPixels: minor rendering noise (e.g. sub-pixel layout shifts) can cause
+      // a small number of pixels to differ on every run even when there are no real changes.
+      // Stories can set parameters.screenshot.maxDiffPixels to tolerate up to N differing pixels.
+      // The diff viewer always shows the true differences when a story is in the report.
+      const maxDiff = storyMaxDiffPixels[storyId] ?? 0;
+      if (diffPixels > maxDiff) {
         changedStories.push([filename, diffPixels]);
       }
     } else if (inBase) {
@@ -164,6 +222,7 @@ function main(): void {
   console.log('\nSummary:');
   console.log(`  Base screenshots:   ${baseFiles.size}`);
   console.log(`  Branch screenshots: ${branchFiles.size}`);
+  console.log(`  Skipped (disableSnapshot): ${skippedStories.size}`);
   console.log(`  Identical:          ${identicalCount}`);
   console.log(`  Different:          ${changedStories.length}`);
   console.log(`  Only in base:       ${removedStories.length}`);

@@ -63,6 +63,14 @@ class SFTabGroupStoriesComponent implements OnChanges {
 export default {
   title: 'Shared/Tab Group',
   component: SFTabGroupStoriesComponent,
+  parameters: {
+    // The tab-group renders a Material ink bar whose position is determined by the browser's layout
+    // engine. Its sub-pixel position can shift by a small number of pixels between otherwise
+    // identical builds, producing spurious screenshot diffs. Allow up to 10 differing pixels so
+    // these minor rendering variations are not reported as changes. The diff viewer still shows any
+    // differences present whenever the story does appear in the report.
+    screenshot: { maxDiffPixels: 10 }
+  },
   decorators: [
     moduleMetadata({
       imports: [TabGroupComponent, TabComponent, TabHeaderDirective, SFTabGroupStoriesComponent],
