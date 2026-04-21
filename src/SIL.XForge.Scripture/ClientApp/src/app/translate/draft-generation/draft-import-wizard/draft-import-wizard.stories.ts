@@ -107,16 +107,18 @@ class DraftImportWizardWrapperComponent implements AfterViewInit, OnChanges {
       this.component.booksWithExistingText = this.booksWithExistingText;
       this.component.importProgress = this.importProgress;
 
-      // Move the stepper to the specified step
-      if (this.component.stepper && this.component.stepper.selectedIndex !== this.step) {
+      // Move the stepper to the specified step. step=0 and step=1 both map to index 0 (the first step).
+      // For step > 1, the stepper index is step - 1 (e.g., step=4 → index 3).
+      const targetIndex: number = Math.max(0, this.step - 1);
+      if (this.component.stepper && this.component.stepper.selectedIndex !== targetIndex) {
         this.component.stepper.reset();
-        for (let i = 0; i < this.step - 1; i++) {
+        for (let i = 0; i < targetIndex; i++) {
           const step = this.component.stepper.steps.get(i);
           if (step != null) step.completed = true;
           this.component.stepper.next();
         }
       }
-    });
+    }, 200);
   }
 }
 
