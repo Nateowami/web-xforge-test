@@ -274,6 +274,10 @@ export const StepThree: Story = {
 
 export const StepFour: Story = {
   ...Template,
+  parameters: {
+    // Step four occasionally renders with a 1px difference due to anti-aliasing in the book list.
+    screenshot: { maxDiffPixels: 1 }
+  },
   args: {
     ...defaultArgs,
     needsConnection: true,

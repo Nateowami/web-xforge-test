@@ -27,7 +27,7 @@ const ANIMATION_SETTLE_MS = 1000;
 // Final wait before taking the screenshot, after all stability checks. This gives the browser
 // additional time to paint any last-frame UI updates (e.g. Angular change detection triggered
 // by play-function side-effects) that land after all other checks have passed.
-const PRE_SCREENSHOT_WAIT_MS = 1000;
+const PRE_SCREENSHOT_WAIT_MS = 500;
 // Number of stories to process in parallel. Each worker gets its own browser page so waits overlap.
 const CONCURRENCY = 4;
 
@@ -266,7 +266,12 @@ async function main() {
     async function worker() {
       while (queue.length > 0) {
         const story = queue.shift();
-        const { storyId, success, skipped: wasSkipped, maxDiffPixels } = await screenshotStory(story, context, absOutputDir);
+        const {
+          storyId,
+          success,
+          skipped: wasSkipped,
+          maxDiffPixels
+        } = await screenshotStory(story, context, absOutputDir);
         if (wasSkipped) {
           console.log(`  - ${storyId} (skipped: chromatic.disableSnapshot)`);
           skippedStories.push(storyId);

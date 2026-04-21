@@ -97,7 +97,7 @@ function countDifferingPixels(a: DecodedPng, b: DecodedPng, threshold: number): 
   // Each pixel is 4 bytes (R, G, B, A). A pixel is changed if any channel exceeds the threshold.
   for (let i = 0; i < a.data.length; i += 4) {
     if (
-      Math.abs(a.data[i]     - b.data[i])     > threshold ||
+      Math.abs(a.data[i] - b.data[i]) > threshold ||
       Math.abs(a.data[i + 1] - b.data[i + 1]) > threshold ||
       Math.abs(a.data[i + 2] - b.data[i + 2]) > threshold ||
       Math.abs(a.data[i + 3] - b.data[i + 3]) > threshold
@@ -150,8 +150,14 @@ function main(): void {
     ...branchMetadata.maxDiffPixels
   };
 
-  const baseFiles = new Set([...Deno.readDirSync(baseDir)].filter(entry => entry.isFile && entry.name.endsWith('.png')).map(entry => entry.name));
-  const branchFiles = new Set([...Deno.readDirSync(branchDir)].filter(entry => entry.isFile && entry.name.endsWith('.png')).map(entry => entry.name));
+  const baseFiles = new Set(
+    [...Deno.readDirSync(baseDir)].filter(entry => entry.isFile && entry.name.endsWith('.png')).map(entry => entry.name)
+  );
+  const branchFiles = new Set(
+    [...Deno.readDirSync(branchDir)]
+      .filter(entry => entry.isFile && entry.name.endsWith('.png'))
+      .map(entry => entry.name)
+  );
   const allFiles: string[] = [...new Set([...baseFiles, ...branchFiles])].sort();
 
   // Track which stories were removed, added, or changed so we can report and include them in the deploy.
@@ -268,7 +274,8 @@ function main(): void {
 
   // Copy the self-contained diff UI (lives next to this script in the repo).
   const scriptDir = import.meta.dirname;
-  if (scriptDir == null) throw new Error('import.meta.dirname is unavailable; cannot locate screenshot-diff-index.html');
+  if (scriptDir == null)
+    throw new Error('import.meta.dirname is unavailable; cannot locate screenshot-diff-index.html');
   Deno.copyFileSync(join(scriptDir, 'screenshot-diff-index.html'), join(deployDir, 'index.html'));
 
   console.log(`\nDeploy directory created: ${deployDir}`);
