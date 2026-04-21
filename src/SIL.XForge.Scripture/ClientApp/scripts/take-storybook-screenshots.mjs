@@ -27,7 +27,7 @@ const ANIMATION_SETTLE_MS = 1000;
 // Final wait before taking the screenshot, after all stability checks. This gives the browser
 // additional time to paint any last-frame UI updates (e.g. Angular change detection triggered
 // by play-function side-effects) that land after all other checks have passed.
-const PRE_SCREENSHOT_WAIT_MS = 200;
+const PRE_SCREENSHOT_WAIT_MS = 100;
 // Number of stories to process in parallel. Each worker gets its own browser page so waits overlap.
 const CONCURRENCY = 4;
 

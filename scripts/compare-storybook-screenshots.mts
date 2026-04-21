@@ -8,6 +8,10 @@
 // within the per-channel threshold on all channels are treated as identical. Screenshots with
 // different dimensions are always treated as changed.
 //
+// The deploy directory is always created, even when there are no differences, so that a stale
+// Netlify deploy from a previous PR push (which may have had differences) is replaced with an
+// up-to-date "no changes" page.
+//
 // Output deploy directory layout:
 //   index.html         — interactive diff UI (side-by-side and pixel-diff overlay modes)
 //   screenshots.json   — diff metadata fetched by index.html
@@ -20,7 +24,7 @@
 // Arguments:
 //   base-dir     Directory containing screenshots from the base/target branch
 //   branch-dir   Directory containing screenshots from the PR branch
-//   deploy-dir   Path where the deploy directory should be written (only created if there are differences)
+//   deploy-dir   Path where the deploy directory should be written
 //
 // Options:
 //   --threshold N   Per-channel pixel difference threshold (default: 8). Pixels where every
@@ -236,14 +240,18 @@ function main(): void {
 
   const totalChanged = changedStories.length + removedStories.length + addedStories.length;
 
-  if (totalChanged === 0) {
-    console.log('\nNo visual differences found. No deploy directory created.');
-    return;
-  }
+  // Always create the deploy directory so that a stale Netlify deploy from a previous PR push
+  // (which may have shown differences) is replaced with the current state. The diff UI renders
+  // a "no visual differences found" message when all arrays are empty.
+  Deno.mkdirSync(deployDir, { recursive: true });
 
-  // Build the deploy directory structure for Netlify.
-  Deno.mkdirSync(join(deployDir, 'base'), { recursive: true });
-  Deno.mkdirSync(join(deployDir, 'branch'), { recursive: true });
+  // Only create image subdirectories when there are images to copy into them.
+  if (changedStories.length > 0 || removedStories.length > 0) {
+    Deno.mkdirSync(join(deployDir, 'base'), { recursive: true });
+  }
+  if (changedStories.length > 0 || addedStories.length > 0) {
+    Deno.mkdirSync(join(deployDir, 'branch'), { recursive: true });
+  }
 
   for (const [filename] of changedStories) {
     Deno.copyFileSync(join(baseDir, filename), join(deployDir, 'base', filename));
@@ -278,9 +286,13 @@ function main(): void {
     throw new Error('import.meta.dirname is unavailable; cannot locate screenshot-diff-index.html');
   Deno.copyFileSync(join(scriptDir, 'screenshot-diff-index.html'), join(deployDir, 'index.html'));
 
-  console.log(`\nDeploy directory created: ${deployDir}`);
-  console.log(`  ${changedStories.length} changed stories (both base and branch screenshots included)`);
-  console.log(`  ${removedStories.length + addedStories.length} stories present in only one commit`);
+  if (totalChanged === 0) {
+    console.log('\nDeploy directory created. No visual differences found.');
+  } else {
+    console.log(`\nDeploy directory created: ${deployDir}`);
+    console.log(`  ${changedStories.length} changed stories (both base and branch screenshots included)`);
+    console.log(`  ${removedStories.length + addedStories.length} stories present in only one commit`);
+  }
 }
 
 main();
