@@ -244,7 +244,7 @@ jobs:
           echo "url=${DEPLOY_URL}" >> "$GITHUB_OUTPUT"
 
       - name: "Comment on PR with preview URL"
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.deploy.outputs.url != ''
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         env:
           DEPLOY_URL: ${{ steps.deploy.outputs.url }}
