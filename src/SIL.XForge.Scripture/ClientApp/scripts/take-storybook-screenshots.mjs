@@ -27,7 +27,7 @@ const ANIMATION_SETTLE_MS = 1000;
 // Final wait before taking the screenshot, after all stability checks. This gives the browser
 // additional time to paint any last-frame UI updates (e.g. Angular change detection triggered
 // by play-function side-effects) that land after all other checks have passed.
-const PRE_SCREENSHOT_WAIT_MS = 500;
+const PRE_SCREENSHOT_WAIT_MS = 200;
 // Number of stories to process in parallel. Each worker gets its own browser page so waits overlap.
 const CONCURRENCY = 4;
 
@@ -56,8 +56,8 @@ function sleep(ms) {
  * than an event listener avoids the race condition where STORY_RENDERED fires
  * before the listener is registered.
  *
- * Resolves immediately when Storybook is absent, when there is no active render,
- * or when the phase is unknown. Only waits while the phase is a known busy value.
+ * Resolves immediately when Storybook is absent. Waits until a render has started
+ * (phase is non-null) and then until it exits all known busy phases.
  */
 async function waitForPlayFunction(page) {
   await page.waitForFunction(
@@ -65,8 +65,10 @@ async function waitForPlayFunction(page) {
       const preview = window.__STORYBOOK_PREVIEW__;
       if (preview == null) return true;
       const phase = preview?.currentRender?.phase;
-      // Proceed if there is no active render or the phase is not recognisable.
-      if (phase == null) return true;
+      // If no render has started yet, keep waiting. Returning true here (proceed
+      // immediately) would cause story parameters to never be cached, because
+      // currentRender.story is only populated once rendering begins.
+      if (phase == null) return false;
       // Cache story parameters in a window global the moment they are available.
       // currentRender.story (and its parameters) can be cleared once the play function
       // completes, so we must capture them while they are still present. The cached
