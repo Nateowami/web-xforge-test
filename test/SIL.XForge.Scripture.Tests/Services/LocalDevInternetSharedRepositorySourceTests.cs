@@ -116,11 +116,146 @@ public class LocalDevInternetSharedRepositorySourceTests
     // ─── E2E integration test using real Mercurial ───────────────────────────
 
     /// <summary>
-    /// End-to-end integration test: simulates the full Paratext sync flow using real Mercurial.
-    /// Verifies that after <see cref="LocalDevInternetSharedRepositorySource.Pull"/> initializes the
-    /// server repo and bundles it into the client repo, the resulting <c>Settings.xml</c> contains the
-    /// project GUID in plain hex format (no dashes), and that <c>HexId.FromStr</c> can parse it without
-    /// throwing <c>ArgumentException: String must contain only hexadecimal characters</c>.
+    /// End-to-end integration test: simulates the complete Paratext sync flow using real Mercurial.
+    /// This test replicates the exact crash path:
+    /// <list type="number">
+    ///   <item><see cref="LocalDevInternetSharedRepositorySource.Pull"/> initializes the server repo
+    ///     and bundles it into the client repo (simulating
+    ///     <c>ParatextService.CloneProjectRepo</c>).</item>
+    ///   <item><see cref="LazyScrTextCollection.FindById"/> reads <c>Settings.xml</c> and constructs
+    ///     a <c>ScrText</c> — the point at which the previously-broken UUID-with-dashes <c>&lt;Guid&gt;</c>
+    ///     would cause <c>HexId.FromStr</c> to throw
+    ///     <c>ArgumentException: String must contain only hexadecimal characters</c>.</item>
+    ///   <item>The returned <c>ScrText.Guid.Id</c> equals the expected hex project ID.</item>
+    /// </list>
+    /// </summary>
+    [Test]
+    public void Pull_WithRealMercurial_ScrTextCanBeLoadedFromPulledRepo()
+    {
+        // This test requires Mercurial to be installed on the machine.
+        string hgExe = "/usr/bin/hg";
+        if (!File.Exists(hgExe))
+            Assert.Ignore("Mercurial not found at /usr/bin/hg — skipping integration test.");
+
+        // ParatextData's Hg constructor requires the ParatextMerge.py script to exist.
+        string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+        string mergePy = Path.Combine(assemblyDir, "ParatextMerge.py");
+        if (!File.Exists(mergePy))
+            Assert.Ignore($"ParatextMerge.py not found at {mergePy} — skipping integration test.");
+
+        // InternetSharedRepositorySource's base constructor calls InternetAccess.VerifySafety(), which
+        // throws VpnDisconnectedException in CI (no network). We bypass this by directly setting the
+        // in-memory PermittedInternetUse field to Enabled via reflection, without writing to disk.
+        BypassParatextInternetAccessCheck();
+
+        string tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            // ── Set up directories ──────────────────────────────────────────────────
+            string serverReposDir = Path.Combine(tempDir, "server-repos");
+
+            // syncDir mirrors {SiteDir}/paratext which is what ParatextService.SyncDir points to.
+            // LazyScrTextCollection.Initialize is called with this path.
+            // LazyScrTextCollection.FindById then looks for the ScrText at:
+            //   {syncDir}/{projectId}/target/Settings.xml
+            string syncDir = Path.Combine(tempDir, "sync");
+
+            // The client repo simulates {SyncDir}/{projectId}/target/ — where ParatextService
+            // puts the cloned project repo before calling Pull.
+            string clientRepoPath = Path.Combine(syncDir, ProjectHexId, "target");
+
+            Directory.CreateDirectory(serverReposDir);
+            Directory.CreateDirectory(clientRepoPath);
+
+            // ── Wire up the real HgWrapper with the system Mercurial installation ──
+            var realHgWrapper = new HgWrapper();
+            realHgWrapper.SetDefault(new Hg(hgExe, mergePy, assemblyDir));
+
+            // Initialize the client directory as an hg repo (simulates CloneProjectRepo in
+            // ParatextService, which calls _hgHelper.Init(clonePath) before Pull).
+            realHgWrapper.Init(clientRepoPath);
+
+            // ── Configure the dev project ───────────────────────────────────────────
+            var config = new LocalDevParatextOptions
+            {
+                Projects =
+                [
+                    new LocalDevParatextProject
+                    {
+                        ParatextId = ProjectHexId,
+                        ShortName = ShortName,
+                        FullName = FullName,
+                        LanguageIsoCode = LanguageIsoCode,
+                        UserRoles = new Dictionary<string, string> { ["DevAdmin"] = "pt_administrator" },
+                    },
+                ],
+            };
+
+            var source = new LocalDevInternetSharedRepositorySource(
+                "DevAdmin",
+                config,
+                realHgWrapper,
+                serverReposDir
+            );
+
+            SharedRepository repo = source.GetRepositories().Single();
+
+            // ── Replicate ParatextService.CloneProjectRepo ──────────────────────────
+            // Pull triggers InitializeServerRepo → creates a real Hg repo with Settings.xml committed.
+            // Then bundles the server repo and pulls the bundle into the client repo.
+            source.Pull(clientRepoPath, repo);
+            // Update checks out the working-directory files so Settings.xml appears on disk.
+            realHgWrapper.Update(clientRepoPath);
+
+            // ── Replicate LazyScrTextCollection.FindById ────────────────────────────
+            // This is what ParatextService calls after CloneProjectRepo to get a ScrText for SR.
+            // If Settings.xml has a UUID-with-dashes <Guid> (the old bug), ScrText construction
+            // throws ArgumentException: String must contain only hexadecimal characters.
+            var scrTextCollection = new LazyScrTextCollection();
+            // SUT: initialize with syncDir, then load the ScrText for the project.
+            scrTextCollection.Initialize(syncDir);
+
+            ScrText scrText;
+            Assert.That(
+                () =>
+                {
+                    // SUT
+                    scrText = scrTextCollection.FindById("DevAdmin", ProjectHexId);
+                },
+                Throws.Nothing,
+                "LazyScrTextCollection.FindById must not throw — previously crashed with "
+                    + "ArgumentException: String must contain only hexadecimal characters "
+                    + "when <Guid> used UUID-with-dashes format"
+            );
+
+            scrText = scrTextCollection.FindById("DevAdmin", ProjectHexId);
+
+            // ── Verify the ScrText is valid and has the expected Guid ───────────────
+            Assert.That(scrText, Is.Not.Null, "ScrText must be non-null — project repo must be loadable");
+            Assert.That(
+                scrText!.Guid,
+                Is.Not.Null,
+                "ScrText.Guid must be non-null — Settings.xml <Guid> must be parseable"
+            );
+            Assert.That(
+                scrText.Guid.Id,
+                Is.EqualTo(ProjectHexId),
+                "ScrText.Guid.Id must equal the expected hex project ID"
+            );
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies that <see cref="LocalDevInternetSharedRepositorySource.Pull"/> writes the correct
+    /// <c>Settings.xml</c> file (plain hex GUID, no dashes) into the client repo.
+    /// This is a lighter companion test to
+    /// <see cref="Pull_WithRealMercurial_ScrTextCanBeLoadedFromPulledRepo"/> that verifies the
+    /// file content rather than the ParatextData loading behaviour.
     /// </summary>
     [Test]
     public void Pull_WithRealMercurial_SettingsXmlGuidIsParseableByParatextData()
