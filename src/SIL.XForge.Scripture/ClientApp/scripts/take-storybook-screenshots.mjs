@@ -111,7 +111,8 @@ async function waitForServer(port, maxAttempts = 30, intervalMs = 500) {
 
 /**
  * Takes a screenshot of a single story, retrying once on failure.
- * Returns { storyId, success }.
+ * Returns { storyId, success, skipped } where skipped is true when the story opts out via
+ * chromatic: { disableSnapshot: true } and no screenshot was taken.
  */
 async function screenshotStory(story, context, absOutputDir) {
   const { id: storyId } = story;
@@ -128,6 +129,16 @@ async function screenshotStory(story, context, absOutputDir) {
       // Wait for the story's play function (if any) to finish. Storybook 8 fires
       // STORY_RENDERED after both the component render and the play function complete.
       await waitForPlayFunction(page);
+
+      // Check whether this story has opted out of snapshots (chromatic: { disableSnapshot: true }).
+      // Parameters are only available at runtime via the Storybook preview API, not in index.json.
+      const disableSnapshot = await page.evaluate(() => {
+        const preview = window.__STORYBOOK_PREVIEW__;
+        return preview?.currentRender?.story?.parameters?.chromatic?.disableSnapshot === true;
+      });
+      if (disableSnapshot) {
+        return { storyId, success: true, skipped: true };
+      }
 
       // The play function promise resolves (and the Storybook phase becomes 'played') before
       // Angular's zone-scheduled change detection has had a chance to flush the resulting DOM
@@ -221,6 +232,7 @@ async function main() {
     const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, reducedMotion: 'reduce' });
 
     let succeeded = 0;
+    let skipped = 0;
     let failed = 0;
     const failedStories = [];
 
@@ -230,8 +242,11 @@ async function main() {
     async function worker() {
       while (queue.length > 0) {
         const story = queue.shift();
-        const { storyId, success } = await screenshotStory(story, context, absOutputDir);
-        if (success) {
+        const { storyId, success, skipped: wasSkipped } = await screenshotStory(story, context, absOutputDir);
+        if (wasSkipped) {
+          console.log(`  - ${storyId} (skipped: chromatic.disableSnapshot)`);
+          skipped++;
+        } else if (success) {
           console.log(`  ✓ ${storyId}`);
           succeeded++;
         } else {
@@ -244,7 +259,7 @@ async function main() {
     // Launch CONCURRENCY workers; they all draw from the same queue so the total work is evenly spread.
     await Promise.all(Array.from({ length: CONCURRENCY }, () => worker()));
 
-    console.log(`\nCompleted: ${succeeded} succeeded, ${failed} failed`);
+    console.log(`\nCompleted: ${succeeded} succeeded, ${skipped} skipped, ${failed} failed`);
     if (failedStories.length > 0) {
       console.log('Failed stories:');
       for (const id of failedStories) {
