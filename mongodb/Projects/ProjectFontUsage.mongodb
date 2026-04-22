@@ -5,7 +5,7 @@ const fonts = db.sf_projects.aggregate([
   {$match: {
     defaultFont: {$exists: true}
   }},
-  // Group by the font name, counting them by adding the number 1 accross each project in the group
+  // Group by the font name, counting them by adding the number 1 across each project in the group
   {$group: {
     _id: '$defaultFont',
     count: {$sum: 1}

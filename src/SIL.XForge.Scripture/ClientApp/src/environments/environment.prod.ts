@@ -15,6 +15,6 @@ export const environment = {
   realtimeSecurePort: 0,
   realtimeUrl: '/realtime-api/',
   authDomain: 'login.languagetechnology.org',
-  authClientId: 'tY2wXn40fsL5VsPM4uIHNtU6ZUEXGeFn',
+  authClientId: 'tY2wXn40fsL5VsPM4uIHNtU6ZUEXGeFn', // cspell:ignore ZUEX
   offlineDBVersion: 8
 };

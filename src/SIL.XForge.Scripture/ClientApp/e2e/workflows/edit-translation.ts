@@ -159,18 +159,18 @@ function getTab(page: Page, side: Side, tabName: string): Locator {
 
 async function selectBookAndChapter(page: Page, user: UserEmulator, book: string, chapter: number): Promise<void> {
   const bookChapterChooser = page.locator('.toolbar app-book-chapter-chooser');
-  const bookChoser = bookChapterChooser.getByRole('combobox').first();
-  const chapterChoser = bookChapterChooser.getByRole('combobox').last();
+  const bookChooser = bookChapterChooser.getByRole('combobox').first();
+  const chapterChooser = bookChapterChooser.getByRole('combobox').last();
 
-  const currentBookText: string = (await bookChoser.textContent())?.trim() ?? '';
+  const currentBookText: string = (await bookChooser.textContent())?.trim() ?? '';
   if (book !== currentBookText) {
-    await user.click(bookChoser);
+    await user.click(bookChooser);
     await user.click(page.getByRole('option', { name: book }));
   }
 
-  const currentChapterText: string = (await chapterChoser.textContent())?.trim() ?? '';
+  const currentChapterText: string = (await chapterChooser.textContent())?.trim() ?? '';
   if (chapter.toString() !== currentChapterText) {
-    await user.click(chapterChoser);
+    await user.click(chapterChooser);
     await user.click(page.getByRole('option', { name: chapter.toString() }));
   }
 }

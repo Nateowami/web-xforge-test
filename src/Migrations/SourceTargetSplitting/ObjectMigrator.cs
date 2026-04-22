@@ -726,7 +726,7 @@ namespace SourceTargetSplitting
         }
 
         /// <summary>
-        /// Deletes the document and any versions in the specified collection, matching the specified identifer.
+        /// Deletes the document and any versions in the specified collection, matching the specified identifier.
         /// </summary>
         /// <param name="collectionName">Name of the collection.</param>
         /// <param name="id">The identifier.</param>

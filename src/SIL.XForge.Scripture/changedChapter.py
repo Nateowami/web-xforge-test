@@ -42,7 +42,7 @@ def changedChapter(ui, repo, file_=None, **opts):
         ui.write(str(int(fl.linkrev(rev))).encode() + b'\r\n')
         ui.flush()
 
-# Extract the text of the specificed chapter from the text of the book
+# Extract the text of the specified chapter from the text of the book
 
 def getChapter(chapter, text):
     parts = re.split(b'(\\\\c\\s+\\S+)', text)

@@ -1,4 +1,5 @@
 #nullable disable warnings
+// cspell:ignore Ἀβιά
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -4519,7 +4520,7 @@ public class ParatextServiceTests
     }
 
     [Test]
-    public async Task TryGetProjectRoleAsync_UsesTheRepositoryForUnregisteredProjectsAndFailsIfUserDoesntExist()
+    public async Task TryGetProjectRoleAsync_UsesTheRepositoryForUnregisteredProjectsAndFailsIfUserDoesntExist() // cspell:ignore Doesnt
     {
         var env = new TestEnvironment();
         UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);

@@ -127,7 +127,7 @@ describe('ProjectComponent', () => {
     expect().nothing();
   }));
 
-  it('doesnt allow commenters to navigate to community checking', fakeAsync(() => {
+  it("doesn't allow commenters to navigate to community checking", fakeAsync(() => {
     const env = new TestEnvironment();
     env.setProjectData({
       selectedTask: 'checking',

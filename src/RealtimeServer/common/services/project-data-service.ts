@@ -219,7 +219,7 @@ export abstract class ProjectDataService<T extends ProjectData> extends JsonDocS
   protected abstract setupDomains(): ProjectDomainConfig[];
 
   /**
-   * Can be overriden to handle entity inserts. The "listenForUpdates" property must be set to "true" in order for this
+   * Can be overridden to handle entity inserts. The "listenForUpdates" property must be set to "true" in order for this
    * method to get called.
    *
    * @param {string} _userId The user id.
@@ -232,7 +232,7 @@ export abstract class ProjectDataService<T extends ProjectData> extends JsonDocS
   }
 
   /**
-   * Can be overriden to handle entity updates. The "listenForUpdates" property must be set to "true" in order for this
+   * Can be overridden to handle entity updates. The "listenForUpdates" property must be set to "true" in order for this
    * method to get called.
    *
    * @param {string} _userId The user id.
@@ -245,7 +245,7 @@ export abstract class ProjectDataService<T extends ProjectData> extends JsonDocS
   }
 
   /**
-   * Can be overriden to handle entity deletes. The "listenForUpdates" property must be set to "true" in order for this
+   * Can be overridden to handle entity deletes. The "listenForUpdates" property must be set to "true" in order for this
    * method to get called.
    *
    * @param {string} _userId The user id.
@@ -258,7 +258,7 @@ export abstract class ProjectDataService<T extends ProjectData> extends JsonDocS
   }
 
   /**
-   * Can be overriden to respond just before an entity is deleted. The "listenForUpdates" property must be set to
+   * Can be overridden to respond just before an entity is deleted. The "listenForUpdates" property must be set to
    * "true" in order for this method to get called.
    *
    * @param {string} _userId The user id.

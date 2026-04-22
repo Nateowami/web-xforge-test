@@ -136,7 +136,7 @@ describe('RolesAndPermissionsComponent', () => {
     expect(env.component?.roles.disabled).toBe(false);
   }));
 
-  it('doesnt save if the form is disabled', fakeAsync(() => {
+  it("doesn't save if the form is disabled", fakeAsync(() => {
     env.setupProjectData();
     env.openDialog();
     env.isOnline$.next(false);

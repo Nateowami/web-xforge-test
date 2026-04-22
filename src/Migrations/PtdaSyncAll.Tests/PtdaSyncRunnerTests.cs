@@ -1113,7 +1113,7 @@ namespace PtdaSyncAll
                     ));
                 if (chapterDeltas.Count() == 0)
                 {
-                    // Add implicit ChapterDelta, mimicing DeltaUsxMapper.ToChapterDeltas().
+                    // Add implicit ChapterDelta, mimicking DeltaUsxMapper.ToChapterDeltas().
                     chapterDeltas = chapterDeltas.Append(new ChapterDelta(1, 0, true, Delta.New()));
                 }
                 DeltaUsxMapper.ToChapterDeltas(Arg.Is<XDocument>(d => predicate(d))).Returns(chapterDeltas);

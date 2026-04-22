@@ -25,7 +25,7 @@ public class TransceleratorService : ITransceleratorService
     public IEnumerable<TransceleratorQuestion> Questions(string paratextId)
     {
         IEnumerable<XmlElement> docs = QuestionFiles(paratextId).Select(file => ReadFileAsXml(file).DocumentElement);
-        // Check that the schema version declared in the file is at least 1.1 (coresponding to Transcelerator version 1.5.2)
+        // Check that the schema version declared in the file is at least 1.1 (corresponding to Transcelerator version 1.5.2)
         if (
             docs.Any(doc =>
                 doc.Attributes["version"] == null || !VersionSatisfies(doc.Attributes["version"].Value, [1, 1])

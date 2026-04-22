@@ -1,6 +1,5 @@
+// cspell:ignore מַשָ
 import ShareDB from 'sharedb';
-import ShareDBMingo from 'sharedb-mingo-memory';
-import { Doc } from 'sharedb/lib/client';
 import { instance, mock, when } from 'ts-mockito';
 import { MetadataDB } from '../../common/metadata-db';
 import { RealtimeServer } from '../../common/realtime-server';

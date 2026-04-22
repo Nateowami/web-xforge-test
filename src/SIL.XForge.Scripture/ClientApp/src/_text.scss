@@ -31,7 +31,7 @@
   $invalid-color: mat.get-theme-color($theme, error, if($is-dark, 70, 40));
   $invalid-color-hex: string.slice(meta.inspect($invalid-color), 2);
   // Red squiggly underline
-  $invalid-svg: '%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%276%27 height=%279%27 viewBox=%270%200%206%209%27%3E%3Cpath d=%27M0%208.5%20A3%203.5%200%200%201%203%205%20A3%203.5%200%200%200%206%208.5%27 fill=%27none%27 stroke=%27%23#{$invalid-color-hex}%27 stroke-width=%271.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E';
+  $invalid-svg: '%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 width=%276%27 height=%279%27 viewBox=%270%200%206%209%27%3E%3Cpath d=%27M0%208.5%20A3%203.5%200%200%201%203%205%20A3%203.5%200%200%200%206%208.5%27 fill=%27none%27 stroke=%27%23#{$invalid-color-hex}%27 stroke-width=%271.2%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27/%3E%3C/svg%3E'; // cspell:ignore Csvg Cpath
   --sf-invalid-underline-image: url('data:image/svg+xml,#{$invalid-svg}');
 
   --sf-usx-chapter-color: #{mat.get-theme-color($theme, neutral, if($is-dark, 70, 40))};

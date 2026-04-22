@@ -84,8 +84,8 @@ describe('ShareControlComponent', () => {
 
   it('Server not queried to check if email is already invited until email address is valid', fakeAsync(() => {
     const env = new TestEnvironment();
-    env.setTextFieldValue(env.emailTextField, 'unkno');
-    env.setTextFieldValue(env.emailTextField, 'unknown-addres');
+    env.setTextFieldValue(env.emailTextField, 'unkno'); // cspell:ignore unkno
+    env.setTextFieldValue(env.emailTextField, 'unknown-addres'); // cspell:ignore addres
     env.setTextFieldValue(env.emailTextField, 'unknown-address@exa');
     verify(mockedProjectService.onlineIsAlreadyInvited(anything(), anything())).never();
     env.setTextFieldValue(env.emailTextField, 'unknown-address@example.com');
@@ -135,7 +135,7 @@ describe('ShareControlComponent', () => {
     env.setTextFieldValue(env.emailTextField, '');
     env.click(env.sendButton);
     verify(mockedProjectService.onlineInvite(anything(), anything(), anything(), anything())).never();
-    env.setTextFieldValue(env.emailTextField, 'unknown-addre');
+    env.setTextFieldValue(env.emailTextField, 'unknown-addre'); // cspell:ignore addre
     env.click(env.sendButton);
     verify(mockedProjectService.onlineInvite(anything(), anything(), anything(), anything())).never();
 

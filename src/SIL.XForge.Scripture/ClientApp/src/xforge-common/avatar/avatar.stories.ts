@@ -1,3 +1,4 @@
+// cspell:ignore أسئلة
 import { Meta, StoryObj } from '@storybook/angular';
 import { createTestUserProfile } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { CALVIN_AVATAR_URI } from '../../data-uris';

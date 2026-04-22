@@ -213,7 +213,7 @@ namespace SourceTargetSplitting
                         continue;
                     }
 
-                    // See if there are files in the soruce directory
+                    // See if there are files in the source directory
                     if (Directory.GetFiles(sourcePath, "*", SearchOption.AllDirectories).Length == 0)
                     {
                         Log("\tNo files in source folder - deleting source directory");

@@ -373,7 +373,7 @@ public class Startup
             IsSpaRoute,
             spaApp =>
             {
-                // setup all server-side routes before SPA client-side routes, so that the server-side routes supercede
+                // setup all server-side routes before SPA client-side routes, so that the server-side routes supersede
                 // the client-side routes
                 spaApp.UseSpa(spa =>
                 {

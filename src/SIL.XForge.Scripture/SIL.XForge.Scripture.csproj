@@ -13,7 +13,7 @@
     <AngularConfig>production</AngularConfig>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
-    <!-- Suppress complier warning "Missing XML comment for publicly visible type or member" -->
+    <!-- Suppress compiler warning "Missing XML comment for publicly visible type or member" -->
     <NoWarn>$(NoWarn);1591</NoWarn>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
     <DockerfileContext>..\Docker</DockerfileContext>

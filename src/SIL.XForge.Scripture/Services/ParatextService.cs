@@ -435,7 +435,7 @@ public class ParatextService : DisposableBase, IParatextService
 
     /// <returns>
     /// True if the user secret is able to access the PT Archives. PT Archives is a service such as at
-    /// archives.paratext.org, which provides Mercurial project repositores, and may sometimes be referred to as
+    /// archives.paratext.org, which provides Mercurial project repositories, and may sometimes be referred to as
     /// "the Send and Receive server".
     /// False if there is a problem with authorization or connecting to the PT Archives.
     /// </returns>
@@ -2403,7 +2403,7 @@ public class ParatextService : DisposableBase, IParatextService
     /// Gets a delta from USFM data, utilising the Paratext scripture text underlying it.
     /// </summary>
     /// <param name="curUserId">The current user identifier.</param>
-    /// <param name="sfProjectId">The SF project identifer.</param>
+    /// <param name="sfProjectId">The SF project identifier.</param>
     /// <param name="usfm">The USFM data.</param>
     /// <param name="bookNum">The book number</param>
     /// <returns>The USFM as a Delta.</returns>
@@ -3865,7 +3865,7 @@ public class ParatextService : DisposableBase, IParatextService
         {
             // if the current user is an administrator, then always allow editing the book text even if the user
             // doesn't have permission. This will ensure that a sync by an administrator never fails.
-            scrText.Permissions.RunWithEditPermision(
+            scrText.Permissions.RunWithEditPermision( // cspell:ignore Permision
                 bookNum,
                 () => scrText.PutText(bookNum, chapterNum, false, usfm, null)
             );
