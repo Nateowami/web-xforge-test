@@ -393,11 +393,20 @@ public class ParatextSyncRunner : IParatextSyncRunner
 
             await NotifySyncProgress(SyncPhase.Phase5, 90.0);
 
-            bool resourceNeedsUpdating =
-                paratextProject is ParatextResource paratextResource
-                && _paratextService.ResourceDocsNeedUpdating(_projectDoc.Data, paratextResource);
-            if (paratextProject is ParatextResource)
+            // A resource needs updating if it has changed in the DBL
+            bool resourceNeedsUpdating = false;
+            bool resourcePermissionsNeedUpdating = false;
+            if (paratextProject is ParatextResource paratextResource)
+            {
+                resourceNeedsUpdating = _paratextService.ResourceDocsNeedUpdating(_projectDoc.Data, paratextResource);
                 LogMetric($"Resource needs updating: {resourceNeedsUpdating}");
+
+                // A resource's permissions need updating if they are the old per-book and per-chapter permissions
+                resourcePermissionsNeedUpdating = _projectDoc.Data.Texts.Any(t =>
+                    t.Permissions.Any(p => p.Value == TextInfoPermission.Read)
+                );
+                LogMetric($"Resource permissions need updating: {resourcePermissionsNeedUpdating}");
+            }
 
             // If a resource needs updating, retrieve the books, as they were not retrieved previously
             if (resourceNeedsUpdating)
@@ -448,9 +457,14 @@ public class ParatextSyncRunner : IParatextSyncRunner
             }
 
             // Update permissions if not a resource, or if it is a resource and needs updating.
-            // A resource will need updating if its text or permissions have changed on the DBL.
+            // A resource will need updating if its text or permissions have changed on the DBL,
+            // or if it contains the old per-book and per-chapter permissions.
             // Source resources have their permissions updated above in the section "Updating user resource access".
-            if (!_paratextService.IsResource(targetParatextId) || resourceNeedsUpdating)
+            if (
+                !_paratextService.IsResource(targetParatextId)
+                || resourceNeedsUpdating
+                || resourcePermissionsNeedUpdating
+            )
             {
                 LogMetric("Updating permissions");
                 await _projectService.UpdatePermissionsAsync(userId, _projectDoc, users: _paratextUsers, token: token);
@@ -1154,6 +1168,22 @@ public class ParatextSyncRunner : IParatextSyncRunner
         SortedList<int, IDocument<TextData>> textDocs
     )
     {
+        bool hasWritePermission(string userId, Chapter chapter)
+        {
+            // If the user has a chapter permission, use that, otherwise fall back to the book permission
+            if (!text.Permissions.TryGetValue(userId, out string bookPermission))
+            {
+                bookPermission = TextInfoPermission.None;
+            }
+
+            if (!chapter.Permissions.TryGetValue(userId, out string chapterPermission))
+            {
+                chapterPermission = bookPermission;
+            }
+
+            return chapterPermission == TextInfoPermission.Write;
+        }
+
         // Get all of the last editors for the chapters.
         var chapterAuthors = new Dictionary<int, string>();
         foreach (Chapter chapter in text.Chapters)
@@ -1171,11 +1201,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
                 userSFId = await _realtimeService.GetLastModifiedUserIdAsync<TextData>(textId, version);
 
                 // Check that this user still has write permissions
-                if (
-                    string.IsNullOrEmpty(userSFId)
-                    || !chapter.Permissions.TryGetValue(userSFId, out string permission)
-                    || permission != TextInfoPermission.Write
-                )
+                if (string.IsNullOrEmpty(userSFId) || !hasWritePermission(userSFId, chapter))
                 {
                     // They no longer have write access, so reset the user id, and find it below
                     userSFId = null;
@@ -1186,10 +1212,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
             if (string.IsNullOrEmpty(userSFId))
             {
                 // See if the current user has permissions
-                if (
-                    chapter.Permissions.TryGetValue(_userSecret.Id, out string permission)
-                    && permission == TextInfoPermission.Write
-                )
+                if (hasWritePermission(_userSecret.Id, chapter))
                 {
                     userSFId = _userSecret.Id;
                 }
@@ -1197,7 +1220,9 @@ public class ParatextSyncRunner : IParatextSyncRunner
                 {
                     // Get the first user with write permission
                     // NOTE: As a KeyValuePair is a struct, we do not need a null-conditional (key will be null)
-                    userSFId = chapter.Permissions.FirstOrDefault(p => p.Value == TextInfoPermission.Write).Key;
+                    userSFId =
+                        chapter.Permissions.FirstOrDefault(p => p.Value == TextInfoPermission.Write).Key
+                        ?? text.Permissions.FirstOrDefault(p => p.Value == TextInfoPermission.Write).Key;
 
                     // If the userId is still null, find a project administrator, as they can escalate privilege
                     if (string.IsNullOrEmpty(userSFId))
