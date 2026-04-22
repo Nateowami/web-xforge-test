@@ -15,6 +15,6 @@ export const environment = {
   realtimeSecurePort: 0,
   realtimeUrl: '/realtime-api/',
   authDomain: 'dev-sillsdev.auth0.com',
-  authClientId: '4eHLjo40mAEGFU6zUxdYjnpnC1K1Ydnj', // cspell:ignore AEGFU Yjnpn Ydnj
+  authClientId: '4eHLjo40mAEGFU6zUxdYjnpnC1K1Ydnj',
   offlineDBVersion: 8
 };

@@ -1,4 +1,3 @@
-// cspell:ignore מַשָ
 import ShareDB from 'sharedb';
 import ShareDBMingo from 'sharedb-mingo-memory';
 import { Doc } from 'sharedb/lib/client';

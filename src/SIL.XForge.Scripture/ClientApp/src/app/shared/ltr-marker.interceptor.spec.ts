@@ -1,4 +1,3 @@
-// cspell:ignore مرحبا بالعالم
 import { Injector } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Translation, TranslocoService } from '@ngneat/transloco';

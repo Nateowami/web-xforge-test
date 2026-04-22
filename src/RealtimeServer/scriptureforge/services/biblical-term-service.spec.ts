@@ -1,4 +1,3 @@
-// cspell:ignore δοῦλος
 import { VerseRef } from '@sillsdev/scripture';
 import ShareDB from 'sharedb';
 import ShareDBMingo from 'sharedb-mingo-memory';

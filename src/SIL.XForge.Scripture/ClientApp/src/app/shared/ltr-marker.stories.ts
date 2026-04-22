@@ -1,4 +1,3 @@
-// cspell:ignore مرحبا بالعالم
 import { Injector } from '@angular/core';
 import { Translation, TranslocoService } from '@ngneat/transloco';
 import { Decorator, Meta, StoryContext, StoryFn, StoryObj } from '@storybook/angular';

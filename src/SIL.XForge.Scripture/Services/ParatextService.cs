@@ -3865,7 +3865,7 @@ public class ParatextService : DisposableBase, IParatextService
         {
             // if the current user is an administrator, then always allow editing the book text even if the user
             // doesn't have permission. This will ensure that a sync by an administrator never fails.
-            scrText.Permissions.RunWithEditPermision( // cspell:ignore Permision
+            scrText.Permissions.RunWithEditPermision(
                 bookNum,
                 () => scrText.PutText(bookNum, chapterNum, false, usfm, null)
             );

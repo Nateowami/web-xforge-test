@@ -91,7 +91,7 @@ public class TransceleratorServiceTests
 		<Q>
 			<StringAlt xml:lang=""en"">What are the main events recorded in this passage?</StringAlt>
 			<StringAlt xml:lang=""en-US"">Tell [me] the main events recorded in this passage.</StringAlt>
-			<StringAlt xml:lang=""es"">Cuénta[me] los principales acontecimientos de este pasaje.</StringAlt> // cspell:ignore principales acontecimientos pasaje
+			<StringAlt xml:lang=""es"">Cuénta[me] los principales acontecimientos de este pasaje.</StringAlt>
 		</Q>
 		<Answers>
 			<A>

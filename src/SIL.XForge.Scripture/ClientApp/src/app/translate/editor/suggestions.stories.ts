@@ -1,4 +1,3 @@
-// cspell:ignore وَعَمَ تِلْكَ الْبِلادَ مَجَاعَةٌ ثُمَ حَدَثْتْ الأرْضِ
 import { Meta, moduleMetadata, StoryObj } from '@storybook/angular';
 import { expect, within } from 'storybook/test';
 import { SuggestionsComponent } from './suggestions.component';

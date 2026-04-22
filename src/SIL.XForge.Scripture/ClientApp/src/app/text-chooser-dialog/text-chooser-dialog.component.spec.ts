@@ -1,4 +1,3 @@
-// cspell:ignore وَقَعَتِ الأحْداثُ التّالِيَةُ أيّامِ أحَشْوِيرُوشَ الأرْضِ الْبِلادَ تِلْكَ ثُمَ حَدَثْتْ مَجَاعَةٌ وَعَمَ
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { VerseRef } from '@sillsdev/scripture';

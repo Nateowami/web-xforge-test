@@ -1,4 +1,3 @@
-// cspell:ignore cdefhapter chapabcter chapterrse targdefghpter targettapter anchorings targ pter defgh hapter
 import { BreakpointObserver } from '@angular/cdk/layout';
 import { HarnessLoader } from '@angular/cdk/testing';
 import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
