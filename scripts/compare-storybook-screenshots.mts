@@ -189,7 +189,9 @@ function main(): void {
       // Stories can set parameters.screenshot.maxDiffPixels to tolerate up to N differing pixels.
       // The diff viewer always shows the true differences when a story is in the report.
       const maxDiff = storyMaxDiffPixels[storyId] ?? 0;
-      if (diffPixels > maxDiff) {
+      // diffPixels === -1 means the images have different dimensions; treat as always changed
+      // regardless of maxDiff (a dimension change is never "noise").
+      if (diffPixels === -1 || diffPixels > maxDiff) {
         changedStories.push([filename, diffPixels]);
       }
     } else if (inBase) {
