@@ -1,7 +1,5 @@
 #!/usr/bin/env -S deno run --allow-read --allow-write --allow-net --allow-run --allow-env --allow-sys
 
-/// <reference lib="dom" />
-
 /**
  * Takes screenshots of all Storybook stories from a pre-built Storybook directory.
  *
@@ -21,6 +19,20 @@
 
 import { chromium, type Browser, type BrowserContext, type Page } from 'npm:playwright@1.56.1';
 import { join, resolve } from 'node:path';
+
+/**
+ * The browser window object extended with Storybook's internal preview global and the story
+ * parameter cache written by this script during the waitForPlayFunction poll loop.
+ */
+interface StorybookWindow extends Window {
+  __STORYBOOK_PREVIEW__?: {
+    currentRender?: {
+      phase?: string;
+      story?: { parameters?: Record<string, unknown> };
+    };
+  };
+  __SCREENSHOT_STORY_PARAMS__?: Record<string, unknown>;
+}
 
 const SERVER_PORT = 6006;
 const STORY_LOAD_TIMEOUT_MS = 30_000;
@@ -78,7 +90,7 @@ function sleep(ms: number): Promise<void> {
 async function waitForPlayFunction(page: Page): Promise<void> {
   await page.waitForFunction(
     () => {
-      const preview = (window as any).__STORYBOOK_PREVIEW__;
+      const preview = (window as StorybookWindow).__STORYBOOK_PREVIEW__;
       if (preview == null) return true;
       const phase = preview?.currentRender?.phase;
       // If no render has started yet, keep waiting. Returning true here (proceed
@@ -91,7 +103,7 @@ async function waitForPlayFunction(page: Page): Promise<void> {
       // value is read after this waitForFunction resolves.
       const params = preview?.currentRender?.story?.parameters;
       if (params != null) {
-        (window as any).__SCREENSHOT_STORY_PARAMS__ = params;
+        (window as StorybookWindow).__SCREENSHOT_STORY_PARAMS__ = params;
       }
       // Wait while the story is known to be actively preparing, rendering, or
       // executing its play function. Any other phase (completed, played, errored,
@@ -141,7 +153,11 @@ async function waitForServer(port: number, maxAttempts = 30, intervalMs = 500): 
  *   maxDiffPixels is the per-story pixel-count threshold from parameters.screenshot.maxDiffPixels,
  *                or null if not set
  */
-async function screenshotStory(story: StoryEntry, context: BrowserContext, absOutputDir: string): Promise<ScreenshotResult> {
+async function screenshotStory(
+  story: StoryEntry,
+  context: BrowserContext,
+  absOutputDir: string
+): Promise<ScreenshotResult> {
   const { id: storyId } = story;
   const url = `http://localhost:${SERVER_PORT}/iframe.html?id=${storyId}&viewMode=story`;
   const screenshotPath = join(absOutputDir, `${storyId}.png`);
@@ -163,8 +179,10 @@ async function screenshotStory(story: StoryEntry, context: BrowserContext, absOu
       // Read story parameters from the window global cached during the poll loop, falling
       // back to currentRender in case the cache was not populated (e.g. very fast renders).
       const storyParams = await page.evaluate(() => {
-        const preview = (window as any).__STORYBOOK_PREVIEW__;
-        return (window as any).__SCREENSHOT_STORY_PARAMS__ ?? preview?.currentRender?.story?.parameters ?? null;
+        const preview = (window as StorybookWindow).__STORYBOOK_PREVIEW__;
+        return (
+          (window as StorybookWindow).__SCREENSHOT_STORY_PARAMS__ ?? preview?.currentRender?.story?.parameters ?? null
+        );
       });
 
       // Check whether this story has opted out of snapshots (chromatic: { disableSnapshot: true }).
@@ -269,7 +287,10 @@ async function main(): Promise<void> {
     browser = await chromium.launch({ args: ['--no-sandbox', '--disable-setuid-sandbox'] });
     // reducedMotion: 'reduce' causes the browser to honour prefers-reduced-motion media queries,
     // which Angular Material and other libraries use to skip or shorten animations.
-    const context: BrowserContext = await browser.newContext({ viewport: { width: 1280, height: 720 }, reducedMotion: 'reduce' });
+    const context: BrowserContext = await browser.newContext({
+      viewport: { width: 1280, height: 720 },
+      reducedMotion: 'reduce'
+    });
 
     let succeeded = 0;
     let skipped = 0;
