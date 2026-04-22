@@ -340,7 +340,7 @@ public class MachineProjectService(
                 corpusIdsToRemove.Add(projectSecret.ServalData.AdditionalTrainingData.SourceCorpusId);
                 corpusIdsToRemove.Add(projectSecret.ServalData.AdditionalTrainingData.TargetCorpusId);
                 fileIdsToRemove.AddRange(
-                    projectSecret.ServalData.AdditionalTrainingData.CorpusFiles.Select(f => f.FileId)
+                    (projectSecret.ServalData.AdditionalTrainingData.CorpusFiles ?? []).Select(f => f.FileId)
                 );
             }
 
@@ -350,8 +350,8 @@ public class MachineProjectService(
                 && string.IsNullOrWhiteSpace(projectSecret.ServalData.TranslationEngineId)
             )
             {
-                corpusIdsToRemove.AddRange(projectSecret.ServalData.CorpusFiles.Select(f => f.CorpusId));
-                fileIdsToRemove.AddRange(projectSecret.ServalData.CorpusFiles.Select(f => f.FileId));
+                corpusIdsToRemove.AddRange((projectSecret.ServalData.CorpusFiles ?? []).Select(f => f.CorpusId));
+                fileIdsToRemove.AddRange((projectSecret.ServalData.CorpusFiles ?? []).Select(f => f.FileId));
             }
         }
         else if (
@@ -360,8 +360,8 @@ public class MachineProjectService(
         )
         {
             // If there is no NMT training engine, remove all files and corpora
-            corpusIdsToRemove.AddRange(projectSecret.ServalData.CorpusFiles.Select(f => f.CorpusId));
-            fileIdsToRemove.AddRange(projectSecret.ServalData.CorpusFiles.Select(f => f.FileId));
+            corpusIdsToRemove.AddRange((projectSecret.ServalData.CorpusFiles ?? []).Select(f => f.CorpusId));
+            fileIdsToRemove.AddRange((projectSecret.ServalData.CorpusFiles ?? []).Select(f => f.FileId));
         }
 
         // Remove the specified corpora
@@ -1619,7 +1619,7 @@ public class MachineProjectService(
             additionalTrainingData ??= new ServalAdditionalTrainingData();
 
             // Upload the target texts
-            List<ServalCorpusFile> targetCorpusFiles = [.. additionalTrainingData.CorpusFiles];
+            List<ServalCorpusFile> targetCorpusFiles = [.. additionalTrainingData.CorpusFiles ?? []];
             additionalTrainingData.TargetCorpusId = await UploadAdditionalTrainingDataAsync(
                 project.Id,
                 additionalTrainingData.TargetCorpusId,
@@ -1630,7 +1630,7 @@ public class MachineProjectService(
             );
 
             // Upload the source texts
-            List<ServalCorpusFile> sourceCorpusFiles = [.. additionalTrainingData.CorpusFiles];
+            List<ServalCorpusFile> sourceCorpusFiles = [.. additionalTrainingData.CorpusFiles ?? []];
             additionalTrainingData.SourceCorpusId = await UploadAdditionalTrainingDataAsync(
                 project.Id,
                 additionalTrainingData.SourceCorpusId,
@@ -1689,7 +1689,11 @@ public class MachineProjectService(
             }
 
             // Remove the corpora and files
-            await DeleteAllCorporaAndFilesAsync(additionalTrainingData.CorpusFiles, project.Id, cancellationToken);
+            await DeleteAllCorporaAndFilesAsync(
+                additionalTrainingData.CorpusFiles ?? [],
+                project.Id,
+                cancellationToken
+            );
 
             // Remove reference to the additional training data from the project secrets
             additionalTrainingData = null;
@@ -1817,7 +1821,7 @@ public class MachineProjectService(
                 continue;
             }
 
-            ServalCorpusFile servalCorpusFile = projectSecret.ServalData.CorpusFiles.SingleOrDefault(f =>
+            ServalCorpusFile servalCorpusFile = (projectSecret.ServalData.CorpusFiles ?? []).SingleOrDefault(f =>
                 f.ProjectId == projectId
             );
 
@@ -1946,7 +1950,7 @@ public class MachineProjectService(
 
         // Delete any project corpora and files that are no longer used
         await DeleteAllCorporaAndFilesAsync(
-            projectSecret.ServalData.CorpusFiles.Except(servalCorpusFiles),
+            (projectSecret.ServalData.CorpusFiles ?? []).Except(servalCorpusFiles),
             project.Id,
             cancellationToken
         );

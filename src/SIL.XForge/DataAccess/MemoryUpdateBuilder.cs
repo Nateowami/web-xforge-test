@@ -72,6 +72,8 @@ public class MemoryUpdateBuilder<T>(T entity, bool isInsert) : IUpdateBuilder<T>
     {
         Func<T, IEnumerable<TItem>> getCollection = field.Compile();
         IEnumerable<TItem> collection = getCollection(entity);
+        if (collection == null)
+            return this;
         TItem[] toRemove = [.. collection.Where(predicate.Compile())];
         MethodInfo removeMethod = collection.GetType().GetMethod("Remove");
         foreach (TItem item in toRemove)

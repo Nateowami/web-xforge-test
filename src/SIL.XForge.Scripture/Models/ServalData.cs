@@ -140,5 +140,5 @@ public class ServalData
     /// <remarks>
     /// These are shared by translation (SMT) and pre-translation (NMT) translation engines.
     /// </remarks>
-    public List<ServalCorpusFile> CorpusFiles { get; set; } = [];
+    public List<ServalCorpusFile>? CorpusFiles { get; set; }
 }

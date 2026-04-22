@@ -28,5 +28,5 @@ public class ServalAdditionalTrainingData
     /// <value>
     /// The files in both the source and target corpora.
     /// </value>
-    public List<ServalCorpusFile> CorpusFiles { get; set; } = [];
+    public List<ServalCorpusFile>? CorpusFiles { get; set; }
 }
