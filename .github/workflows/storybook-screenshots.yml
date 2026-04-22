@@ -100,11 +100,7 @@ jobs:
           cp pr-branch-scripts/src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mts src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mts
 
       - name: "Take screenshots"
-        run: |
-          cd src/SIL.XForge.Scripture/ClientApp
-          deno run \
-            --allow-read --allow-write --allow-net --allow-run --allow-env --allow-sys \
-            scripts/take-storybook-screenshots.mts storybook-static screenshots
+        run: cd src/SIL.XForge.Scripture/ClientApp && deno run --allow-read --allow-write --allow-net --allow-run --allow-env --allow-sys scripts/take-storybook-screenshots.mts storybook-static screenshots
 
       - name: "Upload screenshots"
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -175,11 +171,7 @@ jobs:
           deno-version: v2.x
 
       - name: "Take screenshots"
-        run: |
-          cd src/SIL.XForge.Scripture/ClientApp
-          deno run \
-            --allow-read --allow-write --allow-net --allow-run --allow-env --allow-sys \
-            scripts/take-storybook-screenshots.mts storybook-static screenshots
+        run: cd src/SIL.XForge.Scripture/ClientApp && deno run --allow-read --allow-write --allow-net --allow-run --allow-env --allow-sys scripts/take-storybook-screenshots.mts storybook-static screenshots
 
       - name: "Upload screenshots"
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
