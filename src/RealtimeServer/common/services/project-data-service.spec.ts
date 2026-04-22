@@ -5,6 +5,7 @@ import { OwnedData } from '../models/owned-data';
 import { Project } from '../models/project';
 import { ProjectData } from '../models/project-data';
 import { Operation, ProjectRights } from '../models/project-rights';
+import { SystemRole } from '../models/system-role';
 import { User, USERS_COLLECTION } from '../models/user';
 import { createTestUser } from '../models/user-test-data';
 import { ValidationSchema } from '../models/validation-schema';
@@ -33,6 +34,17 @@ describe('ProjectDataService', () => {
 
     const adminConn = clientConnect(env.server, 'admin');
     await expect(fetchDoc(adminConn, TEST_DATA_COLLECTION, 'test01')).resolves.not.toThrow();
+  });
+
+  it('allows serval admin to view project data regardless of project membership', async () => {
+    const env = new TestEnvironment();
+    await env.createData();
+
+    // The serval admin is not a member of any project, but should be able to read all project data
+    const servalAdminConn = clientConnect(env.server, 'servalAdmin', SystemRole.ServalAdmin);
+    await expect(fetchDoc(servalAdminConn, TEST_DATA_COLLECTION, 'test01')).resolves.not.toThrow();
+    await expect(fetchDoc(servalAdminConn, TEST_DATA_COLLECTION, 'test02')).resolves.not.toThrow();
+    await expect(fetchDoc(servalAdminConn, TEST_DATA_COLLECTION, 'test03')).resolves.not.toThrow();
   });
 
   it('controls access to create root entity', async () => {
@@ -491,6 +503,7 @@ class TestEnvironment {
     await createDoc<User>(conn, USERS_COLLECTION, 'userOwn', createTestUser({}, 3));
     await createDoc<User>(conn, USERS_COLLECTION, 'observer', createTestUser({}, 4));
     await createDoc<User>(conn, USERS_COLLECTION, 'nonmember', createTestUser({}, 5));
+    await createDoc<User>(conn, USERS_COLLECTION, 'servalAdmin', createTestUser({}, 6));
 
     await createDoc<Project>(conn, PROJECTS_COLLECTION, 'project01', {
       name: 'Project 01',

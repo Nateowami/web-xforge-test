@@ -1,6 +1,7 @@
 import ShareDB from 'sharedb';
 import ShareDBMingo from 'sharedb-mingo-memory';
 import { instance, mock } from 'ts-mockito';
+import { SystemRole } from '../../common/models/system-role';
 import { User, USERS_COLLECTION } from '../../common/models/user';
 import { createTestUser } from '../../common/models/user-test-data';
 import { RealtimeServer } from '../../common/realtime-server';
@@ -44,6 +45,18 @@ describe('TrainingDataService', () => {
       fetchDoc(conn, TRAINING_DATA_COLLECTION, getTrainingDataId('project01', 'dataid01'))
     ).rejects.toThrow();
   });
+
+  it('allows serval admin to view training data even when not a project member', async () => {
+    const env = new TestEnvironment();
+    await env.createData();
+
+    // The serval admin is not a member of any project, but must be able to read training data
+    // to administer projects from the Serval administration pages.
+    const conn = clientConnect(env.server, 'servalAdmin', SystemRole.ServalAdmin);
+    await expect(
+      fetchDoc(conn, TRAINING_DATA_COLLECTION, getTrainingDataId('project01', 'dataid01'))
+    ).resolves.not.toThrow();
+  });
 });
 
 class TestEnvironment {
@@ -74,6 +87,7 @@ class TestEnvironment {
     await createDoc<User>(conn, USERS_COLLECTION, 'administrator', createTestUser({}, 1));
     await createDoc<User>(conn, USERS_COLLECTION, 'translator', createTestUser({}, 2));
     await createDoc<User>(conn, USERS_COLLECTION, 'consultant', createTestUser({}, 3));
+    await createDoc<User>(conn, USERS_COLLECTION, 'servalAdmin', createTestUser({}, 4));
 
     await createDoc<SFProject>(
       conn,

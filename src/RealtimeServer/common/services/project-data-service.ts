@@ -5,6 +5,7 @@ import { OwnedData } from '../models/owned-data';
 import { Project } from '../models/project';
 import { ProjectData } from '../models/project-data';
 import { Operation, ProjectRights } from '../models/project-rights';
+import { SystemRole } from '../models/system-role';
 import { ValidationSchema } from '../models/validation-schema';
 import { RealtimeServer } from '../realtime-server';
 import { ObjPathTemplate } from '../utils/obj-path';
@@ -117,7 +118,9 @@ export abstract class ProjectDataService<T extends ProjectData> extends JsonDocS
   }
 
   protected async allowRead(_docId: string, doc: T, session: ConnectSession): Promise<boolean> {
-    if (session.isServer || Object.keys(doc).length === 0) {
+    // Serval admins can read all project data regardless of project membership, as they administer projects
+    // system-wide and need access to project data such as training data files.
+    if (session.isServer || session.roles.includes(SystemRole.ServalAdmin) || Object.keys(doc).length === 0) {
       return true;
     }
 
