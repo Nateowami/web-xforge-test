@@ -76,6 +76,11 @@ jobs:
       - name: "Install Playwright browsers"
         run: cd src/SIL.XForge.Scripture/ClientApp && npx playwright install --with-deps chromium
 
+      - name: "Set up Deno"
+        uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2.0.4
+        with:
+          deno-version: v2.x
+
       # The screenshot script may not exist on the base branch (or may be outdated). Always use the
       # version from the PR branch so that any script improvements in the PR also apply to the base
       # branch screenshots, and so the base branch screenshots can be taken even if the script
@@ -86,18 +91,19 @@ jobs:
           persist-credentials: false
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           path: pr-branch-scripts
-          sparse-checkout: src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mjs
+          sparse-checkout: src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mts
           sparse-checkout-cone-mode: false
       - name: "Use screenshot script from PR branch"
         run: |
           set -euo pipefail
           mkdir -p src/SIL.XForge.Scripture/ClientApp/scripts
-          cp pr-branch-scripts/src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mjs src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mjs
+          cp pr-branch-scripts/src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mts src/SIL.XForge.Scripture/ClientApp/scripts/take-storybook-screenshots.mts
 
       - name: "Take screenshots"
         run: >
           cd src/SIL.XForge.Scripture/ClientApp &&
-          node scripts/take-storybook-screenshots.mjs storybook-static screenshots
+          deno run --allow-read --allow-write --allow-net --allow-run --allow-env --allow-sys
+          scripts/take-storybook-screenshots.mts storybook-static screenshots
 
       - name: "Upload screenshots"
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
@@ -161,10 +167,17 @@ jobs:
 
       - name: "Install Playwright browsers"
         run: cd src/SIL.XForge.Scripture/ClientApp && npx playwright install --with-deps chromium
+
+      - name: "Set up Deno"
+        uses: denoland/setup-deno@667a34cdef165d8d2b2e98dde39547c9daac7282 # v2.0.4
+        with:
+          deno-version: v2.x
+
       - name: "Take screenshots"
         run: >
           cd src/SIL.XForge.Scripture/ClientApp &&
-          node scripts/take-storybook-screenshots.mjs storybook-static screenshots
+          deno run --allow-read --allow-write --allow-net --allow-run --allow-env --allow-sys
+          scripts/take-storybook-screenshots.mts storybook-static screenshots
 
       - name: "Upload screenshots"
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
