@@ -176,16 +176,31 @@ export class TextComponent implements AfterViewInit, OnDestroy {
         },
         'disable backspace word': {
           key: 'Backspace',
-          ctrlKey: true,
+          shortKey: true,
+          handler: (range: Range) => this.handleBackspaceWord(range)
+        },
+        'disable backspace word on mac': {
+          key: 'Backspace',
+          altKey: true,
           handler: (range: Range) => this.handleBackspaceWord(range)
         },
         'disable delete': {
           key: 'Delete',
           handler: (range: Range) => this.isDeleteAllowed(range)
         },
+        'disable delete holding down shift': {
+          key: 'Delete',
+          shiftKey: true,
+          handler: (range: Range) => this.isDeleteAllowed(range)
+        },
         'disable delete word': {
           key: 'Delete',
-          ctrlKey: true,
+          shortKey: true,
+          handler: (range: Range) => this.handleDeleteWord(range)
+        },
+        'disable delete word on mac': {
+          key: 'Delete',
+          altKey: true,
           handler: (range: Range) => this.handleDeleteWord(range)
         },
         'disable enter': {
@@ -253,6 +268,12 @@ export class TextComponent implements AfterViewInit, OnDestroy {
           key: 'x',
           shortKey: true,
           handler: (range: Range) => this.isDeleteAllowed(range)
+        },
+        'cut from menu while holding down shift': {
+          key: 'x',
+          shortKey: true,
+          shiftKey: true,
+          handler: (range: Range) => this.isDeleteAllowed(range)
         }
       }
     },
@@ -261,7 +282,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       userOnly: true
     },
     clipboard: { textComponent: this },
-    dragAndDrop: {}
+    dragAndDrop: {},
+    selectAll: { textComponent: this, destroyRef: this.destroyRef }
   };
   private _id?: TextDocId;
   private _isRightToLeft: boolean = false;
@@ -1859,7 +1881,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
   /** Given a selection, return a possibly modified selection that is a valid for editing the current segment.
    * For example, a selection over a segment boundary is sometimes not valid. */
-  private conformToValidSelectionForCurrentSegment(sel: Range): Range | null {
+  conformToValidSelectionForCurrentSegment(sel: Range): Range | null {
     if (this._editor == null || this._segment == null) {
       return null;
     }
