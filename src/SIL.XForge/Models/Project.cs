@@ -1,4 +1,3 @@
-#nullable disable warnings
 using System.Collections.Generic;
 
 namespace SIL.XForge.Models;
@@ -8,7 +7,7 @@ public abstract class Project : Json0Snapshot
     /// <summary>
     /// The project name.
     /// </summary>
-    public string Name { get; set; }
+    public string? Name { get; set; }
 
     /// <summary>
     /// Per-role permissions, where the key is the role and values are the individual permissions.

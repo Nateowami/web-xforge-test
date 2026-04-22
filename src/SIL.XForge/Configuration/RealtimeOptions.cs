@@ -1,4 +1,3 @@
-#nullable disable warnings
 using System.Collections.Generic;
 using SIL.XForge.Models;
 
@@ -9,7 +8,7 @@ namespace SIL.XForge.Configuration;
 /// </summary>
 public class RealtimeOptions
 {
-    public string AppModuleName { get; set; }
+    public string? AppModuleName { get; set; }
     public int Port { get; set; }
     public int SecurePort { get; set; }
     public bool MigrationsDisabled { get; set; }
@@ -25,7 +24,7 @@ public class RealtimeOptions
     public string? RealtimeServerModulePath { get; set; }
 
     public DocConfig UserDoc { get; set; } = new DocConfig("users", typeof(User));
-    public DocConfig ProjectDoc { get; set; }
+    public DocConfig? ProjectDoc { get; set; }
 
     /// <summary>
     /// Additional document types (importantly, collection names) that have project related data. Defining this

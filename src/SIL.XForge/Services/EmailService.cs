@@ -14,8 +14,8 @@ public class EmailService(IOptions<SiteOptions> options, ILogger<EmailService> l
     public async Task SendEmailAsync(string email, string subject, string body)
     {
         SiteOptions siteOptions = options.Value;
-        string fromAddress = siteOptions.EmailFromAddress;
-        string title = siteOptions.Name;
+        string? fromAddress = siteOptions.EmailFromAddress;
+        string? title = siteOptions.Name;
         using var mimeMessage = new MimeMessage();
         mimeMessage.From.Add(new MailboxAddress(title, fromAddress));
         mimeMessage.To.Add(new MailboxAddress(string.Empty, email));

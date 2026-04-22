@@ -34,7 +34,7 @@ public class AnonymousService : IAnonymousService
 
         return new AnonymousShareKeyResponse
         {
-            ProjectName = validShareKey.Project.Name,
+            ProjectName = validShareKey.Project.Name ?? string.Empty,
             Role = validShareKey.ShareKey.ProjectRole,
             ShareKey = shareKey,
         };

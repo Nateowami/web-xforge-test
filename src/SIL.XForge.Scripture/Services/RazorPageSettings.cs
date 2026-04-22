@@ -44,7 +44,7 @@ public class RazorPageSettings(
 
     public string GetProductVersion() => Product.Version;
 
-    public string GetSiteName() => UseScriptureForgeBranding() ? siteOptions.Value.Name : HostName;
+    public string GetSiteName() => UseScriptureForgeBranding() ? siteOptions.Value.Name ?? string.Empty : HostName;
 
     public bool UseScriptureForgeBranding() =>
         HostName.Contains("scriptureforge.org", StringComparison.OrdinalIgnoreCase)
