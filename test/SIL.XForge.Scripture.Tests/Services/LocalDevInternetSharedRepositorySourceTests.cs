@@ -368,6 +368,258 @@ public class LocalDevInternetSharedRepositorySourceTests
         }
     }
 
+    // ─── Stale-repo migration tests (GetOrCreateServerRepo + ResetClientRepoIfStale) ──────────
+
+    /// <summary>
+    /// Verifies that <see cref="LocalDevInternetSharedRepositorySource.Pull"/> automatically
+    /// recreates a server repo whose <c>Settings.xml</c> contains a UUID-with-dashes <c>&lt;Guid&gt;</c>
+    /// (the legacy bug). After the migration the client repo receives the correct plain-hex Guid.
+    /// This tests the path where only the server repo is stale (e.g. the user deleted the client repo
+    /// but not the server repo).
+    /// </summary>
+    [Test]
+    public void Pull_WithRealMercurial_StaleServerRepo_IsMigratedAutomatically()
+    {
+        string hgExe = "/usr/bin/hg";
+        if (!File.Exists(hgExe))
+            Assert.Ignore("Mercurial not found at /usr/bin/hg — skipping integration test.");
+
+        string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+        string mergePy = Path.Combine(assemblyDir, "ParatextMerge.py");
+        if (!File.Exists(mergePy))
+            Assert.Ignore($"ParatextMerge.py not found at {mergePy} — skipping integration test.");
+
+        BypassParatextInternetAccessCheck();
+
+        string tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            string serverReposDir = Path.Combine(tempDir, "server-repos");
+            string syncDir = Path.Combine(tempDir, "sync");
+            string clientRepoPath = Path.Combine(syncDir, ProjectHexId, "target");
+            Directory.CreateDirectory(serverReposDir);
+            Directory.CreateDirectory(clientRepoPath);
+
+            var realHgWrapper = new HgWrapper();
+            realHgWrapper.SetDefault(new Hg(hgExe, mergePy, assemblyDir));
+
+            // ── Simulate the legacy bug: create a server repo with a UUID-with-dashes Guid ──
+            string staleServerRepoDir = Path.Combine(serverReposDir, ProjectHexId);
+            Directory.CreateDirectory(staleServerRepoDir);
+            string dashedGuid =
+                $"{ProjectHexId[..8]}-{ProjectHexId[8..12]}-{ProjectHexId[12..16]}-{ProjectHexId[16..20]}-{ProjectHexId[20..]}";
+            string staleSettingsXml = BuildLegacySettingsXml(dashedGuid);
+            File.WriteAllText(Path.Combine(staleServerRepoDir, "Settings.xml"), staleSettingsXml, Encoding.UTF8);
+            realHgWrapper.Init(staleServerRepoDir);
+            HgWrapper.RunCommand(staleServerRepoDir, "add");
+            HgWrapper.RunCommand(staleServerRepoDir, """commit -m "Stale initial commit" -u "DevServer" """);
+            realHgWrapper.MarkSharedChangeSetsPublic(staleServerRepoDir);
+
+            var config = new LocalDevParatextOptions
+            {
+                Projects =
+                [
+                    new LocalDevParatextProject
+                    {
+                        ParatextId = ProjectHexId,
+                        ShortName = ShortName,
+                        FullName = FullName,
+                        LanguageIsoCode = LanguageIsoCode,
+                        UserRoles = new Dictionary<string, string> { ["DevAdmin"] = "pt_administrator" },
+                    },
+                ],
+            };
+
+            var source = new LocalDevInternetSharedRepositorySource(
+                "DevAdmin",
+                config,
+                realHgWrapper,
+                serverReposDir
+            );
+
+            // Init the client repo (simulates CloneProjectRepo calling Init before Pull).
+            realHgWrapper.Init(clientRepoPath);
+            SharedRepository repo = source.GetRepositories().Single();
+
+            // SUT — Pull must detect the stale server repo, re-create it, and pull correct content.
+            source.Pull(clientRepoPath, repo);
+            realHgWrapper.Update(clientRepoPath);
+
+            // ── Verify the client repo received the correct Settings.xml ──
+            string clientSettingsXmlPath = Path.Combine(clientRepoPath, "Settings.xml");
+            Assert.That(File.Exists(clientSettingsXmlPath), Is.True, "Settings.xml must exist after Pull");
+            string clientSettingsXml = File.ReadAllText(clientSettingsXmlPath, Encoding.UTF8);
+            Assert.That(
+                clientSettingsXml,
+                Does.Contain($"<Guid>{ProjectHexId}</Guid>"),
+                "After migration, Settings.xml <Guid> must be plain hex without dashes"
+            );
+            Assert.That(
+                clientSettingsXml,
+                Does.Not.Contain($"<Guid>{dashedGuid}</Guid>"),
+                "After migration, the UUID-with-dashes Guid must not appear in Settings.xml"
+            );
+
+            // ── Also verify that LazyScrTextCollection can load the migrated repo ──
+            var scrTextCollection = new LazyScrTextCollection();
+            scrTextCollection.Initialize(syncDir);
+
+            ScrText scrText = scrTextCollection.FindById("DevAdmin", ProjectHexId);
+            Assert.That(scrText, Is.Not.Null, "ScrText must be loadable after stale server-repo migration");
+            Assert.That(scrText!.Guid.Id, Is.EqualTo(ProjectHexId));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    /// <summary>
+    /// Verifies the complete stale-state migration when BOTH the server repo and the client repo were
+    /// created with the legacy bug (UUID-with-dashes Guid in <c>Settings.xml</c>). This is the scenario
+    /// that happens on a developer's machine that ran the app before the fix was applied.
+    /// <para>
+    /// The three-fix chain must work together:
+    /// <list type="number">
+    ///   <item><see cref="LazyScrTextCollection.FindById"/> catches the <c>ArgumentException</c> from the
+    ///     stale client repo and returns <c>null</c>, triggering re-clone.</item>
+    ///   <item><see cref="LocalDevInternetSharedRepositorySource.Pull"/> calls
+    ///     <c>GetOrCreateServerRepo</c>, which detects and re-creates the stale server repo.</item>
+    ///   <item><see cref="LocalDevInternetSharedRepositorySource.Pull"/> calls
+    ///     <c>ResetClientRepoIfStale</c>, which clears the stale client repo's <c>.hg</c> so the pull
+    ///     starts from a clean state.</item>
+    /// </list>
+    /// After a <c>hg update</c> the client repo's working directory has the correct <c>Settings.xml</c>
+    /// and <see cref="LazyScrTextCollection.FindById"/> succeeds.
+    /// </para>
+    /// </summary>
+    [Test]
+    public void Pull_WithRealMercurial_StaleServerAndClientRepos_AreMigratedAutomatically()
+    {
+        string hgExe = "/usr/bin/hg";
+        if (!File.Exists(hgExe))
+            Assert.Ignore("Mercurial not found at /usr/bin/hg — skipping integration test.");
+
+        string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+        string mergePy = Path.Combine(assemblyDir, "ParatextMerge.py");
+        if (!File.Exists(mergePy))
+            Assert.Ignore($"ParatextMerge.py not found at {mergePy} — skipping integration test.");
+
+        BypassParatextInternetAccessCheck();
+
+        string tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            string serverReposDir = Path.Combine(tempDir, "server-repos");
+            string syncDir = Path.Combine(tempDir, "sync");
+            string clientRepoPath = Path.Combine(syncDir, ProjectHexId, "target");
+            Directory.CreateDirectory(serverReposDir);
+            Directory.CreateDirectory(clientRepoPath);
+
+            var realHgWrapper = new HgWrapper();
+            realHgWrapper.SetDefault(new Hg(hgExe, mergePy, assemblyDir));
+
+            string dashedGuid =
+                $"{ProjectHexId[..8]}-{ProjectHexId[8..12]}-{ProjectHexId[12..16]}-{ProjectHexId[16..20]}-{ProjectHexId[20..]}";
+            string staleSettingsXml = BuildLegacySettingsXml(dashedGuid);
+
+            // ── Create stale SERVER repo (simulates old app run) ──
+            string staleServerRepoDir = Path.Combine(serverReposDir, ProjectHexId);
+            Directory.CreateDirectory(staleServerRepoDir);
+            File.WriteAllText(Path.Combine(staleServerRepoDir, "Settings.xml"), staleSettingsXml, Encoding.UTF8);
+            realHgWrapper.Init(staleServerRepoDir);
+            HgWrapper.RunCommand(staleServerRepoDir, "add");
+            HgWrapper.RunCommand(staleServerRepoDir, """commit -m "Stale initial commit" -u "DevServer" """);
+            realHgWrapper.MarkSharedChangeSetsPublic(staleServerRepoDir);
+
+            // ── Create stale CLIENT repo (simulates having synced once with old app) ──
+            File.WriteAllText(Path.Combine(clientRepoPath, "Settings.xml"), staleSettingsXml, Encoding.UTF8);
+            realHgWrapper.Init(clientRepoPath);
+            HgWrapper.RunCommand(clientRepoPath, "add");
+            HgWrapper.RunCommand(clientRepoPath, """commit -m "Stale client commit" -u "DevAdmin" """);
+            realHgWrapper.MarkSharedChangeSetsPublic(clientRepoPath);
+
+            var config = new LocalDevParatextOptions
+            {
+                Projects =
+                [
+                    new LocalDevParatextProject
+                    {
+                        ParatextId = ProjectHexId,
+                        ShortName = ShortName,
+                        FullName = FullName,
+                        LanguageIsoCode = LanguageIsoCode,
+                        UserRoles = new Dictionary<string, string> { ["DevAdmin"] = "pt_administrator" },
+                    },
+                ],
+            };
+
+            var source = new LocalDevInternetSharedRepositorySource(
+                "DevAdmin",
+                config,
+                realHgWrapper,
+                serverReposDir
+            );
+
+            var scrTextCollection = new LazyScrTextCollection();
+            scrTextCollection.Initialize(syncDir);
+
+            // ── Fix 1: LazyScrTextCollection.FindById must return null (not throw) ──
+            // This replicates what ParatextService.EnsureProjectReposExistsAsync does.
+            ScrText beforeMigration;
+            Assert.That(
+                () =>
+                {
+                    // SUT
+                    beforeMigration = scrTextCollection.FindById("DevAdmin", ProjectHexId);
+                },
+                Throws.Nothing,
+                "FindById must NOT throw ArgumentException — it must catch it and return null"
+            );
+            beforeMigration = scrTextCollection.FindById("DevAdmin", ProjectHexId);
+            Assert.That(
+                beforeMigration,
+                Is.Null,
+                "FindById must return null for stale client repo, so ParatextService triggers re-clone"
+            );
+
+            // ── Simulate what CloneProjectRepo does after FindById returns null ──
+            // Init is called on the existing (stale) directory — it is a no-op since .hg already exists.
+            realHgWrapper.Init(clientRepoPath);
+
+            SharedRepository repo = source.GetRepositories().Single();
+
+            // SUT — Fix 2 + Fix 3: Pull re-creates stale server repo and resets stale client repo.
+            source.Pull(clientRepoPath, repo);
+
+            // Simulate _hgHelper.Update(clientRepoPath) called by CloneProjectRepo after Pull.
+            realHgWrapper.Update(clientRepoPath);
+
+            // ── Fix 1 again: FindById must now succeed (correct Settings.xml after Update) ──
+            ScrText afterMigration;
+            Assert.That(
+                () =>
+                {
+                    // SUT
+                    afterMigration = scrTextCollection.FindById("DevAdmin", ProjectHexId);
+                },
+                Throws.Nothing,
+                "After migration, FindById must not throw"
+            );
+            afterMigration = scrTextCollection.FindById("DevAdmin", ProjectHexId);
+            Assert.That(afterMigration, Is.Not.Null, "After migration, ScrText must be loadable");
+            Assert.That(afterMigration!.Guid.Id, Is.EqualTo(ProjectHexId));
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
+    // ─── Bypasses / helpers ───────────────────────────────────────────────────
+
     /// <summary>
     /// Bypasses <c>InternetAccess.VerifySafety()</c> by directly setting the in-memory
     /// <c>PermittedInternetUse</c> flag to <c>Enabled</c> via reflection. This avoids
@@ -393,6 +645,26 @@ public class LocalDevInternetSharedRepositorySourceTests
     }
 
     // ─── Helpers ─────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// Builds a <c>Settings.xml</c> using the <em>legacy buggy</em> UUID-with-dashes format for the
+    /// <c>&lt;Guid&gt;</c> element. Used in stale-repo migration tests to simulate the old behavior.
+    /// </summary>
+    private static string BuildLegacySettingsXml(string dashedGuid) =>
+        $"""
+        <?xml version="1.0" encoding="utf-8"?>
+        <ScriptureText>
+          <Guid>{dashedGuid}</Guid>
+          <Name>{ShortName}</Name>
+          <FullName>{FullName}</FullName>
+          <DefaultStylesheet>usfm.sty</DefaultStylesheet>
+          <Editable>True</Editable>
+          <Encoding>65001</Encoding>
+          <LanguageIsoCode>{LanguageIsoCode}::</LanguageIsoCode>
+          <Versification>4</Versification>
+          <Naming BookNameForm="40MAT" PostPart=".SFM" PrePart="" />
+        </ScriptureText>
+        """;
 
     private static string ExtractXmlElementValue(string xml, string elementName)
     {

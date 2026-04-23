@@ -129,7 +129,14 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
     /// </summary>
     public override string[] Pull(string repositoryPath, SharedRepository pullRepo)
     {
-        string serverRepoDir = GetOrCreateServerRepo(pullRepo.SendReceiveId.Id, pullRepo.ScrTextName);
+        string paratextId = pullRepo.SendReceiveId.Id;
+        string serverRepoDir = GetOrCreateServerRepo(paratextId, pullRepo.ScrTextName);
+
+        // If the client-side repo was previously cloned when the server repo had a UUID-with-dashes
+        // Guid in Settings.xml (the legacy bug), its Mercurial history is also stale. Clear the .hg
+        // directory and re-init so this Pull starts from a clean state. The caller (CloneProjectRepo)
+        // calls Update afterwards, which writes the correct Settings.xml from the new server history.
+        ResetClientRepoIfStale(repositoryPath, paratextId);
 
         string baseRev = _hgWrapper.GetLastPublicRevision(repositoryPath);
         string[] baseRevs = baseRev != null ? [baseRev] : [];
@@ -179,16 +186,71 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
 
     /// <summary>
     /// Returns the path to the server-side Hg repository for the given project, creating and populating it
-    /// with a minimal Paratext project structure if it does not already exist.
+    /// with a minimal Paratext project structure if it does not already exist. If the repo already exists
+    /// but its <c>Settings.xml</c> contains a UUID-with-dashes <c>&lt;Guid&gt;</c> (written by an older
+    /// version of this code), the repo is deleted and re-created with the correct plain-hex format.
     /// </summary>
     private string GetOrCreateServerRepo(string paratextId, string shortName)
     {
         string serverRepoDir = Path.Combine(_devReposDir, paratextId);
-        if (!Directory.Exists(Path.Combine(serverRepoDir, ".hg")))
+        bool hgExists = Directory.Exists(Path.Combine(serverRepoDir, ".hg"));
+
+        if (hgExists && ServerRepoHasLegacyDashedGuid(serverRepoDir, paratextId))
+        {
+            // The existing server repo was created with the old bug that wrote the Guid in
+            // UUID-with-dashes format (e.g. "4e51b77b-2c18-ee2c-2bde-5a18bcc880a2") instead of
+            // plain hex (e.g. "4e51b77b2c18ee2c2bde5a18bcc880a2"). Delete it and recreate below.
+            Directory.Delete(serverRepoDir, recursive: true);
+            hgExists = false;
+        }
+
+        if (!hgExists)
         {
             InitializeServerRepo(serverRepoDir, paratextId, shortName);
         }
         return serverRepoDir;
+    }
+
+    /// <summary>
+    /// Returns <c>true</c> if the server repo's <c>Settings.xml</c> contains the project Guid written
+    /// in UUID-with-dashes format, which was the bug fixed in the current version.
+    /// </summary>
+    private static bool ServerRepoHasLegacyDashedGuid(string serverRepoDir, string paratextId)
+    {
+        string settingsXmlPath = Path.Combine(serverRepoDir, "Settings.xml");
+        if (!File.Exists(settingsXmlPath))
+            return false;
+        string content = File.ReadAllText(settingsXmlPath, Encoding.UTF8);
+        // Build the dashed form of the hex ID to check for (e.g. "4e51b77b-2c18-ee2c-2bde-5a18bcc880a2").
+        string dashedGuid =
+            $"{paratextId[..8]}-{paratextId[8..12]}-{paratextId[12..16]}-{paratextId[16..20]}-{paratextId[20..]}";
+        return content.Contains($"<Guid>{dashedGuid}</Guid>");
+    }
+
+    /// <summary>
+    /// If <paramref name="repositoryPath"/> contains a <c>Settings.xml</c> with a UUID-with-dashes
+    /// <c>&lt;Guid&gt;</c> (the legacy bug), clears the <c>.hg</c> directory and re-initialises the
+    /// repository so that the subsequent Pull starts from a clean state. The working-directory files
+    /// (including the stale <c>Settings.xml</c>) are overwritten when the caller runs <c>hg update</c>
+    /// after the Pull returns.
+    /// </summary>
+    private void ResetClientRepoIfStale(string repositoryPath, string paratextId)
+    {
+        string settingsXmlPath = Path.Combine(repositoryPath, "Settings.xml");
+        if (!File.Exists(settingsXmlPath))
+            return;
+        string content = File.ReadAllText(settingsXmlPath, Encoding.UTF8);
+        string dashedGuid =
+            $"{paratextId[..8]}-{paratextId[8..12]}-{paratextId[12..16]}-{paratextId[16..20]}-{paratextId[20..]}";
+        if (!content.Contains($"<Guid>{dashedGuid}</Guid>"))
+            return;
+
+        // The client repo was cloned when the server repo had the legacy bug. Clear the Hg history
+        // so that this Pull populates the repo from the now-corrected server repo from scratch.
+        string hgDir = Path.Combine(repositoryPath, ".hg");
+        if (Directory.Exists(hgDir))
+            Directory.Delete(hgDir, recursive: true);
+        _hgWrapper.Init(repositoryPath);
     }
 
     /// <summary>
