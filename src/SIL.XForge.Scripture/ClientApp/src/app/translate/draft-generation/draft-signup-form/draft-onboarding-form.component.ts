@@ -16,6 +16,7 @@ import { User } from 'realtime-server/lib/esm/common/models/user';
 import { DevOnlyComponent } from 'src/app/shared/dev-only/dev-only.component';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
+import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { UserService } from 'xforge-common/user.service';
@@ -26,6 +27,7 @@ import { ParatextService } from '../../../core/paratext.service';
 import { ProjectSelectComponent } from '../../../project-select/project-select.component';
 import { BookMultiSelectComponent } from '../../../shared/book-multi-select/book-multi-select.component';
 import { JsonViewerComponent } from '../../../shared/json-viewer/json-viewer.component';
+import { ConfirmOnLeave } from '../../../shared/project-router.guard';
 import { compareProjectsForSorting, projectLabel } from '../../../shared/utils';
 import { DraftingSignupFormData, OnboardingRequestService } from '../onboarding-request.service';
 
@@ -76,7 +78,7 @@ type DraftOnboardingFormUiState = 'editing' | 'submitting' | 'submitted';
     DevOnlyComponent
   ]
 })
-export class DraftOnboardingFormComponent extends DataLoadingComponent implements OnInit {
+export class DraftOnboardingFormComponent extends DataLoadingComponent implements OnInit, ConfirmOnLeave {
   signupForm = new FormGroup({
     // Contact Information
     name: new FormControl<string>('', { nonNullable: true, validators: [Validators.required] }),
@@ -137,7 +139,8 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
     protected readonly noticeService: NoticeService,
     private readonly destroyRef: DestroyRef,
     private readonly cd: ChangeDetectorRef,
-    private readonly i18n: I18nService
+    private readonly i18n: I18nService,
+    private readonly dialogService: DialogService
   ) {
     super(noticeService, 'DraftOnboardingFormComponent');
   }
@@ -199,10 +202,14 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
   onCompletedBooksSelect(ids: number[]): void {
     // set the form control value when user selects books
     this.signupForm.controls.completedBooks.setValue(ids);
+    // Mark as touched so validation errors appear after interaction, not only after submit
+    this.signupForm.controls.completedBooks.markAsTouched();
   }
 
   onSubmittedBooksSelect(ids: number[]): void {
     this.signupForm.controls.nextBooksToDraft.setValue(ids);
+    // Mark as touched so validation errors appear after interaction, not only after submit
+    this.signupForm.controls.nextBooksToDraft.markAsTouched();
   }
 
   async onSubmit(): Promise<void> {
@@ -246,6 +253,18 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
     if (projectId != null) {
       void this.router.navigate(['/projects', projectId, 'draft-generation']);
     }
+  }
+
+  async confirmLeave(): Promise<boolean> {
+    // Allow navigation freely if the form is clean or has already been submitted
+    if (!this.signupForm.dirty || this.isSubmitted) {
+      return true;
+    }
+    return this.dialogService.confirm(
+      this.i18n.translate('draft_sources.discard_changes_confirmation'),
+      this.i18n.translate('draft_sources.leave_and_discard'),
+      this.i18n.translate('draft_sources.stay_on_page')
+    );
   }
 
   get isEditing(): boolean {

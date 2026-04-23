@@ -75,7 +75,8 @@ export const APP_ROUTES: Routes = [
   {
     path: 'projects/:projectId/draft-generation/signup',
     component: DraftOnboardingFormComponent,
-    canActivate: [NmtDraftAuthGuard]
+    canActivate: [NmtDraftAuthGuard],
+    canDeactivate: [DraftNavigationAuthGuard]
   },
   {
     path: 'projects/:projectId/draft-generation',
