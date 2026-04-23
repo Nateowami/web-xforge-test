@@ -251,7 +251,7 @@ jobs:
           # Fall back to the run ID for non-PR events (merge groups, manual dispatches).
           ALIAS="${PR_NUMBER:+pr-${PR_NUMBER}}"
           ALIAS="${ALIAS:-run-${RUN_ID}}"
-          DEPLOY_OUTPUT=$(npx --yes netlify-cli deploy --dir screenshots-deploy --alias "$ALIAS" --json)
+          DEPLOY_OUTPUT=$(npx netlify deploy --dir screenshots-deploy --alias "$ALIAS" --json)
           DEPLOY_URL=$(echo "$DEPLOY_OUTPUT" | jq -r '.deploy_url')
           echo "url=${DEPLOY_URL}" >> "$GITHUB_OUTPUT"
 
