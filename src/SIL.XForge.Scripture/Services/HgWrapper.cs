@@ -130,7 +130,17 @@ public class HgWrapper : IHgWrapper
             new SFHgRunner(installPathArg, repositoryArg, mergePathArg);
     }
 
-    public void Init(string repository) => Hg.Default.Init(repository);
+    /// <summary>
+    /// Initialises a Mercurial repository at <paramref name="repository"/>. If the directory already
+    /// contains a <c>.hg</c> folder the method is a no-op, matching Mercurial's own semantics and
+    /// allowing callers to call Init safely on directories that may already be initialised.
+    /// </summary>
+    public void Init(string repository)
+    {
+        if (Directory.Exists(Path.Combine(repository, ".hg")))
+            return;
+        Hg.Default.Init(repository);
+    }
 
     public void Update(string repository) => Hg.Default.Update(repository);
 

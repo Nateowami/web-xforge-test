@@ -131,13 +131,20 @@ public class ParatextService : DisposableBase, IParatextService
                 HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
             _dblServerUri = "https://pt-resources-adapter.staging.library.bible/";
             _registryServerUri = "https://registry-dev.paratext.org";
-            _registryClient.BaseAddress = new Uri(_registryServerUri);
             _sendReceiveServerUri = InternetAccess.uriDevelopment;
         }
-        else
+
+        // When UseLocalAuth is active, a local dev Paratext stub is hosted within this process at /api8/...
+        // and we redirect both the registry and S/R URIs to the local server so no real Paratext servers are
+        // needed. The LocalRegistryServerUri is typically "http://localhost:5000" (the app's own HTTP URL).
+        string? localRegistryUri = paratextOptions.Value.LocalRegistryServerUri;
+        if (!string.IsNullOrEmpty(localRegistryUri))
         {
-            _registryClient.BaseAddress = new Uri(_registryServerUri);
+            _registryServerUri = localRegistryUri;
+            _sendReceiveServerUri = localRegistryUri;
         }
+
+        _registryClient.BaseAddress = new Uri(_registryServerUri);
         _registryClient.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/json"));
         ScrTextCollection = new LazyScrTextCollection();
 

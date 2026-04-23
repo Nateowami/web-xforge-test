@@ -1,4 +1,5 @@
 #nullable disable warnings
+using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
@@ -62,13 +63,23 @@ public class LazyScrTextCollection : IScrTextCollection
         string name = GetNameFromSettings(settingsFile);
         if (name != null)
         {
-            ScrText scrText = CreateScrText(
-                ptUsername,
-                new ProjectName() { ProjectPath = fullProjectPath, ShortName = name }
-            );
+            try
+            {
+                ScrText scrText = CreateScrText(
+                    ptUsername,
+                    new ProjectName() { ProjectPath = fullProjectPath, ShortName = name }
+                );
 
-            // return the object
-            return scrText;
+                // return the object
+                return scrText;
+            }
+            catch (ArgumentException)
+            {
+                // Settings.xml contains an invalid value (e.g., a Guid written with UUID dashes by
+                // an older version of the local-dev stub). Return null so the caller treats the repo
+                // as not-yet-cloned and triggers a fresh clone, which will produce a valid Settings.xml.
+                return null;
+            }
         }
 
         return null;
