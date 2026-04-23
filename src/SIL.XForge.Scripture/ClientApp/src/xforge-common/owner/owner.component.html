@@ -9,7 +9,11 @@
     <div class="avatar"><app-avatar [user]="owner" [size]="32"></app-avatar></div>
   }
   <div class="owner-text">
-    <div class="name">{{ name }}</div>
+    @if (canViewUserDetails) {
+      <button class="name" (click)="openUserDetails()">{{ name }}</button>
+    } @else {
+      <div class="name">{{ name }}</div>
+    }
     @if (dateTime) {
       <div class="date-time">{{ i18n.formatDate(date, { showTimeZone }) }}</div>
     }

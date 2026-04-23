@@ -2,17 +2,26 @@ import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { Component, DebugElement, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { MatDialogRef } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
 import { TranslocoService } from '@ngneat/transloco';
-import { UserProfile } from 'realtime-server/lib/esm/common/models/user';
-import { createTestUserProfile } from 'realtime-server/lib/esm/common/models/user-test-data';
-import { anything, instance, mock, when } from 'ts-mockito';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
+import { User, UserProfile } from 'realtime-server/lib/esm/common/models/user';
+import { createTestUser, createTestUserProfile } from 'realtime-server/lib/esm/common/models/user-test-data';
+import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { AuthService } from 'xforge-common/auth.service';
+import { DialogService } from 'xforge-common/dialog.service';
+import { UserDoc } from 'xforge-common/models/user-doc';
 import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { SF_TYPE_REGISTRY } from '../../app/core/models/sf-type-registry';
+import { SaUserDetailsDialogComponent } from '../system-administration/sa-user-details-dialog.component';
 import { isSafari } from '../utils';
 import { OwnerComponent } from './owner.component';
+
+const mockedAuthService = mock(AuthService);
+const mockedDialogService = mock(DialogService);
 
 describe('OwnerComponent', () => {
   it('should create', () => {
@@ -76,6 +85,54 @@ describe('OwnerComponent', () => {
     expect(env.layout.classes['layout-stacked']).toBeUndefined();
     expect(env.layout.classes['layout-inline']).toBe(true);
   });
+
+  it('shows name as plain text when user cannot view user details', fakeAsync(() => {
+    const template = '<app-owner ownerRef="user01"></app-owner>';
+    const env = new TestEnvironment(template, []);
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.nameButton).toBeNull();
+    expect(env.nameDiv).not.toBeNull();
+  }));
+
+  it('shows name as clickable button when system admin can view user details', fakeAsync(() => {
+    const template = '<app-owner ownerRef="user01"></app-owner>';
+    const env = new TestEnvironment(template, [SystemRole.SystemAdmin]);
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.nameButton).not.toBeNull();
+    expect(env.nameDiv).toBeNull();
+  }));
+
+  it('opens user details dialog when system admin clicks the name', fakeAsync(() => {
+    const template = '<app-owner ownerRef="user01"></app-owner>';
+    const env = new TestEnvironment(template, [SystemRole.SystemAdmin]);
+    tick();
+    env.fixture.detectChanges();
+
+    // SUT
+    env.nameButton.nativeElement.click();
+    tick();
+    env.fixture.detectChanges();
+
+    verify(mockedDialogService.openMatDialog(SaUserDetailsDialogComponent, anything())).once();
+  }));
+
+  it('opens user details dialog when serval admin clicks the name', fakeAsync(() => {
+    const template = '<app-owner ownerRef="user01"></app-owner>';
+    const env = new TestEnvironment(template, [SystemRole.ServalAdmin]);
+    tick();
+    env.fixture.detectChanges();
+
+    // SUT
+    env.nameButton.nativeElement.click();
+    tick();
+    env.fixture.detectChanges();
+
+    verify(mockedDialogService.openMatDialog(SaUserDetailsDialogComponent, anything())).once();
+  }));
 });
 
 @Component({
@@ -91,15 +148,21 @@ class TestEnvironment {
   readonly fixture: ComponentFixture<HostComponent>;
 
   readonly mockedTranslocoService = mock(TranslocoService);
+  readonly mockedDialogRef = mock<MatDialogRef<SaUserDetailsDialogComponent>>(MatDialogRef);
 
   private readonly realtimeService: TestRealtimeService;
 
-  constructor(template: string) {
+  constructor(template: string, currentUserRoles: SystemRole[] = []) {
+    when(mockedAuthService.currentUserRoles).thenReturn(currentUserRoles);
+    when(mockedDialogService.openMatDialog(anything(), anything())).thenReturn(instance(this.mockedDialogRef));
+
     TestBed.configureTestingModule({
       imports: [OwnerComponent, HostComponent],
       providers: [
         provideTestRealtime(SF_TYPE_REGISTRY),
         { provide: TranslocoService, useFactory: () => instance(this.mockedTranslocoService) },
+        { provide: AuthService, useValue: instance(mockedAuthService) },
+        { provide: DialogService, useValue: instance(mockedDialogService) },
         provideHttpClient(withInterceptorsFromDi()),
         provideHttpClientTesting()
       ]
@@ -110,6 +173,10 @@ class TestEnvironment {
     this.realtimeService.addSnapshot<UserProfile>(UserProfileDoc.COLLECTION, {
       id: 'user01',
       data: createTestUserProfile({ displayName: 'User 01' })
+    });
+    this.realtimeService.addSnapshot<User>(UserDoc.COLLECTION, {
+      id: 'user01',
+      data: createTestUser({ displayName: 'User 01', email: 'user01@example.com' }, 1)
     });
     when(this.mockedTranslocoService.translate<string>(anything())).thenCall(
       (translationStringKey: string) => translationStringKey
@@ -132,5 +199,13 @@ class TestEnvironment {
 
   get avatar(): DebugElement {
     return this.fixture.debugElement.query(By.css('.avatar'));
+  }
+
+  get nameButton(): DebugElement {
+    return this.fixture.debugElement.query(By.css('button.name'));
+  }
+
+  get nameDiv(): DebugElement {
+    return this.fixture.debugElement.query(By.css('div.name'));
   }
 }

@@ -17,37 +17,21 @@ UserDetailsDialog.args = {
     user: {
       displayName: 'Billy T James',
       name: 'William T James',
-      email: 'user01@example.com',
-      emailVerified: true
+      email: 'user01@example.com'
     }
   }
 };
 
-export const UserDetailsDialogEmailUnverified = matDialogStory(SaUserDetailsDialogComponent, {
+export const UserDetailsDialogSameDisplayAndFullName = matDialogStory(SaUserDetailsDialogComponent, {
   imports: [AvatarComponent]
 });
 
-UserDetailsDialogEmailUnverified.args = {
+UserDetailsDialogSameDisplayAndFullName.args = {
   data: {
     user: {
       displayName: 'Jane Smith',
       name: 'Jane Smith',
-      email: 'jane@example.com',
-      emailVerified: false
-    }
-  }
-};
-
-export const UserDetailsDialogEmailVerificationUnknown = matDialogStory(SaUserDetailsDialogComponent, {
-  imports: [AvatarComponent]
-});
-
-UserDetailsDialogEmailVerificationUnknown.args = {
-  data: {
-    user: {
-      displayName: 'Alex Brown',
-      name: 'Alex Brown',
-      email: 'alex@example.com'
+      email: 'jane@example.com'
     }
   }
 };

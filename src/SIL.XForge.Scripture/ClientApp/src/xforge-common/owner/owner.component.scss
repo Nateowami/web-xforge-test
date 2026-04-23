@@ -35,3 +35,18 @@
     white-space: nowrap;
   }
 }
+
+// When the name is rendered as a button (for admins who can view user details), style it to look like plain text.
+button.name {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+  text-align: inherit;
+
+  &:hover {
+    text-decoration: underline;
+  }
+}

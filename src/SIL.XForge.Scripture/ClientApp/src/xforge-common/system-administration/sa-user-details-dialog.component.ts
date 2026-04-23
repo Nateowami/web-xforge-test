@@ -8,7 +8,6 @@ import {
   MatDialogContent,
   MatDialogTitle
 } from '@angular/material/dialog';
-import { MatIcon } from '@angular/material/icon';
 import { User } from 'realtime-server/lib/esm/common/models/user';
 import { AvatarComponent } from '../avatar/avatar.component';
 
@@ -17,11 +16,11 @@ export interface SaUserDetailsDialogData {
   user: User;
 }
 
-/** Dialog that displays details about a user, including their email and email verification status. */
+/** Dialog that displays details about a user, including their email address. */
 @Component({
   templateUrl: './sa-user-details-dialog.component.html',
   styleUrls: ['./sa-user-details-dialog.component.scss'],
-  imports: [MatDialogTitle, CdkScrollable, MatDialogContent, AvatarComponent, MatIcon, MatDialogActions, MatButton, MatDialogClose]
+  imports: [MatDialogTitle, CdkScrollable, MatDialogContent, AvatarComponent, MatDialogActions, MatButton, MatDialogClose]
 })
 export class SaUserDetailsDialogComponent {
   constructor(@Inject(MAT_DIALOG_DATA) public readonly data: SaUserDetailsDialogData) {}

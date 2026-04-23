@@ -20,23 +20,3 @@ mat-dialog-content {
   color: sfColors.$lighterTextColor;
   font-size: 0.85em;
 }
-
-.email-row {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.verified-icon {
-  color: sfColors.$greenDark;
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
-}
-
-.unverified-icon {
-  color: sfColors.$red;
-  font-size: 18px;
-  width: 18px;
-  height: 18px;
-}
