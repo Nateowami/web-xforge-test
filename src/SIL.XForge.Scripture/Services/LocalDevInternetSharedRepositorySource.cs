@@ -65,10 +65,14 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
 
             string userRoleXml = BuildUserRoleXml(project);
             var permManager = new PermissionManager(userRoleXml);
-            yield return new SharedRepository
+
+            // A non-null, non-limited ProjectLicense is required so that
+            // InternetSharedRepositorySource.SendReceiveAllowedForProject returns true for our
+            // locally-created project (which has no embedded license in ProjectUsers.xml).
+            ProjectLicense license = GetLicenseForUserProject(project.ParatextId);
+
+            yield return new SharedRepository(project.ShortName, HexId.FromStr(project.ParatextId), RepositoryType.Shared, license)
             {
-                SendReceiveId = HexId.FromStr(project.ParatextId),
-                ScrTextName = project.ShortName,
                 SourceUsers = permManager,
             };
         }
@@ -153,6 +157,18 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
     /// No-op for local dev: unlocking remote repository is not required.
     /// </summary>
     public override void UnlockRemoteRepository(SharedRepository sharedRepo) { }
+
+    /// <summary>
+    /// Local dev always allows send/receive — there is no real Paratext licensing in local dev mode.
+    /// The base <see cref="InternetSharedRepositorySource"/> implementation checks the <see cref="ProjectLicense"/>
+    /// attached to the <see cref="SharedRepository"/>, which would fail for locally-constructed projects
+    /// that have no genuine Paratext license.
+    /// </summary>
+    public override bool SendReceiveAllowedForProject(
+        ScrText scrText,
+        bool allowExpiredOrRevoked,
+        ProjectLicense license = null
+    ) => true;
 
     // Push is inherited from InternetSharedRepositorySource but we override it here to go to our local server repo.
     /// <summary>

@@ -113,6 +113,96 @@ public class LocalDevInternetSharedRepositorySourceTests
         Assert.That(hexId.Id, Does.Not.Contain("-"));
     }
 
+    /// <summary>
+    /// Verifies that <see cref="LocalDevInternetSharedRepositorySource.GetRepositories"/> returns
+    /// a <see cref="SharedRepository"/> with a non-null <see cref="SharedRepository.License"/>.
+    /// This is required so that <c>InternetSharedRepositorySource.SendReceiveAllowedForProject</c>
+    /// receives a non-null license even in the case where our override is not called
+    /// (e.g., in the post-SR review loop in <c>SharingLogic.ShareChanges</c>).
+    /// </summary>
+    [Test]
+    public void GetRepositories_License_IsNotNull()
+    {
+        var config = new LocalDevParatextOptions
+        {
+            Projects =
+            [
+                new LocalDevParatextProject
+                {
+                    ParatextId = ProjectHexId,
+                    ShortName = ShortName,
+                    FullName = FullName,
+                    LanguageIsoCode = LanguageIsoCode,
+                    UserRoles = new Dictionary<string, string> { ["DevAdmin"] = "pt_administrator" },
+                },
+            ],
+        };
+        BypassParatextInternetAccessCheck();
+
+        var source = new LocalDevInternetSharedRepositorySource(
+            "DevAdmin",
+            config,
+            new HgWrapper(),
+            Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())
+        );
+
+        // SUT
+        SharedRepository repo = source.GetRepositories().Single();
+
+        Assert.That(
+            repo.License,
+            Is.Not.Null,
+            "SharedRepository.License must be non-null"
+        );
+    }
+
+    /// <summary>
+    /// Verifies that <see cref="LocalDevInternetSharedRepositorySource.SendReceiveAllowedForProject"/>
+    /// always returns <c>true</c>, bypassing the license check that the base
+    /// <see cref="InternetSharedRepositorySource"/> performs. This is required so that
+    /// <c>SharingLogic.Share1Project</c> does not return <c>Failed</c> immediately because our
+    /// locally-constructed <c>ScrText</c> has no genuine Paratext license embedded in
+    /// <c>ProjectUsers.xml</c>.
+    /// </summary>
+    [Test]
+    public void SendReceiveAllowedForProject_AlwaysReturnsTrue()
+    {
+        var config = new LocalDevParatextOptions
+        {
+            Projects =
+            [
+                new LocalDevParatextProject
+                {
+                    ParatextId = ProjectHexId,
+                    ShortName = ShortName,
+                    FullName = FullName,
+                    LanguageIsoCode = LanguageIsoCode,
+                    UserRoles = new Dictionary<string, string> { ["DevAdmin"] = "pt_administrator" },
+                },
+            ],
+        };
+        BypassParatextInternetAccessCheck();
+
+        var source = new LocalDevInternetSharedRepositorySource(
+            "DevAdmin",
+            config,
+            new HgWrapper(),
+            Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())
+        );
+
+        // SUT — test all combinations of allowExpiredOrRevoked and null/non-null license
+        Assert.That(
+            source.SendReceiveAllowedForProject(null!, allowExpiredOrRevoked: false, license: null),
+            Is.True,
+            "SendReceiveAllowedForProject must return true for local dev (null license)"
+        );
+        Assert.That(
+            source.SendReceiveAllowedForProject(null!, allowExpiredOrRevoked: false, license: source.GetLicenseForUserProject(ProjectHexId)),
+            Is.True,
+            "SendReceiveAllowedForProject must return true for local dev (non-null license)"
+        );
+    }
+
     // ─── E2E integration test using real Mercurial ───────────────────────────
 
     /// <summary>
