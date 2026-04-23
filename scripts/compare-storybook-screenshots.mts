@@ -36,6 +36,9 @@ import { Buffer } from 'node:buffer';
 import { join } from 'node:path';
 import { PNG } from 'npm:pngjs@7.0.0';
 
+/** Default per-channel pixel difference threshold. Higher values tolerate minor rendering variance. */
+const DEFAULT_THRESHOLD = 8;
+
 /** Decoded PNG image with raw RGBA pixel data. */
 interface DecodedPng {
   width: number;
@@ -60,23 +63,18 @@ interface Metadata {
   maxDiffPixels: Record<string, number>;
 }
 
-/** Reads metadata.json from a screenshot directory, returning empty defaults if absent or invalid. */
+/** Reads metadata.json from a screenshot directory. Throws if the file is absent or malformed. */
 function readMetadata(dir: string): Metadata {
   const filePath = join(dir, 'metadata.json');
-  try {
-    const text = Deno.readTextFileSync(filePath);
-    const data = JSON.parse(text);
-    return {
-      skipped: Array.isArray(data.skipped) ? data.skipped : [],
-      maxDiffPixels:
-        data.maxDiffPixels != null && typeof data.maxDiffPixels === 'object' && !Array.isArray(data.maxDiffPixels)
-          ? data.maxDiffPixels
-          : {}
-    };
-  } catch {
-    // Missing or malformed metadata — treat as empty (no stories skipped, no per-story thresholds).
-    return { skipped: [], maxDiffPixels: {} };
-  }
+  const text = Deno.readTextFileSync(filePath);
+  const data = JSON.parse(text);
+  return {
+    skipped: Array.isArray(data.skipped) ? data.skipped : [],
+    maxDiffPixels:
+      data.maxDiffPixels != null && typeof data.maxDiffPixels === 'object' && !Array.isArray(data.maxDiffPixels)
+        ? data.maxDiffPixels
+        : {}
+  };
 }
 
 /** Decodes a PNG file synchronously to raw RGBA pixel data. */
@@ -115,7 +113,7 @@ function countDifferingPixels(a: DecodedPng, b: DecodedPng, threshold: number): 
 function main(): void {
   // Parse positional arguments and named flags.
   const positional: string[] = [];
-  let threshold: number = 8; // Default per-channel threshold; higher values tolerate minor rendering variance.
+  let threshold: number = DEFAULT_THRESHOLD;
   let prUrl: string | undefined;
 
   for (let i = 0; i < Deno.args.length; i++) {
