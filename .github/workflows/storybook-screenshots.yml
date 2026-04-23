@@ -217,13 +217,21 @@ jobs:
         id: compare
         env:
           PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
         run: |
           set -euo pipefail
           ARGS=(screenshots-base screenshots-branch screenshots-deploy)
-          # Pass the PR URL so the diff page can link back to the PR.
-          # PR_URL is empty for non-PR events (merge groups, manual dispatches).
+          # Pass PR metadata so the diff page can link back to the PR with its title and number.
+          # These variables are empty for non-PR events (merge groups, manual dispatches).
           if [ -n "${PR_URL-}" ]; then
             ARGS+=(--pr-url "$PR_URL")
+          fi
+          if [ -n "${PR_NUMBER-}" ]; then
+            ARGS+=(--pr-number "$PR_NUMBER")
+          fi
+          if [ -n "${PR_TITLE-}" ]; then
+            ARGS+=(--pr-title "$PR_TITLE")
           fi
           scripts/compare-storybook-screenshots.mts "${ARGS[@]}"
           # Export the total number of visual changes for use in the PR comment step.

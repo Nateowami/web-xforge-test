@@ -388,6 +388,9 @@ fetch('screenshots.json')
     if (d.prUrl != null) {
       const link = document.getElementById('pr-link');
       link.href = d.prUrl;
+      if (d.prTitle != null && d.prNumber != null) {
+        link.textContent = `${d.prTitle} #${d.prNumber}`;
+      }
       link.hidden = false;
     }
     renderSummary();

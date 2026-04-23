@@ -31,6 +31,8 @@
 //                   channel differs by at most N are treated as identical. Higher values reduce
 //                   false positives from font hinting, sub-pixel rendering, or lossy compression.
 //   --pr-url URL    GitHub PR URL to link back from the diff page
+//   --pr-number N   GitHub PR number displayed on the diff page
+//   --pr-title STR  GitHub PR title displayed on the diff page
 
 import { Buffer } from 'node:buffer';
 import { join } from 'node:path';
@@ -115,6 +117,8 @@ function main(): void {
   const positional: string[] = [];
   let threshold: number = DEFAULT_THRESHOLD;
   let prUrl: string | undefined;
+  let prNumber: number | undefined;
+  let prTitle: string | undefined;
 
   for (let i = 0; i < Deno.args.length; i++) {
     if (Deno.args[i] === '--threshold' && i + 1 < Deno.args.length) {
@@ -128,6 +132,12 @@ function main(): void {
       const raw = Deno.args[++i];
       // Treat an empty or whitespace-only string as absent (e.g. when run outside of a PR context).
       prUrl = raw.trim().length > 0 ? raw.trim() : undefined;
+    } else if (Deno.args[i] === '--pr-number' && i + 1 < Deno.args.length) {
+      const parsed = parseInt(Deno.args[++i], 10);
+      prNumber = isNaN(parsed) ? undefined : parsed;
+    } else if (Deno.args[i] === '--pr-title' && i + 1 < Deno.args.length) {
+      const raw = Deno.args[++i];
+      prTitle = raw.trim().length > 0 ? raw.trim() : undefined;
     } else {
       positional.push(Deno.args[i]);
     }
@@ -136,7 +146,9 @@ function main(): void {
   const [baseDir, branchDir, deployDir] = positional;
 
   if (baseDir == null || branchDir == null || deployDir == null) {
-    console.error(`Usage: ${import.meta.filename} <base-dir> <branch-dir> <deploy-dir> [--threshold N] [--pr-url URL]`);
+    console.error(
+      `Usage: ${import.meta.filename} <base-dir> <branch-dir> <deploy-dir> [--threshold N] [--pr-url URL] [--pr-number N] [--pr-title STR]`
+    );
     Deno.exit(1);
   }
 
@@ -267,6 +279,8 @@ function main(): void {
   // Write screenshots.json so that index.html knows which stories to display.
   const screenshotsJson = {
     prUrl: prUrl ?? null,
+    prNumber: prNumber ?? null,
+    prTitle: prTitle ?? null,
     threshold,
     changed: changedStories.map(([filename, diffPixels]) => ({ filename, diffPixels })),
     removed: removedStories,
