@@ -206,6 +206,48 @@ public class LocalDevInternetSharedRepositorySourceTests
     // ─── E2E integration test using real Mercurial ───────────────────────────
 
     /// <summary>
+    /// Verifies that <see cref="LocalDevInternetSharedRepositorySource.LockRemoteRepository"/>
+    /// returns <c>true</c> and sets <c>lockedByUser</c> to <c>null</c> without attempting any
+    /// network call. The base <see cref="InternetSharedRepositorySource"/> implementation calls
+    /// <c>lockrepo</c> on the PT S/R REST client, which throws a
+    /// <c>CannotConnectException: Resource temporarily unavailable (localhostlockrepo:80)</c>
+    /// since there is no PT S/R server in local dev mode.
+    /// </summary>
+    [Test]
+    public void LockRemoteRepository_ReturnsTrueWithNullUser()
+    {
+        var config = new LocalDevParatextOptions
+        {
+            Projects =
+            [
+                new LocalDevParatextProject
+                {
+                    ParatextId = ProjectHexId,
+                    ShortName = ShortName,
+                    FullName = FullName,
+                    LanguageIsoCode = LanguageIsoCode,
+                    UserRoles = new Dictionary<string, string> { ["DevAdmin"] = "pt_administrator" },
+                },
+            ],
+        };
+        BypassParatextInternetAccessCheck();
+
+        var source = new LocalDevInternetSharedRepositorySource(
+            "DevAdmin",
+            config,
+            new HgWrapper(),
+            Path.Combine(Path.GetTempPath(), Path.GetRandomFileName())
+        );
+        var repo = source.GetRepositories().Single();
+
+        // SUT
+        bool result = source.LockRemoteRepository(repo, out string lockedByUser);
+
+        Assert.That(result, Is.True, "LockRemoteRepository must succeed in local dev mode");
+        Assert.That(lockedByUser, Is.Null, "lockedByUser must be null when lock succeeds");
+    }
+
+    /// <summary>
     /// End-to-end integration test: simulates the complete Paratext sync flow using real Mercurial.
     /// This test replicates the exact crash path:
     /// <list type="number">

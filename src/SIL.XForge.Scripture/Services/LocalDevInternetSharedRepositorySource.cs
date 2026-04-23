@@ -154,6 +154,17 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
     }
 
     /// <summary>
+    /// In local dev there is no real Paratext send/receive server, so locking is always successful.
+    /// The base <see cref="InternetSharedRepositorySource"/> implementation calls <c>lockrepo</c> on the
+    /// PT S/R REST client, which would throw <c>CannotConnectException</c> since there is no server.
+    /// </summary>
+    public override bool LockRemoteRepository(SharedRepository sharedRepo, out string lockedByUser)
+    {
+        lockedByUser = null;
+        return true;
+    }
+
+    /// <summary>
     /// No-op for local dev: unlocking remote repository is not required.
     /// </summary>
     public override void UnlockRemoteRepository(SharedRepository sharedRepo) { }
