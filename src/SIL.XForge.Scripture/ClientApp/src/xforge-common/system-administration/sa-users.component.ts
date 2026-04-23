@@ -90,7 +90,7 @@ export class SaUsersComponent extends DataLoadingComponent implements OnInit {
 
   /** Whether the current user is a serval admin or system admin, and may view user details. */
   get canViewUserDetails(): boolean {
-    const roles = this.authService.currentUserRoles;
+    const roles: SystemRole[] = this.authService.currentUserRoles;
     return roles.includes(SystemRole.ServalAdmin) || roles.includes(SystemRole.SystemAdmin);
   }
 
