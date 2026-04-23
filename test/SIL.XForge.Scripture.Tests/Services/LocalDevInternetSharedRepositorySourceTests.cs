@@ -500,6 +500,97 @@ public class LocalDevInternetSharedRepositorySourceTests
         }
     }
 
+    /// <summary>
+    /// Verifies that <see cref="LocalDevInternetSharedRepositorySource.Pull"/> includes the default
+    /// Scripture book files (Matthew and Jonah, World English Bible, public domain) in the initial
+    /// commit so that the dev project has realistic content after sync.
+    /// </summary>
+    [Test]
+    public void Pull_WithRealMercurial_DefaultBookFilesAreIncludedInRepo()
+    {
+        string hgExe = "/usr/bin/hg";
+        if (!File.Exists(hgExe))
+            Assert.Ignore("Mercurial not found at /usr/bin/hg — skipping integration test.");
+
+        string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+        string mergePy = Path.Combine(assemblyDir, "ParatextMerge.py");
+        if (!File.Exists(mergePy))
+            Assert.Ignore($"ParatextMerge.py not found at {mergePy} — skipping integration test.");
+
+        BypassParatextInternetAccessCheck();
+
+        string tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            string serverReposDir = Path.Combine(tempDir, "server-repos");
+            string clientRepoPath = Path.Combine(tempDir, "sync", ProjectHexId, "target");
+            Directory.CreateDirectory(serverReposDir);
+            Directory.CreateDirectory(clientRepoPath);
+
+            var realHgWrapper = new HgWrapper();
+            realHgWrapper.SetDefault(new Hg(hgExe, mergePy, assemblyDir));
+            realHgWrapper.Init(clientRepoPath);
+
+            var config = new LocalDevParatextOptions
+            {
+                Projects =
+                [
+                    new LocalDevParatextProject
+                    {
+                        ParatextId = ProjectHexId,
+                        ShortName = ShortName,
+                        FullName = FullName,
+                        LanguageIsoCode = LanguageIsoCode,
+                        UserRoles = new Dictionary<string, string> { ["DevAdmin"] = "pt_administrator" },
+                    },
+                ],
+            };
+
+            var source = new LocalDevInternetSharedRepositorySource(
+                "DevAdmin",
+                config,
+                realHgWrapper,
+                serverReposDir
+            );
+            SharedRepository repo = source.GetRepositories().Single();
+
+            // SUT
+            source.Pull(clientRepoPath, repo);
+            realHgWrapper.Update(clientRepoPath);
+
+            // Matthew (40MAT.SFM) and Jonah (32JON.SFM) must be present with realistic USFM content.
+            string matthewPath = Path.Combine(clientRepoPath, "40MAT.SFM");
+            string jonahPath = Path.Combine(clientRepoPath, "32JON.SFM");
+
+            Assert.That(File.Exists(matthewPath), Is.True, "40MAT.SFM (Matthew) must be present after Pull");
+            Assert.That(File.Exists(jonahPath), Is.True, "32JON.SFM (Jonah) must be present after Pull");
+
+            string matthewContent = File.ReadAllText(matthewPath, Encoding.UTF8);
+            string jonahContent = File.ReadAllText(jonahPath, Encoding.UTF8);
+
+            // The \id line should identify the book and carry the configured project name.
+            Assert.That(matthewContent, Does.StartWith(@"\id MAT - " + FullName));
+            Assert.That(jonahContent, Does.StartWith(@"\id JON - " + FullName));
+
+            // The files must contain multiple chapters.
+            Assert.That(
+                matthewContent.Split(@"\c ").Length - 1,
+                Is.GreaterThanOrEqualTo(5),
+                "40MAT.SFM must contain at least 5 chapters"
+            );
+            Assert.That(
+                jonahContent.Split(@"\c ").Length - 1,
+                Is.EqualTo(4),
+                "32JON.SFM must contain exactly 4 chapters (complete book)"
+            );
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     // ─── Stale-repo migration tests (GetOrCreateServerRepo + ResetClientRepoIfStale) ──────────
 
     /// <summary>

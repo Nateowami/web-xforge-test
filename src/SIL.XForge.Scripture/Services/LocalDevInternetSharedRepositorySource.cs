@@ -3,6 +3,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using Newtonsoft.Json.Linq;
 using Paratext.Data;
@@ -309,6 +310,9 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
         string usersXml = BuildProjectUsersXml(project);
         File.WriteAllText(Path.Combine(serverRepoDir, "ProjectUsers.xml"), usersXml, Encoding.UTF8);
 
+        // Write the default Scripture book files so the project has realistic content for testing.
+        WriteDefaultBookFiles(serverRepoDir, fullName);
+
         // Initialize the Hg repo, add all files, and commit.
         _hgWrapper.Init(serverRepoDir);
         HgWrapper.RunCommand(serverRepoDir, "add");
@@ -316,6 +320,29 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
 
         // Mark the initial commit as public so clients know it has been "synced" to the server.
         _hgWrapper.MarkSharedChangeSetsPublic(serverRepoDir);
+    }
+
+    /// <summary>
+    /// Writes the default Scripture book files (World English Bible, public domain) embedded in this
+    /// assembly into <paramref name="serverRepoDir"/>. The <c>\id</c> line in each file contains a
+    /// placeholder project name ("Dev PT Project 01") which is replaced with
+    /// <paramref name="fullName"/> so the file accurately describes the configured project.
+    /// </summary>
+    private static void WriteDefaultBookFiles(string serverRepoDir, string fullName)
+    {
+        Assembly assembly = Assembly.GetExecutingAssembly();
+        const string resourcePrefix = "SIL.XForge.Scripture.Resources.LocalDev.";
+        foreach (string resourceName in assembly.GetManifestResourceNames())
+        {
+            if (!resourceName.StartsWith(resourcePrefix, StringComparison.Ordinal))
+                continue;
+
+            string bookFileName = resourceName[resourcePrefix.Length..];
+            using Stream stream = assembly.GetManifestResourceStream(resourceName);
+            using var reader = new StreamReader(stream, Encoding.UTF8);
+            string content = reader.ReadToEnd().Replace("Dev PT Project 01", fullName, StringComparison.Ordinal);
+            File.WriteAllText(Path.Combine(serverRepoDir, bookFileName), content, Encoding.UTF8);
+        }
     }
 
     /// <summary>
