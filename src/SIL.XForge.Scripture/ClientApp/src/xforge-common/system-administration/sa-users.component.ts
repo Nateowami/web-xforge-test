@@ -7,9 +7,11 @@ import { MatInput } from '@angular/material/input';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatCell, MatCellDef, MatColumnDef, MatRow, MatRowDef, MatTable } from '@angular/material/table';
 import { Project } from 'realtime-server/lib/esm/common/models/project';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { User } from 'realtime-server/lib/esm/common/models/user';
 import { obj } from 'realtime-server/lib/esm/common/utils/obj-path';
 import { BehaviorSubject } from 'rxjs';
+import { AuthService } from 'xforge-common/auth.service';
 import { RealtimeQuery } from 'xforge-common/models/realtime-query';
 import { UserDoc } from 'xforge-common/models/user-doc';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
@@ -24,6 +26,7 @@ import { QueryParameters } from '../query-parameters';
 import { RouterLinkDirective } from '../router-link.directive';
 import { UserService } from '../user.service';
 import { SaDeleteDialogComponent, SaDeleteUserDialogData } from './sa-delete-dialog.component';
+import { SaUserDetailsDialogComponent, SaUserDetailsDialogData } from './sa-user-details-dialog.component';
 
 interface ProjectInfo {
   id: string;
@@ -75,6 +78,7 @@ export class SaUsersComponent extends DataLoadingComponent implements OnInit {
     noticeService: NoticeService,
     private readonly userService: UserService,
     private readonly projectService: ProjectService,
+    private readonly authService: AuthService,
     private destroyRef: DestroyRef
   ) {
     super(noticeService, 'SaUsersComponent');
@@ -82,6 +86,12 @@ export class SaUsersComponent extends DataLoadingComponent implements OnInit {
 
   get currentUserId(): string {
     return this.userService.currentUserId;
+  }
+
+  /** Whether the current user is a serval admin or system admin, and may view user details. */
+  get canViewUserDetails(): boolean {
+    const roles = this.authService.currentUserRoles;
+    return roles.includes(SystemRole.ServalAdmin) || roles.includes(SystemRole.SystemAdmin);
   }
 
   ngOnInit(): void {
@@ -152,6 +162,15 @@ export class SaUsersComponent extends DataLoadingComponent implements OnInit {
           void this.deleteUser(userId);
         }
       });
+  }
+
+  /** Open the user details dialog for the given user. Only callable by serval admins and system admins. */
+  openUserDetailsDialog(user: User): void {
+    const dialogConfig: MatDialogConfig<SaUserDetailsDialogData> = {
+      data: { user },
+      minWidth: '320px'
+    };
+    this.dialogService.openMatDialog(SaUserDetailsDialogComponent, dialogConfig);
   }
 
   /** Get project docs for each project associated with each user, keyed by project id. */

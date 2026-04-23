@@ -1,0 +1,23 @@
+<h2 mat-dialog-title>User Details</h2>
+<mat-dialog-content>
+  <div class="user-info">
+    <app-avatar [user]="data.user" [size]="48"></app-avatar>
+    <div class="user-details">
+      <strong>{{ data.user.displayName }}</strong>
+      @if (data.user.name !== data.user.displayName && data.user.name !== data.user.email) {
+        <div class="name-label">{{ data.user.name }}</div>
+      }
+      <div class="email-row">
+        <span>{{ data.user.email }}</span>
+        @if (data.user.emailVerified === true) {
+          <mat-icon class="verified-icon" title="Email verified">check_circle</mat-icon>
+        } @else if (data.user.emailVerified === false) {
+          <mat-icon class="unverified-icon" title="Email not verified">cancel</mat-icon>
+        }
+      </div>
+    </div>
+  </div>
+</mat-dialog-content>
+<mat-dialog-actions align="end">
+  <button mat-button mat-dialog-close>Close</button>
+</mat-dialog-actions>

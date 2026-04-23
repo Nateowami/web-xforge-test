@@ -85,6 +85,7 @@ public class UserService : IUserService
                 string avatarUrl = string.IsNullOrWhiteSpace(picture) ? (string)userProfile["picture"] : picture;
                 op.Set(u => u.Name, name);
                 op.Set(u => u.Email, (string)userProfile["email"]);
+                op.Set(u => u.EmailVerified, (bool?)userProfile["email_verified"]);
                 op.Set(u => u.AvatarUrl, avatarUrl);
                 List<string> roles = [];
                 if (userProfile["app_metadata"]?["xf_role"] is JArray)

@@ -50,7 +50,12 @@
           }
         </td>
       </ng-container>
-      <tr mat-row *matRowDef="let userRow; columns: ['avatar', 'name', 'projects', 'remove']"></tr>
+      <tr
+        mat-row
+        *matRowDef="let userRow; columns: ['avatar', 'name', 'projects', 'remove']"
+        [class.clickable-row]="canViewUserDetails"
+        (click)="canViewUserDetails && openUserDetailsDialog(userRow.user)"
+      ></tr>
     </table>
     <mat-paginator
       [pageIndex]="pageIndex"

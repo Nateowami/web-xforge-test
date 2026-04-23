@@ -1,0 +1,40 @@
+mat-dialog-content {
+  min-width: 300px;
+}
+
+.user-info {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.user-details {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.name-label {
+  color: rgba(0, 0, 0, 0.6);
+  font-size: 0.85em;
+}
+
+.email-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.verified-icon {
+  color: green;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.unverified-icon {
+  color: red;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}

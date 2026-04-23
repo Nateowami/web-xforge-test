@@ -49,6 +49,7 @@ export interface UserProfile {
 export interface User extends UserProfile {
   name: string;
   email: string;
+  emailVerified?: boolean;
   paratextId?: string;
   roles: string[];
   isDisplayNameConfirmed: boolean;

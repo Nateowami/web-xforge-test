@@ -7,6 +7,7 @@ import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { escapeRegExp, merge } from 'lodash-es';
 import { Project } from 'realtime-server/lib/esm/common/models/project';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { User } from 'realtime-server/lib/esm/common/models/user';
 import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { obj } from 'realtime-server/lib/esm/common/utils/obj-path';
@@ -14,6 +15,7 @@ import { createTestProject } from 'realtime-server/lib/esm/scriptureforge/models
 import { combineLatest, from, Observable, of } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { AuthService } from 'xforge-common/auth.service';
 import { AvatarComponent } from 'xforge-common/avatar/avatar.component';
 import { FileType } from 'xforge-common/models/file-offline-data';
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
@@ -27,11 +29,13 @@ import { configureTestingModule, emptyHammerLoader, getTestTranslocoModule } fro
 import { TypeRegistry } from '../type-registry';
 import { UserService } from '../user.service';
 import { SaDeleteDialogComponent } from './sa-delete-dialog.component';
+import { SaUserDetailsDialogComponent } from './sa-user-details-dialog.component';
 import { SaUsersComponent } from './sa-users.component';
 
 const mockedMatDialog = mock(MatDialog);
 const mockedUserService = mock(UserService);
 const mockedProjectService: ProjectService = mock(ProjectService);
+const mockedAuthService = mock(AuthService);
 
 describe('SaUsersComponent', () => {
   configureTestingModule(() => ({
@@ -42,6 +46,7 @@ describe('SaUsersComponent', () => {
       { provide: MatDialog, useMock: mockedMatDialog },
       { provide: UserService, useMock: mockedUserService },
       { provide: ProjectService, useMock: mockedProjectService },
+      { provide: AuthService, useMock: mockedAuthService },
       emptyHammerLoader,
       provideHttpClient(withInterceptorsFromDi()),
       provideHttpClientTesting()
@@ -144,6 +149,54 @@ describe('SaUsersComponent', () => {
     // Second page
     expect(env.userRows.length).toEqual(1);
   }));
+
+  it('should open user details dialog when system admin clicks a user row', fakeAsync(() => {
+    const env = new TestEnvironment({ isSystemAdmin: true });
+    env.setupUserData();
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.component.canViewUserDetails).toBe(true);
+
+    // SUT
+    env.clickElement(env.userRows[0]);
+    verify(mockedMatDialog.open(SaUserDetailsDialogComponent, anything())).once();
+
+    expect().nothing();
+  }));
+
+  it('should open user details dialog when serval admin clicks a user row', fakeAsync(() => {
+    const env = new TestEnvironment({ isServalAdmin: true });
+    env.setupUserData();
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.component.canViewUserDetails).toBe(true);
+
+    // SUT
+    env.clickElement(env.userRows[0]);
+    verify(mockedMatDialog.open(SaUserDetailsDialogComponent, anything())).once();
+
+    expect().nothing();
+  }));
+
+  it('should not open user details dialog when regular user clicks a user row', fakeAsync(() => {
+    const env = new TestEnvironment({ isSystemAdmin: false, isServalAdmin: false });
+    env.setupUserData();
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.component.canViewUserDetails).toBe(false);
+
+    // SUT
+    env.clickElement(env.userRows[0]);
+    verify(mockedMatDialog.open(SaUserDetailsDialogComponent, anything())).never();
+
+    expect().nothing();
+  }));
 });
 
 class TestProjectDoc extends ProjectDoc {
@@ -162,7 +215,17 @@ class TestEnvironment {
 
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
 
-  constructor() {
+  constructor({
+    isSystemAdmin = false,
+    isServalAdmin = false
+  }: {
+    isSystemAdmin?: boolean;
+    isServalAdmin?: boolean;
+  } = {}) {
+    const roles: SystemRole[] = [];
+    if (isSystemAdmin) roles.push(SystemRole.SystemAdmin);
+    if (isServalAdmin) roles.push(SystemRole.ServalAdmin);
+    when(mockedAuthService.currentUserRoles).thenReturn(roles);
     when(mockedMatDialog.open(anything(), anything())).thenReturn(instance(this.mockedDeleteUserDialogRef));
     when(mockedUserService.onlineQuery(anything(), anything(), anything())).thenCall(
       (term$: Observable<string>, parameters$: Observable<QueryParameters>, reload$: Observable<void>) =>
