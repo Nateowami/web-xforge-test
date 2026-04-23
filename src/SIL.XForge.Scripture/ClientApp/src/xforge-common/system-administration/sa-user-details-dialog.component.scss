@@ -1,3 +1,5 @@
+@use 'src/variables' as sfColors;
+
 mat-dialog-content {
   min-width: 300px;
 }
@@ -15,7 +17,7 @@ mat-dialog-content {
 }
 
 .name-label {
-  color: rgba(0, 0, 0, 0.6);
+  color: sfColors.$lighterTextColor;
   font-size: 0.85em;
 }
 
@@ -26,14 +28,14 @@ mat-dialog-content {
 }
 
 .verified-icon {
-  color: green;
+  color: sfColors.$greenDark;
   font-size: 18px;
   width: 18px;
   height: 18px;
 }
 
 .unverified-icon {
-  color: red;
+  color: sfColors.$red;
   font-size: 18px;
   width: 18px;
   height: 18px;
