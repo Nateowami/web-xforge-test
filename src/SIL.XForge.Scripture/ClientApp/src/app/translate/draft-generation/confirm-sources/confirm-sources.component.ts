@@ -2,13 +2,11 @@ import { Component, DestroyRef } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 import { TranslocoModule } from '@ngneat/transloco';
 import { TrainingData } from 'realtime-server/lib/esm/scriptureforge/models/training-data';
-import { merge, Subscription } from 'rxjs';
+import { Subscription } from 'rxjs';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { I18nService } from 'xforge-common/i18n.service';
-import { RealtimeQuery } from 'xforge-common/models/realtime-query';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { SelectableProjectWithLanguageCode } from '../../../core/models/selectable-project';
-import { TrainingDataDoc } from '../../../core/models/training-data-doc';
 import { projectLabel } from '../../../shared/utils';
 import {
   DraftSourcesAsSelectableProjectArrays,
@@ -31,8 +29,7 @@ export class ConfirmSourcesComponent {
   };
   protected trainingDataFiles: TrainingData[] = [];
 
-  private trainingDataQuery?: RealtimeQuery<TrainingDataDoc>;
-  private trainingDataQuerySubscription?: Subscription;
+  private trainingDataSubscription?: Subscription;
 
   constructor(
     private readonly destroyRef: DestroyRef,
@@ -40,28 +37,18 @@ export class ConfirmSourcesComponent {
     private readonly activatedProject: ActivatedProjectService,
     private readonly trainingDataService: TrainingDataService
   ) {
-    this.activatedProject.changes$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(async projectDoc => {
+    this.activatedProject.changes$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(projectDoc => {
       if (projectDoc?.data != null) {
         this.draftSources = draftSourcesAsTranslateSourceArraysToDraftSourcesAsSelectableProjectArrays(
           projectToDraftSources(projectDoc?.data)
         );
 
-        this.trainingDataQuery?.dispose();
-        this.trainingDataQuery = await this.trainingDataService.queryTrainingDataAsync(projectDoc.id, this.destroyRef);
-        this.trainingDataQuerySubscription?.unsubscribe();
-
-        this.trainingDataQuerySubscription = merge(
-          this.trainingDataQuery.localChanges$,
-          this.trainingDataQuery.ready$,
-          this.trainingDataQuery.remoteChanges$,
-          this.trainingDataQuery.remoteDocChanges$
-        )
+        this.trainingDataSubscription?.unsubscribe();
+        this.trainingDataSubscription = this.trainingDataService
+          .getActiveTrainingData$(projectDoc.id, this.destroyRef)
           .pipe(quietTakeUntilDestroyed(this.destroyRef, { logWarnings: false }))
-          .subscribe(() => {
-            this.trainingDataFiles =
-              (this.trainingDataQuery?.docs
-                .map(doc => doc.data)
-                .filter(d => d != null && d.deleted !== true) as TrainingData[]) ?? [];
+          .subscribe(activeFiles => {
+            this.trainingDataFiles = activeFiles;
           });
       }
     });

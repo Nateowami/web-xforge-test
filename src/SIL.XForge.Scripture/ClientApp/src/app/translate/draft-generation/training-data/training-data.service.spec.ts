@@ -117,4 +117,64 @@ describe('TrainingDataService', () => {
     expect(trainingData.length).toEqual(2);
     expect(query.docs.length).toEqual(1);
   }));
+
+  describe('getActiveTrainingData$', () => {
+    it('should emit only non-deleted files for the specified project', fakeAsync(() => {
+      realtimeService.addSnapshots<TrainingData>(TrainingDataDoc.COLLECTION, [
+        {
+          id: getTrainingDataId('project01', 'deletedData'),
+          data: {
+            projectRef: 'project01',
+            dataId: 'deletedData',
+            fileUrl: 'project01/deleted.csv',
+            mimeType: 'text/csv',
+            skipRows: 0,
+            title: 'deleted.csv',
+            ownerRef: 'user01',
+            deleted: true
+          }
+        }
+      ]);
+
+      let emittedFiles: TrainingData[] | undefined;
+      const subscription = trainingDataService.getActiveTrainingData$('project01', noopDestroyRef).subscribe(files => {
+        emittedFiles = files;
+      });
+      tick();
+
+      // Should include data01 (project01, not deleted) but exclude data02 (wrong project) and deletedData (deleted)
+      expect(emittedFiles).toBeDefined();
+      expect(emittedFiles!.map(f => f.dataId)).toEqual(['data01']);
+
+      subscription.unsubscribe();
+    }));
+
+    it('should not include files from other projects', fakeAsync(() => {
+      let emittedFiles: TrainingData[] | undefined;
+      const subscription = trainingDataService.getActiveTrainingData$('project02', noopDestroyRef).subscribe(files => {
+        emittedFiles = files;
+      });
+      tick();
+
+      expect(emittedFiles).toBeDefined();
+      expect(emittedFiles!.map(f => f.dataId)).toEqual(['data02']);
+
+      subscription.unsubscribe();
+    }));
+
+    it('should emit an empty array when there are no active files', fakeAsync(() => {
+      let emittedFiles: TrainingData[] | undefined;
+      const subscription = trainingDataService
+        .getActiveTrainingData$('projectWithNoData', noopDestroyRef)
+        .subscribe(files => {
+          emittedFiles = files;
+        });
+      tick();
+
+      expect(emittedFiles).toBeDefined();
+      expect(emittedFiles!.length).toEqual(0);
+
+      subscription.unsubscribe();
+    }));
+  });
 });

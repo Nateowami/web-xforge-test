@@ -1,19 +1,20 @@
 {
   "compilerOptions": {
     "sourceMap": true,
-    // This long path points up from `.../bin/Debug/net10.0/...` to the RealtimeServer source code.
     "sourceRoot": "../../../../../../../../../src/RealtimeServer/common/",
     "declaration": true,
     "target": "es6",
     "moduleResolution": "node",
     "module": "commonjs",
     "downlevelIteration": true,
-    "strict": true,
+    "strict": false,
+    "noImplicitAny": false,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["es2017", "dom"],
     "composite": true,
     "baseUrl": ".",
+    "types": ["node"],
     "resolveJsonModule": true,
     "paths": {
       "*": ["./typings/*"]

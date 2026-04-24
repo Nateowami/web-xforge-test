@@ -47,13 +47,11 @@ import { FileService } from 'xforge-common/file.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { ElementState } from 'xforge-common/models/element-state';
 import { FileType } from 'xforge-common/models/file-offline-data';
-import { RealtimeQuery } from 'xforge-common/models/realtime-query';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { RouterLinkDirective } from 'xforge-common/router-link.directive';
 import { filterNullish, quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { WriteStatusComponent } from 'xforge-common/write-status/write-status.component';
-import { TrainingDataDoc } from '../core/models/training-data-doc';
 import { ParatextService } from '../core/paratext.service';
 import { SFProjectService } from '../core/sf-project.service';
 import { BuildDto } from '../machine-api/build-dto';
@@ -160,7 +158,7 @@ export class ServalProjectComponent extends DataLoadingComponent implements OnIn
   zipSubscription: Subscription | undefined;
   trainingDataFiles: TrainingData[] = [];
 
-  private trainingDataQuery?: RealtimeQuery<TrainingDataDoc>;
+  private trainingDataSubscription?: Subscription;
 
   constructor(
     private readonly activatedProjectService: ActivatedProjectService,
@@ -293,10 +291,13 @@ export class ServalProjectComponent extends DataLoadingComponent implements OnIn
         filter(p => p != null),
         quietTakeUntilDestroyed(this.destroyRef)
       )
-      .subscribe(async projectId => {
-        this.trainingDataQuery?.dispose();
-        this.trainingDataQuery = await this.trainingDataService.queryTrainingDataAsync(projectId, this.destroyRef);
-        this.trainingDataFiles = this.trainingDataQuery.docs.map(doc => doc.data).filter(d => d != null);
+      .subscribe(projectId => {
+        this.trainingDataSubscription?.unsubscribe();
+        this.trainingDataSubscription = this.trainingDataService
+          .getActiveTrainingData$(projectId, this.destroyRef)
+          .subscribe(activeFiles => {
+            this.trainingDataFiles = activeFiles;
+          });
       });
   }
 
