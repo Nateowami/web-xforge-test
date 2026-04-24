@@ -1,12 +1,7 @@
 @use '@angular/material' as mat;
 
 @mixin color($theme) {
-  app-draft-generation-steps {
-    .mat-step-icon {
-      --mat-stepper-header-icon-background-color: var(--mat-stepper-header-selected-state-icon-background-color);
-      --mat-stepper-header-icon-foreground-color: var(--mat-stepper-header-selected-state-icon-foreground-color);
-    }
-  }
+  // Allow Material 3 defaults to apply: current step uses primary colors, others use grey.
 }
 
 @mixin theme($theme) {
