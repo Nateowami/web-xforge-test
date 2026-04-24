@@ -158,8 +158,6 @@ export class ServalProjectComponent extends DataLoadingComponent implements OnIn
   zipSubscription: Subscription | undefined;
   trainingDataFiles: TrainingData[] = [];
 
-  private trainingDataSubscription?: Subscription;
-
   constructor(
     private readonly activatedProjectService: ActivatedProjectService,
     private readonly draftGenerationService: DraftGenerationService,
@@ -289,15 +287,11 @@ export class ServalProjectComponent extends DataLoadingComponent implements OnIn
     this.activatedProjectService.projectId$
       .pipe(
         filter(p => p != null),
-        quietTakeUntilDestroyed(this.destroyRef)
+        quietTakeUntilDestroyed(this.destroyRef),
+        switchMap(projectId => this.trainingDataService.getActiveTrainingData$(projectId, this.destroyRef))
       )
-      .subscribe(projectId => {
-        this.trainingDataSubscription?.unsubscribe();
-        this.trainingDataSubscription = this.trainingDataService
-          .getActiveTrainingData$(projectId, this.destroyRef)
-          .subscribe(activeFiles => {
-            this.trainingDataFiles = activeFiles;
-          });
+      .subscribe(activeFiles => {
+        this.trainingDataFiles = activeFiles;
       });
   }
 
