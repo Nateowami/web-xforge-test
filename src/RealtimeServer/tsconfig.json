@@ -8,15 +8,18 @@
     "moduleResolution": "node",
     "module": "commonjs",
     "downlevelIteration": true,
-    "strict": true,
+    "strict": false,
+    "noImplicitAny": false,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
-    "lib": ["es2017", "dom"],
+    "lib": ["es2017"],
     "composite": true,
     "baseUrl": ".",
     "resolveJsonModule": true,
     "paths": {
       "*": ["./typings/*"]
-    }
+    },
+    "skipLibCheck": true,
+    "types": ["node"]
   }
 }
