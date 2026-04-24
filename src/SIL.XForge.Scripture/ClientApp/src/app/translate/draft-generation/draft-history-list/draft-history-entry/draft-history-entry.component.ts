@@ -24,7 +24,7 @@ import {
 import { RouterLink } from '@angular/router';
 import { TranslocoModule } from '@ngneat/transloco';
 import { TranslocoMarkupModule } from 'ngx-transloco-markup';
-import { take } from 'rxjs';
+
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
 import { I18nService } from 'xforge-common/i18n.service';
@@ -180,7 +180,6 @@ export class DraftHistoryEntryComponent {
       // must be shown even if the files have since been deleted.
       this.trainingDataService
         .getTrainingData$(this.activatedProjectService.projectId, this.destroyRef, { includeDeleted: true })
-        .pipe(take(1))
         .subscribe(allFiles => {
           this._trainingDataFiles = trainingDataFiles
             .map(fileId => allFiles.find(f => f.dataId === fileId))

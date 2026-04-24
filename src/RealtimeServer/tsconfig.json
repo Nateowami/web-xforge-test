@@ -9,15 +9,12 @@
     "module": "commonjs",
     "downlevelIteration": true,
     "strict": true,
-    "noImplicitAny": false,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["es2017", "dom"],
-    "types": ["node"],
     "composite": true,
     "baseUrl": ".",
     "resolveJsonModule": true,
-    "ignoreDeprecations": "5.0",
     "paths": {
       "*": ["./typings/*"]
     }

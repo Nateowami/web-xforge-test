@@ -2,7 +2,7 @@ import { Component, DestroyRef } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 import { TranslocoModule } from '@ngneat/transloco';
 import { TrainingData } from 'realtime-server/lib/esm/scriptureforge/models/training-data';
-import { Subscription } from 'rxjs';
+import { EMPTY, switchMap } from 'rxjs';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
@@ -29,29 +29,26 @@ export class ConfirmSourcesComponent {
   };
   protected trainingDataFiles: TrainingData[] = [];
 
-  private trainingDataSubscription?: Subscription;
-
   constructor(
     private readonly destroyRef: DestroyRef,
     private readonly i18nService: I18nService,
     private readonly activatedProject: ActivatedProjectService,
     private readonly trainingDataService: TrainingDataService
   ) {
-    this.activatedProject.changes$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(projectDoc => {
-      if (projectDoc?.data != null) {
-        this.draftSources = draftSourcesAsTranslateSourceArraysToDraftSourcesAsSelectableProjectArrays(
-          projectToDraftSources(projectDoc?.data)
-        );
-
-        this.trainingDataSubscription?.unsubscribe();
-        this.trainingDataSubscription = this.trainingDataService
-          .getTrainingData$(projectDoc.id, this.destroyRef)
-          .pipe(quietTakeUntilDestroyed(this.destroyRef, { logWarnings: false }))
-          .subscribe(activeFiles => {
-            this.trainingDataFiles = activeFiles;
-          });
-      }
-    });
+    this.activatedProject.changes$
+      .pipe(
+        quietTakeUntilDestroyed(this.destroyRef),
+        switchMap(projectDoc => {
+          if (projectDoc?.data == null) return EMPTY;
+          this.draftSources = draftSourcesAsTranslateSourceArraysToDraftSourcesAsSelectableProjectArrays(
+            projectToDraftSources(projectDoc.data)
+          );
+          return this.trainingDataService.getTrainingData$(projectDoc.id, this.destroyRef);
+        })
+      )
+      .subscribe(activeFiles => {
+        this.trainingDataFiles = activeFiles;
+      });
   }
 
   projectLabel(project: SelectableProjectWithLanguageCode): string {

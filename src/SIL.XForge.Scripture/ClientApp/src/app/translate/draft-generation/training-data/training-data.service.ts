@@ -30,10 +30,17 @@ export class TrainingDataService {
     });
   }
 
-  private queryTrainingDataAsync(projectId: string, destroyRef: DestroyRef): Promise<RealtimeQuery<TrainingDataDoc>> {
+  private queryTrainingDataAsync(
+    projectId: string,
+    destroyRef: DestroyRef,
+    options?: { includeDeleted?: boolean }
+  ): Promise<RealtimeQuery<TrainingDataDoc>> {
     const queryParams: QueryParameters = {
       [obj<TrainingData>().pathStr(t => t.projectRef)]: projectId
     };
+    if (options?.includeDeleted !== true) {
+      queryParams[obj<TrainingData>().pathStr(t => t.deleted)] = false;
+    }
     return this.realtimeService.subscribeQuery(TrainingDataDoc.COLLECTION, queryParams, destroyRef);
   }
 
@@ -50,14 +57,10 @@ export class TrainingDataService {
     destroyRef: DestroyRef,
     options?: { includeDeleted?: boolean }
   ): Observable<TrainingData[]> {
-    return from(this.queryTrainingDataAsync(projectId, destroyRef)).pipe(
+    return from(this.queryTrainingDataAsync(projectId, destroyRef, options)).pipe(
       switchMap(query =>
         merge(query.localChanges$, query.ready$, query.remoteChanges$, query.remoteDocChanges$).pipe(
-          map(() => {
-            const docs = query.docs.filter(d => d.data != null);
-            const filtered = options?.includeDeleted === true ? docs : docs.filter(d => d.data!.deleted !== true);
-            return filtered.map(d => d.data!);
-          }),
+          map(() => query.docs.filter(d => d.data != null).map(d => d.data!)),
           finalize(() => query.dispose())
         )
       )
