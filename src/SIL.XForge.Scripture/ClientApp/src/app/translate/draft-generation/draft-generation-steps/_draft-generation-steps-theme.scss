@@ -1,7 +1,11 @@
 @use '@angular/material' as mat;
 
 @mixin color($theme) {
-  // Allow Material 3 defaults to apply: current step uses primary colors, others use grey.
+  app-draft-generation-steps {
+    // Suppress the focus highlight that the stepper puts on the newly-selected step header
+    // when focus moves to it programmatically after the user clicks "Next".
+    --mat-stepper-header-focus-state-layer-color: transparent;
+  }
 }
 
 @mixin theme($theme) {
