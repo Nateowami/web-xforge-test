@@ -809,7 +809,7 @@ class TestEnvironment {
     when(mockedActivatedProjectService.projectDoc).thenReturn(this.activatedProjectDoc);
     this.testOnlineStatusService.setIsOnline(!!args.isOnline);
 
-    when(mockTrainingDataService.getActiveTrainingData$(anything(), anything())).thenReturn(activeTrainingData$);
+    when(mockTrainingDataService.getTrainingData$(anything(), anything())).thenReturn(activeTrainingData$);
     activeTrainingData$.next([]);
 
     this.fixture = TestBed.createComponent(DraftSourcesComponent);

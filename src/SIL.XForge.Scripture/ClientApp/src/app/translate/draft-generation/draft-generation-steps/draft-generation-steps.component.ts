@@ -254,7 +254,7 @@ export class DraftGenerationStepsComponent implements OnInit {
 
           this.trainingDataSubscription?.unsubscribe();
           this.trainingDataSubscription = this.trainingFileService
-            .getActiveTrainingData$(projectId!, this.destroyRef)
+            .getTrainingData$(projectId!, this.destroyRef)
             .pipe(quietTakeUntilDestroyed(this.destroyRef, { logWarnings: false }))
             .subscribe(activeFiles => {
               this.trainingDataFiles = activeFiles;

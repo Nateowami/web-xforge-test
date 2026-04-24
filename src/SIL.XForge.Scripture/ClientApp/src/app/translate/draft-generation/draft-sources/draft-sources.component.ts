@@ -167,7 +167,7 @@ export class DraftSourcesComponent extends DataLoadingComponent implements OnIni
     // Subscribe to non-deleted training data files for the project
     this.trainingDataSubscription?.unsubscribe();
     this.trainingDataSubscription = this.trainingDataService
-      .getActiveTrainingData$(projectDoc.id, this.destroyRef)
+      .getTrainingData$(projectDoc.id, this.destroyRef)
       .pipe(quietTakeUntilDestroyed(this.destroyRef, { logWarnings: false }))
       .subscribe(activeFiles => {
         const removedFiles =

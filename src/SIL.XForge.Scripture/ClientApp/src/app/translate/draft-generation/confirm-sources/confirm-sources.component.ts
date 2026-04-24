@@ -45,7 +45,7 @@ export class ConfirmSourcesComponent {
 
         this.trainingDataSubscription?.unsubscribe();
         this.trainingDataSubscription = this.trainingDataService
-          .getActiveTrainingData$(projectDoc.id, this.destroyRef)
+          .getTrainingData$(projectDoc.id, this.destroyRef)
           .pipe(quietTakeUntilDestroyed(this.destroyRef, { logWarnings: false }))
           .subscribe(activeFiles => {
             this.trainingDataFiles = activeFiles;

@@ -288,7 +288,7 @@ export class ServalProjectComponent extends DataLoadingComponent implements OnIn
       .pipe(
         filter(p => p != null),
         quietTakeUntilDestroyed(this.destroyRef),
-        switchMap(projectId => this.trainingDataService.getActiveTrainingData$(projectId, this.destroyRef))
+        switchMap(projectId => this.trainingDataService.getTrainingData$(projectId, this.destroyRef))
       )
       .subscribe(activeFiles => {
         this.trainingDataFiles = activeFiles;

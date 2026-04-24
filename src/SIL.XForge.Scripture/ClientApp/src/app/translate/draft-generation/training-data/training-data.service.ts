@@ -30,7 +30,7 @@ export class TrainingDataService {
     });
   }
 
-  queryTrainingDataAsync(projectId: string, destroyRef: DestroyRef): Promise<RealtimeQuery<TrainingDataDoc>> {
+  private queryTrainingDataAsync(projectId: string, destroyRef: DestroyRef): Promise<RealtimeQuery<TrainingDataDoc>> {
     const queryParams: QueryParameters = {
       [obj<TrainingData>().pathStr(t => t.projectRef)]: projectId
     };
@@ -38,15 +38,26 @@ export class TrainingDataService {
   }
 
   /**
-   * Returns an observable of non-deleted training data files for a project. The observable emits a new list whenever
-   * the underlying query results change (on ready, local changes, or remote changes). Deleted files are automatically
-   * excluded. The query is disposed when the subscription is unsubscribed.
+   * Returns an observable of training data files for a project. The observable emits a new list whenever the
+   * underlying query results change (on ready, local changes, or remote changes). The query is disposed when the
+   * subscription is unsubscribed.
+   *
+   * By default, deleted files are excluded. Pass `{ includeDeleted: true }` to include them — useful when displaying
+   * historical information about past builds where files may have since been deleted.
    */
-  getActiveTrainingData$(projectId: string, destroyRef: DestroyRef): Observable<TrainingData[]> {
+  getTrainingData$(
+    projectId: string,
+    destroyRef: DestroyRef,
+    options?: { includeDeleted?: boolean }
+  ): Observable<TrainingData[]> {
     return from(this.queryTrainingDataAsync(projectId, destroyRef)).pipe(
       switchMap(query =>
         merge(query.localChanges$, query.ready$, query.remoteChanges$, query.remoteDocChanges$).pipe(
-          map(() => query.docs.filter(d => d.data != null && d.data.deleted !== true).map(d => d.data!)),
+          map(() => {
+            const docs = query.docs.filter(d => d.data != null);
+            const filtered = options?.includeDeleted === true ? docs : docs.filter(d => d.data!.deleted !== true);
+            return filtered.map(d => d.data!);
+          }),
           finalize(() => query.dispose())
         )
       )

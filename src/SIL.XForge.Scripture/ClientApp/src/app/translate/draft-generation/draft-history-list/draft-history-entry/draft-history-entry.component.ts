@@ -24,13 +24,12 @@ import {
 import { RouterLink } from '@angular/router';
 import { TranslocoModule } from '@ngneat/transloco';
 import { TranslocoMarkupModule } from 'ngx-transloco-markup';
+import { take } from 'rxjs';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
 import { I18nService } from 'xforge-common/i18n.service';
-import { RealtimeQuery } from 'xforge-common/models/realtime-query';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../../../../core/models/sf-project-profile-doc';
-import { TrainingDataDoc } from '../../../../core/models/training-data-doc';
 import { PermissionsService } from '../../../../core/permissions.service';
 import { SFProjectService } from '../../../../core/sf-project.service';
 import { BuildDto } from '../../../../machine-api/build-dto';
@@ -177,19 +176,16 @@ export class DraftHistoryEntryComponent {
 
     const trainingDataFiles: string[] = this._entry?.additionalInfo?.trainingDataFileIds ?? [];
     if (this.activatedProjectService.projectId != null && trainingDataFiles.length > 0) {
-      // Dispose any previous query before creating a new one to avoid leaking subscriptions when
-      // the entry setter is called multiple times.
-      this.dataFileQuery?.dispose();
-      void this.trainingDataService
-        .queryTrainingDataAsync(this.activatedProjectService.projectId, this.destroyRef)
-        .then(query => {
-          this.dataFileQuery = query;
-          // Include deleted files: this component shows historical build data, so file titles
-          // must be shown even if the files have since been deleted.
+      // Include deleted files: this component shows historical build data, so file titles
+      // must be shown even if the files have since been deleted.
+      this.trainingDataService
+        .getTrainingData$(this.activatedProjectService.projectId, this.destroyRef, { includeDeleted: true })
+        .pipe(take(1))
+        .subscribe(allFiles => {
           this._trainingDataFiles = trainingDataFiles
-            .map(fileId => query.docs.find(f => f.data?.dataId === fileId))
-            .filter(file => file?.data != null)
-            .map(file => file!.data!.title);
+            .map(fileId => allFiles.find(f => f.dataId === fileId))
+            .filter(file => file != null)
+            .map(file => file!.title);
         });
     }
 
@@ -329,7 +325,6 @@ export class DraftHistoryEntryComponent {
   readonly columnsToDisplay: string[] = ['scriptureRange', 'source', 'target'];
 
   private readonly showSelectFormatNoticeExpireDate = new Date('2025-12-01T12:00:00.000Z');
-  private dataFileQuery?: RealtimeQuery<TrainingDataDoc>;
 
   readonly timeframeForSelectFormatNotice: boolean = Date.now() < this.showSelectFormatNoticeExpireDate.getTime();
 

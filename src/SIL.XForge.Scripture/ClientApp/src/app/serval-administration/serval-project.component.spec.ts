@@ -517,7 +517,7 @@ describe('ServalProjectComponent', () => {
           title: 'training-data-01.csv'
         } as TrainingData
       ];
-      when(mockTrainingDataService.getActiveTrainingData$(anything(), anything())).thenReturn(of(trainingData));
+      when(mockTrainingDataService.getTrainingData$(anything(), anything())).thenReturn(of(trainingData));
 
       spyOn(saveAs, 'saveAs').and.stub();
 
