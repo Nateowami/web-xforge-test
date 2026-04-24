@@ -1,7 +1,14 @@
 @use '@angular/material' as mat;
 
 @mixin color($theme) {
-  // Allow Material 3 defaults to apply: current step uses primary colors, others use grey.
+  app-draft-generation-steps {
+    // Make completed/previous steps appear the same as unvisited steps (grey),
+    // so only the currently selected step is visually highlighted in primary color.
+    --mat-stepper-header-done-state-icon-background-color: var(--mat-stepper-header-icon-background-color);
+    --mat-stepper-header-done-state-icon-foreground-color: var(--mat-stepper-header-icon-foreground-color);
+    --mat-stepper-header-edit-state-icon-background-color: var(--mat-stepper-header-icon-background-color);
+    --mat-stepper-header-edit-state-icon-foreground-color: var(--mat-stepper-header-icon-foreground-color);
+  }
 }
 
 @mixin theme($theme) {
