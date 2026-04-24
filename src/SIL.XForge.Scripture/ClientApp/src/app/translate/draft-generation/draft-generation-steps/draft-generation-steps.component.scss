@@ -42,6 +42,13 @@ h2 {
   color: var(--mat-sys-surface);
 }
 
+// Suppress the focus state layer highlight when the step header receives programmatic focus
+// (e.g. after the user clicks the "Next" button and Angular Material moves focus to the new step).
+// Keyboard focus (.cdk-keyboard-focused) is intentionally kept so accessibility is preserved.
+:host ::ng-deep .mat-step-header.cdk-program-focused {
+  background-color: transparent;
+}
+
 // Enable hover effects when step is not complete and not selected
 :host ::ng-deep .mat-step-header:hover[aria-disabled='true'] {
   cursor: pointer;
