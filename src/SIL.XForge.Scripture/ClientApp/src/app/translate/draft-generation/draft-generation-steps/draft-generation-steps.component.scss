@@ -32,6 +32,16 @@ h2 {
   --mat-stepper-header-selected-state-label-text-size: var(--mat-stepper-header-label-text-size);
 }
 
+// Make completed/previous steps appear the same as unvisited steps (grey),
+// so only the currently selected step is visually highlighted in primary color.
+// --mat-sys-on-surface-variant and --mat-sys-surface are set by mat.system-level-colors()
+// and correspond to the default unvisited step icon colors in the Material 3 stepper token definitions.
+:host ::ng-deep .mat-step-icon-state-done:not(.mat-step-icon-selected),
+:host ::ng-deep .mat-step-icon-state-edit:not(.mat-step-icon-selected) {
+  background-color: var(--mat-sys-on-surface-variant);
+  color: var(--mat-sys-surface);
+}
+
 // Enable hover effects when step is not complete and not selected
 :host ::ng-deep .mat-step-header:hover[aria-disabled='true'] {
   cursor: pointer;
