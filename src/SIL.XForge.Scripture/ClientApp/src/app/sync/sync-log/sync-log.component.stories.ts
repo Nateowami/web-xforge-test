@@ -1,32 +1,12 @@
-import { EMPTY, of } from 'rxjs';
-import { ActivatedRoute } from '@angular/router';
 import { Meta, StoryObj } from '@storybook/angular';
-import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
-import { createTestProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { createTestUserProfile } from 'realtime-server/lib/esm/common/models/user-test-data';
-import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { expect, waitFor } from 'storybook/test';
 import { anything, instance, mock, when } from 'ts-mockito';
-import { AuthService } from 'xforge-common/auth.service';
-import { DialogService } from 'xforge-common/dialog.service';
 import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
-import { NoticeService } from 'xforge-common/notice.service';
-import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { UserService } from 'xforge-common/user.service';
-import { SFProjectDoc } from '../core/models/sf-project-doc';
-import { ParatextService } from '../core/paratext.service';
-import { SFProjectService } from '../core/sf-project.service';
-import { SyncMetrics, SyncStatus } from './sync-metrics';
-import { SyncComponent } from './sync.component';
+import { SyncMetrics, SyncStatus } from '../sync-metrics';
+import { SyncLogComponent } from './sync-log.component';
 
-const mockedActivatedRoute = mock(ActivatedRoute);
-const mockedAuthService = mock(AuthService);
-const mockedDialogService = mock(DialogService);
-const mockedNoticeService = mock(NoticeService);
-const mockedOnlineStatusService = mock(OnlineStatusService);
-const mockedParatextService = mock(ParatextService);
-const mockedProjectDoc = mock(SFProjectDoc);
-const mockedProjectService = mock(SFProjectService);
 const mockedUserService = mock(UserService);
 
 const projectId = 'project01';
@@ -98,39 +78,8 @@ const queuedEntry: SyncMetrics = {
   log: []
 };
 
-/** Arguments that control the story's displayed sync log data. */
-interface StoryState {
-  syncLogEntries: SyncMetrics[];
-  syncLogTotalCount: number;
-}
-
-/** Configures all required service mocks before the component is rendered. */
-function setUpMocks(args: StoryState): void {
-  const project: SFProject = createTestProject({
-    name: 'Test Project',
-    sync: {
-      queuedCount: 0,
-      lastSyncSuccessful: true,
-      dateLastSuccessfulSync: daysAgo(1)
-    }
-  });
-
-  // Mock SFProjectDoc directly to avoid the TestBed/RealtimeService async chain.
-  when(mockedProjectDoc.data).thenReturn(project);
-  when(mockedProjectDoc.id).thenReturn(projectId);
-  when(mockedProjectDoc.remoteChanges$).thenReturn(EMPTY);
-
-  when(mockedActivatedRoute.params).thenReturn(of({ projectId }));
-  when(mockedAuthService.currentUserRoles).thenReturn([SystemRole.SystemAdmin]);
-  when(mockedOnlineStatusService.onlineStatus$).thenReturn(of(true));
-  when(mockedParatextService.getParatextUsername()).thenReturn(of('Paratext User'));
-  when(mockedNoticeService.loadingStarted(anything())).thenReturn(undefined);
-  when(mockedNoticeService.loadingFinished(anything())).thenReturn(undefined);
-  when(mockedProjectService.get(anything())).thenResolve(instance(mockedProjectDoc));
-  when(mockedProjectService.onlineSyncMetrics(anything(), anything(), anything())).thenResolve({
-    results: args.syncLogEntries,
-    unpagedCount: args.syncLogTotalCount
-  });
+/** Configures the UserService mock so OwnerComponent can resolve user profiles. */
+function setUpMocks(): void {
   when(mockedUserService.currentUserId).thenReturn(userId1);
   when(mockedUserService.getProfile(userId1)).thenResolve({
     id: userId1,
@@ -140,41 +89,33 @@ function setUpMocks(args: StoryState): void {
     id: userId2,
     data: createTestUserProfile({}, 2)
   } as UserProfileDoc);
+  when(mockedUserService.getProfile(anything())).thenResolve({
+    id: 'unknown',
+    data: createTestUserProfile({}, 3)
+  } as UserProfileDoc);
 }
 
-/** Stories for SyncComponent, showcasing all sync log states visible to admin users. */
-const meta: Meta = {
-  title: 'Sync/Sync Component',
-  component: SyncComponent,
-  argTypes: {
-    syncLogEntries: { control: false },
-    syncLogTotalCount: { control: false }
-  },
+/** Stories for SyncLogComponent, showcasing all sync log states visible to admin users. */
+const meta: Meta<SyncLogComponent> = {
+  title: 'Sync/Sync Log',
+  component: SyncLogComponent,
   render: args => {
-    setUpMocks(args as StoryState);
+    setUpMocks();
     return {
+      props: args,
       moduleMetadata: {
-        providers: [
-          { provide: ActivatedRoute, useValue: instance(mockedActivatedRoute) },
-          { provide: AuthService, useValue: instance(mockedAuthService) },
-          { provide: DialogService, useValue: instance(mockedDialogService) },
-          { provide: NoticeService, useValue: instance(mockedNoticeService) },
-          { provide: OnlineStatusService, useValue: instance(mockedOnlineStatusService) },
-          { provide: ParatextService, useValue: instance(mockedParatextService) },
-          { provide: SFProjectService, useValue: instance(mockedProjectService) },
-          { provide: UserService, useValue: instance(mockedUserService) }
-        ]
+        providers: [{ provide: UserService, useValue: instance(mockedUserService) }]
       }
     };
   }
 };
 
 export default meta;
-type Story = StoryObj<StoryState>;
+type Story = StoryObj<SyncLogComponent>;
 
 /** Sync log with no entries yet. */
 export const EmptySyncLog: Story = {
-  args: { syncLogEntries: [], syncLogTotalCount: 0 },
+  args: { entries: [], totalCount: 0, loading: false },
   play: async ({ canvasElement }) => {
     await waitFor(() => {
       expect(canvasElement.querySelector('#sync-log-empty')).not.toBeNull();
@@ -184,7 +125,7 @@ export const EmptySyncLog: Story = {
 
 /** Sync log with a recent successful sync. */
 export const SuccessfulSync: Story = {
-  args: { syncLogEntries: [successfulEntry], syncLogTotalCount: 1 },
+  args: { entries: [successfulEntry], totalCount: 1, loading: false },
   play: async ({ canvasElement }) => {
     await waitFor(() => {
       expect(canvasElement.querySelector('.sync-log-entry')).not.toBeNull();
@@ -194,7 +135,7 @@ export const SuccessfulSync: Story = {
 
 /** Sync log with a failed sync showing expandable error details. */
 export const FailedSync: Story = {
-  args: { syncLogEntries: [failedEntry], syncLogTotalCount: 1 },
+  args: { entries: [failedEntry], totalCount: 1, loading: false },
   play: async ({ canvasElement }) => {
     await waitFor(() => {
       expect(canvasElement.querySelector('.sync-log-entry-failed')).not.toBeNull();
@@ -204,7 +145,7 @@ export const FailedSync: Story = {
 
 /** Sync log with a cancelled sync. */
 export const CancelledSync: Story = {
-  args: { syncLogEntries: [cancelledEntry], syncLogTotalCount: 1 },
+  args: { entries: [cancelledEntry], totalCount: 1, loading: false },
   play: async ({ canvasElement }) => {
     await waitFor(() => {
       expect(canvasElement.querySelector('.sync-log-entry')).not.toBeNull();
@@ -214,7 +155,7 @@ export const CancelledSync: Story = {
 
 /** Sync log showing running and queued syncs. */
 export const RunningSyncs: Story = {
-  args: { syncLogEntries: [runningEntry, queuedEntry], syncLogTotalCount: 2 },
+  args: { entries: [runningEntry, queuedEntry], totalCount: 2, loading: false },
   play: async ({ canvasElement }) => {
     await waitFor(() => {
       const entries: NodeListOf<Element> = canvasElement.querySelectorAll('.sync-log-entry');
@@ -226,8 +167,9 @@ export const RunningSyncs: Story = {
 /** Sync log showing all five possible status states at once. */
 export const AllStatuses: Story = {
   args: {
-    syncLogEntries: [runningEntry, queuedEntry, successfulEntry, failedEntry, cancelledEntry],
-    syncLogTotalCount: 5
+    entries: [runningEntry, queuedEntry, successfulEntry, failedEntry, cancelledEntry],
+    totalCount: 5,
+    loading: false
   },
   play: async ({ canvasElement }) => {
     await waitFor(() => {
@@ -240,10 +182,13 @@ export const AllStatuses: Story = {
 /** Sync log with more entries available to load via the "Load more" button. */
 export const LoadMoreAvailable: Story = {
   args: {
-    syncLogEntries: [successfulEntry, cancelledEntry, failedEntry, successfulEntry, successfulEntry].map(
-      (entry, i) => ({ ...entry, id: `sync-${i}`, dateQueued: daysAgo(i) })
-    ),
-    syncLogTotalCount: 12
+    entries: [successfulEntry, cancelledEntry, failedEntry, successfulEntry, successfulEntry].map((entry, i) => ({
+      ...entry,
+      id: `sync-${i}`,
+      dateQueued: daysAgo(i)
+    })),
+    totalCount: 12,
+    loading: false
   },
   play: async ({ canvasElement }) => {
     await waitFor(() => {
