@@ -1120,16 +1120,12 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
         var resultsTask = orderedQuery.Skip(pageIndex * pageSize).Take(pageSize).ToListAsync();
 
         await Task.WhenAll(countTask, resultsTask);
-        List<SyncMetrics> results = resultsTask.Result;
+        List<SyncMetrics> rawResults = resultsTask.Result;
 
-        // Strip error details (stack traces) for non-system-admin users
-        if (!isSystemAdmin)
-        {
-            foreach (SyncMetrics entry in results)
-            {
-                entry.ErrorDetails = null;
-            }
-        }
+        // For non-system-admin users, construct new objects that omit error details (stack traces)
+        List<SyncMetrics> results = isSystemAdmin
+            ? rawResults
+            : rawResults.Select(entry => entry with { ErrorDetails = null }).ToList();
 
         return new QueryResults<SyncMetrics> { Results = results, UnpagedCount = countTask.Result };
     }

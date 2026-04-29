@@ -18,7 +18,6 @@ import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
-import { OwnerComponent } from 'xforge-common/owner/owner.component';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { UserService } from 'xforge-common/user.service';
 import { environment } from '../../environments/environment';
@@ -26,8 +25,10 @@ import { SFProjectDoc } from '../core/models/sf-project-doc';
 import { ParatextService } from '../core/paratext.service';
 import { SFProjectService } from '../core/sf-project.service';
 import { NoticeComponent } from '../shared/notice/notice.component';
-import { SyncMetrics, SyncStatus } from './sync-metrics';
+import { SyncMetrics } from './sync-metrics';
+import { SyncLogComponent } from './sync-log/sync-log.component';
 import { SyncProgressComponent } from './sync-progress/sync-progress.component';
+
 /** Reports as to whether a given project is actively syncing right now. */
 export function isSFProjectSyncing(project: SFProjectProfile): boolean {
   return project.sync.queuedCount > 0;
@@ -51,15 +52,12 @@ const DEFAULT_SYNC_LOG_PAGE_SIZE = 5;
     MatButton,
     MatIcon,
     SyncProgressComponent,
+    SyncLogComponent,
     MatHint,
-    MatTooltip,
-    OwnerComponent
+    MatTooltip
   ]
 })
 export class SyncComponent extends DataLoadingComponent implements OnInit {
-  /** The SyncStatus enum, exposed so the template can reference enum values for class bindings and comparisons. */
-  readonly SyncStatus = SyncStatus;
-
   isAppOnline: boolean = false;
   showParatextLogin = false;
   syncDisabled: boolean = false;
@@ -194,47 +192,6 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     }
     const userRole: string | undefined = this.projectDoc?.data?.userRoles[this.userService.currentUserId];
     return userRole === SFProjectRole.ParatextAdministrator || userRole === SFProjectRole.ParatextTranslator;
-  }
-
-  /** Whether there are more sync log entries available to load. */
-  get canLoadMoreSyncLog(): boolean {
-    return this.syncLog.length < this.syncLogTotalCount;
-  }
-
-  /** Returns a user-friendly label for the sync status. */
-  syncStatusLabel(status: SyncStatus): string {
-    switch (status) {
-      case SyncStatus.Queued:
-        return this.i18n.translateStatic('sync.sync_status_queued');
-      case SyncStatus.Running:
-        return this.i18n.translateStatic('sync.sync_status_running');
-      case SyncStatus.Successful:
-        return this.i18n.translateStatic('sync.sync_status_successful');
-      case SyncStatus.Cancelled:
-        return this.i18n.translateStatic('sync.sync_status_cancelled');
-      case SyncStatus.Failed:
-        return this.i18n.translateStatic('sync.sync_status_failed');
-      default:
-        return status;
-    }
-  }
-
-  /** Returns a Material icon name for the given sync status. */
-  syncStatusIcon(status: SyncStatus): string {
-    switch (status) {
-      case SyncStatus.Queued:
-        return 'schedule';
-      case SyncStatus.Running:
-        return 'sync';
-      case SyncStatus.Successful:
-        return 'check_circle';
-      case SyncStatus.Cancelled:
-        return 'cancel';
-      case SyncStatus.Failed:
-        return 'error';
-      default:
-        return 'help';
-    }
   }
 
   ngOnInit(): void {

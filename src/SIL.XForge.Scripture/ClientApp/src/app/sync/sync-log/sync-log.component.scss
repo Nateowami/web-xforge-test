@@ -1,0 +1,75 @@
+@use 'src/variables';
+
+.sync-log {
+  width: 100%;
+  max-width: 50rem;
+  display: flex;
+  flex-direction: column;
+  row-gap: 0.5rem;
+  align-items: stretch;
+}
+
+.sync-log-entry {
+  padding: 0.75rem 1rem;
+  text-align: start;
+}
+
+.sync-log-entry-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.sync-log-entry-status {
+  display: flex;
+  align-items: center;
+  column-gap: 0.25rem;
+  font-weight: 500;
+  color: variables.$lighterTextColor;
+}
+
+.sync-log-status-queued {
+  color: variables.$lighterTextColor;
+}
+
+.sync-log-status-running {
+  color: variables.$lighterTextColor;
+}
+
+.sync-log-status-successful {
+  color: variables.$greenDark;
+}
+
+.sync-log-status-failed {
+  color: variables.$errorColor;
+}
+
+.sync-log-status-cancelled {
+  color: variables.$lighterTextColor;
+}
+
+.sync-log-status-icon {
+  font-size: 1.1rem;
+  width: 1.1rem;
+  height: 1.1rem;
+}
+
+.sync-log-error-details {
+  margin-top: 0.5rem;
+
+  summary {
+    cursor: pointer;
+    color: variables.$errorColor;
+  }
+}
+
+.sync-log-error-pre {
+  white-space: pre-wrap;
+  word-break: break-all;
+  font-size: 0.75rem;
+  background: var(--mat-sys-surface-container);
+  padding: 0.5rem;
+  border-radius: 4px;
+  max-height: 20rem;
+  overflow-y: auto;
+}

@@ -28,6 +28,7 @@ import { ProjectNotificationService } from '../core/project-notification.service
 import { SFProjectService } from '../core/sf-project.service';
 import { NoticeComponent } from '../shared/notice/notice.component';
 import { SyncMetrics, SyncStatus } from './sync-metrics';
+import { SyncLogComponent } from './sync-log/sync-log.component';
 import { SyncProgressComponent } from './sync-progress/sync-progress.component';
 import { SyncComponent } from './sync.component';
 
@@ -45,7 +46,7 @@ const mockedUserService = mock(UserService);
 
 describe('SyncComponent', () => {
   configureTestingModule(() => ({
-    imports: [SyncComponent, SyncProgressComponent, getTestTranslocoModule(), NoticeComponent],
+    imports: [SyncComponent, SyncProgressComponent, SyncLogComponent, getTestTranslocoModule(), NoticeComponent],
     providers: [
       provideTestOnlineStatus(),
       provideTestRealtime(SF_TYPE_REGISTRY),
