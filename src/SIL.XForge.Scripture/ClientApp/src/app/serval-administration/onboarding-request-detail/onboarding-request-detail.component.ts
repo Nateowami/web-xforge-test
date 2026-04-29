@@ -13,38 +13,44 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatIconModule } from '@angular/material/icon';
 import { MatInputModule } from '@angular/material/input';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
+import { MatTooltipModule } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
-import { Canon } from '@sillsdev/scripture';
 import { saveAs } from 'file-saver';
 import Papa from 'papaparse';
+import { ProjectType } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
 import { catchError, lastValueFrom, of, throwError } from 'rxjs';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DialogService } from 'xforge-common/dialog.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OwnerComponent } from 'xforge-common/owner/owner.component';
 import { RouterLinkDirective } from 'xforge-common/router-link.directive';
-import { ParatextService } from '../core/paratext.service';
-import { DevOnlyComponent } from '../shared/dev-only/dev-only.component';
-import { JsonViewerComponent } from '../shared/json-viewer/json-viewer.component';
-import { MobileNotSupportedComponent } from '../shared/mobile-not-supported/mobile-not-supported.component';
-import { projectLabel } from '../shared/utils';
+import { isPopulatedString } from '../../../type-utils';
+import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
+import { ParatextService } from '../../core/paratext.service';
+import { DevOnlyComponent } from '../../shared/dev-only/dev-only.component';
+import { JsonViewerComponent } from '../../shared/json-viewer/json-viewer.component';
+import { MobileNotSupportedComponent } from '../../shared/mobile-not-supported/mobile-not-supported.component';
+import { NoticeComponent } from '../../shared/notice/notice.component';
+import { projectLabel } from '../../shared/utils';
+import { normalizeLanguageCodeToISO639_3 } from '../../translate/draft-generation/draft-utils';
 import {
   DraftingSignupFormData,
-  DraftRequestResolutionKey,
-  DraftRequestResolutionMetadata,
   OnboardingRequest,
+  OnboardingRequestResolutionKey,
+  OnboardingRequestResolutionMetadata,
   OnboardingRequestService
-} from '../translate/draft-generation/onboarding-request.service';
-import { ServalAdministrationService } from './serval-administration.service';
+} from '../../translate/draft-generation/onboarding-request.service';
+import { ServalAdministrationService } from '../serval-administration.service';
+import { formatBookListForSILNLP } from './draft-request-detail-utils';
 
 /**
- * Component for displaying a single draft request's full details.
+ * Component for displaying a single onboarding request's full details.
  * Accessible from the Serval Administration interface.
  */
 @Component({
-  selector: 'app-draft-request-detail',
-  templateUrl: './draft-request-detail.component.html',
-  styleUrls: ['./draft-request-detail.component.scss'],
+  selector: 'app-onboarding-request-detail',
+  templateUrl: './onboarding-request-detail.component.html',
+  styleUrls: ['./onboarding-request-detail.component.scss'],
   imports: [
     CommonModule,
     FormsModule,
@@ -65,12 +71,16 @@ import { ServalAdministrationService } from './serval-administration.service';
     DevOnlyComponent,
     MatFormFieldModule,
     MatInputModule,
-    MobileNotSupportedComponent
+    MobileNotSupportedComponent,
+    NoticeComponent,
+    MatTooltipModule
   ]
 })
-export class DraftRequestDetailComponent extends DataLoadingComponent implements OnInit {
+export class OnboardingRequestDetailComponent extends DataLoadingComponent implements OnInit {
   request?: OnboardingRequest;
+  mainProjectDoc?: SFProjectProfileDoc;
   projectName?: string;
+  projectDocs: Map<string, SFProjectProfileDoc> = new Map();
   projectNames: Map<string, string> = new Map();
   projectIds: Map<string, string> = new Map(); // Maps Paratext ID to SF project ID
   projectShortNames: Map<string, string> = new Map(); // Maps Paratext ID to project short name
@@ -85,7 +95,7 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     private readonly dialogService: DialogService,
     protected readonly noticeService: NoticeService
   ) {
-    super(noticeService);
+    super(noticeService, 'OnboardingRequestDetailComponent');
   }
 
   ngOnInit(): void {
@@ -94,7 +104,7 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
       void this.loadRequest(requestId);
     } else {
       this.noticeService.showError('No request ID provided');
-      void this.router.navigate(['/serval-administration'], { queryParams: { tab: 'draft-requests' } });
+      void this.router.navigate(['/serval-administration'], { queryParams: { tab: 'onboarding-requests' } });
     }
   }
 
@@ -103,7 +113,6 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     try {
       this.request = await this.onboardingRequestService.getRequestById(requestId);
       await this.loadProjectNames();
-      this.loadingFinished();
     } finally {
       this.loadingFinished();
     }
@@ -115,12 +124,13 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     }
 
     // Load the main project (submission.projectId is an SF project ID)
-    const mainProjectDoc = await this.servalAdministrationService.get(this.request.submission.projectId);
-    if (mainProjectDoc?.data != null) {
-      this.projectNames.set(this.request.submission.projectId, projectLabel(mainProjectDoc.data));
-      this.projectIds.set(this.request.submission.projectId, mainProjectDoc.id);
-      this.projectShortNames.set(this.request.submission.projectId, mainProjectDoc.data.shortName);
-      this.projectName = projectLabel(mainProjectDoc.data);
+    this.mainProjectDoc = await this.servalAdministrationService.get(this.request.submission.projectId);
+    if (this.mainProjectDoc?.data != null) {
+      this.projectDocs.set(this.request.submission.projectId, this.mainProjectDoc);
+      this.projectNames.set(this.request.submission.projectId, projectLabel(this.mainProjectDoc.data));
+      this.projectIds.set(this.request.submission.projectId, this.mainProjectDoc.id);
+      this.projectShortNames.set(this.request.submission.projectId, this.mainProjectDoc.data.shortName);
+      this.projectName = projectLabel(this.mainProjectDoc.data);
     } else {
       this.projectNames.set(this.request.submission.projectId, this.request.submission.projectId);
       this.projectName = this.request.submission.projectId;
@@ -139,6 +149,7 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     for (const paratextId of paratextIds) {
       const projectDoc = await this.servalAdministrationService.getByParatextId(paratextId);
       if (projectDoc?.data != null) {
+        this.projectDocs.set(paratextId, projectDoc);
         this.projectNames.set(paratextId, projectLabel(projectDoc.data));
         this.projectIds.set(paratextId, projectDoc.id);
         this.projectShortNames.set(paratextId, projectDoc.data.shortName);
@@ -166,7 +177,7 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
   }
 
   goBack(): void {
-    void this.router.navigate(['/serval-administration'], { queryParams: { tab: 'draft-requests' } });
+    void this.router.navigate(['/serval-administration'], { queryParams: { tab: 'onboarding-requests' } });
   }
 
   async downloadProject(id: string): Promise<void> {
@@ -215,7 +226,7 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     return ParatextService.isResource(paratextId) ? 'Download DBL resource' : 'Download Paratext project';
   }
 
-  getResolution(resolution: DraftRequestResolutionKey): DraftRequestResolutionMetadata {
+  getResolution(resolution: OnboardingRequestResolutionKey): OnboardingRequestResolutionMetadata {
     return this.onboardingRequestService.getResolution(resolution);
   }
 
@@ -242,15 +253,14 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
   }
 
   formatBookList(value: number[] | undefined): string {
-    return value?.map(b => Canon.bookNumberToId(b)).join(', ') ?? '';
+    return value == null ? '' : formatBookListForSILNLP(value);
   }
 
-  getZipFileNames(): string[] {
-    if (this.request == null) {
-      return [];
-    }
+  getZipFileNames(): { projects: string[]; resources: string[] } {
+    if (this.request == null) return { projects: [], resources: [] };
 
-    const zipFileNamesSet = new Set<string>();
+    const projectFilesNameSet = new Set<string>();
+    const resourceFilesNamesSet = new Set<string>();
     const formData = this.request.submission.formData;
 
     // Helper function to add a zip file name if the project exists (for Paratext IDs)
@@ -262,7 +272,11 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
       if (sfProjectId != null) {
         const shortName = this.projectShortNames.get(paratextId);
         if (shortName != null) {
-          zipFileNamesSet.add(`${shortName}.zip`);
+          if (ParatextService.isResource(paratextId)) {
+            resourceFilesNamesSet.add(`${shortName}.zip`);
+          } else {
+            projectFilesNameSet.add(`${shortName}.zip`);
+          }
         }
       }
     };
@@ -270,7 +284,7 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     // Add the main project (submission.projectId is already an SF project ID)
     const mainProjectShortName = this.projectShortNames.get(this.request.submission.projectId);
     if (mainProjectShortName != null) {
-      zipFileNamesSet.add(`${mainProjectShortName}.zip`);
+      projectFilesNameSet.add(`${mainProjectShortName}.zip`);
     }
 
     // Add all source project zip file names
@@ -280,7 +294,7 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     addZipFileName(formData.draftingSourceProject);
     addZipFileName(formData.backTranslationProject);
 
-    return Array.from(zipFileNamesSet);
+    return { projects: Array.from(projectFilesNameSet), resources: Array.from(resourceFilesNamesSet) };
   }
 
   getAllProjectSFIds(options = { includeResources: true }): string[] {
@@ -298,16 +312,19 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     return [...new Set([mainProject, ...sourceIds].filter(id => id != null))];
   }
 
-  /** Gets the suggested onboarding command based on all downloadable projects. */
-  getSuggestedCommand(): string {
-    const zipFileNames = this.getZipFileNames();
-    if (zipFileNames.length === 0) {
-      return '';
-    }
-    return `python -m silnlp.common.onboard_project --copy-from $DOWNLOAD_FOLDER --extract-corpora --collect-verse-counts --wildebeest --datestamp ${zipFileNames.join(' ')}`;
+  getSuggestedProjectOnboardingCommand(): string {
+    const projects = this.getZipFileNames().projects;
+    if (projects.length === 0) return '';
+    return `poetry run python -m silnlp.common.onboard_project --copy-from $DOWNLOAD_FOLDER --extract-corpora --collect-verse-counts --wildebeest --datestamp ${projects.join(' ')}`;
   }
 
-  /** Adds a comment to the current draft request. */
+  getSuggestedResourceOnboardingCommand(): string {
+    const resources = this.getZipFileNames().resources;
+    if (resources.length === 0) return '';
+    return `poetry run python -m silnlp.common.onboard_project --copy-from $DOWNLOAD_FOLDER --extract-corpora --collect-verse-counts --wildebeest ${resources.join(' ')}`;
+  }
+
+  /** Adds a comment to the current onboarding request. */
   async addComment(): Promise<void> {
     if (this.request == null || this.newCommentText == null || this.newCommentText.trim() === '') {
       return;
@@ -335,14 +352,14 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     }
   }
 
-  /** Deletes the current draft request after confirmation, then returns to the list. */
+  /** Deletes the current onboarding request after confirmation, then returns to the list. */
   async deleteRequest(): Promise<void> {
     if (this.request == null) {
       return;
     }
 
     const result = await this.dialogService.confirm(
-      of('Are you sure you want to delete this draft request? This action cannot be undone.'),
+      of('Are you sure you want to delete this onboarding request? This action cannot be undone.'),
       of('Delete')
     );
 
@@ -353,11 +370,11 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     this.loadingStarted();
     try {
       await this.onboardingRequestService.deleteRequest(this.request.id);
-      this.noticeService.show('Draft request deleted');
-      void this.router.navigate(['/serval-administration'], { queryParams: { tab: 'draft-requests' } });
+      this.noticeService.show('Onboarding request deleted');
+      void this.router.navigate(['/serval-administration'], { queryParams: { tab: 'onboarding-requests' } });
     } catch (error) {
-      console.error('Error deleting draft request:', error);
-      this.noticeService.showError('Failed to delete draft request');
+      console.error('Error deleting onboarding request:', error);
+      this.noticeService.showError('Failed to delete onboarding request');
     } finally {
       this.loadingFinished();
     }
@@ -406,14 +423,109 @@ export class DraftRequestDetailComponent extends DataLoadingComponent implements
     saveAs(blob, fileName);
   }
 
+  get warnings(): string[] {
+    const warnings: string[] = [];
+
+    if (this.request?.resolution === 'approved' && this.mainProjectDoc?.data?.translateConfig.preTranslate !== true) {
+      warnings.push('This request is marked as approved but drafting is not enabled on the project.');
+    }
+
+    const partnerOrg = this.request?.submission.formData.partnerOrganization;
+    if (isPopulatedString(partnerOrg) && partnerOrg !== 'none' && this.request?.resolution !== 'outsourced') {
+      warnings.push('This request has a partner organization specified but is not marked as outsourced.');
+    }
+
+    const projectIsoCode: string | undefined = this.mainProjectDoc?.data?.writingSystem.tag;
+    const userSpecifiedIsoCode: string | undefined = this.normalizeUserInputIsoCode(
+      this.request?.submission.formData.translationLanguageIsoCode ?? ''
+    );
+    if (this.doLanguageCodesExistAndDiffer(projectIsoCode, userSpecifiedIsoCode)) {
+      warnings.push(
+        `The project language code (${projectIsoCode}) is not identical to the code specified in the form (${userSpecifiedIsoCode}).`
+      );
+    }
+
+    // Check if back translation is specified, but isn't marked as a back translation, and isn't enabled for drafting
+    const backTranslationProjectId = this.request?.submission.formData.backTranslationProject;
+    const backTranslationProject =
+      backTranslationProjectId == null ? null : this.projectDocs.get(backTranslationProjectId);
+    const backTranslationTranslateConfig = backTranslationProject?.data?.translateConfig;
+    if (
+      backTranslationTranslateConfig != null &&
+      backTranslationTranslateConfig.projectType !== ProjectType.BackTranslation &&
+      backTranslationTranslateConfig.preTranslate !== true
+    ) {
+      warnings.push(
+        'The back translation project specified is not marked as a back translation project in Paratext, and does not have draft generation enabled. You will need to enable it if you want the user to be able to generate back translation drafts.'
+      );
+    }
+
+    // Verify language code the user specified for the back translation is the same as the back translation's language code
+    const userSpecifiedBackTranslationIsoCode = this.normalizeUserInputIsoCode(
+      this.request?.submission.formData.backTranslationLanguageIsoCode ?? ''
+    );
+    const backTranslationProjectIsoCode = backTranslationProject?.data?.writingSystem.tag;
+    if (this.doLanguageCodesExistAndDiffer(userSpecifiedBackTranslationIsoCode, backTranslationProjectIsoCode)) {
+      warnings.push(
+        `The language code specified in the form for the back translation (${userSpecifiedBackTranslationIsoCode}) is not identical to the back translation project's language code (${backTranslationProjectIsoCode}).`
+      );
+    }
+
+    if (this.doLanguageCodesExistAndAreEquivalent(backTranslationProjectIsoCode, projectIsoCode)) {
+      warnings.push(
+        `The language code specified in the back translation project (${backTranslationProjectIsoCode}) is equivalent to the project language code (${projectIsoCode}).`
+      );
+    }
+
+    // Find projects that failed their last sync
+    for (const [id, projectDoc] of this.projectDocs.entries()) {
+      if (projectDoc.data?.sync.lastSyncSuccessful === false) {
+        const projectName = this.projectNames.get(id) ?? id;
+        warnings.push(`The project "${projectName}" failed to sync successfully the last time it was synced.`);
+      }
+    }
+
+    return warnings;
+  }
+
+  /** Returns true if both arguments are non-empty strings that normalize to different ISO 639-3 codes */
+  private doLanguageCodesExistAndDiffer(code1: string | undefined, code2: string | undefined): boolean {
+    if (!isPopulatedString(code1) || !isPopulatedString(code2)) return false;
+    return normalizeLanguageCodeToISO639_3(code1) !== normalizeLanguageCodeToISO639_3(code2);
+  }
+
+  /** Returns true if both arguments are non-empty strings that normalize to the same ISO 639-3 code */
+  private doLanguageCodesExistAndAreEquivalent(code1: string | undefined, code2: string | undefined): boolean {
+    if (!isPopulatedString(code1) || !isPopulatedString(code2)) return false;
+    return normalizeLanguageCodeToISO639_3(code1) === normalizeLanguageCodeToISO639_3(code2);
+  }
+
+  /**
+   * Normalizes user input by trimming and converting to lowercase. It has been observed in production that users often
+   * input the code in all caps.
+   */
+  private normalizeUserInputIsoCode(code: string): string {
+    return code.trim().toLowerCase();
+  }
+
+  async copyBookList(books: number[] | undefined): Promise<void> {
+    const text: string = this.formatBookList(books);
+    await this.copyToClipboard(text);
+  }
+
+  async copyToClipboard(text: string): Promise<void> {
+    await navigator.clipboard.writeText(text);
+    this.noticeService.show('Copied to clipboard');
+  }
+
   /**
    * Data is pulled from the DOM rather than directly constructing the data in order to maintain consistency between
    * exported data and displayed data. It may have been the wrong call but it kept things simpler.
    */
   private getDataForExport(): string {
-    const pairs = [...document.querySelectorAll('app-draft-request-detail .info-row:not(.skip-in-data-export)')].map(
-      e => [e.querySelector('.label')?.textContent, e.querySelector('.value')?.textContent]
-    );
+    const pairs = [
+      ...document.querySelectorAll('app-onboarding-request-detail .info-row:not(.skip-in-data-export)')
+    ].map(e => [e.querySelector('.label')?.textContent, e.querySelector('.value')?.textContent]);
     pairs.push(['Additional Comments:', this.request?.submission.formData.additionalComments ?? '']);
 
     return Papa.unparse(pairs, { delimiter: '\t' });

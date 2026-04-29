@@ -126,7 +126,7 @@ export class DraftSourcesComponent extends DataLoadingComponent implements OnIni
     private readonly errorReportingService: ErrorReportingService,
     private readonly fileService: FileService
   ) {
-    super(noticeService);
+    super(noticeService, 'DraftSourcesComponent');
   }
 
   ngOnInit(): void {
@@ -248,10 +248,12 @@ export class DraftSourcesComponent extends DataLoadingComponent implements OnIni
   async loadProjects(): Promise<void> {
     this.loadingStarted();
     try {
-      [this.projects, this.resources] = await Promise.all([
+      const [projects, resources] = await Promise.all([
         this.paratextService.getProjects(),
         this.paratextService.getResources()
       ]);
+      this.projects = projects;
+      this.resources = resources?.filter(r => !['ESVUK', 'ESVUS11', 'ESVUS16'].includes(r.shortName));
     } catch (error) {
       if (!isNetworkError(error)) {
         this.errorReportingService.silentError(

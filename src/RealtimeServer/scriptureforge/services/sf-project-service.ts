@@ -275,6 +275,21 @@ export class SFProjectService extends ProjectService<SFProject> {
               },
               draftedScriptureRange: {
                 bsonType: 'string'
+              },
+              qualityEstimationConfig: {
+                bsonType: 'object',
+                properties: {
+                  version: {
+                    bsonType: 'string'
+                  },
+                  slope: {
+                    bsonType: 'number'
+                  },
+                  intercept: {
+                    bsonType: 'number'
+                  }
+                },
+                additionalProperties: false
               }
             },
             additionalProperties: false

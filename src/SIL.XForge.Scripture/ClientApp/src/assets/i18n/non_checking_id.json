@@ -180,10 +180,6 @@
     "dialog_confirm_draft_cancellation_no": "Tidak",
     "dialog_confirm_draft_cancellation_title": "Batal membuat konsep?",
     "dialog_confirm_draft_cancellation_yes": "Ya, batalkan",
-    "dialog_confirm_draft_regeneration_message": "Membuat konsep baru akan menghapus konsep yang sudah ada.",
-    "dialog_confirm_draft_regeneration_no": "Batal",
-    "dialog_confirm_draft_regeneration_title": "Apakah Anda sudah selesai dengan konsep saat ini?",
-    "dialog_confirm_draft_regeneration_yes": "Lanjutkan",
     "download_draft": "Unduh konsep",
     "draft_active_detail": "Membuat konsep; ini biasanya memakan waktu setidaknya {{ count }} jam.",
     "draft_active_header": "Konsep sedang dibuat",
@@ -556,7 +552,7 @@
     "number_answers": "Jumlah Jawaban",
     "scripture_forge": "Scripture Forge",
     "some_questions_edited": "Beberapa pertanyaan telah disunting",
-    "transcelerator": "Transcelerator"
+    "update_to": "Update to"
   },
   "import_questions_dialog": {
     "back": "Kembali",
@@ -586,6 +582,7 @@
     "import_questions": "Impor pertanyaan",
     "import": "Impor",
     "invalid_csv_rows_will_be_skipped": "Baris-baris dalam file CSV ini tidak benar dan akan dilewati.",
+    "invalid_spreadsheet": "The file is missing text in the {{ boldStart }}Reference{{ boldEnd }} or {{ boldStart }}Question{{ boldEnd }} columns. Please check and update the file.",
     "learn_more": "Pelajari lebih lanjut",
     "loading": "Memuat...",
     "missing_header_row": "File yang Anda impor harus memiliki judul baris dengan kolom berjudul {{ boldStart }}Referensi{{ boldEnd }} dan {{ boldStart }}Pertanyaan{{ boldEnd }}.",
@@ -872,6 +869,7 @@
   "training_data_multi_select": {
     "confirm_delete": "Apakah Anda yakin ingin menghapus data pelatihan ini secara permanen?",
     "delete": "Hapus",
+    "download": "Download",
     "upload_spreadsheet": "Unggah spreadsheet"
   },
   "training_data_upload_dialog": {
@@ -965,9 +963,11 @@
     "second_reference_project_placeholder": "Second reference project (optional)",
     "submission_success_message": "Your request has been received. A team member will contact you within {{ min }} to {{ max }} business days to discuss your project and next steps.",
     "submission_success_title": "Thank you for signing up!",
+    "submit_failure_notice": "Failed to submit the form. Please try again.",
     "submit": "Kirim",
     "submitting_message": "Please wait while we submit your request. This may take a few moments.",
     "submitting_title": "Submitting your request",
+    "fill_required_fields_notice": "Please fill in all required fields",
     "third_reference_project_placeholder": "Third reference project (optional)",
     "title": "Sign up for draft generation",
     "translation_language_iso_label": "Translation language ISO code",

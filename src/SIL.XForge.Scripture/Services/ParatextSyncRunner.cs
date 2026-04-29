@@ -79,6 +79,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
     private readonly IDeltaUsxMapper _deltaUsxMapper;
     private readonly IParatextNotesMapper _notesMapper;
     private readonly ILogger<ParatextSyncRunner> _logger;
+    private readonly IExceptionHandler _exceptionHandler;
     private readonly IGuidService _guidService;
     private readonly IHubContext<NotificationHub, INotifier> _hubContext;
 
@@ -103,6 +104,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
         IParatextNotesMapper notesMapper,
         IHubContext<NotificationHub, INotifier> hubContext,
         ILogger<ParatextSyncRunner> logger,
+        IExceptionHandler exceptionHandler,
         IGuidService guidService
     )
     {
@@ -118,6 +120,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
         _notesMapper = notesMapper;
         _guidService = guidService;
         _hubContext = hubContext;
+        _exceptionHandler = exceptionHandler;
         _guidService = guidService;
     }
 
@@ -171,11 +174,13 @@ public class ParatextSyncRunner : IParatextSyncRunner
                 _syncMetrics.RepositoryBackupCreated = canRollbackParatext;
                 if (canRollbackParatext)
                 {
-                    Log($"RunAsync: There wasn't already a local PT repo backup, so we made one.");
+                    LogMetric($"RunAsync: There wasn't already a local PT repo backup, so we made one.");
                 }
                 else
                 {
-                    Log($"RunAsync: There wasn't already a local PT repo backup, so we tried to make one but failed.");
+                    LogMetric(
+                        $"RunAsync: There wasn't already a local PT repo backup, so we tried to make one but failed."
+                    );
                 }
             }
 
@@ -184,17 +189,17 @@ public class ParatextSyncRunner : IParatextSyncRunner
 
             if (_paratextService.IsResource(targetParatextId))
             {
-                Log($"This is a resource, so not considering hg repo revisions.");
+                LogMetric($"This is a resource, so not considering hg repo revisions.");
             }
             else if (_projectDoc.Data.Sync.SyncedToRepositoryVersion == null)
             {
-                Log(
+                LogMetric(
                     $"The SF DB SyncedToRepositoryVersion is null. Maybe this project is being Connected, or has not synced successfully since we started tracking this information."
                 );
             }
             else
             {
-                Log(
+                LogMetric(
                     $"Setting hg repo to last imported hg repo rev of {_projectDoc.Data.Sync.SyncedToRepositoryVersion}."
                 );
                 _paratextService.SetRepoToRevision(
@@ -295,7 +300,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
             // delete all data for removed books
             if (targetBooksToDelete.Count > 0)
             {
-                Log(
+                LogMetric(
                     $"RunAsync: Going to delete texts and questions,comments,answers for {targetBooksToDelete.Count} books."
                 );
                 // delete target books
@@ -388,11 +393,20 @@ public class ParatextSyncRunner : IParatextSyncRunner
 
             await NotifySyncProgress(SyncPhase.Phase5, 90.0);
 
-            bool resourceNeedsUpdating =
-                paratextProject is ParatextResource paratextResource
-                && _paratextService.ResourceDocsNeedUpdating(_projectDoc.Data, paratextResource);
-            if (paratextProject is ParatextResource)
+            // A resource needs updating if it has changed in the DBL
+            bool resourceNeedsUpdating = false;
+            bool resourcePermissionsNeedUpdating = false;
+            if (paratextProject is ParatextResource paratextResource)
+            {
+                resourceNeedsUpdating = _paratextService.ResourceDocsNeedUpdating(_projectDoc.Data, paratextResource);
                 LogMetric($"Resource needs updating: {resourceNeedsUpdating}");
+
+                // A resource's permissions need updating if they are the old per-book and per-chapter permissions
+                resourcePermissionsNeedUpdating = _projectDoc.Data.Texts.Any(t =>
+                    t.Permissions.Any(p => p.Value == TextInfoPermission.Read)
+                );
+                LogMetric($"Resource permissions need updating: {resourcePermissionsNeedUpdating}");
+            }
 
             // If a resource needs updating, retrieve the books, as they were not retrieved previously
             if (resourceNeedsUpdating)
@@ -443,9 +457,14 @@ public class ParatextSyncRunner : IParatextSyncRunner
             }
 
             // Update permissions if not a resource, or if it is a resource and needs updating.
-            // A resource will need updating if its text or permissions have changed on the DBL.
+            // A resource will need updating if its text or permissions have changed on the DBL,
+            // or if it contains the old per-book and per-chapter permissions.
             // Source resources have their permissions updated above in the section "Updating user resource access".
-            if (!_paratextService.IsResource(targetParatextId) || resourceNeedsUpdating)
+            if (
+                !_paratextService.IsResource(targetParatextId)
+                || resourceNeedsUpdating
+                || resourcePermissionsNeedUpdating
+            )
             {
                 LogMetric("Updating permissions");
                 await _projectService.UpdatePermissionsAsync(userId, _projectDoc, users: _paratextUsers, token: token);
@@ -464,7 +483,8 @@ public class ParatextSyncRunner : IParatextSyncRunner
         }
         catch (Exception e)
         {
-            if (e is not TaskCanceledException)
+            // OperationCanceledException is thrown by the MongoDB Driver when a sync is canceled
+            if (e is not TaskCanceledException and not OperationCanceledException)
             {
                 StringBuilder additionalInformation = new StringBuilder();
                 foreach (var key in e.Data.Keys)
@@ -477,6 +497,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
                 _syncMetrics.ErrorDetails = $"{e}{Environment.NewLine}{message}";
                 _logger.LogError(e, message);
                 LogMetric(message);
+                _exceptionHandler.ReportException(e);
             }
 
             await CompleteSync(false, canRollbackParatext, token);
@@ -889,7 +910,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
     {
         bool canAuthToRegistry = await _paratextService.CanUserAuthenticateToPTRegistryAsync(_userSecret);
         bool canAuthToArchives = await _paratextService.CanUserAuthenticateToPTArchivesAsync(_userSecret.Id);
-        Log($"User can authenticate to PT Registry: {canAuthToRegistry}, to PT Archives: {canAuthToArchives}.");
+        LogMetric($"User can authenticate to PT Registry: {canAuthToRegistry}, to PT Archives: {canAuthToArchives}.");
     }
 
     private async Task UpdateDocsAsync(
@@ -1147,6 +1168,22 @@ public class ParatextSyncRunner : IParatextSyncRunner
         SortedList<int, IDocument<TextData>> textDocs
     )
     {
+        bool hasWritePermission(string userId, Chapter chapter)
+        {
+            // If the user has a chapter permission, use that, otherwise fall back to the book permission
+            if (!text.Permissions.TryGetValue(userId, out string bookPermission))
+            {
+                bookPermission = TextInfoPermission.None;
+            }
+
+            if (!chapter.Permissions.TryGetValue(userId, out string chapterPermission))
+            {
+                chapterPermission = bookPermission;
+            }
+
+            return chapterPermission == TextInfoPermission.Write;
+        }
+
         // Get all of the last editors for the chapters.
         var chapterAuthors = new Dictionary<int, string>();
         foreach (Chapter chapter in text.Chapters)
@@ -1164,11 +1201,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
                 userSFId = await _realtimeService.GetLastModifiedUserIdAsync<TextData>(textId, version);
 
                 // Check that this user still has write permissions
-                if (
-                    string.IsNullOrEmpty(userSFId)
-                    || !chapter.Permissions.TryGetValue(userSFId, out string permission)
-                    || permission != TextInfoPermission.Write
-                )
+                if (string.IsNullOrEmpty(userSFId) || !hasWritePermission(userSFId, chapter))
                 {
                     // They no longer have write access, so reset the user id, and find it below
                     userSFId = null;
@@ -1179,10 +1212,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
             if (string.IsNullOrEmpty(userSFId))
             {
                 // See if the current user has permissions
-                if (
-                    chapter.Permissions.TryGetValue(_userSecret.Id, out string permission)
-                    && permission == TextInfoPermission.Write
-                )
+                if (hasWritePermission(_userSecret.Id, chapter))
                 {
                     userSFId = _userSecret.Id;
                 }
@@ -1190,7 +1220,9 @@ public class ParatextSyncRunner : IParatextSyncRunner
                 {
                     // Get the first user with write permission
                     // NOTE: As a KeyValuePair is a struct, we do not need a null-conditional (key will be null)
-                    userSFId = chapter.Permissions.FirstOrDefault(p => p.Value == TextInfoPermission.Write).Key;
+                    userSFId =
+                        chapter.Permissions.FirstOrDefault(p => p.Value == TextInfoPermission.Write).Key
+                        ?? text.Permissions.FirstOrDefault(p => p.Value == TextInfoPermission.Write).Key;
 
                     // If the userId is still null, find a project administrator, as they can escalate privilege
                     if (string.IsNullOrEmpty(userSFId))
@@ -1688,11 +1720,11 @@ public class ParatextSyncRunner : IParatextSyncRunner
         await NotifySyncProgress(SyncPhase.Phase9, 60.0);
         if (token.IsCancellationRequested)
         {
-            Log($"CompleteSync: There was a cancellation request.");
+            LogMetric($"CompleteSync: There was a cancellation request.");
         }
         if (_projectDoc == null || _projectSecret == null)
         {
-            Log("CompleteSync: _projectDoc or _projectSecret are null. Rolling back SF DB transaction.");
+            LogMetric("CompleteSync: _projectDoc or _projectSecret are null. Rolling back SF DB transaction.");
             _conn.RollbackTransaction();
             return;
         }
@@ -1733,12 +1765,9 @@ public class ParatextSyncRunner : IParatextSyncRunner
                 // If the restore is successful, then dataInSync will always be set to true because
                 // the restored repo can be assumed to be at the revision recorded in the project doc.
                 restoreSucceeded = _paratextService.RestoreRepository(_userSecret, _projectDoc.Data.ParatextId);
-                if (_syncMetrics != null)
-                {
-                    _syncMetrics.RepositoryRestoredFromBackup = restoreSucceeded;
-                }
+                _syncMetrics?.RepositoryRestoredFromBackup = restoreSucceeded;
             }
-            Log(
+            LogMetric(
                 $"CompleteSync: Sync was not successful. {(restoreSucceeded ? "Rolled back" : "Failed to roll back")} local PT repo."
             );
             if (!restoreSucceeded)
@@ -1757,7 +1786,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
 
             if (successful)
             {
-                Log($"CompleteSync: Successfully synchronized to PT repo commit id '{repoVersion}'.");
+                LogMetric($"CompleteSync: Successfully synchronized to PT repo commit id '{repoVersion}'.");
                 op.Set(pd => pd.Sync.DateLastSuccessfulSync, DateTime.UtcNow);
                 op.Set(pd => pd.Sync.SyncedToRepositoryVersion, repoVersion);
                 // If the sync was successful, then the last sync error code should be cleared
@@ -1765,7 +1794,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
             }
             else
             {
-                Log(
+                LogMetric(
                     $"CompleteSync: Failed to synchronize. PT repo latest shared version is '{repoVersion}'. SF DB project SyncedToRepositoryVersion is '{_projectDoc.Data.Sync.SyncedToRepositoryVersion}'."
                 );
             }
@@ -1879,10 +1908,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
         });
         await NotifySyncProgress(SyncPhase.Phase9, 80.0);
 
-        if (_syncMetrics != null)
-        {
-            _syncMetrics.Users.Deleted = userIdsToRemove.Count;
-        }
+        _syncMetrics?.Users.Deleted = userIdsToRemove.Count;
 
         foreach (var userId in userIdsToRemove)
             await _projectService.RemoveUserWithoutPermissionsCheckAsync(_userSecret.Id, _projectDoc.Id, userId);
@@ -1972,10 +1998,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
             if (!_paratextService.IsResource(_projectDoc.Data.ParatextId))
             {
                 bool backupOutcome = _paratextService.BackupRepository(_userSecret, _projectDoc.Data.ParatextId);
-                if (_syncMetrics != null)
-                {
-                    _syncMetrics.RepositoryBackupCreated = backupOutcome;
-                }
+                _syncMetrics?.RepositoryBackupCreated = backupOutcome;
 
                 if (!backupOutcome)
                 {
@@ -2061,7 +2084,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
             $"DB Sync.SyncedToRepositoryVersion: {_projectDoc.Data.Sync.SyncedToRepositoryVersion}, DB Sync.DataInSync: {_projectDoc.Data.Sync.DataInSync}.";
         if (_paratextService.IsResource(projectPTId))
         {
-            Log($"{prefix}In-sync info: Is resource. {dbInfo}");
+            LogMetric($"{prefix}In-sync info: Is resource. {dbInfo}");
         }
         else if (!_paratextService.LocalProjectDirExists(projectPTId))
         {
@@ -2071,7 +2094,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
         {
             string repoRev = _paratextService.GetRepoRevision(_userSecret, projectPTId);
             string sharedRev = _paratextService.GetLatestSharedVersion(_userSecret, projectPTId);
-            Log(
+            LogMetric(
                 $"{prefix}In-sync info: Local hg repo current rev: {repoRev}, Latest shared rev: {sharedRev}, {dbInfo}"
             );
         }
@@ -2197,5 +2220,5 @@ public class ParatextSyncRunner : IParatextSyncRunner
         _syncMetrics?.Log.Add($"{DateTime.UtcNow:u} {message}");
     }
 
-    private void LogMetric(string message) => Log(message);
+    private void LogMetric(string message) => _syncMetrics?.Log.Add($"{DateTime.UtcNow:u} {message}");
 }

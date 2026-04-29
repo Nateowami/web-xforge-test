@@ -77,7 +77,7 @@ app-sync-progress {
 #sync-disabled-message,
 #sync-failure-support-message {
   max-width: 40rem;
-  color: variables.$lighterTextColor;
+  color: var(--sf-sync-warning-message-color);
 }
 
 .sync-log {

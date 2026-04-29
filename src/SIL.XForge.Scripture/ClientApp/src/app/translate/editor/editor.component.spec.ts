@@ -92,6 +92,7 @@ import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextDoc, TextDocId } from '../../core/models/text-doc';
 import { ParatextService } from '../../core/paratext.service';
 import { PermissionsService } from '../../core/permissions.service';
+import { ProjectNotificationService } from '../../core/project-notification.service';
 import { SFProjectService } from '../../core/sf-project.service';
 import { TextDocService } from '../../core/text-doc.service';
 import { TranslationEngineService } from '../../core/translation-engine.service';
@@ -149,6 +150,7 @@ const mockedParatextService = mock(ParatextService);
 const mockedPermissionsService = mock(PermissionsService);
 const mockedLynxWorkspaceService = mock(LynxWorkspaceService);
 const mockedFeatureFlagService = mock(FeatureFlagService);
+const mockedProjectNotificationService = mock(ProjectNotificationService);
 
 class MockComponent {}
 
@@ -215,6 +217,7 @@ describe('EditorComponent', () => {
       { provide: DraftGenerationService, useMock: mockedDraftGenerationService },
       { provide: DraftOptionsService, useMock: mockedDraftOptionsService },
       { provide: ParatextService, useMock: mockedParatextService },
+      { provide: ProjectNotificationService, useMock: mockedProjectNotificationService },
       { provide: TabFactoryService, useValue: EditorTabFactoryService },
       { provide: TabMenuService, useValue: EditorTabMenuService },
       { provide: PermissionsService, useMock: mockedPermissionsService },
@@ -1942,6 +1945,7 @@ describe('EditorComponent', () => {
       const length = 3;
       const noteEmbedLength = 1;
       let notePosition = env.getNoteThreadEditorPosition('dataid01');
+      env.targetEditor.setSelection(notePosition); // Emulate mouse click into segment
       env.targetEditor.setSelection(notePosition - length, length, 'user');
       env.deleteCharacters();
       expect(noteThreadDoc.data!.position).toEqual({ start: 8 - length, length: 9 });
@@ -2046,6 +2050,7 @@ describe('EditorComponent', () => {
       const position: number = env.getNoteThreadEditorPosition('dataid03');
       const length = 9;
       // $target: chapter 1, |->$$verse 3<-|.
+      env.targetEditor.setSelection(position); // Emulate mouse click into segment
       env.targetEditor.setSelection(position, length, 'api');
       env.deleteCharacters();
       const range: Range = env.component.target!.getSegmentRange('verse_1_3')!;
@@ -2070,6 +2075,7 @@ describe('EditorComponent', () => {
       env.wait();
 
       // 1 target: $chapter|-> 1, $ve<-|rse 1.
+      env.targetEditor.setSelection(19); // Emulate mouse click into segment
       env.targetEditor.setSelection(19, 7, 'user');
       env.deleteCharacters();
       const note1 = env.getNoteThreadDoc('project01', 'dataid01');
@@ -2106,6 +2112,7 @@ describe('EditorComponent', () => {
       expect(noteThreadDoc.data!.position).toEqual({ start: 8, length: 9 });
       // delete text that spans across the end boundary
       const notePosition = env.getNoteThreadEditorPosition('dataid01');
+      env.targetEditor.setSelection(notePosition); // Emulate mouse click into segment
       const deletionLength = 10;
       const noteEmbedLength: number = 1;
       // Arbitrary text position within thread anchoring, at which to start deleting.
@@ -2168,6 +2175,7 @@ describe('EditorComponent', () => {
 
       // delete the entire text anchor
       let notePosition = env.getNoteThreadEditorPosition('dataid01');
+      env.targetEditor.setSelection(notePosition); // Emulate mouse click into segment
       let length = 9;
       env.targetEditor.setSelection(notePosition + 1, length, 'user');
       env.deleteCharacters();
@@ -2178,6 +2186,7 @@ describe('EditorComponent', () => {
       expect(noteThreadDoc.data!.position).toEqual({ start: 20, length: 7 });
       notePosition = env.getNoteThreadEditorPosition('dataid03');
       length = 8;
+      env.targetEditor.setSelection(notePosition); // Emulate mouse click into segment
       env.targetEditor.setSelection(notePosition + 1, length, 'user');
       env.deleteCharacters();
       expect(noteThreadDoc.data!.position).toEqual({ start: 0, length: 0 });
@@ -2272,6 +2281,7 @@ describe('EditorComponent', () => {
       expect(noteThreadDoc.data!.position).toEqual(origNoteAnchor);
 
       const notePosition: number = env.getNoteThreadEditorPosition('dataid01');
+      env.targetEditor.setSelection(notePosition); // Emulate mouse click into segment
       const deleteStart: number = notePosition + 1;
       const text = 'chap';
 
@@ -2351,6 +2361,7 @@ describe('EditorComponent', () => {
       expect(env.getNoteThreadEditorPosition('dataid05')).toEqual(verse4p1Index);
       // user deletes all of the text in segment before
       const range = env.component.target!.getSegmentRange('verse_1_4')!;
+      env.targetEditor.setSelection(range.index); // Emulate mouse click into segment
       env.targetEditor.setSelection(range.index, range.length, 'user');
       env.deleteCharacters();
       expect(noteThreadDoc.data!.position).toEqual({ start: 2, length: 9 });
@@ -2634,6 +2645,7 @@ describe('EditorComponent', () => {
       expect(textDoc.data!.ops![3].insert).toEqual('target: chapter 1, verse 1.');
       const note1Position: number = env.getNoteThreadEditorPosition('dataid01');
       // target: |->$<-|chapter 1, $verse 1.
+      env.targetEditor.setSelection(note1Position); // Emulate mouse click into segment
       env.targetEditor.setSelection(note1Position, 1, 'user');
       env.deleteCharacters();
       const positionAfterDelete: number = env.getNoteThreadEditorPosition('dataid01');
@@ -2703,6 +2715,7 @@ describe('EditorComponent', () => {
       const note4Position: number = env.getNoteThreadEditorPosition('dataid04');
       deleteLength = 6;
       // $target: chapter 1|->, $$ve<-|rse 3.
+      env.targetEditor.setSelection(note3Position); // Emulate mouse click into segment
       env.targetEditor.setSelection(note3Position - beforeNoteLength, deleteLength, 'api');
       env.deleteCharacters();
       newNotePosition = env.getNoteThreadEditorPosition('dataid03');
@@ -4159,7 +4172,7 @@ describe('EditorComponent', () => {
           Object.defineProperty(env.component, 'showSource', { get: () => true });
         });
         when(mockedPermissionsService.canAccessDrafts(anything(), anything())).thenReturn(true);
-        when(mockedSFProjectService.hasDraft(anything(), anything())).thenReturn(true);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), anything())).thenReturn(true);
         env.wait();
         env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '1' });
         env.wait();
@@ -4178,7 +4191,7 @@ describe('EditorComponent', () => {
           Object.defineProperty(env.component, 'showSource', { get: () => false });
         });
         when(mockedPermissionsService.canAccessDrafts(anything(), anything())).thenReturn(true);
-        when(mockedSFProjectService.hasDraft(anything(), anything())).thenReturn(true);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), anything())).thenReturn(true);
         env.wait();
         env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '1' });
         env.wait();
@@ -4217,7 +4230,7 @@ describe('EditorComponent', () => {
           Object.defineProperty(env.component, 'showSource', { get: () => true });
         });
         when(mockedPermissionsService.canAccessDrafts(anything(), anything())).thenReturn(true);
-        when(mockedSFProjectService.hasDraft(anything(), anything())).thenReturn(true);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), anything())).thenReturn(true);
         env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '1' });
         env.wait();
 
@@ -4225,7 +4238,7 @@ describe('EditorComponent', () => {
         expect(sourceTabGroup?.tabs[1].type).toEqual('draft');
         expect(env.component.chapter).toBe(1);
 
-        when(mockedSFProjectService.hasDraft(anything(), anything())).thenReturn(false);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), anything())).thenReturn(false);
         env.routeWithParams({ projectId: 'project01', bookId: 'MAT', chapter: '2' });
         env.wait();
 
@@ -4255,7 +4268,7 @@ describe('EditorComponent', () => {
           Object.defineProperty(env.component, 'showSource', { get: () => false });
         });
         when(mockedPermissionsService.canAccessDrafts(anything(), anything())).thenReturn(true);
-        when(mockedSFProjectService.hasDraft(anything(), anything())).thenReturn(true);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), anything())).thenReturn(true);
         env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '1' });
         env.wait();
 
@@ -4263,7 +4276,7 @@ describe('EditorComponent', () => {
         expect(targetTabGroup?.tabs[1].type).toEqual('draft');
         expect(env.component.chapter).toBe(1);
 
-        when(mockedSFProjectService.hasDraft(anything(), anything())).thenReturn(false);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), anything())).thenReturn(false);
         env.routeWithParams({ projectId: 'project01', bookId: 'MAT', chapter: '2' });
         env.wait();
 
@@ -4306,7 +4319,7 @@ describe('EditorComponent', () => {
       it('should not select the draft tab if url query param is not set', fakeAsync(() => {
         const env = new TestEnvironment();
         when(mockedActivatedRoute.snapshot).thenReturn({ queryParams: {} } as any);
-        when(mockedSFProjectService.hasDraft(anything(), anything())).thenReturn(true);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), anything())).thenReturn(true);
         when(mockedPermissionsService.canAccessDrafts(anything(), anything())).thenReturn(true);
         env.wait();
         env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '1' });
@@ -4995,6 +5008,7 @@ class TestEnvironment {
     when(mockedDraftGenerationService.getLastCompletedBuild(anything())).thenReturn(of({} as BuildDto));
     when(mockedDraftOptionsService.areFormattingOptionsAvailableButUnselected(anything())).thenReturn(false);
     when(mockedPermissionsService.isUserOnProject(anything())).thenResolve(true);
+    when(mockedPermissionsService.canAccessText(anything(), anything())).thenReturn(true);
     when(mockedFeatureFlagService.newDraftHistory).thenReturn(createTestFeatureFlag(false));
     when(mockedLynxWorkspaceService.rawInsightSource$).thenReturn(of([]));
 

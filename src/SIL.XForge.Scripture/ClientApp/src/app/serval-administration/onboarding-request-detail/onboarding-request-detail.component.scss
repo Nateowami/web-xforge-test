@@ -119,3 +119,13 @@
     }
   }
 }
+
+.book-list {
+  word-wrap: anywhere;
+}
+
+.command-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

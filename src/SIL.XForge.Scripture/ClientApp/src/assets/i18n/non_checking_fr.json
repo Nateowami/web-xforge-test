@@ -180,10 +180,6 @@
     "dialog_confirm_draft_cancellation_no": "Non",
     "dialog_confirm_draft_cancellation_title": "Annuler la génération de l'ébauche ?",
     "dialog_confirm_draft_cancellation_yes": "Oui, annuler",
-    "dialog_confirm_draft_regeneration_message": "La création d'une nouvelle ébauche supprimera l'ébauche existante.",
-    "dialog_confirm_draft_regeneration_no": "Annuler",
-    "dialog_confirm_draft_regeneration_title": "Est-ce que vous avez terminé avec le projet actuel?",
-    "dialog_confirm_draft_regeneration_yes": "Continuer",
     "download_draft": "Télécharger l'ébauche",
     "draft_active_detail": "La génération d'un brouillon prend généralement au moins {{ count }} heures.",
     "draft_active_header": "L'ébauche en cours",
@@ -556,7 +552,7 @@
     "number_answers": "Nombre de réponses",
     "scripture_forge": "Scripture Forge",
     "some_questions_edited": "Certaines questions ont été modifiées",
-    "transcelerator": "Transcelerator"
+    "update_to": "Update to"
   },
   "import_questions_dialog": {
     "back": "Retour",
@@ -586,6 +582,7 @@
     "import_questions": "Importer des questions",
     "import": "Importer",
     "invalid_csv_rows_will_be_skipped": "Ces lignes dans le fichier CSV sont invalides et seront ignorées.",
+    "invalid_spreadsheet": "The file is missing text in the {{ boldStart }}Reference{{ boldEnd }} or {{ boldStart }}Question{{ boldEnd }} columns. Please check and update the file.",
     "learn_more": "En savoir plus",
     "loading": "Chargement...",
     "missing_header_row": "Le fichier que vous avez importé doit comporter une ligne d'en-tête avec des colonnes nommées {{ boldStart }}Reference{{ boldEnd }} et {{ boldStart }}Question{{ boldEnd }}.",
@@ -872,6 +869,7 @@
   "training_data_multi_select": {
     "confirm_delete": "Êtes-vous sûr de vouloir supprimer définitivement ces données de formation ?",
     "delete": "Supprimer",
+    "download": "Télécharger",
     "upload_spreadsheet": "Télécharger la feuille de calcul"
   },
   "training_data_upload_dialog": {
@@ -965,9 +963,11 @@
     "second_reference_project_placeholder": "Second reference project (optional)",
     "submission_success_message": "Your request has been received. A team member will contact you within {{ min }} to {{ max }} business days to discuss your project and next steps.",
     "submission_success_title": "Thank you for signing up!",
+    "submit_failure_notice": "Failed to submit the form. Please try again.",
     "submit": "Envoyer",
     "submitting_message": "Please wait while we submit your request. This may take a few moments.",
     "submitting_title": "Submitting your request",
+    "fill_required_fields_notice": "Please fill in all required fields",
     "third_reference_project_placeholder": "Third reference project (optional)",
     "title": "Sign up for draft generation",
     "translation_language_iso_label": "Translation language ISO code",

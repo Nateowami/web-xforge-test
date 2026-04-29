@@ -24,6 +24,7 @@ using Polly.CircuitBreaker;
 using Serval.Client;
 using SIL.Converters.Usj;
 using SIL.Scripture;
+using SIL.XForge.Configuration;
 using SIL.XForge.DataAccess;
 using SIL.XForge.EventMetrics;
 using SIL.XForge.Models;
@@ -1096,15 +1097,8 @@ public class MachineApiServiceTests
                 // Invalid corpus format
                 new TrainingCorpus(),
             ],
-            Analysis =
-            [
-                new ParallelCorpusAnalysis
-                {
-                    ParallelCorpusRef = ParallelCorpusId01,
-                    TargetQuoteConvention = "standard_english",
-                    CanDenormalizeQuotes = true,
-                },
-            ],
+            TargetQuoteConvention = "standard_english",
+            CanDenormalizeQuotes = true,
         };
         env.ConfigureTranslationBuild(translationBuild);
 
@@ -1380,15 +1374,8 @@ public class MachineApiServiceTests
         // Set up test environment
         var env = new TestEnvironment();
         TranslationBuild translationBuild = env.ConfigureTranslationBuild();
-        translationBuild.Analysis =
-        [
-            new ParallelCorpusAnalysis
-            {
-                ParallelCorpusRef = ParallelCorpusId01,
-                TargetQuoteConvention = "standard_english",
-                CanDenormalizeQuotes = true,
-            },
-        ];
+        translationBuild.TargetQuoteConvention = "standard_english";
+        translationBuild.CanDenormalizeQuotes = true;
         translationBuild.Pretranslate =
         [
             new PretranslateCorpus { ParallelCorpus = new ResourceLink { Id = ParallelCorpusId01 } },
@@ -3823,6 +3810,42 @@ public class MachineApiServiceTests
     }
 
     [Test]
+    public async Task RetrievePreTranslationStatusAsync_UpdatesScriptureRanges()
+    {
+        // Set up test environment with a completed build
+        var env = new TestEnvironment();
+        env.ConfigureTranslationBuild(
+            new TranslationBuild
+            {
+                State = JobState.Completed,
+                Pretranslate =
+                [
+                    new PretranslateCorpus
+                    {
+                        SourceFilters = [new ParallelCorpusFilter { ScriptureRange = "GEN2,4,5;LEV" }],
+                    },
+                ],
+            }
+        );
+        await env.Projects.UpdateAsync(
+            Project01,
+            u => u.Set(p => p.TranslateConfig.DraftConfig.DraftedScriptureRange, "GEN1,3-4,7;EXO;LEV")
+        );
+
+        // SUT
+        await env.Service.RetrievePreTranslationStatusAsync(Project01, CancellationToken.None);
+
+        Assert.That(
+            env.Projects.Get(Project01).TranslateConfig.DraftConfig.CurrentScriptureRange,
+            Is.EqualTo("GEN2,4-5;LEV")
+        );
+        Assert.That(
+            env.Projects.Get(Project01).TranslateConfig.DraftConfig.DraftedScriptureRange,
+            Is.EqualTo("GEN1-5,7;EXO;LEV")
+        );
+    }
+
+    [Test]
     public async Task RetrievePreTranslationStatusAsync_SetsDraftGenerationRequestId()
     {
         // Set up test environment with a completed build
@@ -3924,6 +3947,7 @@ public class MachineApiServiceTests
             User01,
             Project01,
             bookNum: 2,
+            chapterNum: 1,
             isServalAdmin: true,
             timestamp,
             CancellationToken.None
@@ -3953,6 +3977,7 @@ public class MachineApiServiceTests
             User01,
             Project01,
             bookNum: 2,
+            chapterNum: 1,
             isServalAdmin: true,
             timestamp,
             CancellationToken.None
@@ -3982,6 +4007,7 @@ public class MachineApiServiceTests
             User01,
             Project01,
             bookNum: 2,
+            chapterNum: 1,
             isServalAdmin: true,
             timestamp,
             CancellationToken.None
@@ -4011,6 +4037,7 @@ public class MachineApiServiceTests
             User01,
             Project01,
             bookNum: 2,
+            chapterNum: 1,
             isServalAdmin: true,
             timestamp,
             CancellationToken.None
@@ -4032,6 +4059,7 @@ public class MachineApiServiceTests
             User01,
             Project01,
             bookNum: 2,
+            chapterNum: 1,
             isServalAdmin: true,
             timestamp,
             CancellationToken.None
@@ -4654,16 +4682,29 @@ public class MachineApiServiceTests
     {
         // Set up test environment
         var env = new TestEnvironment();
-        string textDocumentId = TextDocument.GetDocId(Project01, 1, 1, TextDocument.Draft);
         const int bookNum = 1;
-        env.SetupTextDocument(textDocumentId, bookNum, alreadyExists: false);
+        const int chapterNum = 0;
+        string textDocumentId = TextDocument.GetDocId(Project01, bookNum, chapter: 1, TextDocument.Draft);
+        await env.SetupTextDocumentAsync(
+            textDocumentId,
+            bookNum,
+            chapterNum,
+            scriptureRange: "GEN",
+            alreadyExists: false
+        );
 
         // SUT
         await env.Service.UpdatePreTranslationTextDocumentsAsync(Project01, CancellationToken.None);
 
         await env
             .PreTranslationService.Received(1)
-            .GetPreTranslationUsfmAsync(Project01, bookNum, 0, Arg.Any<DraftUsfmConfig>(), CancellationToken.None);
+            .GetPreTranslationUsfmAsync(
+                Project01,
+                bookNum,
+                chapterNum,
+                Arg.Any<DraftUsfmConfig>(),
+                CancellationToken.None
+            );
         env.ParatextService.Received(1).GetChaptersAsUsj(Arg.Any<UserSecret>(), Paratext01, bookNum, TestUsfm);
         Assert.AreEqual(1, await env.TextDocuments.CountDocumentsAsync(_ => true));
         Assert.IsNotEmpty(env.TextDocuments.Get(textDocumentId).Content!);
@@ -4735,6 +4776,36 @@ public class MachineApiServiceTests
     }
 
     [Test]
+    public async Task UpdatePreTranslationTextDocumentsAsync_SupportsChapterRanges()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+        const int bookNum = 1;
+        string textDocumentId1 = TextDocument.GetDocId(Project01, bookNum, 2, TextDocument.Draft);
+        await env.SetupTextDocumentAsync(textDocumentId1, bookNum, 2, scriptureRange: "GEN2,4", alreadyExists: false);
+        string textDocumentId2 = TextDocument.GetDocId(Project01, bookNum, 4, TextDocument.Draft);
+        await env.SetupTextDocumentAsync(textDocumentId2, bookNum, 4, scriptureRange: "GEN2,4", alreadyExists: false);
+        await env.Projects.UpdateAsync(
+            Project01,
+            u => u.Set(p => p.TranslateConfig.DraftConfig.DraftedScriptureRange, "GEN1,3")
+        );
+
+        // SUT
+        await env.Service.UpdatePreTranslationTextDocumentsAsync(Project01, CancellationToken.None);
+
+        await env
+            .PreTranslationService.Received(1)
+            .GetPreTranslationUsfmAsync(Project01, bookNum, 2, Arg.Any<DraftUsfmConfig>(), CancellationToken.None);
+        await env
+            .PreTranslationService.Received(1)
+            .GetPreTranslationUsfmAsync(Project01, bookNum, 4, Arg.Any<DraftUsfmConfig>(), CancellationToken.None);
+        env.ParatextService.Received(2).GetChaptersAsUsj(Arg.Any<UserSecret>(), Paratext01, bookNum, TestUsfm);
+        Assert.AreEqual(2, await env.TextDocuments.CountDocumentsAsync(_ => true));
+        Assert.IsNotEmpty(env.TextDocuments.Get(textDocumentId1).Content!);
+        Assert.IsNotEmpty(env.TextDocuments.Get(textDocumentId2).Content!);
+    }
+
+    [Test]
     public void UpdatePreTranslationTextDocumentsAsync_UserCannotCreateDrafts()
     {
         // Set up test environment
@@ -4753,16 +4824,29 @@ public class MachineApiServiceTests
     {
         // Set up test environment
         var env = new TestEnvironment();
-        string textDocumentId = TextDocument.GetDocId(Project01, 1, 1, TextDocument.Draft);
         const int bookNum = 1;
-        env.SetupTextDocument(textDocumentId, bookNum, alreadyExists: true);
+        const int chapterNum = 1;
+        string textDocumentId = TextDocument.GetDocId(Project01, bookNum, chapterNum, TextDocument.Draft);
+        await env.SetupTextDocumentAsync(
+            textDocumentId,
+            bookNum,
+            chapterNum,
+            scriptureRange: "GEN1",
+            alreadyExists: true
+        );
 
         // SUT
         await env.Service.UpdatePreTranslationTextDocumentsAsync(Project01, CancellationToken.None);
 
         await env
             .PreTranslationService.Received(1)
-            .GetPreTranslationUsfmAsync(Project01, bookNum, 0, Arg.Any<DraftUsfmConfig>(), CancellationToken.None);
+            .GetPreTranslationUsfmAsync(
+                Project01,
+                bookNum,
+                chapterNum,
+                Arg.Any<DraftUsfmConfig>(),
+                CancellationToken.None
+            );
         env.ParatextService.Received(1).GetChaptersAsUsj(Arg.Any<UserSecret>(), Paratext01, bookNum, Arg.Any<string>());
         Assert.AreEqual(1, await env.TextDocuments.CountDocumentsAsync(_ => true));
         Assert.IsNotEmpty(env.TextDocuments.Get(textDocumentId).Content!);
@@ -4882,6 +4966,7 @@ public class MachineApiServiceTests
             RealtimeService.AddRepository("text_documents", OTType.Json0, TextDocuments);
             RealtimeService.AddRepository("texts", OTType.RichText, Texts);
             ServalOptions = Options.Create(new ServalOptions { WebhookSecret = "this_is_a_secret" });
+            var siteOptions = Options.Create(new SiteOptions { IssuesEmail = "help@scriptureforge.org" });
             SyncService = Substitute.For<ISyncService>();
             SyncService.SyncAsync(Arg.Any<SyncConfig>()).Returns(Task.FromResult(HangfireJobId));
             TranslationEnginesClient = Substitute.For<ITranslationEnginesClient>();
@@ -4922,6 +5007,7 @@ public class MachineApiServiceTests
                 ProjectService,
                 RealtimeService,
                 ServalOptions,
+                siteOptions,
                 SyncService,
                 TranslationEnginesClient,
                 TranslationEngineTypesClient,
@@ -5362,17 +5448,31 @@ public class MachineApiServiceTests
         /// </summary>
         /// <param name="textDocumentId">The id of the document.</param>
         /// <param name="bookNum">The book number.</param>
+        /// <param name="chapterNum">The chapter number.</param>
+        /// <param name="scriptureRange">The current scripture range.</param>
         /// <param name="alreadyExists">
         /// If <c>true</c>, ensure the document is already in <see cref="TextDocuments"/>, but with empty content.
         /// </param>
-        public void SetupTextDocument(string textDocumentId, int bookNum, bool alreadyExists)
+        public async Task SetupTextDocumentAsync(
+            string textDocumentId,
+            int bookNum,
+            int chapterNum,
+            string scriptureRange,
+            bool alreadyExists
+        )
         {
-            Projects.UpdateAsync(
+            await Projects.UpdateAsync(
                 Project01,
-                u => u.Set(p => p.TranslateConfig.DraftConfig.CurrentScriptureRange, Canon.BookNumberToId(bookNum))
+                u => u.Set(p => p.TranslateConfig.DraftConfig.CurrentScriptureRange, scriptureRange)
             );
             PreTranslationService
-                .GetPreTranslationUsfmAsync(Project01, bookNum, 0, Arg.Any<DraftUsfmConfig>(), CancellationToken.None)
+                .GetPreTranslationUsfmAsync(
+                    Project01,
+                    bookNum,
+                    chapterNum,
+                    Arg.Any<DraftUsfmConfig>(),
+                    CancellationToken.None
+                )
                 .Returns(Task.FromResult(TestUsfm));
             ParatextService.GetChaptersAsUsj(Arg.Any<UserSecret>(), Paratext01, bookNum, TestUsfm).Returns([TestUsj]);
 

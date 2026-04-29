@@ -245,7 +245,7 @@ describe('DraftGenerationStepsComponent', () => {
   describe('one training source', async () => {
     const sourceProjectId = 'sourceProject';
     const availableBooks = [{ bookNum: 1 }, { bookNum: 2 }, { bookNum: 3 }, { bookNum: 5 }];
-    const allBooks = [...availableBooks, { bookNum: 6 }, { bookNum: 7 }];
+    const allBooks = [...availableBooks, { bookNum: 6 }, { bookNum: 7 }, { bookNum: 8 }];
     const sourceBooks = allBooks.filter(b => b.bookNum !== 6);
     const config: DraftSourcesAsArrays = {
       trainingSources: [
@@ -286,14 +286,26 @@ describe('DraftGenerationStepsComponent', () => {
         data: createTestProjectProfile({
           texts: allBooks,
           translateConfig: {
-            source: { projectRef: sourceProjectId, shortName: 'sP', writingSystem: { tag: 'xyz' } }
+            source: { projectRef: sourceProjectId, shortName: 'sP', writingSystem: { tag: 'xyz' } },
+            draftConfig: {
+              lastSelectedTrainingScriptureRanges: [{ projectId: sourceProjectId, scriptureRange: 'GEN;EXO;RUT' }]
+            }
           },
           writingSystem: { tag: 'eng' }
         })
       } as SFProjectProfileDoc;
       const targetProjectDoc$ = new BehaviorSubject<SFProjectProfileDoc>(mockTargetProjectDoc);
-      const emptyBookNums = [5];
+      // setup empty books in the target
+      const emptyBooksInTarget = [3, 8];
+      const books: BookProgress[] = allBooks.map(b => ({
+        bookId: Canon.bookNumberToId(b.bookNum),
+        verseSegments: 100,
+        blankVerseSegments: emptyBooksInTarget.includes(b.bookNum) ? 100 : 0
+      }));
+      const progress = new ProjectProgress(books);
+      when(mockProgressService.getProgress('project01', anything())).thenResolve(progress);
 
+      const emptyBookNums = [5];
       when(mockActivatedProjectService.projectDoc).thenReturn(mockTargetProjectDoc);
       when(mockActivatedProjectService.projectDoc$).thenReturn(targetProjectDoc$);
       when(mockActivatedProjectService.changes$).thenReturn(targetProjectDoc$);
@@ -319,7 +331,8 @@ describe('DraftGenerationStepsComponent', () => {
         { number: 1, selected: false },
         { number: 2, selected: false },
         { number: 3, selected: false },
-        { number: 5, selected: false }
+        { number: 5, selected: false },
+        { number: 8, selected: false }
       ]);
     }));
 
@@ -328,7 +341,8 @@ describe('DraftGenerationStepsComponent', () => {
         sourceProject: [
           { number: 1, selected: false },
           { number: 2, selected: false },
-          { number: 3, selected: false }
+          { number: 3, selected: false },
+          { number: 8, selected: false }
         ]
       });
     }));
@@ -342,7 +356,8 @@ describe('DraftGenerationStepsComponent', () => {
         sourceProject: [
           { number: 1, selected: true },
           { number: 2, selected: true },
-          { number: 3, selected: false }
+          { number: 3, selected: false },
+          { number: 8, selected: false }
         ]
       });
     }));
@@ -377,7 +392,7 @@ describe('DraftGenerationStepsComponent', () => {
     }));
 
     it('should set "trainingBooksWithoutEnoughData"', fakeAsync(() => {
-      expect(component.trainingBooksWithoutEnoughData).toEqual([3, 5]);
+      expect(component.trainingBooksWithoutEnoughData).toEqual([3, 5, 8]);
     }));
 
     it('should set "unusableTranslateTargetBooks" and "unusableTrainingTargetBooks" correctly', fakeAsync(() => {
@@ -1353,7 +1368,7 @@ describe('DraftGenerationStepsComponent', () => {
     });
   });
 
-  describe('pending updates', () => {
+  describe('project notices', () => {
     const availableBooks = [
       { bookNum: 1 },
       { bookNum: 2 },
@@ -1370,13 +1385,17 @@ describe('DraftGenerationStepsComponent', () => {
           projectRef: 'source1',
           shortName: 'sP1',
           writingSystem: { tag: 'eng' },
-          texts: availableBooks
+          texts: availableBooks,
+          copyrightBanner: 'Copyright Banner 1',
+          copyrightNotice: 'Copyright Notice 1'
         },
         {
           projectRef: 'source2',
           shortName: 'sP2',
           writingSystem: { tag: 'eng' },
-          texts: availableBooks
+          texts: availableBooks,
+          copyrightBanner: 'Copyright Banner 2',
+          copyrightNotice: 'Copyright Notice 2'
         }
       ] as [DraftSource, DraftSource],
       trainingTargets: [
@@ -1392,7 +1411,9 @@ describe('DraftGenerationStepsComponent', () => {
           projectRef: draftingSourceId,
           shortName: 'dS',
           writingSystem: { tag: 'eng' },
-          texts: availableBooks.concat({ bookNum: 7 })
+          texts: availableBooks.concat({ bookNum: 7 }),
+          copyrightBanner: 'Copyright Banner 1',
+          copyrightNotice: 'Copyright Notice 1'
         }
       ] as [DraftSource]
     };
@@ -1438,6 +1459,13 @@ describe('DraftGenerationStepsComponent', () => {
       fixture.detectChanges();
       tick();
     }));
+
+    it('should show copyright notices', () => {
+      expect(component.copyrightMessages).toEqual([
+        { banner: 'Copyright Banner 1', notice: 'Copyright Notice 1' },
+        { banner: 'Copyright Banner 2', notice: 'Copyright Notice 2' }
+      ]);
+    });
 
     it('should show projects pending updates', () => {
       expect(component.projectsPendingUpdate).toEqual([

@@ -1313,6 +1313,35 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
         );
     }
 
+    public async Task SetQualityEstimationConfigAsync(
+        string curUserId,
+        string[] systemRoles,
+        string projectId,
+        QualityEstimationConfig? qualityEstimationConfig
+    )
+    {
+        if (!systemRoles.Contains(SystemRole.ServalAdmin))
+            throw new ForbiddenException();
+
+        if ((qualityEstimationConfig?.Version ?? "0.1") != "0.1")
+            throw new InvalidOperationException("Unsupported version number");
+
+        await using IConnection conn = await RealtimeService.ConnectAsync(curUserId);
+        IDocument<SFProject> projectDoc = await GetProjectDocAsync(projectId, conn);
+        if (qualityEstimationConfig is null)
+        {
+            await projectDoc.SubmitJson0OpAsync(op =>
+                op.Unset(p => p.TranslateConfig.DraftConfig.QualityEstimationConfig)
+            );
+        }
+        else
+        {
+            await projectDoc.SubmitJson0OpAsync(op =>
+                op.Set(p => p.TranslateConfig.DraftConfig.QualityEstimationConfig, qualityEstimationConfig)
+            );
+        }
+    }
+
     public Task<string> GetProjectIdFromParatextIdAsync(string[] systemRoles, string paratextId)
     {
         if (!(systemRoles.Contains(SystemRole.ServalAdmin) || systemRoles.Contains(SystemRole.SystemAdmin)))
@@ -1518,19 +1547,23 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
             }
             Models.TextInfo text = projectDoc.Data.Texts[textIndex];
             List<Chapter> chapters = text.Chapters;
-            Dictionary<string, string> bookPermissions = null;
+            Dictionary<string, string> bookPermissions;
             IEnumerable<(
                 int bookIndex,
                 int chapterIndex,
                 Dictionary<string, string> chapterPermissions
-            )> chapterPermissionsInBook = null;
+            )> chapterPermissionsInBook;
 
             if (isResource)
             {
-                bookPermissions = resourcePermissions;
-                // Prepare to write the same resource permission for each chapter in the book/text.
+                // Do not write any read permissions for resources
+                bookPermissions = resourcePermissions
+                    .Where(kvp => kvp.Value != TextInfoPermission.Read)
+                    .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
+
+                // Chapter permissions will not vary from book permissions for resources
                 chapterPermissionsInBook = chapters.Select(
-                    (Chapter chapter, int chapterIndex) => (textIndex, chapterIndex, bookPermissions)
+                    (_, chapterIndex) => (textIndex, chapterIndex, new Dictionary<string, string>())
                 );
             }
             else
@@ -1557,37 +1590,148 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
                                 chapter.Number,
                                 token
                             );
+
+                            // Only save chapter permissions where they differ from the book permissions
+                            chapterPermissions = chapterPermissions
+                                .Where(kvp =>
+                                    !bookPermissions.TryGetValue(kvp.Key, out string bookPermission)
+                                    || bookPermission != kvp.Value
+                                )
+                                .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
                             return (textIndex, chapterIndex, chapterPermissions);
                         }
                     )
                 );
+
+                // Only save write permissions - all other users will have read if they are on the project
+                bookPermissions = bookPermissions
+                    .Where(kvp => kvp.Value != TextInfoPermission.Read)
+                    .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
             }
+
             projectChapterPermissions.AddRange(chapterPermissionsInBook);
             projectBookPermissions.Add((textIndex, bookPermissions));
         }
 
-        // Update project metadata
-        await projectDoc.SubmitJson0OpAsync(op =>
+        // Build a list of permission changes
+        List<(int bookIndex, int? chapterIndex, string userId, string? permission)> changes = [];
+        foreach (
+            (int bookIndex, Dictionary<string, string> oldBookPermissions) in projectDoc.Data.Texts.Select(
+                (t, i) => (i, t.Permissions)
+            )
+        )
         {
-            foreach ((int bookIndex, Dictionary<string, string> bookPermissions) in projectBookPermissions)
+            // Update the permission at a book level
+            Dictionary<string, string> newBookPermissions = projectBookPermissions
+                .SingleOrDefault(p => p.bookIndex == bookIndex)
+                .bookPermissions;
+
+            // If we are only updating a subset of books, skip updating permissions for other books
+            if (newBookPermissions is null)
+                continue;
+
+            foreach ((string userId, string oldPermission) in oldBookPermissions)
             {
-                op.Set(pd => pd.Texts[bookIndex].Permissions, bookPermissions, _permissionDictionaryEqualityComparer);
+                if (!newBookPermissions.TryGetValue(userId, out string newPermission))
+                {
+                    // Remove permission
+                    changes.Add((bookIndex, null, userId, null));
+                }
+                else if (newPermission != oldPermission)
+                {
+                    // Update permission
+                    changes.Add((bookIndex, null, userId, newPermission));
+                }
             }
+
+            foreach ((string userId, string permission) in newBookPermissions)
+            {
+                if (!oldBookPermissions.ContainsKey(userId))
+                {
+                    // Add permission
+                    changes.Add((bookIndex, null, userId, permission));
+                }
+            }
+
+            // Update permissions for each chapter in the book
             foreach (
-                (
-                    int bookIndex,
-                    int chapterIndex,
-                    Dictionary<string, string> chapterPermissions
-                ) in projectChapterPermissions
+                (int chapterIndex, Dictionary<string, string> oldChapterPermissions) in projectDoc
+                    .Data.Texts[bookIndex]
+                    .Chapters.Select((c, i) => (i, c.Permissions))
             )
             {
-                op.Set(
-                    pd => pd.Texts[bookIndex].Chapters[chapterIndex].Permissions,
-                    chapterPermissions,
-                    _permissionDictionaryEqualityComparer
-                );
+                // Update the permission at a chapter level
+                Dictionary<string, string> newChapterPermissions =
+                    projectChapterPermissions
+                        .SingleOrDefault(p => p.bookIndex == bookIndex && p.chapterIndex == chapterIndex)
+                        .chapterPermissions
+                    ?? [];
+
+                foreach ((string userId, string oldPermission) in oldChapterPermissions)
+                {
+                    if (!newChapterPermissions.TryGetValue(userId, out string newPermission))
+                    {
+                        // Remove permission
+                        changes.Add((bookIndex, chapterIndex, userId, null));
+                    }
+                    else if (newPermission != oldPermission)
+                    {
+                        // Update permission
+                        changes.Add((bookIndex, chapterIndex, userId, newPermission));
+                    }
+                }
+
+                foreach ((string userId, string permission) in newChapterPermissions)
+                {
+                    if (!oldChapterPermissions.ContainsKey(userId))
+                    {
+                        // Add permission
+                        changes.Add((bookIndex, chapterIndex, userId, permission));
+                    }
+                }
             }
-        });
+        }
+
+        // Update the project document in batches of 1000
+        const int batchSize = 1000;
+        foreach (
+            (int bookIndex, int? chapterIndex, string userId, string? permission)[] batch in changes.Chunk(batchSize)
+        )
+        {
+            await projectDoc.SubmitJson0OpAsync(op =>
+            {
+                foreach ((int bookIndex, int? chapterIndex, string userId, string? permission) in batch)
+                {
+                    if (chapterIndex is null)
+                    {
+                        // Update book permissions
+                        if (permission is null)
+                        {
+                            op.Unset(pd => pd.Texts[bookIndex].Permissions[userId]);
+                        }
+                        else
+                        {
+                            op.Set(pd => pd.Texts[bookIndex].Permissions[userId], permission);
+                        }
+                    }
+                    else
+                    {
+                        // Update chapter permissions
+                        if ((permission ?? TextInfoPermission.None) == TextInfoPermission.None)
+                        {
+                            op.Unset(pd => pd.Texts[bookIndex].Chapters[chapterIndex!.Value].Permissions[userId]);
+                        }
+                        else
+                        {
+                            op.Set(
+                                pd => pd.Texts[bookIndex].Chapters[chapterIndex!.Value].Permissions[userId],
+                                permission
+                            );
+                        }
+                    }
+                }
+            });
+        }
     }
 
     [Obsolete("Use MachineApiService.ApplyPreTranslationToProjectAsync instead. Deprecated 2025-12")]
@@ -1689,19 +1833,24 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
             throw new DataNotFoundException("The chapter does not exist.");
         }
 
-        // Ensure the user has permission for this chapter
+        // Ensure the user can write to this chapter
+        if (!projectDoc.Data.Texts[textIndex].Permissions.TryGetValue(userId, out string bookPermission))
+        {
+            bookPermission = TextInfoPermission.None;
+        }
+
         if (
             !projectDoc
                 .Data.Texts[textIndex]
                 .Chapters[chapterIndex]
-                .Permissions.TryGetValue(userId, out string permission)
+                .Permissions.TryGetValue(userId, out string chapterPermission)
         )
         {
-            throw new ForbiddenException();
+            chapterPermission = bookPermission;
         }
 
         // Ensure the user can write to this chapter
-        if (permission != TextInfoPermission.Write)
+        if (chapterPermission != TextInfoPermission.Write)
         {
             throw new ForbiddenException();
         }
@@ -1758,19 +1907,24 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
             throw new DataNotFoundException("The chapter does not exist.");
         }
 
-        // Ensure the user has permission for this chapter
+        // Ensure the user can write to this chapter
+        if (!projectDoc.Data.Texts[textIndex].Permissions.TryGetValue(userId, out string bookPermission))
+        {
+            bookPermission = TextInfoPermission.None;
+        }
+
         if (
             !projectDoc
                 .Data.Texts[textIndex]
                 .Chapters[chapterIndex]
-                .Permissions.TryGetValue(userId, out string permission)
+                .Permissions.TryGetValue(userId, out string chapterPermission)
         )
         {
-            throw new ForbiddenException();
+            chapterPermission = bookPermission;
         }
 
         // Ensure the user can write to this chapter
-        if (permission != TextInfoPermission.Write)
+        if (chapterPermission != TextInfoPermission.Write)
         {
             throw new ForbiddenException();
         }
@@ -2189,13 +2343,11 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
     {
         ParatextProject sourcePTProject = ptProjects.SingleOrDefault(p => p.ParatextId == paratextId);
         string sourceProjectRef;
-        if (sourcePTProject is null)
-        {
-            // If it is not a project, see if there is a matching resource
-            sourcePTProject =
-                resources.SingleOrDefault(r => r.ParatextId == paratextId)
-                ?? throw new DataNotFoundException("The source paratext project does not exist.");
-        }
+
+        // If it is not a project, see if there is a matching resource
+        sourcePTProject ??=
+            resources.SingleOrDefault(r => r.ParatextId == paratextId)
+            ?? throw new DataNotFoundException("The source paratext project does not exist.");
 
         // Get the users who will access this source resource or project
         IEnumerable<string> userIds = userRoles is not null ? userRoles.Keys : [curUserId];

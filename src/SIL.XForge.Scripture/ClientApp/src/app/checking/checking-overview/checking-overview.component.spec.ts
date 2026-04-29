@@ -1,6 +1,7 @@
 import { Location } from '@angular/common';
 import { DebugElement, NgZone } from '@angular/core';
 import { ComponentFixture, discardPeriodicTasks, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatDialogRef } from '@angular/material/dialog';
 import { MatExpansionPanel } from '@angular/material/expansion';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute } from '@angular/router';
@@ -9,6 +10,7 @@ import { saveAs } from 'file-saver';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { User } from 'realtime-server/lib/esm/common/models/user';
 import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-data';
+import { Answer } from 'realtime-server/lib/esm/scriptureforge/models/answer';
 import {
   getQuestionDocId,
   Question,
@@ -26,7 +28,7 @@ import { createTestProjectUserConfig } from 'realtime-server/lib/esm/scripturefo
 import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { VerseRefData } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { of } from 'rxjs';
-import { anything, mock, resetCalls, verify, when } from 'ts-mockito';
+import { anything, instance, mock, resetCalls, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -51,6 +53,7 @@ import { CheckingOverviewComponent } from './checking-overview.component';
 
 const mockedActivatedRoute = mock(ActivatedRoute);
 const mockedDialogService = mock(DialogService);
+const mockedImportQuestionsDialogRef = mock(MatDialogRef);
 const mockedNoticeService = mock(NoticeService);
 const mockedProjectService = mock(SFProjectService);
 const mockedQuestionsService = mock(CheckingQuestionsService);
@@ -88,13 +91,13 @@ describe('CheckingOverviewComponent', () => {
     }));
 
     it('should not display loading if user is offline', fakeAsync(() => {
-      const env = new TestEnvironment();
-      env.testOnlineStatusService.setIsOnline(false);
-      tick();
-      env.fixture.detectChanges();
+      const env = new TestEnvironment(false);
+      env.onlineStatus = false;
+      expect(env.component.showQuestionsLoadingMessage).toBe(false);
+      expect(env.component.showNoQuestionsMessage).toBe(true);
+      env.waitForQuestions();
       expect(env.loadingQuestionsLabel).toBeNull();
       expect(env.noQuestionsLabel).not.toBeNull();
-      env.waitForQuestions();
     }));
 
     it('should not display "Add question" button for community checker', fakeAsync(() => {
@@ -191,6 +194,38 @@ describe('CheckingOverviewComponent', () => {
       env.waitForProjectDocChanges();
 
       expect(env.component.getQuestionDocs(new TextDocId('project01', 42, 1)).length).toEqual(numQuestions + 1);
+    }));
+
+    it('should show new answer count after remote change', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      env.waitForQuestions();
+
+      const dateNow = new Date();
+      const newAnswer: Answer = {
+        dataId: 'newAId1',
+        ownerRef: env.checkerUser.id,
+        text: 'Checker answer',
+        dateCreated: dateNow.toJSON(),
+        dateModified: dateNow.toJSON(),
+        deleted: false,
+        likes: [],
+        comments: []
+      };
+
+      expect(env.answerTotal).toContain('3');
+
+      const questionDoc: QuestionDoc = env.realtimeService.get(
+        QUESTIONS_COLLECTION,
+        getQuestionDocId('project01', 'q4Id')
+      );
+      await questionDoc.submitJson0Op(op => {
+        op.insert(d => d.answers, 0, newAnswer);
+      }, false);
+
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.answerTotal).toContain('4');
     }));
 
     it('should show question in canonical order', fakeAsync(() => {
@@ -425,10 +460,7 @@ describe('CheckingOverviewComponent', () => {
       await questionDoc.submitJson0Op(op => {
         op.set(d => d.isArchived, false);
       });
-      env.testOnlineStatusService.setIsOnline(false);
-      env.fixture.detectChanges();
-      tick();
-      env.fixture.detectChanges();
+      env.onlineStatus = false;
       expect(env.loadingArchivedQuestionsLabel).toBeNull();
       expect(env.noArchivedQuestionsLabel).not.toBeNull();
 
@@ -985,6 +1017,10 @@ class TestEnvironment {
         projectDoc.submitJson0Op(op => op.set(p => p.texts[textIndex].chapters[chapterIndex].hasAudio, false), false);
       }
     );
+    when(mockedImportQuestionsDialogRef.afterClosed()).thenReturn(of(undefined));
+    when(mockedDialogService.openMatDialog(ImportQuestionsDialogComponent, anything())).thenReturn(
+      instance(mockedImportQuestionsDialogRef)
+    );
     this.setCurrentUser(this.adminUser);
     this.testOnlineStatusService.setIsOnline(true);
 
@@ -1033,6 +1069,10 @@ class TestEnvironment {
 
   get noQuestionsLabel(): DebugElement {
     return this.fixture.debugElement.query(By.css('#no-questions-label'));
+  }
+
+  get answerTotal(): string {
+    return this.fixture.debugElement.query(By.css('.card-content-answer .stat-total')).nativeElement.textContent;
   }
 
   get textRows(): DebugElement[] {
@@ -1110,6 +1150,8 @@ class TestEnvironment {
 
   set onlineStatus(isOnline: boolean) {
     this.testOnlineStatusService.setIsOnline(isOnline);
+    tick();
+    this.fixture.detectChanges();
     tick();
     this.fixture.detectChanges();
   }

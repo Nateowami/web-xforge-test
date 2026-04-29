@@ -27,7 +27,7 @@ describe('SFProjectService', () => {
       const project = {
         translateConfig: { draftConfig: { draftedScriptureRange: 'GEN;EXO;LEV', currentScriptureRange: 'MAT;MRK' } }
       } as SFProjectProfile;
-      const actual = env.service.hasDraft(project, 2);
+      const actual = env.service.hasDraft(project, 2, 1);
       expect(actual).toBe(true);
     }));
 
@@ -36,7 +36,7 @@ describe('SFProjectService', () => {
       const project = {
         translateConfig: { draftConfig: { draftedScriptureRange: 'MAT;MRK', currentScriptureRange: 'GEN;EXO;LEV' } }
       } as SFProjectProfile;
-      const actual = env.service.hasDraft(project, 2, true);
+      const actual = env.service.hasDraft(project, 2, undefined, true);
       expect(actual).toBe(true);
     }));
 
@@ -54,7 +54,7 @@ describe('SFProjectService', () => {
       const project = {
         translateConfig: { draftConfig: { currentScriptureRange: 'GEN;EXO;LEV' } }
       } as SFProjectProfile;
-      const actual = env.service.hasDraft(project, undefined, true);
+      const actual = env.service.hasDraft(project, undefined, undefined, true);
       expect(actual).toBe(true);
     }));
 
@@ -67,12 +67,30 @@ describe('SFProjectService', () => {
       expect(actual).toBe(false);
     }));
 
+    it('should return true if the book and chapter are in the drafted scripture range', fakeAsync(() => {
+      const env = new TestEnvironment();
+      const project = {
+        translateConfig: { draftConfig: { draftedScriptureRange: 'GEN;EXO1-4' } }
+      } as SFProjectProfile;
+      const actual = env.service.hasDraft(project, 2, 3);
+      expect(actual).toBe(true);
+    }));
+
+    it('should return false if the book is but the chapter is not in the drafted scripture range', fakeAsync(() => {
+      const env = new TestEnvironment();
+      const project = {
+        translateConfig: { draftConfig: { draftedScriptureRange: 'GEN;EXO2-4' } }
+      } as SFProjectProfile;
+      const actual = env.service.hasDraft(project, 2, 1);
+      expect(actual).toBe(false);
+    }));
+
     it('should return false if the book is not in the current scripture range when current build is true', fakeAsync(() => {
       const env = new TestEnvironment();
       const project = {
         translateConfig: { draftConfig: { draftedScriptureRange: 'GEN;EXO;LEV', currentScriptureRange: 'MAT;MRK' } }
       } as SFProjectProfile;
-      const actual = env.service.hasDraft(project, 2, true);
+      const actual = env.service.hasDraft(project, 2, undefined, true);
       expect(actual).toBe(false);
     }));
 
@@ -90,7 +108,7 @@ describe('SFProjectService', () => {
       const project = {
         translateConfig: { draftConfig: { draftedScriptureRange: 'GEN;EXO;LEV' } }
       } as SFProjectProfile;
-      const actual = env.service.hasDraft(project, undefined, true);
+      const actual = env.service.hasDraft(project, undefined, undefined, true);
       expect(actual).toBe(false);
     }));
   });
@@ -159,6 +177,19 @@ describe('SFProjectService', () => {
       );
       verify(mockedCommandService.onlineInvoke(anything(), 'applyPreTranslationToProject', anything())).once();
       expect(actual).toBe(jobId);
+    }));
+  });
+
+  describe('onlineSetQualityEstimationConfig', () => {
+    it('should invoke the command service', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      await env.service.onlineSetQualityEstimationConfig('project01', {
+        version: '0.1',
+        slope: 109.6145,
+        intercept: -14.0633
+      });
+      verify(mockedCommandService.onlineInvoke(anything(), 'setQualityEstimationConfig', anything())).once();
+      expect().nothing();
     }));
   });
 

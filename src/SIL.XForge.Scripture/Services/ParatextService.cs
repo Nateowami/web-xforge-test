@@ -208,8 +208,10 @@ public class ParatextService : DisposableBase, IParatextService
             throw new ArgumentNullException();
         }
 
-        void traceListener(string message) => syncMetrics.Log.Add($"{DateTime.UtcNow:u} Trace: {message}");
-        void alertListener(string message) => syncMetrics.Log.Add($"{DateTime.UtcNow:u} {message}");
+        // Note that SyncMetricsLog does not call _logger.Log, to not recurse into the trace listener.
+        void SyncMetricsLog(string message) => syncMetrics?.Log.Add($"{DateTime.UtcNow:u} SR: {message}");
+        void traceListener(string message) => SyncMetricsLog($"Trace {message}");
+        void alertListener(string message) => SyncMetricsLog($"Alert {message}");
         LambdaTraceListener listener = new LambdaTraceListener(traceListener);
         try
         {
@@ -259,7 +261,9 @@ public class ParatextService : DisposableBase, IParatextService
             if (TryGetProject(userSecret, sendReceiveRepository, projectsMetadata, out ParatextProject ptProject))
             {
                 if (!projectGuids.Contains(paratextId))
-                    _logger.LogWarning($"The project with PT ID {paratextId} did not have a full name available.");
+                {
+                    SyncMetricsLog($"The project with PT ID {paratextId} did not have a full name available.");
+                }
             }
             else
             {
@@ -340,28 +344,37 @@ public class ParatextService : DisposableBase, IParatextService
                     throw new InvalidOperationException("User does not have permission to share changes.");
                 }
 
-                // TODO report results
+                void SyncMetricsLogCommitGraph()
+                {
+                    string graph = _hgHelper.RecentLogGraph(scrText.Directory);
+                    SyncMetricsLog($"Commit graph:");
+                    Linq.Enumerable.ForEach(Extensions.StringExtensions.SplitLines(graph), SyncMetricsLog);
+                }
+
                 List<SharedProject> sharedPtProjectsToSr = [sharedProj];
                 List<SendReceiveResult> results = Enumerable.Empty<SendReceiveResult>().ToList();
                 bool success = false;
-                bool noErrors = SharingLogicWrapper.HandleErrors(() =>
-                    success = SharingLogicWrapper.ShareChanges(
-                        sharedPtProjectsToSr,
-                        source.AsInternetSharedRepositorySource(),
-                        out results,
-                        sharedPtProjectsToSr
-                    )
-                );
-                if (results == null)
+                bool noErrors = false;
+                try
                 {
-                    _logger.LogWarning($"SendReceive results are unexpectedly null.");
+                    noErrors = SharingLogicWrapper.HandleErrors(() =>
+                        success = SharingLogicWrapper.ShareChanges(
+                            sharedPtProjectsToSr,
+                            source.AsInternetSharedRepositorySource(),
+                            out results,
+                            sharedPtProjectsToSr
+                        )
+                    );
                 }
-                if (results != null && results.Any(r => r == null))
+                catch
                 {
-                    _logger.LogWarning($"SendReceive results unexpectedly contained a null result.");
+                    SyncMetricsLogCommitGraph();
+                    throw;
                 }
+
                 string srResultDescriptions = ExplainSRResults(results);
-                _logger.LogInformation($"SendReceive results: {srResultDescriptions}");
+                SyncMetricsLog(srResultDescriptions);
+                SyncMetricsLogCommitGraph();
                 if (
                     !noErrors
                     || !success
@@ -650,17 +663,33 @@ public class ParatextService : DisposableBase, IParatextService
 
     private static string ExplainSRResults(IEnumerable<SendReceiveResult>? srResults)
     {
-        return string.Join(
-            ";",
-            srResults?.Select(
-                (SendReceiveResult r) =>
-                    $"SR result: {r.Result}, "
-                    + $"Revisions sent: {string.Join(",", r.RevisionsSent ?? Enumerable.Empty<string>())}, "
-                    + $"Revisions received: {string.Join(",", r.RevisionsReceived ?? Enumerable.Empty<string>())}, "
-                    + $"Failure message: {r.FailureMessage}."
-            )
-                ?? []
-        );
+        if (srResults == null)
+        {
+            return $"SendReceive results are unexpectedly null.";
+        }
+
+        return $"SendReceive results ({srResults.Count()}):\n"
+            + string.Join("\n", srResults.Select(ExplainOneSRResult));
+    }
+
+    private static string ExplainOneSRResult(SendReceiveResult? srResult)
+    {
+        if (srResult == null)
+        {
+            return $"SendReceive result is null.";
+        }
+        string revisionsSent =
+            srResult.RevisionsSent == null
+                ? "(null)"
+                : $"({srResult.RevisionsSent.Length}) " + string.Join(", ", srResult.RevisionsSent);
+        string revisionsReceived =
+            srResult.RevisionsReceived == null
+                ? "(null)"
+                : $"({srResult.RevisionsReceived.Length}) " + string.Join(", ", srResult.RevisionsReceived);
+        return $"SR Result: {srResult.Result}\n"
+            + $"  Revisions sent: {revisionsSent}\n"
+            + $"  Revisions received: {revisionsReceived}\n"
+            + $"  Failure message: {srResult.FailureMessage ?? "(null)"}";
     }
 
     /// <summary>
@@ -718,7 +747,8 @@ public class ParatextService : DisposableBase, IParatextService
             Dictionary<string, string> userMapping = _realtimeService
                 .QuerySnapshots<User>()
                 .Where(u => paratextIds.Contains(u.ParatextId))
-                .ToDictionary(u => u.ParatextId, u => u.Id);
+                .GroupBy(u => u.ParatextId)
+                .ToDictionary(p => p.Key, p => p.OrderByDescending(u => u.AuthId.Contains("paratext")).First().Id);
             foreach (ParatextProjectUser user in users)
             {
                 if (userMapping.TryGetValue(user.ParatextId, out string id))
@@ -895,7 +925,8 @@ public class ParatextService : DisposableBase, IParatextService
                     || scrText!.Permissions.GetRole(userName) == UserRoles.None
                 )
                 {
-                    permissions.Add(uid, TextInfoPermission.None);
+                    // The user will either have read only access or no access
+                    // This will be handled by their role on the project (or lack of role) on the project
                 }
                 else
                 {
@@ -1840,11 +1871,13 @@ public class ParatextService : DisposableBase, IParatextService
                             {
                                 int chapterIndex = j;
                                 int chapterNumber = text.Chapters[chapterIndex].Number;
-                                if (editableChapters.Contains(chapterNumber) || currentUserIsAdministrator)
+
+                                // Only record chapter level permissions that contradict the book level permissions
+                                if (!(editableChapters.Contains(chapterNumber) || currentUserIsAdministrator))
                                 {
                                     op.Set(
                                         p => p.Texts[textIndex].Chapters[chapterIndex].Permissions[user.SFUserId],
-                                        TextInfoPermission.Write
+                                        TextInfoPermission.Read
                                     );
                                 }
                             }
