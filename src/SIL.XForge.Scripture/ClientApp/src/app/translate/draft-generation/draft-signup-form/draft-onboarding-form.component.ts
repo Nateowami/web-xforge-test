@@ -27,7 +27,7 @@ import { ProjectSelectComponent } from '../../../project-select/project-select.c
 import { BookMultiSelectComponent } from '../../../shared/book-multi-select/book-multi-select.component';
 import { JsonViewerComponent } from '../../../shared/json-viewer/json-viewer.component';
 import { compareProjectsForSorting, projectLabel } from '../../../shared/utils';
-import { DraftingSignupFormData, OnboardingRequestService } from '../onboarding-request.service';
+import { DraftingSignupFormData, OnboardingRequestService, PARTNER_ORGANIZATION_OPTIONS } from '../onboarding-request.service';
 
 export const DRAFT_SIGNUP_RESPONSE_DAYS = { min: 1, max: 3 } as const;
 
@@ -113,6 +113,8 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
   availableProjects: SelectableProject[] = [];
   availableResources: SelectableProject[] = [];
   projectBooks: { number: number; selected: boolean }[] = [];
+
+  readonly partnerOrganizationOptions = PARTNER_ORGANIZATION_OPTIONS;
 
   // Stable selected book list for completed books
   selectedCompletedBooks: { number: number; selected: boolean }[] = [];

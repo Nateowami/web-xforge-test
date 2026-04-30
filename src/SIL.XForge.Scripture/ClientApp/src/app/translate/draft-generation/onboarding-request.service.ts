@@ -10,12 +10,17 @@ export interface OnboardingRequestComment {
   dateCreated: string;
 }
 
+/** The available partner organization options for the onboarding form. */
+export const PARTNER_ORGANIZATION_OPTIONS = ['Bolshoi Group', 'Seed Company', 'none'] as const;
+/** A valid partner organization selection from the onboarding form. */
+export type PartnerOrganization = (typeof PARTNER_ORGANIZATION_OPTIONS)[number];
+
 export interface DraftingSignupFormData {
   name: string;
   email: string;
   organization: string;
-  partnerOrganization: string;
-  /** The Seed Company field manager. Only present when partnerOrganization is "Seed Company". */
+  partnerOrganization: PartnerOrganization;
+  /** The field manager contact. Currently collected when partnerOrganization is "Seed Company". */
   fieldManager?: string;
 
   translationLanguageName: string;
