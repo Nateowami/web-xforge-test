@@ -83,6 +83,7 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
     email: new FormControl<string>('', { nonNullable: true, validators: [Validators.required, Validators.email] }),
     organization: new FormControl<string>('', { nonNullable: true, validators: [Validators.required] }),
     partnerOrganization: new FormControl<string>('', { nonNullable: true, validators: [Validators.required] }),
+    fieldManager: new FormControl<string>('', { nonNullable: true }),
 
     // Translation Language Information
     translationLanguageName: new FormControl<string>('', { nonNullable: true, validators: [Validators.required] }),
@@ -265,6 +266,10 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
     return stage === 'Written (Incomplete or Out-of-Date)' || stage === 'Written (Up-to-Date)';
   }
 
+  get showFieldManagerField(): boolean {
+    return this.signupForm.controls.partnerOrganization.value === 'Seed Company';
+  }
+
   // Whether to show the "completed books is required" error message.
   get showCompletedBooksRequiredError(): boolean {
     const ctrl = this.signupForm.controls.completedBooks;
@@ -379,6 +384,20 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
   }
 
   private setupConditionalLogic(): void {
+    // Enable/disable the Field Manager field based on the selected partner organization
+    this.signupForm.controls.partnerOrganization.valueChanges
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(value => {
+        if (value === 'Seed Company') {
+          this.signupForm.controls.fieldManager.setValidators([Validators.required]);
+        } else {
+          this.signupForm.controls.fieldManager.clearValidators();
+          this.signupForm.controls.fieldManager.setValue('');
+        }
+        this.signupForm.controls.fieldManager.updateValueAndValidity();
+        this.cd.markForCheck();
+      });
+
     // Show/hide Back Translation Project based on Stage selection
     this.signupForm.controls.backTranslationStage.valueChanges
       .pipe(quietTakeUntilDestroyed(this.destroyRef))

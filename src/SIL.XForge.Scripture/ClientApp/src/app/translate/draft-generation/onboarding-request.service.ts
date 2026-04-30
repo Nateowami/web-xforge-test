@@ -15,6 +15,8 @@ export interface DraftingSignupFormData {
   email: string;
   organization: string;
   partnerOrganization: string;
+  /** The Seed Company field manager. Only present when partnerOrganization is "Seed Company". */
+  fieldManager?: string;
 
   translationLanguageName: string;
   translationLanguageIsoCode: string;
