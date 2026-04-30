@@ -74,6 +74,14 @@ var devUsers = new List<DevUser>
 var projectsSection = app.Configuration.GetSection("LocalDevParatext:Projects");
 var devProjects = projectsSection.Get<DevProject[]>() ?? [];
 
+// ─── Root redirect ───────────────────────────────────────────────────────────
+
+/// <summary>
+/// Redirects the root URL to the admin dashboard so that navigating to
+/// http://localhost:5050 opens the management UI instead of returning a 404.
+/// </summary>
+app.MapGet("/", () => Results.Redirect("/admin"));
+
 // ─── OIDC discovery ──────────────────────────────────────────────────────────
 
 /// <summary>
@@ -497,6 +505,10 @@ app.MapGet(
                      white-space: nowrap; }
             button:hover { background: #1565c0; }
             button:disabled { background: #90caf9; cursor: not-allowed; }
+            .admin-link { margin-top: 20px; padding-top: 16px; border-top: 1px solid #e0e0e0;
+                          font-size: .82rem; color: #757575; text-align: center; }
+            .admin-link a { color: #1976d2; text-decoration: none; }
+            .admin-link a:hover { text-decoration: underline; }
           </style>
         </head>
         <body>
@@ -505,6 +517,9 @@ app.MapGet(
             <p class="subtitle">Select a test user to log in as. This page is only available in local development mode.</p>
             <div id="error" class="error"></div>
             <div id="users"></div>
+            <div class="admin-link">
+              Need a different user? <a href="/admin" target="_blank">Manage users in the admin UI</a>
+            </div>
           </div>
           <script>
             const redirectUri = {{(System.Text.Json.JsonSerializer.Serialize(redirectUri))}};
