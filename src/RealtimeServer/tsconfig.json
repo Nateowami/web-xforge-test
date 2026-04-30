@@ -17,6 +17,7 @@
     "resolveJsonModule": true,
     "paths": {
       "*": ["./typings/*"]
-    }
+    },
+    "ignoreDeprecations": "6.0"
   }
 }

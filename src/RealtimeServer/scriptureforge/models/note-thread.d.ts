@@ -1,0 +1,67 @@
+import { ProjectData } from '../../common/models/project-data';
+import { BiblicalTermNoteHeadingInfo } from './biblical-term-note-heading-info';
+import { Note } from './note';
+import { TextAnchor } from './text-anchor';
+import { VerseRefData } from './verse-ref-data';
+export declare const NOTE_THREAD_COLLECTION = 'note_threads';
+export declare const NOTE_THREAD_INDEX_PATHS: (
+  | string
+  | {
+      [x: string]: number;
+    }
+)[];
+/**
+ * Note status, mimicking PT CommentList.cs.
+ * Paratext used to record notes as deleted when completed but then changed to display them as resolved.
+ * Done is also a backwards compatible status that could also be treated as deleted/resolved.
+ */
+export declare enum NoteStatus {
+  Unspecified = '',
+  Todo = 'todo',
+  Done = 'done',
+  Resolved = 'deleted'
+}
+/** Note type, mimicking PT CommentList.cs.
+ *  Note that this enum does not list Unspecified, since the PT API says that is for use in filters and that notes
+ * should never be created with that type.
+ */
+export declare enum NoteType {
+  Normal = '',
+  Conflict = 'conflict'
+}
+/** Type of conflict from a merge, mimicking PT CommentList.cs. Note that in PT, an additional item is `None`, which
+ * is null. Also note that the default value is "unknownConflictType", which is present in Note XML files when the note
+ * is not a conflict note. */
+export declare enum NoteConflictType {
+  VerseTextConflict = 'verseText',
+  InvalidVerses = 'invalidVerses',
+  VerseBridgeDifferences = 'verseBridge',
+  DuplicateVerses = 'duplicateVerses',
+  ReadError = 'readError',
+  VerseOrderError = 'verseOrder',
+  StudyBibleChangeConflict = 'studyBibleChangeConflict',
+  StudyBibleOverlappingChanges = 'studyBibleOverlappingChanges',
+  StudyBibleChangeDeleteConflict = 'studyBibleChangeDeleteConflict',
+  /** This is not part of the PT enum, but is the default value. */
+  DefaultValue = 'unknownConflictType'
+}
+export declare function getNoteThreadDocId(projectId: string, dataId: string): string;
+export declare enum AssignedUsers {
+  Unspecified = '',
+  TeamUser = 'Team'
+}
+export interface NoteThread extends ProjectData {
+  dataId: string;
+  threadId: string;
+  verseRef: VerseRefData;
+  notes: Note[];
+  originalSelectedText: string;
+  originalContextBefore: string;
+  originalContextAfter: string;
+  position: TextAnchor;
+  status: NoteStatus;
+  publishedToSF?: boolean;
+  assignment?: string;
+  biblicalTermId?: string;
+  extraHeadingInfo?: BiblicalTermNoteHeadingInfo;
+}

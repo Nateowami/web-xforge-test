@@ -1,0 +1,12 @@
+export declare enum CheckingAnswerExport {
+  All = 'all',
+  MarkedForExport = 'marked_for_export',
+  None = 'none'
+}
+export interface CheckingConfig {
+  checkingEnabled: boolean;
+  usersSeeEachOthersResponses: boolean;
+  answerExportMethod: CheckingAnswerExport;
+  noteTagId?: number;
+  hideCommunityCheckingText?: boolean;
+}

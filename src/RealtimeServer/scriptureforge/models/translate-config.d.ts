@@ -1,0 +1,92 @@
+import { WritingSystem } from '../../common/models/writing-system';
+export declare enum ProjectType {
+  Standard = 'Standard',
+  Resource = 'Resource',
+  BackTranslation = 'BackTranslation',
+  Daughter = 'Daughter',
+  Transliteration = 'Transliteration',
+  TransliterationManual = 'TransliterationManual',
+  TransliterationWithEncoder = 'TransliterationWithEncoder',
+  StudyBible = 'StudyBible',
+  ConsultantNotes = 'ConsultantNotes',
+  GlobalConsultantNotes = 'GlobalConsultantNotes',
+  GlobalAnthropologyNotes = 'GlobalAnthropologyNotes',
+  StudyBibleAdditions = 'StudyBibleAdditions',
+  Auxiliary = 'Auxiliary',
+  AuxiliaryResource = 'AuxiliaryResource',
+  MarbleResource = 'MarbleResource',
+  Xml = 'Xml',
+  XmlResource = 'XmlResource',
+  XmlDictionary = 'XmlDictionary',
+  SourceLanguage = 'SourceLanguage',
+  Dictionary = 'Dictionary',
+  EnhancedResource = 'EnhancedResource'
+}
+export declare enum TranslateShareLevel {
+  Anyone = 'anyone',
+  Specific = 'specific'
+}
+export declare enum ParagraphBreakFormat {
+  BestGuess = 'best_guess',
+  Remove = 'remove',
+  MoveToEnd = 'move_to_end'
+}
+export declare enum QuoteFormat {
+  Denormalized = 'denormalized',
+  Normalized = 'normalized'
+}
+export interface BaseProject {
+  paratextId: string;
+  shortName: string;
+}
+/**
+ * A per-project scripture range.
+ */
+export interface ProjectScriptureRange {
+  projectId: string;
+  scriptureRange: string;
+}
+export interface DraftUsfmConfig {
+  paragraphFormat: ParagraphBreakFormat;
+  quoteFormat: QuoteFormat;
+}
+/**
+ * The configuration used for Quality Estimation.
+ */
+export interface QualityEstimationConfig {
+  version: string;
+  slope: number;
+  intercept: number;
+}
+export interface DraftConfig {
+  draftingSources: TranslateSource[];
+  trainingSources: TranslateSource[];
+  lastSelectedTrainingDataFiles: string[];
+  lastSelectedTrainingScriptureRanges?: ProjectScriptureRange[];
+  lastSelectedTranslationScriptureRanges?: ProjectScriptureRange[];
+  fastTraining?: boolean;
+  useEcho?: boolean;
+  servalConfig?: string;
+  usfmConfig?: DraftUsfmConfig;
+  sendEmailOnBuildFinished?: boolean;
+  currentScriptureRange?: string;
+  draftedScriptureRange?: string;
+  qualityEstimationConfig?: QualityEstimationConfig;
+}
+export interface TranslateConfig {
+  translationSuggestionsEnabled: boolean;
+  source?: TranslateSource;
+  defaultNoteTagId?: number;
+  preTranslate: boolean;
+  draftConfig: DraftConfig;
+  projectType?: ProjectType;
+  baseProject?: BaseProject;
+}
+export interface TranslateSource {
+  paratextId: string;
+  projectRef: string;
+  name: string;
+  shortName: string;
+  writingSystem: WritingSystem;
+  isRightToLeft?: boolean;
+}

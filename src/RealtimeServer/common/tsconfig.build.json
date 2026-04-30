@@ -5,5 +5,5 @@
     "rootDir": ".",
     "outDir": "../lib/cjs/common"
   },
-  "exclude": ["**/*.spec.ts", "**/test-*.ts"]
+  "exclude": ["**/*.spec.ts", "**/*.spec.d.ts", "**/test-*.ts"]
 }
