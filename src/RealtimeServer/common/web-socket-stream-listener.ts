@@ -6,7 +6,7 @@ import { JwtHeader, SigningKeyCallback, verify } from 'jsonwebtoken';
 import jwks from 'jwks-rsa';
 import ShareDB from 'sharedb';
 import WebSocketJSONStream from 'websocket-json-stream';
-import ws from 'ws';
+import { WebSocketServer, type VerifyClientCallbackAsync } from 'ws';
 import { ExceptionReporter } from './exception-reporter';
 
 function isLocalRequest(request: http.IncomingMessage): boolean {
@@ -55,7 +55,7 @@ export class WebSocketStreamListener {
 
   listen(backend: ShareDB): void {
     // Connect any incoming WebSocket connection to ShareDB
-    const wss = new ws.Server({
+    const wss = new WebSocketServer({
       server: this.httpServer,
       verifyClient: this.verifyClient
     });
@@ -128,7 +128,7 @@ export class WebSocketStreamListener {
       .catch(done);
   }
 
-  private verifyClient: ws.VerifyClientCallbackAsync = (
+  private verifyClient: VerifyClientCallbackAsync = (
     info: { origin: string; secure: boolean; req: http.IncomingMessage },
     callback: (res: boolean, code?: number, message?: string, headers?: http.OutgoingHttpHeaders) => void
   ): void => {

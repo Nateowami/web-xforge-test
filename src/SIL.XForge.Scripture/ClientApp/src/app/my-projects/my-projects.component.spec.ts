@@ -2,6 +2,7 @@ import { HttpErrorResponse, HttpStatusCode } from '@angular/common/http';
 import { Component, DebugElement } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { provideRouter, Router } from '@angular/router';
 import { translate } from '@ngneat/transloco';
 import { User } from 'realtime-server/lib/esm/common/models/user';
@@ -45,6 +46,7 @@ describe('MyProjectsComponent', () => {
         { path: 'projects/:projectId', component: EmptyComponent },
         { path: 'connect-project', component: EmptyComponent }
       ]),
+      provideNoopAnimations(),
       provideQuillRegistrations(),
       provideTestOnlineStatus(),
       { provide: SFProjectService, useMock: mockedSFProjectService },

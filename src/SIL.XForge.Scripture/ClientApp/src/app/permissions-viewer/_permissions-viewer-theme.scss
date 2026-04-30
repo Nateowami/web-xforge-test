@@ -5,38 +5,74 @@
 
   .permissions-table {
     tr:nth-child(even) {
-      background-color: if($is-dark, #2a2a2a, #f9f9f9);
+      @if $is-dark {
+        background-color: #2a2a2a;
+      } @else {
+        background-color: #f9f9f9;
+      }
     }
     th {
-      background-color: if($is-dark, #222, #f2f2f2);
+      @if $is-dark {
+        background-color: #222;
+      } @else {
+        background-color: #f2f2f2;
+      }
     }
     td,
     th {
-      border-color: if($is-dark, #444, #ddd);
+      @if $is-dark {
+        border-color: #444;
+      } @else {
+        border-color: #ddd;
+      }
     }
   }
 
   .operation-tag {
-    background-color: if($is-dark, transparent, #e0e0e0);
+    @if $is-dark {
+      background-color: transparent;
+    } @else {
+      background-color: #e0e0e0;
+    }
     color: inherit;
     &.view,
     &.view_own {
-      background-color: if($is-dark, #22543a, #d4edda);
-      color: if($is-dark, #d4edda, #155724);
+      @if $is-dark {
+        background-color: #22543a;
+        color: #d4edda;
+      } @else {
+        background-color: #d4edda;
+        color: #155724;
+      }
     }
     &.create {
-      background-color: if($is-dark, #1e3a5c, #cce5ff);
-      color: if($is-dark, #cce5ff, #004085);
+      @if $is-dark {
+        background-color: #1e3a5c;
+        color: #cce5ff;
+      } @else {
+        background-color: #cce5ff;
+        color: #004085;
+      }
     }
     &.edit,
     &.edit_own {
-      background-color: if($is-dark, #665c1e, #fff3cd);
-      color: if($is-dark, #fff3cd, #856404);
+      @if $is-dark {
+        background-color: #665c1e;
+        color: #fff3cd;
+      } @else {
+        background-color: #fff3cd;
+        color: #856404;
+      }
     }
     &.delete,
     &.delete_own {
-      background-color: if($is-dark, #5c1e22, #f8d7da);
-      color: if($is-dark, #f8d7da, #721c24);
+      @if $is-dark {
+        background-color: #5c1e22;
+        color: #f8d7da;
+      } @else {
+        background-color: #f8d7da;
+        color: #721c24;
+      }
     }
   }
 }

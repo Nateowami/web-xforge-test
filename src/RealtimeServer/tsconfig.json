@@ -5,19 +5,16 @@
     "sourceRoot": "../../../../../../../../../src/RealtimeServer/common/",
     "declaration": true,
     "target": "es6",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "module": "commonjs",
-    "downlevelIteration": true,
     "strict": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "lib": ["es2017", "dom"],
     "composite": true,
-    "baseUrl": ".",
     "resolveJsonModule": true,
     "paths": {
       "*": ["./typings/*"]
-    },
-    "ignoreDeprecations": "6.0"
+    }
   }
 }

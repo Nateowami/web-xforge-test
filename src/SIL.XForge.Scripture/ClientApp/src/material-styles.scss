@@ -92,31 +92,58 @@
 
   // Custom variables
   --sf-disabled-foreground: #{mat.get-theme-color($theme, neutral, 70)};
-  --sf-border-color: #{mat.get-theme-color($theme, neutral, if($is-dark, 60, 90))};
-  --sf-error-foreground: #{mat.get-theme-color($theme, error, if($is-dark, 80, 40))};
+
+  $border-neutral-tone: 90;
+  @if $is-dark {
+    $border-neutral-tone: 60;
+  }
+  --sf-border-color: #{mat.get-theme-color($theme, neutral, $border-neutral-tone)};
+
+  $error-fg-tone: 40;
+  @if $is-dark {
+    $error-fg-tone: 80;
+  }
+  --sf-error-foreground: #{mat.get-theme-color($theme, error, $error-fg-tone)};
+
   --sf-language-font-family: language_picker, language_picker_fallback, Arial, Helvetica, sans-serif;
-  --sf-snackbar-background-color: #{if(
-      $is-dark,
-      mat.get-theme-color($theme, primary, 70),
-      mat.get-theme-color($theme, neutral, 20)
-    )};
+
+  @if $is-dark {
+    --sf-snackbar-background-color: #{mat.get-theme-color($theme, primary, 70)};
+  } @else {
+    --sf-snackbar-background-color: #{mat.get-theme-color($theme, neutral, 20)};
+  }
   --sf-snackbar-error-text-color: var(--mat-sys-on-error);
   --sf-snackbar-error-background-color: var(--mat-sys-error);
-  --sf-error-color: #{mat.get-theme-color($theme, error, if($is-dark, 60, 30))};
+
+  $error-color-tone: 30;
+  @if $is-dark {
+    $error-color-tone: 60;
+  }
+  --sf-error-color: #{mat.get-theme-color($theme, error, $error-color-tone)};
 
   // Helper additions for material
   --mat-sys-on-surface-disabled: #{color-mix(in srgb, var(--mat-sys-on-surface) 38%, transparent)};
 
   a:not(.mdc-button):not(.mat-mdc-menu-item):not(.notice-link-warning) {
-    color: mat.get-theme-color($theme, primary, if($is-dark, 60, 50));
+    $link-color-tone: 50;
+    $link-hover-tone: 60;
+    $link-visited-tone: 60;
+    $link-visited-hover-tone: 70;
+    @if $is-dark {
+      $link-color-tone: 60;
+      $link-hover-tone: 70;
+      $link-visited-tone: 50;
+      $link-visited-hover-tone: 60;
+    }
+    color: mat.get-theme-color($theme, primary, $link-color-tone);
     &:hover {
-      color: mat.get-theme-color($theme, primary, if($is-dark, 70, 60));
+      color: mat.get-theme-color($theme, primary, $link-hover-tone);
     }
     &:visited {
-      color: mat.get-theme-color($theme, primary, if($is-dark, 50, 60));
+      color: mat.get-theme-color($theme, primary, $link-visited-tone);
     }
     &:visited:hover {
-      color: mat.get-theme-color($theme, primary, if($is-dark, 60, 70));
+      color: mat.get-theme-color($theme, primary, $link-visited-hover-tone);
     }
   }
 
