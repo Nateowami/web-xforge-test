@@ -497,9 +497,11 @@ app.MapGet("/listrepos", () => Results.Ok(Array.Empty<object>()));
 
 // Default resources directory: {repo-root}/dev-dbl/resources/ regardless of CWD.
 // Override via LocalDevDbl:ResourcesDir in appsettings.json (absolute or relative to CWD).
+string? configuredResourcesDir = app.Configuration["LocalDevDbl:ResourcesDir"];
 string dblResourcesDir = Path.GetFullPath(
-    app.Configuration["LocalDevDbl:ResourcesDir"]
-    ?? Path.Combine(app.Environment.ContentRootPath, "..", "..", "dev-dbl", "resources")
+    string.IsNullOrEmpty(configuredResourcesDir)
+        ? Path.Combine(app.Environment.ContentRootPath, "..", "..", "dev-dbl", "resources")
+        : configuredResourcesDir
 );
 
 /// <summary>
