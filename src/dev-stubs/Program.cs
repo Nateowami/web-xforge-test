@@ -52,7 +52,7 @@ string scope = app.Configuration["Auth:Scope"] ?? "sf_data";
 string clientId = app.Configuration["Auth:FrontendClientId"] ?? "local-dev-client";
 
 /// <summary>Pre-defined local dev users exposed by the stub.</summary>
-var devUsers = new[]
+var devUsers = new List<DevUser>
 {
     new DevUser(
         UserId: "devUser01",
@@ -120,6 +120,340 @@ app.MapGet(
 );
 
 // ─── Auth0-replacement endpoints ─────────────────────────────────────────────
+
+/// <summary>
+/// Serves the admin management dashboard for the dev stub server.
+/// Allows creating, viewing, editing, and deleting dev users, and viewing
+/// configured Paratext projects and DBL resources.
+/// </summary>
+app.MapGet(
+    "/admin",
+    () =>
+    {
+        string html =
+            """
+            <!DOCTYPE html>
+            <html lang="en">
+            <head>
+              <meta charset="UTF-8" />
+              <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+              <title>Dev Stubs Admin</title>
+              <style>
+                *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+                body { font-family: Roboto, sans-serif; background: #f5f5f5; color: #212121; }
+                header { background: #1565c0; color: #fff; padding: 12px 24px; }
+                header h1 { font-size: 1.25rem; font-weight: 500; }
+                nav { background: #fff; border-bottom: 1px solid #e0e0e0; display: flex; }
+                nav button { background: none; border: none; border-bottom: 3px solid transparent;
+                             padding: 12px 24px; font-size: .9rem; cursor: pointer; color: #555; }
+                nav button.active { border-bottom-color: #1976d2; color: #1976d2; font-weight: 500; }
+                nav button:hover:not(.active) { background: #f5f5f5; }
+                main { max-width: 960px; margin: 24px auto; padding: 0 16px; }
+                section { display: none; }
+                section.visible { display: block; }
+                h2 { font-size: 1rem; font-weight: 600; margin-bottom: 14px; color: #424242; }
+                .card { background: #fff; border-radius: 6px; padding: 20px;
+                        box-shadow: 0 1px 3px rgba(0,0,0,.12); margin-bottom: 20px; }
+                form { display: grid; gap: 10px; }
+                label { font-size: .83rem; color: #555; display: block; margin-bottom: 3px; }
+                input { width: 100%; padding: 7px 10px; border: 1px solid #ccc;
+                        border-radius: 4px; font-size: .9rem; }
+                input:focus { outline: none; border-color: #1976d2; }
+                .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+                .form-actions { display: flex; gap: 8px; margin-top: 4px; }
+                .btn { border: none; border-radius: 4px; padding: 8px 16px;
+                       font-size: .88rem; cursor: pointer; }
+                .btn-primary { background: #1976d2; color: #fff; }
+                .btn-primary:hover { background: #1565c0; }
+                .btn-secondary { background: #e0e0e0; color: #212121; }
+                .btn-secondary:hover { background: #bdbdbd; }
+                .btn-danger { background: #d32f2f; color: #fff; }
+                .btn-danger:hover { background: #b71c1c; }
+                .btn-sm { padding: 4px 10px; font-size: .8rem; }
+                table { width: 100%; border-collapse: collapse; font-size: .88rem; }
+                th { text-align: left; padding: 9px 12px; background: #fafafa;
+                     border-bottom: 2px solid #e0e0e0; font-weight: 500; color: #424242; }
+                td { padding: 9px 12px; border-bottom: 1px solid #f0f0f0; vertical-align: top; }
+                .actions { display: flex; gap: 6px; white-space: nowrap; }
+                .chip { display: inline-block; background: #e3f2fd; color: #1565c0;
+                        border-radius: 12px; padding: 2px 8px; font-size: .78rem; margin: 1px; }
+                .chip-role { background: #fce4ec; color: #880e4f; }
+                .none { color: #bdbdbd; }
+                .notice { font-size: .83rem; color: #757575; margin-bottom: 14px; }
+                .notice code { background: #f5f5f5; padding: 1px 5px; border-radius: 3px; font-size: .85em; }
+                .empty td { color: #9e9e9e; font-style: italic; padding: 20px 12px; text-align: center; }
+              </style>
+            </head>
+            <body>
+              <header>
+                <h1>Dev Stubs Admin</h1>
+              </header>
+              <nav>
+                <button class="active" onclick="showSection('users', this)">Users</button>
+                <button onclick="showSection('projects', this)">Projects</button>
+                <button onclick="showSection('dbl', this)">DBL Resources</button>
+              </nav>
+              <main>
+
+                <!-- ── USERS ──────────────────────────────────────────────── -->
+                <section id="sec-users" class="visible">
+                  <div class="card">
+                    <h2 id="form-title">Add User</h2>
+                    <form id="user-form" onsubmit="submitUser(event)">
+                      <input type="hidden" id="edit-id" />
+                      <div class="form-row">
+                        <div>
+                          <label for="f-name">Name</label>
+                          <input id="f-name" type="text" required placeholder="Dev User" />
+                        </div>
+                        <div>
+                          <label for="f-email">Email</label>
+                          <input id="f-email" type="text" required placeholder="dev@localhost" />
+                        </div>
+                      </div>
+                      <div class="form-row">
+                        <div>
+                          <label for="f-ptuser">Paratext Username</label>
+                          <input id="f-ptuser" type="text" placeholder="DevUser" />
+                        </div>
+                        <div>
+                          <label for="f-roles">Roles <small>(comma-separated)</small></label>
+                          <input id="f-roles" type="text" placeholder="system_admin" />
+                        </div>
+                      </div>
+                      <div class="form-actions">
+                        <button type="submit" class="btn btn-primary" id="submit-btn">Add User</button>
+                        <button type="button" class="btn btn-secondary" id="cancel-btn"
+                                style="display:none" onclick="cancelEdit()">Cancel</button>
+                      </div>
+                    </form>
+                  </div>
+                  <div class="card">
+                    <h2>Existing Users</h2>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>User ID</th><th>Name</th><th>Email</th>
+                          <th>Paratext Username</th><th>Roles</th><th></th>
+                        </tr>
+                      </thead>
+                      <tbody id="users-tbody"></tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <!-- ── PROJECTS ───────────────────────────────────────────── -->
+                <section id="sec-projects">
+                  <div class="card">
+                    <h2>Paratext Projects</h2>
+                    <p class="notice">
+                      Projects are defined in <code>appsettings.json</code> under
+                      <code>LocalDevParatext:Projects</code>. This stub serves as both the
+                      Registry server (<code>/api8/…</code>) and the Send/Receive server
+                      (<code>/listrepos</code>).
+                    </p>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Paratext ID</th><th>Short Name</th><th>Full Name</th>
+                          <th>Language</th><th>User Roles</th>
+                        </tr>
+                      </thead>
+                      <tbody id="projects-tbody"></tbody>
+                    </table>
+                  </div>
+                </section>
+
+                <!-- ── DBL RESOURCES ──────────────────────────────────────── -->
+                <section id="sec-dbl">
+                  <div class="card">
+                    <h2>DBL Resources</h2>
+                    <p class="notice">
+                      Resources are read from <code>.p8z</code> files in the configured resources
+                      directory (<code>dev-dbl/resources/</code> by default, overridable via
+                      <code>LocalDevDbl:ResourcesDir</code> in <code>appsettings.json</code>).
+                    </p>
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>ID</th><th>Revision</th><th>Name</th><th>Full Name</th><th>Language</th>
+                        </tr>
+                      </thead>
+                      <tbody id="dbl-tbody"></tbody>
+                    </table>
+                  </div>
+                </section>
+
+              </main>
+              <script>
+                let allUsers = {};
+                let editingId = null;
+
+                function showSection(name, btn) {
+                  document.querySelectorAll('section').forEach(s => s.classList.remove('visible'));
+                  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+                  document.getElementById('sec-' + name).classList.add('visible');
+                  btn.classList.add('active');
+                  if (name === 'users') loadUsers();
+                  else if (name === 'projects') loadProjects();
+                  else if (name === 'dbl') loadDbl();
+                }
+
+                // Minimal HTML escaping so user-supplied strings don't break table markup.
+                function esc(s) {
+                  return String(s == null ? '' : s)
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+                }
+
+                function loadUsers() {
+                  fetch('/dev-auth/users').then(r => r.json()).then(users => {
+                    allUsers = {};
+                    users.forEach(u => { allUsers[u.userId] = u; });
+                    const tbody = document.getElementById('users-tbody');
+                    tbody.innerHTML = '';
+                    if (!users.length) {
+                      tbody.innerHTML = '<tr class="empty"><td colspan="6">No users defined.</td></tr>';
+                      return;
+                    }
+                    users.forEach(u => {
+                      const rolesHtml = u.roles.length
+                        ? u.roles.map(r => `<span class="chip chip-role">${esc(r)}</span>`).join(' ')
+                        : '<span class="none">—</span>';
+                      const tr = document.createElement('tr');
+                      tr.innerHTML = `
+                        <td><code>${esc(u.userId)}</code></td>
+                        <td>${esc(u.name)}</td>
+                        <td>${esc(u.email)}</td>
+                        <td>${esc(u.paratextUsername)}</td>
+                        <td>${rolesHtml}</td>
+                        <td class="actions">
+                          <button class="btn btn-secondary btn-sm"
+                                  onclick="editUser('${esc(u.userId)}')">Edit</button>
+                          <button class="btn btn-danger btn-sm"
+                                  onclick="deleteUser('${esc(u.userId)}')">Delete</button>
+                        </td>`;
+                      tbody.appendChild(tr);
+                    });
+                  });
+                }
+
+                function editUser(id) {
+                  const u = allUsers[id];
+                  if (!u) return;
+                  editingId = id;
+                  document.getElementById('f-name').value = u.name;
+                  document.getElementById('f-email').value = u.email;
+                  document.getElementById('f-ptuser').value = u.paratextUsername;
+                  document.getElementById('f-roles').value = u.roles.join(', ');
+                  document.getElementById('form-title').textContent = 'Edit User';
+                  document.getElementById('submit-btn').textContent = 'Update User';
+                  document.getElementById('cancel-btn').style.display = '';
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+
+                function cancelEdit() {
+                  editingId = null;
+                  document.getElementById('user-form').reset();
+                  document.getElementById('form-title').textContent = 'Add User';
+                  document.getElementById('submit-btn').textContent = 'Add User';
+                  document.getElementById('cancel-btn').style.display = 'none';
+                }
+
+                function submitUser(event) {
+                  event.preventDefault();
+                  const name = document.getElementById('f-name').value.trim();
+                  const email = document.getElementById('f-email').value.trim();
+                  const paratextUsername = document.getElementById('f-ptuser').value.trim() || name;
+                  const rolesRaw = document.getElementById('f-roles').value.trim();
+                  const roles = rolesRaw ? rolesRaw.split(',').map(r => r.trim()).filter(Boolean) : [];
+                  const body = { name, email, paratextUsername, roles };
+                  const url = editingId ? `/dev-auth/users/${editingId}` : '/dev-auth/users';
+                  const method = editingId ? 'PUT' : 'POST';
+                  fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                  })
+                    .then(r => { if (!r.ok) throw new Error('Request failed: ' + r.status); })
+                    .then(() => { cancelEdit(); loadUsers(); })
+                    .catch(err => alert('Error: ' + err.message));
+                }
+
+                function deleteUser(id) {
+                  const u = allUsers[id];
+                  if (!u || !confirm('Delete user "' + u.name + '" (' + id + ')?')) return;
+                  fetch('/dev-auth/users/' + id, { method: 'DELETE' })
+                    .then(r => { if (!r.ok) throw new Error('Delete failed: ' + r.status); })
+                    .then(() => { if (editingId === id) cancelEdit(); loadUsers(); })
+                    .catch(err => alert('Error: ' + err.message));
+                }
+
+                function loadProjects() {
+                  fetch('/api/projects').then(r => r.json()).then(projects => {
+                    const tbody = document.getElementById('projects-tbody');
+                    tbody.innerHTML = '';
+                    if (!projects.length) {
+                      tbody.innerHTML =
+                        '<tr class="empty"><td colspan="5">No projects configured. ' +
+                        'Add entries to appsettings.json under LocalDevParatext:Projects.</td></tr>';
+                      return;
+                    }
+                    projects.forEach(p => {
+                      const rolesHtml = Object.entries(p.userRoles)
+                        .map(([u, r]) => `<span class="chip">${esc(u)}: ${esc(r)}</span>`)
+                        .join(' ');
+                      const tr = document.createElement('tr');
+                      tr.innerHTML = `
+                        <td><code>${esc(p.paratextId)}</code></td>
+                        <td>${esc(p.shortName)}</td>
+                        <td>${esc(p.fullName)}</td>
+                        <td>${esc(p.languageIsoCode)}</td>
+                        <td>${rolesHtml || '<span class="none">—</span>'}</td>`;
+                      tbody.appendChild(tr);
+                    });
+                  });
+                }
+
+                function loadDbl() {
+                  fetch('/api/resource_entries').then(r => r.json()).then(data => {
+                    const resources = data.resources || [];
+                    const tbody = document.getElementById('dbl-tbody');
+                    tbody.innerHTML = '';
+                    if (!resources.length) {
+                      tbody.innerHTML =
+                        '<tr class="empty"><td colspan="5">No .p8z resource files found ' +
+                        'in the resources directory.</td></tr>';
+                      return;
+                    }
+                    resources.forEach(res => {
+                      const langParts = [
+                        res.languageName,
+                        res.languageCode ? '(' + res.languageCode + ')' : ''
+                      ].filter(Boolean).join(' ');
+                      const tr = document.createElement('tr');
+                      tr.innerHTML = `
+                        <td><code>${esc(res.id)}</code></td>
+                        <td>${esc(res.revision)}</td>
+                        <td>${esc(res.name)}</td>
+                        <td>${esc(res.fullname || res.nameCommon || '')}</td>
+                        <td>${esc(langParts)}</td>`;
+                      tbody.appendChild(tr);
+                    });
+                  });
+                }
+
+                // Load users immediately when the page opens.
+                loadUsers();
+              </script>
+            </body>
+            </html>
+            """;
+        return Results.Content(html, "text/html; charset=utf-8");
+    }
+);
+
+
 
 /// <summary>
 /// Serves the standalone HTML login page for local development.
@@ -233,7 +567,7 @@ app.MapGet(
 );
 
 /// <summary>
-/// Returns the list of pre-defined dev users.
+/// Returns the list of pre-defined dev users including all fields used by the admin UI.
 /// Fetched by the stub's own login HTML page (same-origin, no CORS needed).
 /// </summary>
 app.MapGet(
@@ -246,8 +580,65 @@ app.MapGet(
                 name = u.Name,
                 email = u.Email,
                 roles = u.Roles,
+                paratextUsername = u.ParatextUsername,
             })
         )
+);
+
+/// <summary>
+/// Creates a new dev user. The new user is immediately available for login.
+/// Changes are in-memory and reset when the stub restarts.
+/// </summary>
+app.MapPost(
+    "/dev-auth/users",
+    (DevUserMutation req) =>
+    {
+        string id = "devUser" + Guid.NewGuid().ToString("N")[..8];
+        var user = new DevUser(
+            UserId: id,
+            Name: req.Name,
+            Email: req.Email,
+            Roles: req.Roles ?? [],
+            ParatextUsername: string.IsNullOrEmpty(req.ParatextUsername) ? req.Name : req.ParatextUsername
+        );
+        devUsers.Add(user);
+        return Results.Ok(new { userId = id });
+    }
+);
+
+/// <summary>
+/// Updates an existing dev user's name, email, roles, and Paratext username.
+/// Changes are in-memory and reset when the stub restarts.
+/// </summary>
+app.MapPut(
+    "/dev-auth/users/{id}",
+    (string id, DevUserMutation req) =>
+    {
+        int idx = devUsers.FindIndex(u => u.UserId == id);
+        if (idx < 0)
+            return Results.NotFound();
+        devUsers[idx] = devUsers[idx] with
+        {
+            Name = req.Name,
+            Email = req.Email,
+            Roles = req.Roles ?? [],
+            ParatextUsername = string.IsNullOrEmpty(req.ParatextUsername) ? req.Name : req.ParatextUsername,
+        };
+        return Results.Ok();
+    }
+);
+
+/// <summary>
+/// Deletes a dev user by user ID.
+/// Changes are in-memory and reset when the stub restarts.
+/// </summary>
+app.MapDelete(
+    "/dev-auth/users/{id}",
+    (string id) =>
+    {
+        int removed = devUsers.RemoveAll(u => u.UserId == id);
+        return removed > 0 ? Results.Ok() : Results.NotFound();
+    }
 );
 
 /// <summary>
@@ -557,6 +948,26 @@ app.MapGet(
 );
 
 
+/// <summary>
+/// Returns all configured Paratext projects. Used by the admin UI to display
+/// the projects managed by this stub (Registry + Send/Receive server).
+/// </summary>
+app.MapGet(
+    "/api/projects",
+    () =>
+        Results.Ok(
+            devProjects.Select(p => new
+            {
+                paratextId = p.ParatextId,
+                shortName = p.ShortName,
+                fullName = p.FullName,
+                languageIsoCode = p.LanguageIsoCode,
+                userRoles = p.UserRoles,
+            })
+        )
+);
+
+
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -734,6 +1145,9 @@ string ComputeMd5Hex(string filePath)
 
 /// <summary>Request body for POST /dev-auth/token.</summary>
 record LocalDevTokenRequest(string UserId);
+
+/// <summary>Request body for POST /dev-auth/users and PUT /dev-auth/users/{id}.</summary>
+record DevUserMutation(string Name, string Email, string[] Roles, string ParatextUsername);
 
 /// <summary>A pre-defined local development user.</summary>
 record DevUser(string UserId, string Name, string Email, string[] Roles, string ParatextUsername);

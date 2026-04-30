@@ -15,9 +15,13 @@ The stub listens on **http://localhost:5050** and serves:
 
 | Endpoint                                                        | Purpose                                                             |
 | --------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `GET /admin`                                                    | Admin dashboard (manage users; view projects and DBL resources)     |
 | `GET /.well-known/openid-configuration`                         | OIDC discovery (used by main app JWT middleware and RealtimeServer) |
 | `GET /.well-known/jwks.json`                                    | JWT public key (used to validate tokens)                            |
-| `GET /dev-auth/users`                                           | List of pre-defined dev users (used by login page)                  |
+| `GET /dev-auth/users`                                           | List of dev users (used by login page and admin UI)                 |
+| `POST /dev-auth/users`                                          | Create a new dev user (admin UI)                                    |
+| `PUT /dev-auth/users/{id}`                                      | Update a dev user (admin UI)                                        |
+| `DELETE /dev-auth/users/{id}`                                   | Delete a dev user (admin UI)                                        |
 | `POST /dev-auth/token`                                          | Issues SF access + ID tokens (used by login page)                   |
 | `GET /api8/userinfo`                                            | Paratext user info                                                  |
 | `POST /api8/token`                                              | Paratext token refresh                                              |
@@ -28,9 +32,21 @@ The stub listens on **http://localhost:5050** and serves:
 | `GET /api8/projects/{id}/members`                               | All project members                                                 |
 | `GET /api8/projects/{id}/members/{userId}`                      | Single member's role                                                |
 | `GET /api8/projects/{id}/identification_systemId/paratext/text` | Confirms project is registered                                      |
+| `GET /api/projects`                                             | All configured projects (used by admin UI)                          |
 | `GET /listrepos`                                                | S/R listrepos stub (returns empty list)                             |
 | `GET /api/resource_entries`                                     | DBL resource list (reads `.p8z` files from `dev-dbl/resources/`)   |
 | `GET /api/resource_entries/{id}`                                | Download a specific DBL resource `.p8z` file                        |
+
+## Admin UI
+
+Open **http://localhost:5050/admin** in a browser while the stub is running to access the
+management dashboard. It provides:
+
+- **Users** — create, edit, and delete dev users (changes are in-memory; reset on restart)
+- **Projects** — read-only view of all configured Paratext projects (edit `appsettings.json` to change)
+- **DBL Resources** — read-only list of `.p8z` resource files in the resources directory
+
+---
 
 ## Configuration
 
