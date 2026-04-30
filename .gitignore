@@ -15,6 +15,13 @@ vagrant_ansible_inventory_*
 artifacts/
 dist/
 src/RealtimeServer/lib/
+# Compiled TypeScript output in RealtimeServer source directories (output goes to lib/ instead)
+src/RealtimeServer/common/**/*.js
+src/RealtimeServer/common/**/*.js.map
+src/RealtimeServer/common/**/*.d.ts
+src/RealtimeServer/scriptureforge/**/*.js
+src/RealtimeServer/scriptureforge/**/*.js.map
+src/RealtimeServer/scriptureforge/**/*.d.ts
 storybook-static/
 
 # VS files
