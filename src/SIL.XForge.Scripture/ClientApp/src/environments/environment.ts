@@ -23,5 +23,12 @@ export const environment = {
   realtimeUrl: '/',
   authDomain: 'sil-appbuilder.auth0.com',
   authClientId: 'aoAGb9Yx1H5WIsvCW6JJCteJhSa37ftH',
-  offlineDBVersion: 8
+  offlineDBVersion: 8,
+  // Set to true to use the local dev auth stand-in instead of Auth0.
+  // This allows fully offline development without any Auth0 account.
+  // The backend must have Auth:UseLocalAuth=true set (see appsettings.Development.json).
+  useLocalAuth: true,
+  // URL of the local dev stub server (dev-stubs project) that provides the Auth0 and
+  // Paratext registry stand-ins. Only used when useLocalAuth is true.
+  localAuthServerUrl: 'http://localhost:5050'
 };

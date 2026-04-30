@@ -11,4 +11,11 @@ public class AuthOptions : PublicAuthOptions
     public string ManagementAudience { get; init; } = string.Empty;
     public string WebhookUsername { get; init; } = string.Empty;
     public string WebhookPassword { get; init; } = string.Empty;
+
+    /// <summary>
+    /// When true, uses a locally generated RSA key for JWT issuance and validation instead of Auth0.
+    /// This enables fully offline local development without requiring any Auth0 account or credentials.
+    /// Should only be enabled in the Development environment.
+    /// </summary>
+    public bool UseLocalAuth { get; init; } = false;
 }

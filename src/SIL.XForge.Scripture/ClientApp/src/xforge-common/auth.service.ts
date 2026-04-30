@@ -1,7 +1,6 @@
 import { Injectable } from '@angular/core';
 import { Router } from '@angular/router';
 import {
-  Auth0Client,
   AuthorizationParams,
   CacheEntry,
   CacheKey,
@@ -27,6 +26,7 @@ import { CommandError, CommandService } from './command.service';
 import { DialogService } from './dialog.service';
 import { ErrorReportingService } from './error-reporting.service';
 import { I18nService } from './i18n.service';
+import { IAuth0Client } from './local-auth0-client';
 import { LocalSettingsService } from './local-settings.service';
 import { LocationService } from './location.service';
 import { OfflineStore } from './offline-store';
@@ -93,7 +93,7 @@ export class AuthService {
   private refreshSubscription?: Subscription;
   private renewTokenPromise?: Promise<void>;
   private checkSessionPromise?: Promise<GetTokenSilentlyVerboseResponse | null>;
-  private readonly auth0: Auth0Client = this.auth0Service.init({
+  private readonly auth0: IAuth0Client = this.auth0Service.init({
     clientId: environment.authClientId,
     domain: environment.authDomain,
     cacheLocation: 'localstorage',
@@ -223,7 +223,7 @@ export class AuthService {
       return undefined;
     }
     try {
-      return await this.auth0.getTokenSilently();
+      return (await this.auth0.getTokenSilently()) as string;
     } catch {
       return undefined;
     }
@@ -376,7 +376,7 @@ export class AuthService {
   }
 
   private async getTokenDetails(): Promise<GetTokenSilentlyVerboseResponse> {
-    return await this.auth0.getTokenSilently({ detailedResponse: true });
+    return (await this.auth0.getTokenSilently({ detailedResponse: true })) as GetTokenSilentlyVerboseResponse;
   }
 
   private async hasExpired(): Promise<boolean> {

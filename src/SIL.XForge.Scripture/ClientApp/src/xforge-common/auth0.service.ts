@@ -6,6 +6,7 @@ import { lastValueFrom } from 'rxjs';
 import { AUTH0_SCOPE } from 'xforge-common/auth.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { environment } from '../environments/environment';
+import { IAuth0Client, LocalAuth0Client } from './local-auth0-client';
 
 interface ResourceOwnerTokenEndpoint {
   audience: string;
@@ -37,11 +38,17 @@ export class Auth0Service {
     private readonly reportingService: ErrorReportingService
   ) {}
 
-  init(options: Auth0ClientOptions): Auth0Client {
+  init(options: Auth0ClientOptions): IAuth0Client {
+    if (environment.useLocalAuth) {
+      return new LocalAuth0Client();
+    }
     return new Auth0Client(options);
   }
 
   changePassword(email: string): Promise<string> {
+    if (environment.useLocalAuth) {
+      return Promise.resolve('Password change is not supported in local development mode.');
+    }
     const body = { client_id: environment.authClientId, connection: 'Username-Password-Authentication', email };
     return this.post('dbconnections/change_password', body);
   }
