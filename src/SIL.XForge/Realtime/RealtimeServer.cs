@@ -61,7 +61,7 @@ public class RealtimeServer : IRealtimeServer
 
     public bool Restart(object options)
     {
-        _started = false;
+        Stop();
         Start(options);
         return IsServerRunning();
     }
