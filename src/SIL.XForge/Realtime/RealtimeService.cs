@@ -335,9 +335,6 @@ public class RealtimeService : DisposableBase, IRealtimeService
             _realtimeOptions.Value.DataValidationDisabled,
             SiteId = _siteOptions.Value.Id,
             Product.Version,
-            // The RealtimeServer always validates JWTs via JWKS discovery from the configured
-            // Authority: the local stub when UseLocalAuth is true, Auth0 when false.
-            LocalSigningKey = (string?)null,
         };
     }
 }

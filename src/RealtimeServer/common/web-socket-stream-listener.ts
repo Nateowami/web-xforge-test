@@ -9,6 +9,7 @@ import WebSocketJSONStream from 'websocket-json-stream';
 import ws from 'ws';
 import { ExceptionReporter } from './exception-reporter';
 
+
 function isLocalRequest(request: http.IncomingMessage): boolean {
   const addr = request.socket.remoteAddress;
   return addr === '127.0.0.1' || addr === '::ffff:127.0.0.1' || addr === '::1';
@@ -16,7 +17,7 @@ function isLocalRequest(request: http.IncomingMessage): boolean {
 
 export class WebSocketStreamListener {
   private readonly httpServer: http.Server;
-  private readonly jwksClient: jwks.JwksClient | undefined;
+  private readonly jwksClient: jwks.JwksClient;
 
   constructor(
     private readonly audience: string,
@@ -26,10 +27,7 @@ export class WebSocketStreamListener {
     certificatePath: string | undefined,
     privateKeyPath: string | undefined,
     private readonly origin: string[],
-    private exceptionReporter: ExceptionReporter,
-    /** When provided, this PEM-encoded RSA public key is used directly for JWT verification
-     * instead of fetching signing keys from the JWKS endpoint. Used in local development mode. */
-    private readonly localSigningKey?: string
+    private exceptionReporter: ExceptionReporter
   ) {
     // Create web servers to serve files and listen to WebSocket connections
     const app = express();
@@ -50,14 +48,11 @@ export class WebSocketStreamListener {
       this.httpServer = http.createServer(app);
     }
 
-    if (localSigningKey == null) {
-      // Use JWKS endpoint to fetch signing keys (production/staging mode)
-      this.jwksClient = jwks({
-        cache: true,
-        jwksUri: `${authority}.well-known/jwks.json`
-      });
-    }
-    // When localSigningKey is provided, use it directly without any JWKS fetch
+    // Fetch signing keys from the JWKS endpoint (works for both production and local dev stub).
+    this.jwksClient = jwks({
+      cache: true,
+      jwksUri: `${authority}.well-known/jwks.json`
+    });
   }
 
   listen(backend: ShareDB): void {
@@ -94,12 +89,16 @@ export class WebSocketStreamListener {
     if (url != null && url.includes('?access_token=')) {
       // the url contains an access token
       const token = url.split('?access_token=')[1];
-      if (this.localSigningKey != null) {
-        // In local dev mode, verify using the directly provided PEM public key
-        verify(token, this.localSigningKey, { audience: this.audience }, (err, decoded: any) => {
+      verify(
+        token,
+        (header, verifyDone) => this.getKey(header, verifyDone),
+        { audience: this.audience },
+        (err, decoded: any) => {
           if (err) {
+            // unable to verify access token
             done(false, 401, 'Unauthorized');
           } else {
+            // check that the access token was granted xForge API scope
             const scopeClaim = decoded['scope'];
             if (scopeClaim != null && scopeClaim.split(' ').includes(this.scope)) {
               (req as any).user = decoded;
@@ -108,29 +107,8 @@ export class WebSocketStreamListener {
               done(false, 401, 'A required scope has not been granted.');
             }
           }
-        });
-      } else {
-        verify(
-          token,
-          (header, verifyDone) => this.getKey(header, verifyDone),
-          { audience: this.audience },
-          (err, decoded: any) => {
-            if (err) {
-              // unable to verify access token
-              done(false, 401, 'Unauthorized');
-            } else {
-              // check that the access token was granted xForge API scope
-              const scopeClaim = decoded['scope'];
-              if (scopeClaim != null && scopeClaim.split(' ').includes(this.scope)) {
-                (req as any).user = decoded;
-                done(true);
-              } else {
-                done(false, 401, 'A required scope has not been granted.');
-              }
-            }
-          }
-        );
-      }
+        }
+      );
     } else if (isLocalRequest(req) && url != null && url.includes('?server=true')) {
       // no access token, but the request is local, so it is allowed
       done(true);
@@ -143,11 +121,6 @@ export class WebSocketStreamListener {
   private getKey(header: JwtHeader, done: SigningKeyCallback): void {
     if (header.kid == null) {
       done(new Error('No key ID.'));
-      return;
-    }
-
-    if (this.jwksClient == null) {
-      done(new Error('JWKS client is not configured. Provide a localSigningKey or an authority with a JWKS endpoint.'));
       return;
     }
 

@@ -42,9 +42,6 @@ interface RealtimeServerOptions {
   dataValidationDisabled: boolean;
   siteId: string;
   version: string;
-  /** When provided, this PEM-encoded public key is used directly for JWT verification
-   * instead of fetching from the JWKS endpoint. Used in local development mode. */
-  localSigningKey?: string;
 }
 
 let server: RealtimeServer | undefined;
@@ -94,8 +91,7 @@ async function startServer(options: RealtimeServerOptions): Promise<void> {
       undefined,
       undefined,
       options.origin.split(';').filter(s => s !== ''),
-      exceptionReporter,
-      options.localSigningKey
+      exceptionReporter
     );
     streamListener.listen(server);
     await streamListener.start();
@@ -116,8 +112,7 @@ async function startServer(options: RealtimeServerOptions): Promise<void> {
         options.certificatePath,
         options.privateKeyPath,
         options.origin.split(';').filter(s => s !== ''),
-        exceptionReporter,
-        options.localSigningKey
+        exceptionReporter
       );
       secureStreamListener.listen(server);
       await secureStreamListener.start();
