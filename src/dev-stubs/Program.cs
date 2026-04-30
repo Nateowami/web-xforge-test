@@ -15,6 +15,14 @@ using Newtonsoft.Json.Linq;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Load dev-config.json (git-ignored, machine-local) if present.  It takes precedence over
+// appsettings.json so imported projects override the built-in defaults.
+builder.Configuration.AddJsonFile(
+    Path.Combine(builder.Environment.ContentRootPath, "dev-config.json"),
+    optional: true,
+    reloadOnChange: false
+);
+
 // Allow CORS from the main application so the frontend (served on 5000/5001) can
 // call /dev-auth/users and /dev-auth/token directly.
 builder.Services.AddCors(options =>
@@ -255,10 +263,11 @@ app.MapGet(
                   <div class="card">
                     <h2>Paratext Projects</h2>
                     <p class="notice">
-                      Projects are defined in <code>appsettings.json</code> under
-                      <code>LocalDevParatext:Projects</code>. This stub serves as both the
-                      Registry server (<code>/api8/…</code>) and the Send/Receive server
-                      (<code>/listrepos</code>).
+                      Projects are defined in <code>dev-config.json</code> (created by the
+                      <code>import-paratext-project.mts</code> script) or in
+                      <code>appsettings.json</code> under <code>LocalDevParatext:Projects</code>
+                      as a fallback. This stub serves as both the Registry server
+                      (<code>/api8/…</code>) and the Send/Receive server (<code>/listrepos</code>).
                     </p>
                     <table>
                       <thead>

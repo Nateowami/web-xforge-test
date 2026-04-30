@@ -9,9 +9,17 @@ namespace SIL.XForge.Configuration;
 public class LocalDevParatextOptions
 {
     /// <summary>
+    /// The directory that contains Mercurial repositories for dev projects.
+    /// Each project is stored as a sub-directory named after its Paratext ID.
+    /// When set, this overrides the default location (<c>{SiteDir}/dev-paratext/repos/</c>).
+    /// Typically populated automatically by the <c>scripts/import-paratext-project.mts</c> script.
+    /// </summary>
+    public string ReposDir { get; set; } = string.Empty;
+
+    /// <summary>
     /// The list of dev Paratext projects available in local development mode.
-    /// Each project corresponds to a Mercurial repository under
-    /// <c>{SiteDir}/dev-paratext/repos/{ParatextId}/</c>.
+    /// Each project corresponds to a Mercurial repository under <see cref="ReposDir"/>
+    /// (or the default <c>{SiteDir}/dev-paratext/repos/</c> if <see cref="ReposDir"/> is not set).
     /// </summary>
     public List<LocalDevParatextProject> Projects { get; set; } = [];
 }

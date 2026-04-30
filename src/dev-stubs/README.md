@@ -50,7 +50,7 @@ management dashboard. It provides:
 
 ## Configuration
 
-Edit `appsettings.json` to add or change the dev project list and auth settings.
+Edit `appsettings.json` to change auth settings or add custom auth keys.
 
 The main app (`appsettings.Development.json`) must point at this stub:
 
@@ -61,59 +61,46 @@ The main app (`appsettings.Development.json`) must point at this stub:
 
 Setting `LocalRegistryServerUri` also redirects DBL traffic to this stub automatically.
 
+Project configuration (the `LocalDevParatext:Projects` list) lives in the git-ignored
+`src/dev-stubs/dev-config.json` file.  When that file is absent, both apps fall back to the
+`LocalDevParatext:Projects` entries in their respective `appsettings.json` /
+`appsettings.Development.json` files (which include the built-in `DevPT01` sample project).
+
 ---
 
 ## Importing a real Paratext project
 
 By default the stub creates a minimal dev project (`DevPT01`) with embedded sample Scripture
-(Matthew 1–5 and Jonah 1–4, World English Bible). To test with a real project instead:
-
-### 1. Copy the Mercurial repository
-
-Copy the project's Mercurial repository to:
-
-```
-{SiteDir}/dev-paratext/repos/{paratextId}/
-```
-
-`SiteDir` defaults to `/var/lib/scriptureforge` (set in `appsettings.json`). The `{paratextId}`
-directory must contain the `.hg/` folder and the working-directory files.
+(Matthew 1–5 and Jonah 1–4, World English Bible). To test with a real project instead, use the
+import script:
 
 ```sh
-cp -r /path/to/real/project/* /var/lib/scriptureforge/dev-paratext/repos/4e51b77b2c18ee2c2bde5a18bcc880a2/
+deno run --allow-read --allow-write scripts/import-paratext-project.mts /path/to/ParatextProject
 ```
+
+The script will:
+1. Read `Settings.xml` from the project directory to extract the Paratext ID, short name, full
+   name, and language code automatically.
+2. Copy the project directory (including the `.hg/` Mercurial repository) to
+   `src/dev-stubs/repos/<paratextId>/`.
+3. Create or update `src/dev-stubs/dev-config.json` with the project entry.
+
+After running the script, restart the stub and the main app, then log in and trigger a sync in
+Scripture Forge.
 
 > **Tip:** If the imported history is in the draft Mercurial phase, the stub will promote it to
 > public automatically on the first sync. `ProjectUsers.xml` is also updated automatically to
 > match the configured dev user roles so the dev usernames work even if the real project used
 > different Paratext usernames.
 
-### 2. Register the project in configuration
+### Manual import (without the script)
 
-Add (or update) the project entry in **both** config files:
+If you prefer to configure things by hand:
 
-**`src/SIL.XForge.Scripture/appsettings.Development.json`** — `LocalDevParatext:Projects`:
-
-```json
-{
-  "ParatextId": "4e51b77b2c18ee2c2bde5a18bcc880a2",
-  "ShortName": "MyProject",
-  "FullName":  "My Real Project",
-  "LanguageIsoCode": "eng",
-  "UserRoles": {
-    "DevAdmin": "pt_administrator",
-    "DevUser":  "pt_translator"
-  }
-}
-```
-
-**`src/dev-stubs/appsettings.json`** — same `LocalDevParatext:Projects` section (the stub
-serves the registry metadata; the main app serves the Hg repository).
-
-### 3. Sync the project in SF
-
-Log in, open the project, and trigger a sync. The stub will bundle the imported Hg history and
-deliver it to the main app as it would in a real Paratext Send/Receive.
+1. Copy the project directory to `src/dev-stubs/repos/<paratextId>/`.
+2. Create or edit `src/dev-stubs/dev-config.json` (see `dev-config.example.json` for the format)
+   and add the project entry.  Set `LocalDevParatext:ReposDir` to the absolute path of
+   `src/dev-stubs/repos/`.
 
 ---
 

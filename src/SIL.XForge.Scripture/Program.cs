@@ -41,6 +41,16 @@ public static class Program
                         config.AddJsonFile("appsettings.user.json", true);
                     else
                         config.AddJsonFile("secrets.json", true, true);
+                    // Load the local dev project config written by scripts/import-paratext-project.mts.
+                    // This file is git-ignored and overrides the LocalDevParatext:Projects section in
+                    // appsettings.Development.json so developers do not need to edit that file manually.
+                    if (env.IsDevelopment())
+                    {
+                        string devConfigPath = Path.GetFullPath(
+                            Path.Combine(env.ContentRootPath, "..", "dev-stubs", "dev-config.json")
+                        );
+                        config.AddJsonFile(devConfigPath, optional: true, reloadOnChange: false);
+                    }
                     // Manually read in secrets for development-related environments that aren't specifically "Development".
                     if (env.IsEnvironment("Testing"))
                     {

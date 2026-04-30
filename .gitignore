@@ -34,6 +34,10 @@ junit.xml
 
 appsettings.user.json
 
+# Local dev stub — project repos and machine-local config (created by import-paratext-project.mts)
+src/dev-stubs/repos/
+src/dev-stubs/dev-config.json
+
 # e2e tests
 /src/SIL.XForge.Scripture/ClientApp/e2e/secrets.json
 /src/SIL.XForge.Scripture/ClientApp/e2e/test_output/

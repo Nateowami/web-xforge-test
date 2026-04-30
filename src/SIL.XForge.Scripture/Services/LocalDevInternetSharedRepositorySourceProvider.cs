@@ -52,7 +52,9 @@ public class LocalDevInternetSharedRepositorySourceProvider : IInternetSharedRep
         if (string.IsNullOrEmpty(ptUsername))
             throw new Exception($"Failed to get a Paratext username for SF user id {userSecret.Id}.");
 
-        string devReposDir = Path.Combine(_siteOptions.Value.SiteDir, "dev-paratext", "repos");
+        string devReposDir = string.IsNullOrEmpty(_config.ReposDir)
+            ? Path.Combine(_siteOptions.Value.SiteDir, "dev-paratext", "repos")
+            : _config.ReposDir;
         Directory.CreateDirectory(devReposDir);
 
         return new LocalDevInternetSharedRepositorySource(ptUsername, _config, _hgWrapper, devReposDir);
