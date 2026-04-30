@@ -32,19 +32,14 @@ h2 {
   --mat-stepper-header-selected-state-label-text-size: var(--mat-stepper-header-label-text-size);
 }
 
-// Make completed/previous steps appear the same as unvisited steps (grey),
-// so only the currently selected step is visually highlighted in primary color.
-// --mat-sys-on-surface-variant and --mat-sys-surface are set by mat.system-level-colors()
-// and correspond to the default unvisited step icon colors in the Material 3 stepper token definitions.
+// Make completed/previous steps appear grey, so only the current step is highlighted in primary color.
 :host ::ng-deep .mat-step-icon-state-done:not(.mat-step-icon-selected),
 :host ::ng-deep .mat-step-icon-state-edit:not(.mat-step-icon-selected) {
   background-color: var(--mat-sys-on-surface-variant);
   color: var(--mat-sys-surface);
 }
 
-// Suppress the focus state layer highlight when the step header receives programmatic focus
-// (e.g. after the user clicks the "Next" button and Angular Material moves focus to the new step).
-// Keyboard focus (.cdk-keyboard-focused) is intentionally kept so accessibility is preserved.
+// Suppress focus highlight on programmatic focus (e.g. after clicking Next); keyboard focus is preserved.
 :host ::ng-deep .mat-step-header.cdk-program-focused {
   background-color: transparent;
 }
