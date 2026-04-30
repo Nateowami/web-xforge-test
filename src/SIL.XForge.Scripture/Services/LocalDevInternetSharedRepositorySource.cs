@@ -236,6 +236,17 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
         {
             InitializeServerRepo(serverRepoDir, paratextId, shortName);
         }
+        else
+        {
+            // For repos that were imported from a real Paratext project, all existing changesets
+            // may be in the draft phase, which prevents them from being bundled to clients.
+            // Marking the tip public also makes all its ancestors public.
+            _hgWrapper.MarkSharedChangeSetsPublic(serverRepoDir);
+
+            // Keep ProjectUsers.xml in sync with the current dev configuration so that
+            // both locally-created and imported repos have the right dev user roles.
+            EnsureProjectUsersXml(serverRepoDir, paratextId);
+        }
         return serverRepoDir;
     }
 
@@ -343,6 +354,35 @@ public class LocalDevInternetSharedRepositorySource : InternetSharedRepositorySo
             string content = reader.ReadToEnd().Replace("Dev PT Project 01", fullName, StringComparison.Ordinal);
             File.WriteAllText(Path.Combine(serverRepoDir, bookFileName), content, Encoding.UTF8);
         }
+    }
+
+    /// <summary>
+    /// Ensures <c>ProjectUsers.xml</c> in the server repo matches the roles currently
+    /// configured for this project. If the content differs, the file is overwritten and
+    /// committed as a new public changeset so the updated roles are available on the next
+    /// <see cref="Pull"/>. This keeps imported real-project repos working with the local
+    /// dev usernames even if the real project's <c>ProjectUsers.xml</c> contains different
+    /// usernames.
+    /// </summary>
+    private void EnsureProjectUsersXml(string serverRepoDir, string paratextId)
+    {
+        LocalDevParatextProject project = _config.Projects.FirstOrDefault(p => p.ParatextId == paratextId);
+        string desired = BuildProjectUsersXml(project);
+        string usersXmlPath = Path.Combine(serverRepoDir, "ProjectUsers.xml");
+
+        // Only commit a new changeset when the file actually differs from what we want.
+        if (File.Exists(usersXmlPath) && File.ReadAllText(usersXmlPath, Encoding.UTF8) == desired)
+            return;
+
+        File.WriteAllText(usersXmlPath, desired, Encoding.UTF8);
+        // Ensure the file is tracked (no-op if already tracked, harmless warning otherwise).
+        HgWrapper.RunCommand(serverRepoDir, "add ProjectUsers.xml");
+        // Commit only ProjectUsers.xml so unrelated working-directory files are not swept in.
+        HgWrapper.RunCommand(
+            serverRepoDir,
+            """commit -m "Update dev project users" -u "DevServer" ProjectUsers.xml"""
+        );
+        _hgWrapper.MarkSharedChangeSetsPublic(serverRepoDir);
     }
 
     /// <summary>

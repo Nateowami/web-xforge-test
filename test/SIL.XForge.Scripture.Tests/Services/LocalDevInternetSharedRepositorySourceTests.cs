@@ -591,6 +591,170 @@ public class LocalDevInternetSharedRepositorySourceTests
         }
     }
 
+    // ─── Imported project tests (GetOrCreateServerRepo for existing repos) ────────────────────────
+
+    /// <summary>
+    /// Verifies that when a user copies a real Paratext project's Hg repository into the server repos
+    /// directory (the "import" scenario), <see cref="LocalDevInternetSharedRepositorySource.Pull"/>:
+    /// <list type="number">
+    ///   <item>Marks the imported history as public so it can be bundled to the client.</item>
+    ///   <item>Overwrites <c>ProjectUsers.xml</c> with the configured dev user roles and commits
+    ///     the change, ensuring the dev usernames work even if the real project used different
+    ///     Paratext usernames.</item>
+    ///   <item>Delivers the imported content to the client repo.</item>
+    /// </list>
+    /// </summary>
+    [Test]
+    public void Pull_WithRealMercurial_ImportedProject_IsServedCorrectly()
+    {
+        string hgExe = "/usr/bin/hg";
+        if (!File.Exists(hgExe))
+            Assert.Ignore("Mercurial not found at /usr/bin/hg — skipping integration test.");
+
+        string assemblyDir = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!;
+        string mergePy = Path.Combine(assemblyDir, "ParatextMerge.py");
+        if (!File.Exists(mergePy))
+            Assert.Ignore($"ParatextMerge.py not found at {mergePy} — skipping integration test.");
+
+        BypassParatextInternetAccessCheck();
+
+        string tempDir = Path.Combine(Path.GetTempPath(), Path.GetRandomFileName());
+        try
+        {
+            string serverReposDir = Path.Combine(tempDir, "server-repos");
+            string clientRepoPath = Path.Combine(tempDir, "sync", ProjectHexId, "target");
+            Directory.CreateDirectory(serverReposDir);
+            Directory.CreateDirectory(clientRepoPath);
+
+            var realHgWrapper = new HgWrapper();
+            realHgWrapper.SetDefault(new Hg(hgExe, mergePy, assemblyDir));
+
+            // ── Simulate an imported real project: create a server repo with real content ──
+            // The "real" project has a different ProjectUsers.xml (with real Paratext usernames)
+            // and the history is in the draft phase (as it would be after hg clone).
+            string importedServerRepoDir = Path.Combine(serverReposDir, ProjectHexId);
+            Directory.CreateDirectory(importedServerRepoDir);
+
+            // Settings.xml uses the correct hex GUID (real projects have proper hex GUIDs).
+            string settingsXml = LocalDevInternetSharedRepositorySource.BuildSettingsXml(
+                ProjectHexId,
+                ShortName,
+                FullName,
+                LanguageIsoCode
+            );
+            File.WriteAllText(
+                Path.Combine(importedServerRepoDir, "Settings.xml"),
+                settingsXml,
+                Encoding.UTF8
+            );
+
+            // ProjectUsers.xml contains real Paratext usernames, not dev usernames.
+            string realUsersXml = """
+                <ProjectUserAccess PeerSharing="true">
+                  <User UserName="realuser@paratext.org" FirstUser="true" UnregisteredUser="false">
+                    <Role>Administrator</Role><AllBooks>true</AllBooks>
+                    <Books /><Permissions /><AutomaticBooks /><AutomaticPermissions />
+                  </User>
+                </ProjectUserAccess>
+                """;
+            File.WriteAllText(
+                Path.Combine(importedServerRepoDir, "ProjectUsers.xml"),
+                realUsersXml,
+                Encoding.UTF8
+            );
+
+            // Simulate the book content from the real project.
+            File.WriteAllText(
+                Path.Combine(importedServerRepoDir, "40MAT.SFM"),
+                $@"\id MAT - {FullName}" + "\n\\c 1\n\\v 1 Imported verse text.\n",
+                Encoding.UTF8
+            );
+
+            // Init hg repo and commit — leave changesets in DRAFT phase to simulate hg clone.
+            realHgWrapper.Init(importedServerRepoDir);
+            HgWrapper.RunCommand(importedServerRepoDir, "add");
+            HgWrapper.RunCommand(
+                importedServerRepoDir,
+                """commit -m "Imported real project" -u "RealUser" """
+            );
+            // NOTE: intentionally NOT calling MarkSharedChangeSetsPublic here, so the imported
+            // history is in the draft phase — the stub must promote it automatically.
+
+            var config = new LocalDevParatextOptions
+            {
+                Projects =
+                [
+                    new LocalDevParatextProject
+                    {
+                        ParatextId = ProjectHexId,
+                        ShortName = ShortName,
+                        FullName = FullName,
+                        LanguageIsoCode = LanguageIsoCode,
+                        UserRoles = new Dictionary<string, string>
+                        {
+                            ["DevAdmin"] = "pt_administrator",
+                            ["DevUser"] = "pt_translator",
+                        },
+                    },
+                ],
+            };
+
+            var source = new LocalDevInternetSharedRepositorySource(
+                "DevAdmin",
+                config,
+                realHgWrapper,
+                serverReposDir
+            );
+            SharedRepository repo = source.GetRepositories().Single();
+            realHgWrapper.Init(clientRepoPath);
+
+            // SUT — Pull must promote draft history, update ProjectUsers.xml, and deliver content.
+            source.Pull(clientRepoPath, repo);
+            realHgWrapper.Update(clientRepoPath);
+
+            // ── Verify the imported content was delivered ──────────────────────────────────────
+            Assert.That(
+                File.Exists(Path.Combine(clientRepoPath, "40MAT.SFM")),
+                Is.True,
+                "Imported book file 40MAT.SFM must be present after Pull"
+            );
+            Assert.That(
+                File.Exists(Path.Combine(clientRepoPath, "Settings.xml")),
+                Is.True,
+                "Settings.xml must be present after Pull"
+            );
+
+            // ── Verify ProjectUsers.xml was updated with dev user roles ────────────────────────
+            string clientUsersXmlPath = Path.Combine(clientRepoPath, "ProjectUsers.xml");
+            Assert.That(
+                File.Exists(clientUsersXmlPath),
+                Is.True,
+                "ProjectUsers.xml must be present after Pull"
+            );
+            string clientUsersXml = File.ReadAllText(clientUsersXmlPath, Encoding.UTF8);
+            Assert.That(
+                clientUsersXml,
+                Does.Contain("DevAdmin"),
+                "ProjectUsers.xml must contain the configured dev username DevAdmin"
+            );
+            Assert.That(
+                clientUsersXml,
+                Does.Contain("DevUser"),
+                "ProjectUsers.xml must contain the configured dev username DevUser"
+            );
+            Assert.That(
+                clientUsersXml,
+                Does.Not.Contain("realuser@paratext.org"),
+                "ProjectUsers.xml must NOT retain the real PT username from the imported project"
+            );
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+                Directory.Delete(tempDir, recursive: true);
+        }
+    }
+
     // ─── Stale-repo migration tests (GetOrCreateServerRepo + ResetClientRepoIfStale) ──────────
 
     /// <summary>

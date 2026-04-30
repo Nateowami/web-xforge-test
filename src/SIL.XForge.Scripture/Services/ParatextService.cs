@@ -142,6 +142,9 @@ public class ParatextService : DisposableBase, IParatextService
         {
             _registryServerUri = localRegistryUri;
             _sendReceiveServerUri = localRegistryUri;
+            // Also redirect the DBL server to the local stub so that DBL resource browsing
+            // and installation work without connecting to the real Digital Bible Library.
+            _dblServerUri = localRegistryUri.TrimEnd('/') + "/";
         }
 
         _registryClient.BaseAddress = new Uri(_registryServerUri);

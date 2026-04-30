@@ -6,8 +6,10 @@
 #pragma warning disable CS8604 // ignore possible null reference warnings in startup code
 
 using System.IdentityModel.Tokens.Jwt;
+using System.IO.Compression;
 using System.Security.Claims;
 using System.Security.Cryptography;
+using System.Xml.Linq;
 using Microsoft.IdentityModel.Tokens;
 using Newtonsoft.Json.Linq;
 
@@ -491,6 +493,69 @@ app.MapGet(
 /// </summary>
 app.MapGet("/listrepos", () => Results.Ok(Array.Empty<object>()));
 
+// ─── DBL (Digital Bible Library) stub endpoints (/api/resource_entries) ────────
+
+// Default resources directory: {repo-root}/dev-dbl/resources/ regardless of CWD.
+// Override via LocalDevDbl:ResourcesDir in appsettings.json (absolute or relative to CWD).
+string dblResourcesDir = Path.GetFullPath(
+    app.Configuration["LocalDevDbl:ResourcesDir"]
+    ?? Path.Combine(app.Environment.ContentRootPath, "..", "..", "dev-dbl", "resources")
+);
+
+/// <summary>
+/// Returns a JSON list of all .p8z resources found in the configured directory.
+/// Supports the optional <c>?id=&lt;resourceId&gt;</c> query parameter to filter
+/// to a single resource (used by <c>SFInstallableDblResource.CheckResourcePermission</c>).
+/// Called by <c>SFInstallableDblResource.GetInstallableDblResources</c> via the main app.
+/// </summary>
+app.MapGet(
+    "/api/resource_entries",
+    (HttpRequest request) =>
+    {
+        string? filterById = request.Query["id"].FirstOrDefault();
+        var resources = new JArray();
+        if (Directory.Exists(dblResourcesDir))
+        {
+            foreach (string p8zPath in Directory.EnumerateFiles(dblResourcesDir, "*.p8z"))
+            {
+                JObject? meta = TryReadDblResourceMetadata(p8zPath);
+                if (meta == null)
+                    continue;
+                if (filterById != null && (string?)meta["id"] != filterById)
+                    continue;
+                resources.Add(meta);
+            }
+        }
+        return Results.Content(
+            new JObject(new JProperty("resources", resources)).ToString(),
+            "application/json"
+        );
+    }
+);
+
+/// <summary>
+/// Serves the raw .p8z file for the DBL resource identified by <paramref name="id"/>.
+/// Called by <c>ISFRestClient.GetFile</c> via <c>SFInstallableDblResource.Install</c>.
+/// </summary>
+app.MapGet(
+    "/api/resource_entries/{id}",
+    (string id) =>
+    {
+        if (Directory.Exists(dblResourcesDir))
+        {
+            foreach (string p8zPath in Directory.EnumerateFiles(dblResourcesDir, "*.p8z"))
+            {
+                JObject? meta = TryReadDblResourceMetadata(p8zPath);
+                if ((string?)meta?["id"] == id)
+                    return Results.File(p8zPath, "application/octet-stream", Path.GetFileName(p8zPath));
+            }
+        }
+        return Results.NotFound();
+    }
+);
+
+
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 /// <summary>
@@ -568,6 +633,100 @@ JObject BuildLicenseJson(DevProject project) =>
     );
 
 app.Run();
+
+// ─── DBL helper functions ─────────────────────────────────────────────────────
+
+/// <summary>
+/// Opens a .p8z zip file and returns the resource metadata in the JSON format expected
+/// by <c>SFInstallableDblResource.ConvertJsonResponseToInstallableDblResources</c>.
+/// Reads from <c>.dbl/metadata.xml</c> if present; otherwise falls back to the
+/// <c>.dbl/id/</c> and <c>.dbl/revision/</c> sentinel-filename conventions used by DBL.
+/// Returns <c>null</c> if the file cannot be read or does not contain a recognisable
+/// DBL structure.
+/// </summary>
+JObject? TryReadDblResourceMetadata(string p8zPath)
+{
+    try
+    {
+        using ZipArchive archive = ZipFile.OpenRead(p8zPath);
+        string? id = null,
+            revision = null,
+            name = null,
+            fullname = null;
+        string? languageName = null,
+            languageCode = null,
+            languageLDML = null;
+
+        // Prefer .dbl/metadata.xml when available (standard DBL structure).
+        ZipArchiveEntry? metadataEntry = archive.GetEntry(".dbl/metadata.xml");
+        if (metadataEntry != null)
+        {
+            using Stream metaStream = metadataEntry.Open();
+            XDocument doc = XDocument.Load(metaStream);
+            XElement? root = doc.Root;
+            id = root?.Attribute("id")?.Value;
+            revision = root?.Attribute("revision")?.Value;
+            XElement? ident = root?.Element("identification");
+            name = ident?.Element("name")?.Value;
+            fullname =
+                ident?.Element("nameCommon")?.Value
+                ?? ident?.Element("nameLocal")?.Value
+                ?? name;
+            XElement? lang = root?.Element("language");
+            languageCode = lang?.Element("iso")?.Value;
+            languageLDML = lang?.Element("ldml")?.Value;
+            languageName = lang?.Element("name")?.Value;
+        }
+
+        // Fall back to the sentinel-filename convention (.dbl/id/{id} and .dbl/revision/{n}).
+        if (string.IsNullOrEmpty(id))
+        {
+            foreach (ZipArchiveEntry entry in archive.Entries)
+            {
+                bool isDir = entry.FullName.EndsWith('/');
+                if (!isDir && entry.FullName.StartsWith(".dbl/id/", StringComparison.OrdinalIgnoreCase))
+                    id = Path.GetFileName(entry.FullName);
+                else if (
+                    !isDir
+                    && entry.FullName.StartsWith(".dbl/revision/", StringComparison.OrdinalIgnoreCase)
+                )
+                    revision = Path.GetFileName(entry.FullName);
+                if (id != null && revision != null)
+                    break;
+            }
+        }
+
+        if (string.IsNullOrEmpty(id))
+            return null;
+
+        string baseName = name ?? Path.GetFileNameWithoutExtension(p8zPath);
+        string checksum = ComputeMd5Hex(p8zPath);
+        return new JObject(
+            new JProperty("id", id),
+            new JProperty("revision", revision ?? "1"),
+            new JProperty("name", baseName),
+            new JProperty("nameCommon", fullname ?? baseName),
+            new JProperty("fullname", fullname ?? baseName),
+            new JProperty("languageName", languageName ?? ""),
+            new JProperty("languageCode", languageCode ?? ""),
+            new JProperty("languageLDMLId", languageLDML ?? languageCode ?? ""),
+            new JProperty("permissions-checksum", checksum),
+            new JProperty("p8z-manifest-checksum", checksum)
+        );
+    }
+    catch
+    {
+        return null;
+    }
+}
+
+/// <summary>Computes the MD5 hash of a file and returns it as a lowercase hex string.</summary>
+string ComputeMd5Hex(string filePath)
+{
+    using MD5 md5 = MD5.Create();
+    using FileStream stream = File.OpenRead(filePath);
+    return BitConverter.ToString(md5.ComputeHash(stream)).Replace("-", "").ToLowerInvariant();
+}
 
 // ─── Request / config types ───────────────────────────────────────────────────
 
