@@ -76,9 +76,9 @@ describe('MyProjectsComponent', () => {
     // Navigates to the connect project component.
     expect(env.router.url).toEqual('/connect-project');
     // Passes PT project id to connect project component.
-    expect(env.router.lastSuccessfulNavigation?.extras.state?.paratextId).toEqual('pt-notConnToSF');
-    expect(env.router.lastSuccessfulNavigation?.extras.state?.name).toEqual('Not connected at all to SF');
-    expect(env.router.lastSuccessfulNavigation?.extras.state?.shortName).toEqual('NCAA');
+    expect(env.router.lastSuccessfulNavigation()?.extras.state?.paratextId).toEqual('pt-notConnToSF');
+    expect(env.router.lastSuccessfulNavigation()?.extras.state?.name).toEqual('Not connected at all to SF');
+    expect(env.router.lastSuccessfulNavigation()?.extras.state?.shortName).toEqual('NCAA');
   }));
 
   it('click Join, user added to the project', fakeAsync(() => {
