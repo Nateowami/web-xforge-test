@@ -416,6 +416,9 @@ public class SFInstallableDblResource : InstallableResource
     internal async Task ExtractAllAsync(ZipFile zip, string path)
     {
         WindowsNameTransform extractNameTransform = new WindowsNameTransform(path);
+        string rootSettingsXmlPath = Path.Join(path, "Settings.xml");
+        bool settingsXmlExtractedToRoot = false;
+
         foreach (ZipEntry entry in zip)
         {
             // Skip directories
@@ -426,7 +429,12 @@ public class SFInstallableDblResource : InstallableResource
 
             // Don't overwrite existing files
             if (_fileSystemService.FileExists(entryPath))
+            {
+                // If Settings.xml already exists at the root, note it so we don't try to extract it again
+                if (entryPath.Equals(rootSettingsXmlPath, StringComparison.OrdinalIgnoreCase))
+                    settingsXmlExtractedToRoot = true;
                 continue;
+            }
 
             // Throw an exception if the entry is a symbolic link
             if (entry.IsSymLink())
@@ -441,6 +449,30 @@ public class SFInstallableDblResource : InstallableResource
             await using Stream zipStream = zip.GetInputStream(entry);
             await using Stream output = _fileSystemService.CreateFile(entryPath);
             await zipStream.CopyToAsync(output);
+
+            // Note if Settings.xml was extracted to the root
+            if (entryPath.Equals(rootSettingsXmlPath, StringComparison.OrdinalIgnoreCase))
+                settingsXmlExtractedToRoot = true;
+        }
+
+        // Some DBL resources store Settings.xml in a subdirectory of the ZIP (e.g., release/Settings.xml)
+        // rather than at the root. Paratext requires Settings.xml at the root to initialize the project,
+        // so if it was not extracted there, find it at any path in the ZIP and copy it to the root.
+        if (!settingsXmlExtractedToRoot)
+        {
+            foreach (ZipEntry entry in zip)
+            {
+                if (!entry.IsFile || entry.IsSymLink())
+                    continue;
+                if (!Path.GetFileName(entry.Name).Equals("Settings.xml", StringComparison.OrdinalIgnoreCase))
+                    continue;
+
+                // Extract the Settings.xml found in a subdirectory to the root of the extraction directory
+                await using Stream zipStream = zip.GetInputStream(entry);
+                await using Stream output = _fileSystemService.CreateFile(rootSettingsXmlPath);
+                await zipStream.CopyToAsync(output);
+                break;
+            }
         }
     }
 

@@ -23,6 +23,7 @@ public sealed class SFInstallableDblResourceTests
 {
     [TestCase(".dbl/dbl_id_here")]
     [TestCase("08RUT.SFM")]
+    [TestCase("Settings.xml")]
     [TestCase("foo/../file.txt")]
     public async Task ExtractAllAsync_Success(string entryName)
     {
@@ -89,6 +90,26 @@ public sealed class SFInstallableDblResourceTests
         Assert.That(exception.Message, Does.Contain("The zip file contains a symbolic link"));
         env.FileSystem.DidNotReceive().CreateDirectory(Arg.Any<string>());
         env.FileSystem.DidNotReceive().CreateFile(Arg.Any<string>());
+    }
+
+    [Test]
+    public async Task ExtractAllAsync_SettingsXmlInSubdirectory_AlsoExtractedToRoot()
+    {
+        TestEnvironment env = new TestEnvironment();
+        const string entryName = "release/Settings.xml";
+        using MemoryStream zipStream = TestEnvironment.CreateZipStream(entryName, string.Empty);
+        using ZipFile zip = new ZipFile(zipStream);
+        zip.IsStreamOwner = false;
+
+        // SUT
+        await env.Resource.ExtractAllAsync(zip, env.DestinationRoot);
+
+        // Settings.xml should be extracted to its path in the subdirectory
+        env.FileSystem.Received().CreateDirectory(Path.Join(env.DestinationRoot, "release"));
+        env.FileSystem.Received().CreateFile(Path.Join(env.DestinationRoot, "release", "Settings.xml"));
+
+        // Settings.xml should ALSO be extracted to the root so Paratext can initialize the project
+        env.FileSystem.Received().CreateFile(Path.Join(env.DestinationRoot, "Settings.xml"));
     }
 
     /// <summary>
