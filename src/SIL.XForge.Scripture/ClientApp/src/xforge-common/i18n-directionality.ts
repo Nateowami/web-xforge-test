@@ -1,5 +1,6 @@
 import { Direction, Directionality } from '@angular/cdk/bidi';
 import { EventEmitter, Injectable, OnDestroy } from '@angular/core';
+import { Subscription } from 'rxjs';
 import { I18nService } from './i18n.service';
 
 /**
@@ -13,9 +14,11 @@ export class I18nDirectionality implements OnDestroy {
   value: Direction;
   readonly change = new EventEmitter<Direction>();
 
+  private readonly subscription: Subscription;
+
   constructor(i18n: I18nService) {
     this.value = i18n.direction;
-    i18n.locale$.subscribe(locale => {
+    this.subscription = i18n.locale$.subscribe(locale => {
       const newDir = locale.direction;
       if (newDir !== this.value) {
         this.value = newDir;
@@ -25,6 +28,7 @@ export class I18nDirectionality implements OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.subscription.unsubscribe();
     this.change.complete();
   }
 }
