@@ -1,4 +1,5 @@
 import { OverlayContainer } from '@angular/cdk/overlay';
+import { Directionality } from '@angular/cdk/bidi';
 import { getTestBed } from '@angular/core/testing';
 import { BrowserDynamicTestingModule, platformBrowserDynamicTesting } from '@angular/platform-browser-dynamic/testing';
 import { provideAnimations } from '@angular/platform-browser/animations';
@@ -7,6 +8,7 @@ import { applicationConfig } from '@storybook/angular';
 import { MINIMAL_VIEWPORTS } from 'storybook/viewport';
 import { I18nStoryDecorator, provideI18nStory } from 'xforge-common/i18n-story';
 import { I18nService } from 'xforge-common/i18n.service';
+import { I18nDirectionality } from 'xforge-common/i18n-directionality';
 import { APP_ROOT_ELEMENT_SELECTOR, InAppRootOverlayContainer } from 'xforge-common/overlay-container';
 import { Appearance, appearanceValues, ThemeService } from 'xforge-common/theme.service';
 import { provideUICommon } from 'xforge-common/ui-common-providers';
@@ -96,7 +98,8 @@ export const decorators = [
       provideUICommon(),
       provideSFTabs(),
       { provide: APP_ROOT_ELEMENT_SELECTOR, useValue: 'storybook-root' },
-      { provide: OverlayContainer, useClass: InAppRootOverlayContainer }
+      { provide: OverlayContainer, useClass: InAppRootOverlayContainer },
+      { provide: Directionality, useClass: I18nDirectionality }
     ]
   }),
   (storyFn, context) => {

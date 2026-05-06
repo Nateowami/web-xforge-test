@@ -1,3 +1,4 @@
+import { Directionality } from '@angular/cdk/bidi';
 import { OverlayContainer } from '@angular/cdk/overlay';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import {
@@ -23,6 +24,7 @@ import {
 import { translocoMarkupRouterLinkRenderer } from 'ngx-transloco-markup-router-link';
 import { ExceptionHandlingService } from 'xforge-common/exception-handling.service';
 import { EmTextTranspiler } from 'xforge-common/i18n-transpilers/em-text.transpiler';
+import { I18nDirectionality } from 'xforge-common/i18n-directionality';
 import { InAppRootOverlayContainer } from 'xforge-common/overlay-container';
 import { ProjectService } from 'xforge-common/project.service';
 import { TypeRegistry } from 'xforge-common/type-registry';
@@ -85,6 +87,7 @@ bootstrapApplication(AppComponent, {
     defaultTranslocoMarkupTranspilers(),
     { provide: ErrorHandler, useClass: ExceptionHandlingService },
     { provide: OverlayContainer, useClass: InAppRootOverlayContainer },
+    { provide: Directionality, useClass: I18nDirectionality },
     provideHttpClient(withInterceptorsFromDi()),
     provideAppInitializer(() => {
       const initializerFn = preloadEnglishTranslations(inject(TranslocoService));
