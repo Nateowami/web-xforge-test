@@ -73,4 +73,20 @@ describe('I18nDirectionality', () => {
     locale$.next(ltrLocale as Locale);
     expect(emittedValues).toEqual([]);
   });
+
+  it('should complete the change EventEmitter and stop reacting to locale changes on destroy', () => {
+    setup(ltrLocale);
+    const directionality = TestBed.inject(Directionality) as unknown as I18nDirectionality;
+    let completed = false;
+    const emittedValues: string[] = [];
+    directionality.change.subscribe({
+      next: dir => emittedValues.push(dir),
+      complete: () => (completed = true)
+    });
+    directionality.ngOnDestroy();
+    expect(completed).toBe(true);
+    locale$.next(rtlLocale as Locale);
+    expect(directionality.value).toBe('ltr');
+    expect(emittedValues).toEqual([]);
+  });
 });
