@@ -31,12 +31,14 @@ describe('I18nDirectionality', () => {
     setup(ltrLocale);
     const directionality = TestBed.inject(Directionality) as unknown as I18nDirectionality;
     expect(directionality.value).toBe('ltr');
+    expect(directionality.valueSignal()).toBe('ltr');
   });
 
   it('should initialize with rtl direction when locale is rtl', () => {
     setup(rtlLocale);
     const directionality = TestBed.inject(Directionality) as unknown as I18nDirectionality;
     expect(directionality.value).toBe('rtl');
+    expect(directionality.valueSignal()).toBe('rtl');
   });
 
   it('should update value when locale changes from ltr to rtl', () => {
@@ -45,6 +47,7 @@ describe('I18nDirectionality', () => {
     expect(directionality.value).toBe('ltr');
     locale$.next(rtlLocale as Locale);
     expect(directionality.value).toBe('rtl');
+    expect(directionality.valueSignal()).toBe('rtl');
   });
 
   it('should update value when locale changes from rtl to ltr', () => {
@@ -53,6 +56,7 @@ describe('I18nDirectionality', () => {
     expect(directionality.value).toBe('rtl');
     locale$.next(ltrLocale as Locale);
     expect(directionality.value).toBe('ltr');
+    expect(directionality.valueSignal()).toBe('ltr');
   });
 
   it('should emit change event when direction changes', () => {
