@@ -546,6 +546,31 @@ describe('AuthService', () => {
     mockedConsole.verify();
   }));
 
+  it('should not show error dialog and silently report when refresh token is invalid', fakeAsync(() => {
+    const callback = (env: TestEnvironment): void => {
+      env.setInvalidGrantResponse();
+    };
+    const env = new TestEnvironment({ isOnline: true, callback });
+    expect(env.isLoggedIn).toBe(false);
+    verify(mockedWebAuth.getTokenSilently(anything())).once();
+    verify(mockedDialogService.message(anything(), anything())).never();
+    verify(mockedErrorReportingService.silentError(anything(), anything())).once();
+  }));
+
+  it('should redirect to login after invalid_grant during token renewal', fakeAsync(() => {
+    const env = new TestEnvironment({ isLoggedIn: true });
+    expect(env.isAuthenticated).toBe(true);
+
+    env.setInvalidGrantResponse();
+    env.service.expireToken();
+    env.setOnline();
+    expect(env.isAuthenticated).toBe(false);
+    verify(mockedWebAuth.getTokenSilently(anything())).once();
+    verify(mockedWebAuth.loginWithRedirect(anything())).once();
+    verify(mockedDialogService.message(anything(), anything())).never();
+    env.discardTokenExpiryTimer();
+  }));
+
   it('should link to paratext account on login', fakeAsync(() => {
     const env = new TestEnvironment({
       isOnline: true,
@@ -1020,6 +1045,14 @@ class TestEnvironment {
     when(mockedWebAuth.getTokenSilently()).thenThrow(tokenError);
     when(mockedWebAuth.getTokenSilently(anything())).thenThrow(tokenError);
     when(mockedWebAuth.getIdTokenClaims()).thenThrow(tokenError);
+  }
+
+  setInvalidGrantResponse(): void {
+    const tokenError = new GenericError('invalid_grant', 'Token could not be decoded or is missing in DB');
+    when(mockedWebAuth.getTokenSilently()).thenThrow(tokenError);
+    when(mockedWebAuth.getTokenSilently(anything())).thenThrow(tokenError);
+    when(mockedWebAuth.getIdTokenClaims()).thenThrow(tokenError);
+    this.auth0Response = undefined;
   }
 
   setOnline(isOnline: boolean = true): void {

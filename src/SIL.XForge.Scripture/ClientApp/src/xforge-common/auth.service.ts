@@ -651,8 +651,17 @@ export class AuthService {
       } catch (err) {
         if (
           hasPropWithValue(err, 'error', 'login_required') ||
-          hasPropWithValue(err, 'error', 'missing_refresh_token')
+          hasPropWithValue(err, 'error', 'missing_refresh_token') ||
+          hasPropWithValue(err, 'error', 'invalid_grant')
         ) {
+          // invalid_grant means the refresh token is stale or missing from Auth0 (log event: fertft).
+          // Treat it as recoverable — the login redirect will issue a fresh token.
+          if (hasPropWithValue(err, 'error', 'invalid_grant')) {
+            this.reportingService.silentError(
+              'Refresh token invalid or missing from Auth0',
+              ErrorReportingService.normalizeError(err)
+            );
+          }
           resolve(null);
         } else if (retryUponTimeout && hasPropWithValue(err, 'error', 'timeout')) {
           this.checkSessionPromise = undefined;
