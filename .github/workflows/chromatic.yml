@@ -67,4 +67,4 @@ jobs:
       - name: Build Storybook
         run: cd src/SIL.XForge.Scripture/ClientApp && npm run build-storybook -- --webpack-stats-json
       - name: Run Storybook tests with Vitest
-        run: cd src/SIL.XForge.Scripture/ClientApp && npx vitest run --project=storybook
+        run: cd src/SIL.XForge.Scripture/ClientApp && npm run test-storybook
