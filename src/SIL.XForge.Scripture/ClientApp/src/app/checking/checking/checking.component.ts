@@ -1107,21 +1107,16 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     if (this.book == null) {
       return undefined;
     }
-    const segments: IterableIterator<[string, unknown]> | undefined = this.scripturePanel?.textComponent.segments;
-    if (segments == null) {
+    const segments = Array.from(this.scripturePanel?.textComponent.segments ?? []);
+    const selectedSegmentIndex: number = segments.findIndex(([currentSegmentRef]) => currentSegmentRef === segmentRef);
+    if (selectedSegmentIndex < 0) {
       return undefined;
     }
 
-    let selectedSegmentFound = false;
-    for (const [currentSegmentRef] of segments) {
-      if (selectedSegmentFound) {
-        const verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(this.book, currentSegmentRef);
-        if (verseRef != null) {
-          return verseRef;
-        }
-      }
-      if (currentSegmentRef === segmentRef) {
-        selectedSegmentFound = true;
+    for (const [currentSegmentRef] of segments.slice(selectedSegmentIndex + 1)) {
+      const verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(this.book, currentSegmentRef);
+      if (verseRef != null) {
+        return verseRef;
       }
     }
     return undefined;
