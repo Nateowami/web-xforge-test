@@ -347,6 +347,27 @@ describe('CheckingComponent', () => {
       discardPeriodicTasks();
     }));
 
+    it('defaults add question to verse following a selected heading', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      spyOnProperty(env.component.scripturePanel!.textComponent, 'segmentRef', 'get').and.returnValue('s_2');
+      spyOnProperty(env.component.scripturePanel!.textComponent, 'segments', 'get').and.returnValue(
+        new Map<string, unknown>([
+          ['verse_1_1', undefined],
+          ['s_2', undefined],
+          ['verse_1_3', undefined]
+        ]).entries()
+      );
+      when(mockedQuestionDialogService.questionDialog(anything())).thenCall((config: QuestionDialogData) => {
+        expect(config.defaultVerse.equals(new VerseRef('JHN 1:3'))).toBe(true);
+        return undefined;
+      });
+
+      env.clickButton(env.addQuestionButton);
+      verify(mockedQuestionDialogService.questionDialog(anything())).once();
+      flush();
+      discardPeriodicTasks();
+    }));
+
     it('hides add question button for community checker', fakeAsync(() => {
       const env = new TestEnvironment({ user: CHECKER_USER });
       expect(env.addQuestionButton).toBeNull();

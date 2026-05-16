@@ -1081,6 +1081,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     const segmentRef: string | undefined = this.scripturePanel?.textComponent.segmentRef;
     if (segmentRef != null && this.book != null) {
       verseRef = getVerseRefFromSegmentRef(this.book, segmentRef);
+      verseRef ??= this.getVerseRefFollowingSegment(segmentRef);
     }
 
     verseRef ??= new VerseRef(this.book ?? 0, this.chapter ?? 1, 1);
@@ -1100,6 +1101,30 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     if (newQuestion != null) {
       this.activateQuestion(newQuestion, { withFilterReset: true });
     }
+  }
+
+  private getVerseRefFollowingSegment(segmentRef: string): VerseRef | undefined {
+    if (this.book == null) {
+      return undefined;
+    }
+    const segments: IterableIterator<[string, unknown]> | undefined = this.scripturePanel?.textComponent.segments;
+    if (segments == null) {
+      return undefined;
+    }
+
+    let selectedSegmentFound = false;
+    for (const [currentSegmentRef] of segments) {
+      if (selectedSegmentFound) {
+        const verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(this.book, currentSegmentRef);
+        if (verseRef != null) {
+          return verseRef;
+        }
+      }
+      if (currentSegmentRef === segmentRef) {
+        selectedSegmentFound = true;
+      }
+    }
+    return undefined;
   }
 
   setQuestionFilter(filter: QuestionFilter): void {
