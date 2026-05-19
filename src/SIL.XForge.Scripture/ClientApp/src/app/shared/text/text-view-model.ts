@@ -234,9 +234,8 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
    *
    * @param {Delta} delta The view model delta.
    * @param {EmitterSource} source The source of the change.
-   * @param {boolean} isOnline Whether the user is online.
    */
-  update(delta: Delta, source: EmitterSource, isOnline: boolean): void {
+  update(delta: Delta, source: EmitterSource): void {
     const editor = this.checkEditor();
     if (this.textDoc == null) {
       return;
@@ -251,11 +250,11 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
     }
 
     // Re-compute segment boundaries so the insertion point stays in the right place.
-    void this.updateSegments(editor, isOnline);
+    void this.updateSegments(editor);
 
     // Defer the update, since it might cause the segment ranges to be out-of-sync with the view model
     void Promise.resolve().then(() => {
-      const updateDelta = this.updateSegments(editor, isOnline);
+      const updateDelta = this.updateSegments(editor);
       if (updateDelta.ops != null && updateDelta.ops.length > 0) {
         // Clean up blanks in quill editor. This may result in re-entering the update() method.
         editor.updateContents(updateDelta, source);
@@ -653,7 +652,7 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
    * Re-generate segment boundaries from quill editor ops. Return ops to clean up where and whether blanks are
    * represented.
    */
-  private updateSegments(editor: Quill, isOnline: boolean): Delta {
+  private updateSegments(editor: Quill): Delta {
     const convertDelta = new Delta();
     let fixDelta = new Delta();
     let fixOffset = 0;
@@ -700,7 +699,7 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
                 paraSegment.ref = getParagraphRef(nextIds, paraSegment.ref, paraSegment.ref + '/' + style);
               }
 
-              [fixDelta, fixOffset] = this.fixSegment(editor, paraSegment, fixDelta, fixOffset, isOnline);
+              [fixDelta, fixOffset] = this.fixSegment(editor, paraSegment, fixDelta, fixOffset);
               this._segments.set(paraSegment.ref, { index: paraSegment.index, length: paraSegment.length });
             }
             paraSegments = [];
@@ -721,7 +720,7 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
           // title/header
           curSegment ??= new SegmentInfo('', curIndex);
           curSegment.ref = getParagraphRef(nextIds, style, style);
-          [fixDelta, fixOffset] = this.fixSegment(editor, curSegment, fixDelta, fixOffset, isOnline);
+          [fixDelta, fixOffset] = this.fixSegment(editor, curSegment, fixDelta, fixOffset);
           this._segments.set(curSegment.ref, { index: curSegment.index, length: curSegment.length });
           paraSegments = [];
           curIndex += curSegment.length + len;
@@ -792,16 +791,8 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
 
   /** Computes and adds to `fixDelta` a change to add or remove a blank indication as needed on `segment`, and other
    * fixes. */
-  private fixSegment(
-    editor: Quill,
-    segment: SegmentInfo,
-    fixDelta: Delta,
-    fixOffset: number,
-    isOnline: boolean
-  ): [Delta, number] {
-    // inserting blank embeds onto text docs while offline creates a scenario where quill misinterprets
-    // the diff delta and can cause merge issues when returning online and duplicating verse segments
-    if (segment.length - segment.notesCount === 0 && isOnline) {
+  private fixSegment(editor: Quill, segment: SegmentInfo, fixDelta: Delta, fixOffset: number): [Delta, number] {
+    if (segment.length - segment.notesCount === 0) {
       // insert blank
       const delta = new Delta();
       // insert blank after any existing notes
