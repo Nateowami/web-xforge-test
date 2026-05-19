@@ -10,12 +10,12 @@ dotnet tool restore
 echo "=== Restoring .NET packages ==="
 dotnet restore
 
-echo "=== Installing RealtimeServer npm packages ==="
+echo "=== Installing RealtimeServer packages ==="
 cd src/RealtimeServer
-npm ci
+pnpm install --frozen-lockfile
 
-echo "=== Installing ClientApp npm packages ==="
+echo "=== Installing ClientApp packages ==="
 cd ../SIL.XForge.Scripture/ClientApp
-npm ci
+pnpm install --frozen-lockfile
 
 echo "=== Post-create setup complete ==="

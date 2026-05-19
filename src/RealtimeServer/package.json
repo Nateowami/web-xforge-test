@@ -5,14 +5,14 @@
   "license": "MIT",
   "scripts": {
     "test": "jest",
-    "test:tc": "npm run test:ci",
+    "test:tc": "pnpm test:ci",
     "test:ci": "jest --ci --coverage --reporters=jest-junit",
     "build": "tsc -b tsconfig.build.json && tsc -b tsconfig.build-esm.json",
     "clean": "tsc -b tsconfig.build.json --clean && tsc -b tsconfig.build-esm.json --clean",
     "lint": "eslint .",
-    "prepare": "npm run build",
+    "prepare": "pnpm build",
     "prettier": "prettier --write \"**/*.{ts,js,json,css,scss,less,html,md,yml}\"",
-    "prettier:tc": "npm run prettier:ci",
+    "prettier:tc": "pnpm prettier:ci",
     "prettier:ci": "prettier --list-different \"**/*.{ts,js,json,css,scss,less,html,md,yml}\""
   },
   "author": "SIL",

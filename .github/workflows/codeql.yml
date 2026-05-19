@@ -49,7 +49,6 @@ jobs:
       matrix:
         dotnet_version: ["10.0.x"]
         node_version: ["22.13.0"]
-        npm_version: ["11.11.0"]
 
     steps:
       - name: Checkout repository
@@ -64,25 +63,26 @@ jobs:
           cache: true
           cache-dependency-path: src/SIL.XForge.Scripture/packages.lock.json
 
+      - name: "Deps: pnpm"
+        uses: pnpm/action-setup@fe02b34f77f8bc703571f95f729b3fc14f16b7aa # v4.0.0
+        with:
+          version: 9
       - name: Use Node.js ${{ matrix.node_version }}
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ matrix.node_version }}
-          cache: "npm"
+          cache: "pnpm"
           cache-dependency-path: |
-            src/SIL.XForge.Scripture/ClientApp/package-lock.json
-            src/RealtimeServer/package-lock.json
+            src/SIL.XForge.Scripture/ClientApp/pnpm-lock.yaml
+            src/RealtimeServer/pnpm-lock.yaml
 
-      - name: Upgrade npm
-        run: npm install -g npm@${{matrix.npm_version}}
-
-      # Install NPM dependencies. This is an attempt to fix errors building TypeScript that occur in the Autobuild step.
-      # They might be caused by NPM dependencies not being successfully installed before trying to build. If this
+      # Install dependencies. This is an attempt to fix errors building TypeScript that occur in the Autobuild step.
+      # They might be caused by dependencies not being successfully installed before trying to build. If this
       # doesn't prevent those errors, we should remove this step.
       # Another possible approach would be to create a C# build config that does not build the realtime server at all,
       # which would result in faster analysis and remove this failure mode.
       - name: Install realtime-server dependencies
-        run: cd src/RealtimeServer && (npm ci || (sleep 3m && npm ci))
+        run: cd src/RealtimeServer && (pnpm install --frozen-lockfile || (sleep 3m && pnpm install --frozen-lockfile))
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@c10b8064de6f491fea524254123dbe5e09572f13 # v4.35.1

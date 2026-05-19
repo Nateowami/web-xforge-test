@@ -20,28 +20,25 @@ jobs:
       matrix:
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
         node_version: ["22.13.0"]
-        npm_version: ["11.11.0"]
         os: [ubuntu-latest]
 
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
           persist-credentials: false
+      - name: Install pnpm
+        uses: pnpm/action-setup@fe02b34f77f8bc703571f95f729b3fc14f16b7aa # v4.0.0
+        with:
+          version: 9
       - name: Use Node.js ${{ matrix.node_version }}
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
         with:
           node-version: ${{ matrix.node_version }}
-          cache: "npm"
+          cache: "pnpm"
           cache-dependency-path: |
-            src/SIL.XForge.Scripture/ClientApp/package-lock.json
-            src/RealtimeServer/package-lock.json
-      - name: Upgrade npm
-        env:
-          NPM_VERSION: ${{ matrix.npm_version }}
-        run: |
-          set -xueo pipefail
-          npm install -g npm@${NPM_VERSION}
+            src/SIL.XForge.Scripture/ClientApp/pnpm-lock.yaml
+            src/RealtimeServer/pnpm-lock.yaml
       - name: Build Realtime server dependencies for Angular
-        run: cd src/RealtimeServer && (npm ci || (sleep 3m && npm ci))
+        run: cd src/RealtimeServer && (pnpm install --frozen-lockfile || (sleep 3m && pnpm install --frozen-lockfile))
       - name: Angular Frontend Production Build
-        run: cd src/SIL.XForge.Scripture/ClientApp && (npm ci || (sleep 3m && npm ci)) && npm run build
+        run: cd src/SIL.XForge.Scripture/ClientApp && (pnpm install --frozen-lockfile || (sleep 3m && pnpm install --frozen-lockfile)) && pnpm build

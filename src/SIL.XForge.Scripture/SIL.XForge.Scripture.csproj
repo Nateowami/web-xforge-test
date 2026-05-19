@@ -159,13 +159,13 @@
     <Error Condition="'$(ErrorCode)' != '0'" Text="Node.js is required to build and run this project. To continue, please install Node.js from https://nodejs.org/, and then restart your command prompt or IDE." />
   </Target>
   <Target Name="DebugEnsureNodeEnv" DependsOnTargets="EnsureNodeInstalled" BeforeTargets="Build" Condition="('$(Configuration)' == 'Debug' And !Exists('$(SpaRoot)node_modules')) Or '$(NpmInstall)' == 'true'">
-    <Message Importance="high" Text="Restoring dependencies using 'npm'. This may take several minutes..." />
-    <Exec WorkingDirectory="$(SpaRoot)" Command="npm install" />
+    <Message Importance="high" Text="Restoring dependencies using 'pnpm'. This may take several minutes..." />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="pnpm install" />
   </Target>
   <Target Name="BuildRealtimeServer" DependsOnTargets="EnsureNodeInstalled" BeforeTargets="AssignTargetPaths" Condition="'$(Configuration)' == 'Debug'">
     <Message Importance="high" Text="Building real-time server..." />
-    <Exec WorkingDirectory="$(RealtimeServerRoot)" Command="npm install" Condition="!Exists('$(RealtimeServerRoot)node_modules') Or '$(NpmInstall)' == 'true'" />
-    <Exec WorkingDirectory="$(RealtimeServerRoot)" Command="npm run build" Condition="Exists('$(RealtimeServerRoot)node_modules') And '$(NpmInstall)' != 'true' " />
+    <Exec WorkingDirectory="$(RealtimeServerRoot)" Command="pnpm install" Condition="!Exists('$(RealtimeServerRoot)node_modules') Or '$(NpmInstall)' == 'true'" />
+    <Exec WorkingDirectory="$(RealtimeServerRoot)" Command="pnpm build" Condition="Exists('$(RealtimeServerRoot)node_modules') And '$(NpmInstall)' != 'true' " />
     <ItemGroup>
       <RealtimeFiles Include="$(RealtimeServerRoot)**\*" />
       <Content Include="@(RealtimeFiles)">
@@ -176,9 +176,9 @@
   </Target>
   <Target Name="PublishRunWebpack" AfterTargets="ComputeFilesToPublish">
     <!-- As part of publishing, ensure the JS resources are freshly built in production mode -->
-    <Exec WorkingDirectory="$(RealtimeServerRoot)" Command="npm install" />
-    <Exec WorkingDirectory="$(SpaRoot)" Command="npm install" />
-    <Exec WorkingDirectory="$(SpaRoot)" Command="npm run build -- --configuration=$(AngularConfig)" />
+    <Exec WorkingDirectory="$(RealtimeServerRoot)" Command="pnpm install" />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="pnpm install" />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="pnpm build -- --configuration=$(AngularConfig)" />
     <!-- Include the newly-built files in the publish output -->
     <ItemGroup>
       <DistRootFiles Include="$(SpaRoot)dist\*" Exclude="$(SpaRoot)dist\browser\**" />
