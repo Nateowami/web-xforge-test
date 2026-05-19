@@ -165,7 +165,7 @@
   <Target Name="BuildRealtimeServer" DependsOnTargets="EnsureNodeInstalled" BeforeTargets="AssignTargetPaths" Condition="'$(Configuration)' == 'Debug'">
     <Message Importance="high" Text="Building real-time server..." />
     <Exec WorkingDirectory="$(RealtimeServerRoot)" Command="pnpm install" Condition="!Exists('$(RealtimeServerRoot)node_modules') Or '$(NpmInstall)' == 'true'" />
-    <Exec WorkingDirectory="$(RealtimeServerRoot)" Command="pnpm build" Condition="Exists('$(RealtimeServerRoot)node_modules') And '$(NpmInstall)' != 'true' " />
+    <Exec WorkingDirectory="$(RealtimeServerRoot)" Command="pnpm run build" Condition="Exists('$(RealtimeServerRoot)node_modules') And '$(NpmInstall)' != 'true' " />
     <ItemGroup>
       <RealtimeFiles Include="$(RealtimeServerRoot)**\*" />
       <Content Include="@(RealtimeFiles)">
@@ -178,7 +178,7 @@
     <!-- As part of publishing, ensure the JS resources are freshly built in production mode -->
     <Exec WorkingDirectory="$(RealtimeServerRoot)" Command="pnpm install" />
     <Exec WorkingDirectory="$(SpaRoot)" Command="pnpm install" />
-    <Exec WorkingDirectory="$(SpaRoot)" Command="pnpm build -- --configuration=$(AngularConfig)" />
+    <Exec WorkingDirectory="$(SpaRoot)" Command="pnpm run build -- --configuration=$(AngularConfig)" />
     <!-- Include the newly-built files in the publish output -->
     <ItemGroup>
       <DistRootFiles Include="$(SpaRoot)dist\*" Exclude="$(SpaRoot)dist\browser\**" />

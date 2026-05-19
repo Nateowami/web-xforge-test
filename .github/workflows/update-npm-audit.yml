@@ -35,21 +35,21 @@ jobs:
         run: |
           cd src/RealtimeServer
           pnpm install --frozen-lockfile
-          pnpm audit --fix
+          pnpm audit fix
         continue-on-error: true
 
       - name: Run pnpm audit fix on ClientApp
         run: |
           cd src/SIL.XForge.Scripture/ClientApp
           pnpm install --frozen-lockfile
-          pnpm audit --fix
+          pnpm audit fix
         continue-on-error: true
 
       - name: Run pnpm audit fix on db_tools
         run: |
           cd scripts/db_tools
           pnpm install --frozen-lockfile
-          pnpm audit --fix
+          pnpm audit fix
         continue-on-error: true
 
       - name: Create Pull Request
@@ -58,7 +58,7 @@ jobs:
           commit-message: Update NPM dependencies via pnpm audit fix
           title: Update NPM dependencies via pnpm audit fix
           body: |
-            Automated update of NPM dependencies by running `pnpm audit --fix` on all package.json files.
+            Automated update of NPM dependencies by running `pnpm audit fix` on all package.json files.
 
             This PR was automatically created by the GitHub action.
 
