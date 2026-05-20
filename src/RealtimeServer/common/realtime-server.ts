@@ -417,23 +417,21 @@ export class RealtimeServer extends ShareDB {
     const originalSubscribe = backend.__proto__.subscribe;
     const originalGetOps = backend.__proto__.getOps;
 
-    const self = this;
-
     /**
      * Given a projection, fetch the current projected snapshot and build synthetic ops
      * that bridge from the client's version to the current version using a single
      * snapshot-replacement op (no historical intermediate values).
      */
-    function buildSnapshotReplacementOps(
+    const buildSnapshotReplacementOps = (
       agent: any,
       index: string,
-      projection: any,
+      _projection: any,
       id: string,
       fromVersion: number,
       callback: (err: any, ops?: any[]) => void
-    ): void {
+    ): void => {
       // Fetch the current projected snapshot
-      (self as any).fetch(agent, index, id, function (err: any, snapshot: any) {
+      (this as any).fetch(agent, index, id, (err: any, snapshot: any) => {
         if (err) return callback(err);
 
         if (snapshot.data == null) {
@@ -474,39 +472,39 @@ export class RealtimeServer extends ShareDB {
 
         callback(null, syntheticOps);
       });
-    }
+    };
 
     // Wrap the subscribe method to intercept projection subscriptions
-    (this as any).subscribe = function (
+    (this as any).subscribe = (
       agent: any,
       index: string,
       id: string,
       version: number | null,
       options: any,
       callback?: any
-    ): void {
+    ): void => {
       if (typeof options === 'function') {
         callback = options;
         options = null;
       }
 
-      const projection = (self as any).projections[index];
+      const projection = (this as any).projections[index];
 
       // Only intercept if this is a projection collection AND the client has a version
       // (i.e., it's a reconnecting client that would normally receive historical ops)
       if (!projection || version == null) {
-        return originalSubscribe.call(self, agent, index, id, version, options, callback);
+        return originalSubscribe.call(this, agent, index, id, version, options, callback);
       }
 
       // For projection collections with a known version, subscribe to pubsub
       // then fetch the current snapshot instead of replaying historical ops
       const collection = projection.target;
-      const channel = (self as any).getDocChannel(collection, id);
+      const channel = (this as any).getDocChannel(collection, id);
 
-      (self as any).pubsub.subscribe(channel, function (err: any, stream: any) {
+      (this as any).pubsub.subscribe(channel, (err: any, stream: any) => {
         if (err) return callback(err);
 
-        buildSnapshotReplacementOps(agent, index, projection, id, version, function (err, syntheticOps) {
+        buildSnapshotReplacementOps(agent, index, projection, id, version, (err, syntheticOps) => {
           if (err) {
             stream.destroy();
             return callback(err);
@@ -514,7 +512,7 @@ export class RealtimeServer extends ShareDB {
 
           if (syntheticOps === undefined) {
             // Document was deleted; fall back to normal behavior
-            (self as any)._getSanitizedOps(
+            (this as any)._getSanitizedOps(
               agent,
               projection,
               collection,
@@ -522,7 +520,7 @@ export class RealtimeServer extends ShareDB {
               version,
               null,
               null,
-              function (err: any, ops: any) {
+              (err: any, ops: any) => {
                 if (err) {
                   stream.destroy();
                   return callback(err);
@@ -538,7 +536,7 @@ export class RealtimeServer extends ShareDB {
     };
 
     // Also wrap getOps to intercept fetch requests for projection collections
-    (this as any).getOps = function (
+    (this as any).getOps = (
       agent: any,
       index: string,
       id: string,
@@ -546,25 +544,25 @@ export class RealtimeServer extends ShareDB {
       to: any,
       options: any,
       callback?: any
-    ): void {
+    ): void => {
       if (typeof options === 'function') {
         callback = options;
         options = null;
       }
 
-      const projection = (self as any).projections[index];
+      const projection = (this as any).projections[index];
 
       // Only intercept if this is a projection collection
       if (!projection || from == null) {
-        return originalGetOps.call(self, agent, index, id, from, to, options, callback);
+        return originalGetOps.call(this, agent, index, id, from, to, options, callback);
       }
 
-      buildSnapshotReplacementOps(agent, index, projection, id, from, function (err, syntheticOps) {
+      buildSnapshotReplacementOps(agent, index, projection, id, from, (err, syntheticOps) => {
         if (err) return callback(err);
 
         if (syntheticOps === undefined) {
           // Document was deleted; fall back to normal behavior
-          return originalGetOps.call(self, agent, index, id, from, to, options, callback);
+          return originalGetOps.call(this, agent, index, id, from, to, options, callback);
         }
 
         callback(null, syntheticOps);

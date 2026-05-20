@@ -8,17 +8,17 @@
  * 2. Whether old values (od) of projected fields are visible to subscribers
  * 3. Whether a late subscriber (version 0) receives historical ops with non-projected data
  */
+import { instance, mock } from 'ts-mockito';
 import ShareDB from 'sharedb';
 import ShareDBMingo from 'sharedb-mingo-memory';
-import { Doc } from 'sharedb/lib/client';
+import * as OTJson0 from 'ot-json0';
 import { SystemRole } from '../models/system-role';
 import { User, USER_PROFILES_COLLECTION, USERS_COLLECTION } from '../models/user';
 import { createTestUser } from '../models/user-test-data';
 import { RealtimeServer } from '../realtime-server';
 import { SchemaVersionRepository } from '../schema-version-repository';
-import { allowAll, clientConnect, createDoc, flushPromises, submitJson0Op } from '../utils/test-utils';
+import { allowAll, clientConnect, createDoc, flushPromises } from '../utils/test-utils';
 import { UserService } from './user-service';
-import { instance, mock } from 'ts-mockito';
 
 describe('Projection Op Security PoC', () => {
   /**
@@ -41,7 +41,7 @@ describe('Projection Op Security PoC', () => {
       });
     });
 
-    profileDoc.on('op', (op: any, source: any) => {
+    profileDoc.on('op', (op: any) => {
       receivedOps.push(op);
     });
 
@@ -92,7 +92,7 @@ describe('Projection Op Security PoC', () => {
       profileDoc.subscribe(err => (err ? reject(err) : resolve()));
     });
 
-    profileDoc.on('op', (op: any, source: any) => {
+    profileDoc.on('op', (op: any) => {
       receivedOps.push(op);
     });
 
@@ -214,7 +214,7 @@ describe('Projection Op Security PoC', () => {
 
     // Manually set version to 1 to simulate a reconnecting client at version 1
     (attackerDoc as any).version = 1;
-    (attackerDoc as any).type = require('ot-json0').type;
+    (attackerDoc as any).type = OTJson0.type;
     (attackerDoc as any).data = { displayName: 'Test user 1', avatarUrl: 'https://cdn.auth0.com/avatars/1.png' };
 
     const receivedOps: any[] = [];
@@ -292,8 +292,6 @@ describe('Projection Op Security PoC', () => {
     const attackerConn = clientConnect(env.server, 'user02', SystemRole.User);
     const attackerDoc = attackerConn.get(USER_PROFILES_COLLECTION, 'user01');
 
-    const replayedOps: any[] = [];
-
     // Subscribe and listen for ops
     await new Promise<void>((resolve, reject) => {
       attackerDoc.subscribe(err => (err ? reject(err) : resolve()));
@@ -319,6 +317,7 @@ describe('Projection Op Security PoC', () => {
     }
 
     // Check what the projection's sanitizeOp would do to these ops
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     const projections = require('sharedb/lib/projections');
     const USER_PROFILE_FIELDS = { displayName: true, avatarUrl: true };
 
