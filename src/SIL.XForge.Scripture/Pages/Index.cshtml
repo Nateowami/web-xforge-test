@@ -15,7 +15,7 @@
     InterfaceLanguage locale = LocOptions.Value.SupportedUICultures?.Where(c =>
         SharedResource.Cultures[c.IetfLanguageTag].Tags.Contains(requestCulture.RequestCulture.UICulture.Name)
     ).Select(c => SharedResource.Cultures[c.IetfLanguageTag]).FirstOrDefault();
-    string helpUrl = !string.IsNullOrEmpty(locale?.Helps)
+    string helps = !string.IsNullOrEmpty(locale?.Helps)
         ? "https://help.scriptureforge.org/" + locale.Helps
         : "https://help.scriptureforge.org";
 }
@@ -123,7 +123,7 @@
                 <div class="statement-buttons flex justify-content-center">
                     @if (Settings.UseScriptureForgeBranding())
                     {
-                        <a href="@helpUrl"
+                        <a href="@helps"
                            class="mdl-button mdl-button--raised mdl-button--colored button-lg">@SharedLocalizer[SharedResource.Keys.LearnMore]</a>
                     }
                     <a class="mdl-button mdl-button--raised mdl-button--accent button-lg"
