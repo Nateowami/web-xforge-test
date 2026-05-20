@@ -187,6 +187,75 @@ describe('Projection Op Security PoC', () => {
   });
 
   /**
+   * Test 3b: THE FIX - Verify that reconnecting subscribers to projection collections
+   * receive a snapshot replacement op instead of historical ops, preventing data leaks.
+   */
+  it('should NOT leak old values when a client reconnects to a projection (fix verification)', async () => {
+    const env = new TestEnvironment();
+    await env.createData();
+
+    // Step 1: User changes displayName from real name to pseudonym
+    const serverConn = env.server.connect();
+    const userDoc = serverConn.get(USERS_COLLECTION, 'user01');
+    await new Promise<void>((resolve, reject) => {
+      userDoc.fetch(err => (err ? reject(err) : resolve()));
+    });
+    await new Promise<void>((resolve, reject) => {
+      userDoc.submitOp([{ p: ['displayName'], od: 'Test user 1', oi: 'MyPseudonym' }], {}, err =>
+        err ? reject(err) : resolve()
+      );
+    });
+
+    await flushPromises();
+
+    // Step 2: Simulate reconnection scenario - subscribe with version 1 (client had old version)
+    const attackerConn = clientConnect(env.server, 'user02', SystemRole.User);
+    const attackerDoc = attackerConn.get(USER_PROFILES_COLLECTION, 'user01');
+
+    // Manually set version to 1 to simulate a reconnecting client at version 1
+    (attackerDoc as any).version = 1;
+    (attackerDoc as any).type = require('ot-json0').type;
+    (attackerDoc as any).data = { displayName: 'Test user 1', avatarUrl: 'https://cdn.auth0.com/avatars/1.png' };
+
+    const receivedOps: any[] = [];
+    attackerDoc.on('op', (op: any) => {
+      receivedOps.push(JSON.parse(JSON.stringify(op)));
+    });
+
+    // Subscribe - this should trigger the projection subscribe interceptor
+    await new Promise<void>((resolve, reject) => {
+      attackerDoc.subscribe(err => (err ? reject(err) : resolve()));
+    });
+
+    await flushPromises();
+
+    console.log('\n=== FIX VERIFICATION ===');
+    console.log('Document version after reconnection:', attackerDoc.version);
+    console.log('Document data:', JSON.stringify(attackerDoc.data, null, 2));
+    console.log('Ops received during reconnection:', JSON.stringify(receivedOps, null, 2));
+
+    // CRITICAL: After reconnection, the document should be at the current version
+    // with current data and NO leaked historical values
+    expect(attackerDoc.version).toBe(2);
+    expect(attackerDoc.data.displayName).toBe('MyPseudonym');
+
+    // Verify that none of the received ops contain the old displayName
+    for (const op of receivedOps) {
+      for (const component of op) {
+        if (component.od !== undefined) {
+          // No od should contain the old name
+          expect(component.od).not.toBe('Test user 1');
+        }
+        if (component.oi !== undefined && component.p?.[0] === 'displayName') {
+          // The only oi for displayName should be the current pseudonym
+          expect(component.oi).toBe('MyPseudonym');
+        }
+      }
+    }
+    console.log('=== FIX VERIFIED: No historical values leaked ===\n');
+  });
+
+  /**
    * Test 4: Verify projection behavior on raw ops
    * Directly examines how projectOp transforms historical ops.
    */
@@ -250,9 +319,7 @@ describe('Projection Op Security PoC', () => {
     }
 
     // Check what the projection's sanitizeOp would do to these ops
-    const projections = require(
-      '/home/runner/work/web-xforge-test/web-xforge-test/src/RealtimeServer/node_modules/.pnpm/sharedb@5.2.2/node_modules/sharedb/lib/projections'
-    );
+    const projections = require('sharedb/lib/projections');
     const USER_PROFILE_FIELDS = { displayName: true, avatarUrl: true };
 
     console.log('\nTest 3 - Ops after projection sanitization:');

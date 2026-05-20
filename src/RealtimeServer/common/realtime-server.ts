@@ -394,12 +394,182 @@ export class RealtimeServer extends ShareDB {
       done();
     });
 
+    this.installProjectionSubscribeInterceptor();
+
     this.defaultConnection = this.connect();
 
     if (!this.dataValidationDisabled) {
       ResourceMonitor.instance.setPubSub((this as any).pubsub);
       ResourceMonitor.instance.startMonitoringConnection(this.defaultConnection);
     }
+  }
+
+  /**
+   * Installs an interceptor that replaces historical ops with a single snapshot-replacement op
+   * for projection collections. This prevents leaking intermediate/historical values (such as
+   * old displayName values) when a client reconnects and requests ops from a previous version.
+   *
+   * Instead of replaying all ops since the client's version, this sends a single op that sets
+   * the entire document to the current projected state.
+   */
+  private installProjectionSubscribeInterceptor(): void {
+    const backend = this as any;
+    const originalSubscribe = backend.__proto__.subscribe;
+    const originalGetOps = backend.__proto__.getOps;
+
+    const self = this;
+
+    /**
+     * Given a projection, fetch the current projected snapshot and build synthetic ops
+     * that bridge from the client's version to the current version using a single
+     * snapshot-replacement op (no historical intermediate values).
+     */
+    function buildSnapshotReplacementOps(
+      agent: any,
+      index: string,
+      projection: any,
+      id: string,
+      fromVersion: number,
+      callback: (err: any, ops?: any[]) => void
+    ): void {
+      // Fetch the current projected snapshot
+      (self as any).fetch(agent, index, id, function (err: any, snapshot: any) {
+        if (err) return callback(err);
+
+        if (snapshot.data == null) {
+          // Document was deleted; fall through to normal behavior by returning null
+          return callback(null, undefined);
+        }
+
+        if (snapshot.v === fromVersion) {
+          // Client is already up-to-date
+          return callback(null, []);
+        }
+
+        // Build synthetic ops to bridge from client's version to current version.
+        // Use no-ops for intermediate versions and a single replacement op for the last.
+        const syntheticOps: any[] = [];
+        const versionGap = snapshot.v - fromVersion;
+
+        for (let i = 0; i < versionGap; i++) {
+          const opVersion = fromVersion + i;
+          if (i === versionGap - 1) {
+            // Last op: replace entire document with current projected snapshot
+            syntheticOps.push({
+              v: opVersion,
+              op: [{ p: [], oi: snapshot.data }],
+              m: null,
+              src: ''
+            });
+          } else {
+            // Intermediate ops: no-ops to fill the version gap
+            syntheticOps.push({
+              v: opVersion,
+              op: [],
+              m: null,
+              src: ''
+            });
+          }
+        }
+
+        callback(null, syntheticOps);
+      });
+    }
+
+    // Wrap the subscribe method to intercept projection subscriptions
+    (this as any).subscribe = function (
+      agent: any,
+      index: string,
+      id: string,
+      version: number | null,
+      options: any,
+      callback?: any
+    ): void {
+      if (typeof options === 'function') {
+        callback = options;
+        options = null;
+      }
+
+      const projection = (self as any).projections[index];
+
+      // Only intercept if this is a projection collection AND the client has a version
+      // (i.e., it's a reconnecting client that would normally receive historical ops)
+      if (!projection || version == null) {
+        return originalSubscribe.call(self, agent, index, id, version, options, callback);
+      }
+
+      // For projection collections with a known version, subscribe to pubsub
+      // then fetch the current snapshot instead of replaying historical ops
+      const collection = projection.target;
+      const channel = (self as any).getDocChannel(collection, id);
+
+      (self as any).pubsub.subscribe(channel, function (err: any, stream: any) {
+        if (err) return callback(err);
+
+        buildSnapshotReplacementOps(agent, index, projection, id, version, function (err, syntheticOps) {
+          if (err) {
+            stream.destroy();
+            return callback(err);
+          }
+
+          if (syntheticOps === undefined) {
+            // Document was deleted; fall back to normal behavior
+            (self as any)._getSanitizedOps(
+              agent,
+              projection,
+              collection,
+              id,
+              version,
+              null,
+              null,
+              function (err: any, ops: any) {
+                if (err) {
+                  stream.destroy();
+                  return callback(err);
+                }
+                callback(null, stream, null, ops);
+              }
+            );
+          } else {
+            callback(null, stream, null, syntheticOps);
+          }
+        });
+      });
+    };
+
+    // Also wrap getOps to intercept fetch requests for projection collections
+    (this as any).getOps = function (
+      agent: any,
+      index: string,
+      id: string,
+      from: number,
+      to: any,
+      options: any,
+      callback?: any
+    ): void {
+      if (typeof options === 'function') {
+        callback = options;
+        options = null;
+      }
+
+      const projection = (self as any).projections[index];
+
+      // Only intercept if this is a projection collection
+      if (!projection || from == null) {
+        return originalGetOps.call(self, agent, index, id, from, to, options, callback);
+      }
+
+      buildSnapshotReplacementOps(agent, index, projection, id, from, function (err, syntheticOps) {
+        if (err) return callback(err);
+
+        if (syntheticOps === undefined) {
+          // Document was deleted; fall back to normal behavior
+          return originalGetOps.call(self, agent, index, id, from, to, options, callback);
+        }
+
+        callback(null, syntheticOps);
+      });
+    };
   }
 
   async addValidationSchema(db: Db): Promise<void> {
