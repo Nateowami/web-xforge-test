@@ -317,6 +317,7 @@ describe('Projection Op Security PoC', () => {
     }
 
     // Check what the projection's sanitizeOp would do to these ops
+    // sharedb/lib/projections is an internal CommonJS module with no type declarations, so a require() is necessary
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const projections = require('sharedb/lib/projections');
     const USER_PROFILE_FIELDS = { displayName: true, avatarUrl: true };

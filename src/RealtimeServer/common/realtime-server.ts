@@ -425,7 +425,6 @@ export class RealtimeServer extends ShareDB {
     const buildSnapshotReplacementOps = (
       agent: any,
       index: string,
-      _projection: any,
       id: string,
       fromVersion: number,
       callback: (err: any, ops?: any[]) => void
@@ -504,7 +503,7 @@ export class RealtimeServer extends ShareDB {
       (this as any).pubsub.subscribe(channel, (err: any, stream: any) => {
         if (err) return callback(err);
 
-        buildSnapshotReplacementOps(agent, index, projection, id, version, (err, syntheticOps) => {
+        buildSnapshotReplacementOps(agent, index, id, version, (err, syntheticOps) => {
           if (err) {
             stream.destroy();
             return callback(err);
@@ -557,7 +556,7 @@ export class RealtimeServer extends ShareDB {
         return originalGetOps.call(this, agent, index, id, from, to, options, callback);
       }
 
-      buildSnapshotReplacementOps(agent, index, projection, id, from, (err, syntheticOps) => {
+      buildSnapshotReplacementOps(agent, index, id, from, (err, syntheticOps) => {
         if (err) return callback(err);
 
         if (syntheticOps === undefined) {
