@@ -243,21 +243,49 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
 
     // The incoming change already happened in the quill editor. Now apply the change to the view model.
     if (source === 'user' && editor.isEnabled()) {
-      const modelDelta = this.viewToData(delta);
+      let modelDelta = this.viewToData(delta);
+
+      // Compute segment fixes (blank insert/delete) based on the current editor state.
+      // Compose the fix with the user's delta so they are submitted as a single atomic operation.
+      // This prevents the duplicate verse bug where two offline users both submit separate blank inserts
+      // that OT cannot deduplicate.
+      const fixDelta = this.updateSegments(editor);
+      if (this.hasMutatingOps(fixDelta)) {
+        const fixDataDelta = this.viewToData(fixDelta);
+        if (fixDataDelta.ops != null && fixDataDelta.ops.length > 0) {
+          modelDelta = modelDelta.compose(fixDataDelta);
+        }
+      }
+
       if (modelDelta.ops != null && modelDelta.ops.length > 0) {
         void this.textDoc.submit(modelDelta, 'Editor');
       }
+
+      // Apply the fix to the editor without triggering another submission (use 'api' source)
+      if (fixDelta.ops != null && fixDelta.ops.length > 0) {
+        editor.updateContents(fixDelta, 'api');
+      }
+    } else {
+      // Re-compute segment boundaries so the insertion point stays in the right place.
+      void this.updateSegments(editor);
     }
 
-    // Re-compute segment boundaries so the insertion point stays in the right place.
-    void this.updateSegments(editor);
-
-    // Defer the update, since it might cause the segment ranges to be out-of-sync with the view model
+    // Defer a second pass: segment ranges may be out-of-sync after the fix is applied above
     void Promise.resolve().then(() => {
       const updateDelta = this.updateSegments(editor);
       if (updateDelta.ops != null && updateDelta.ops.length > 0) {
-        // Clean up blanks in quill editor. This may result in re-entering the update() method.
-        editor.updateContents(updateDelta, source);
+        // Apply any remaining fixes (e.g. from remote changes or deferred state changes).
+        // Use 'api' source so this doesn't trigger re-submission via update().
+        editor.updateContents(updateDelta, 'api');
+        // For non-user changes (remote ops), submit the fix so the doc stays consistent.
+        // For user changes, the fix was already composed into the user's submission above,
+        // so this should normally be empty.
+        if (this.textDoc != null && this.hasMutatingOps(updateDelta)) {
+          const dataDelta = this.viewToData(updateDelta);
+          if (dataDelta.ops != null && dataDelta.ops.length > 0) {
+            void this.textDoc.submit(dataDelta, 'Editor');
+          }
+        }
       }
 
       const removeDuplicateDelta: Delta = this.fixDeltaForDuplicateEmbeds();
@@ -862,6 +890,11 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
       throw new Error('The editor has not been assigned.');
     }
     return this.editor;
+  }
+
+  /** Returns true if the delta contains insert or delete ops (not just retains). */
+  private hasMutatingOps(delta: Delta): boolean {
+    return delta.ops?.some(op => op.insert != null || op.delete != null) === true;
   }
 
   /**
