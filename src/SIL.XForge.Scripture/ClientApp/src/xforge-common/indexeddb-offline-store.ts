@@ -62,6 +62,7 @@ function createObjectStore(
   providedIn: 'root'
 })
 export class IndexeddbOfflineStore extends OfflineStore {
+  private db?: IDBDatabase;
   private openDBPromise?: Promise<IDBDatabase>;
 
   constructor(private readonly typeRegistry: TypeRegistry) {
@@ -70,6 +71,9 @@ export class IndexeddbOfflineStore extends OfflineStore {
 
   async getAllIds(collection: string): Promise<string[]> {
     const db = await this.openDB();
+    if (db !== this.db) {
+      return this.getAllIds(collection);
+    }
 
     const transaction = db.transaction(collection);
     const objectStore = transaction.objectStore(collection);
@@ -92,6 +96,9 @@ export class IndexeddbOfflineStore extends OfflineStore {
 
   async getAll<T extends OfflineData>(collection: string): Promise<T[]> {
     const db = await this.openDB();
+    if (db !== this.db) {
+      return this.getAll(collection);
+    }
 
     const transaction = db.transaction(collection);
     const objectStore = transaction.objectStore(collection);
@@ -102,6 +109,9 @@ export class IndexeddbOfflineStore extends OfflineStore {
   /** When offline this may return or it might wait until the user comes online before returning. */
   async get<T extends OfflineData>(collection: string, id: string): Promise<T | undefined> {
     const db = await this.openDB();
+    if (db !== this.db) {
+      return this.get(collection, id);
+    }
 
     const transaction = db.transaction(collection);
     const objectStore = transaction.objectStore(collection);
@@ -115,6 +125,9 @@ export class IndexeddbOfflineStore extends OfflineStore {
 
   async query<T extends OfflineData>(collection: string, parameters: QueryParameters): Promise<QueryResults<T>> {
     const db = await this.openDB();
+    if (db !== this.db) {
+      return this.query(collection, parameters);
+    }
     const transaction = db.transaction(collection);
     const objectStore = transaction.objectStore(collection);
     let snapshots: T[] | undefined;
@@ -135,6 +148,9 @@ export class IndexeddbOfflineStore extends OfflineStore {
 
   async put(collection: string, offlineData: OfflineData): Promise<void> {
     const db = await this.openDB();
+    if (db !== this.db) {
+      return this.put(collection, offlineData);
+    }
 
     const transaction = db.transaction(collection, 'readwrite');
     const objectStore = transaction.objectStore(collection);
@@ -157,6 +173,9 @@ export class IndexeddbOfflineStore extends OfflineStore {
 
   async delete(collection: string, id: string): Promise<void> {
     const db = await this.openDB();
+    if (db !== this.db) {
+      return this.delete(collection, id);
+    }
 
     const transaction = db.transaction(collection, 'readwrite');
     const objectStore = transaction.objectStore(collection);
@@ -169,7 +188,7 @@ export class IndexeddbOfflineStore extends OfflineStore {
   }
 
   async deleteDB(): Promise<void> {
-    await this.closeDB();
+    this.closeDB();
     await new Promise<void>((resolve, reject) => {
       const request = window.indexedDB.deleteDatabase(DATABASE_NAME);
       request.onerror = () => reject(request.error);
@@ -189,6 +208,7 @@ export class IndexeddbOfflineStore extends OfflineStore {
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
         const db = request.result;
+        this.db = db;
         // close on version change so we don't block the deletion of the database from a different tab/window
         db.onversionchange = () => this.closeDB();
         resolve(db);
@@ -216,10 +236,10 @@ export class IndexeddbOfflineStore extends OfflineStore {
     return this.openDBPromise;
   }
 
-  private async closeDB(): Promise<void> {
-    if (this.openDBPromise != null) {
-      const db = await this.openDBPromise;
-      db.close();
+  private closeDB(): void {
+    if (this.db != null) {
+      this.db.close();
+      this.db = undefined;
       this.openDBPromise = undefined;
     }
   }
