@@ -69,10 +69,11 @@ export class IndexeddbOfflineStore extends OfflineStore {
     super();
   }
 
-  async getAllIds(collection: string): Promise<string[]> {
+  async getAllIds(collection: string, isRetry = false): Promise<string[]> {
     const db = await this.openDB();
     if (db !== this.db) {
-      return this.getAllIds(collection);
+      if (isRetry) throw new Error('Failed to get a stable database connection');
+      return this.getAllIds(collection, true);
     }
 
     const transaction = db.transaction(collection);
@@ -94,10 +95,11 @@ export class IndexeddbOfflineStore extends OfflineStore {
     });
   }
 
-  async getAll<T extends OfflineData>(collection: string): Promise<T[]> {
+  async getAll<T extends OfflineData>(collection: string, isRetry = false): Promise<T[]> {
     const db = await this.openDB();
     if (db !== this.db) {
-      return this.getAll(collection);
+      if (isRetry) throw new Error('Failed to get a stable database connection');
+      return this.getAll(collection, true);
     }
 
     const transaction = db.transaction(collection);
@@ -107,10 +109,11 @@ export class IndexeddbOfflineStore extends OfflineStore {
   }
 
   /** When offline this may return or it might wait until the user comes online before returning. */
-  async get<T extends OfflineData>(collection: string, id: string): Promise<T | undefined> {
+  async get<T extends OfflineData>(collection: string, id: string, isRetry = false): Promise<T | undefined> {
     const db = await this.openDB();
     if (db !== this.db) {
-      return this.get(collection, id);
+      if (isRetry) throw new Error('Failed to get a stable database connection');
+      return this.get(collection, id, true);
     }
 
     const transaction = db.transaction(collection);
@@ -123,10 +126,11 @@ export class IndexeddbOfflineStore extends OfflineStore {
     });
   }
 
-  async query<T extends OfflineData>(collection: string, parameters: QueryParameters): Promise<QueryResults<T>> {
+  async query<T extends OfflineData>(collection: string, parameters: QueryParameters, isRetry = false): Promise<QueryResults<T>> {
     const db = await this.openDB();
     if (db !== this.db) {
-      return this.query(collection, parameters);
+      if (isRetry) throw new Error('Failed to get a stable database connection');
+      return this.query(collection, parameters, true);
     }
     const transaction = db.transaction(collection);
     const objectStore = transaction.objectStore(collection);
@@ -146,10 +150,11 @@ export class IndexeddbOfflineStore extends OfflineStore {
     return performQuery(parameters, snapshots);
   }
 
-  async put(collection: string, offlineData: OfflineData): Promise<void> {
+  async put(collection: string, offlineData: OfflineData, isRetry = false): Promise<void> {
     const db = await this.openDB();
     if (db !== this.db) {
-      return this.put(collection, offlineData);
+      if (isRetry) throw new Error('Failed to get a stable database connection');
+      return this.put(collection, offlineData, true);
     }
 
     const transaction = db.transaction(collection, 'readwrite');
@@ -171,10 +176,11 @@ export class IndexeddbOfflineStore extends OfflineStore {
     });
   }
 
-  async delete(collection: string, id: string): Promise<void> {
+  async delete(collection: string, id: string, isRetry = false): Promise<void> {
     const db = await this.openDB();
     if (db !== this.db) {
-      return this.delete(collection, id);
+      if (isRetry) throw new Error('Failed to get a stable database connection');
+      return this.delete(collection, id, true);
     }
 
     const transaction = db.transaction(collection, 'readwrite');

@@ -64,6 +64,6 @@ describe('IndexeddbOfflineStore', () => {
     // After the fix, getAll() detects the stale connection and retries, returning an empty
     // array because the DB was deleted. Before the fix, this would reject with an
     // InvalidStateError: "The database connection is closing."
-    await expectAsync(getAllPromise).toBeResolvedTo(jasmine.any(Array));
+    await expectAsync(getAllPromise).toBeResolvedTo([]);
   });
 });
