@@ -6,6 +6,7 @@ import { editTranslation } from './workflows/edit-translation.ts';
 import { generateDraft } from './workflows/generate-draft.ts';
 import { localizedScreenshots } from './workflows/localized-screenshots.ts';
 import { onboardingFlow } from './workflows/onboarding-flow.ts';
+import { measureLoadTimes } from './workflows/performance.ts';
 import { runSmokeTests, traverseHomePageAndLoginPage } from './workflows/smoke-tests.mts';
 
 export const tests = {
@@ -29,5 +30,8 @@ export const tests = {
   },
   edit_translation: async (_engine: BrowserType, page: Page, screenshotContext: ScreenshotContext) => {
     await editTranslation(page, screenshotContext, secrets.users[0]);
+  },
+  performance_load_times: async (_engine: BrowserType, page: Page, screenshotContext: ScreenshotContext) => {
+    await measureLoadTimes(page, screenshotContext, secrets.users[0]);
   }
 } as const;
