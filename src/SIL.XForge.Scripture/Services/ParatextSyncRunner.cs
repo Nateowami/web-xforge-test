@@ -1283,10 +1283,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
         else
             oldNotesElem = new XElement("notes", new XAttribute("version", "1.1"));
 
-        if (
-            _projectDoc.Data.CheckingConfig.NoteTagId == null
-            && _projectDoc.Data.CheckingConfig.AnswerExportMethod != CheckingAnswerExport.None
-        )
+        if (_projectDoc.Data.CheckingConfig.AnswerExportMethod != CheckingAnswerExport.None)
         {
             bool hasExportableAnswers =
                 (
@@ -1628,27 +1625,47 @@ public class ParatextSyncRunner : IParatextSyncRunner
 
     private async Task UpdateTranslateNoteTag(string targetParatextId)
     {
-        int? defaultTagId = _projectDoc.Data.TranslateConfig.DefaultNoteTagId;
-        if (defaultTagId == null)
+        int noteTagId = _projectDoc.Data.TranslateConfig.DefaultNoteTagId ?? NoteTag.notSetId;
+        if (noteTagId != NoteTag.notSetId)
         {
-            var newNoteTag = new NoteTag
-            {
-                TagId = NoteTag.notSetId,
-                Icon = NoteTag.sfNoteTagIcon,
-                Name = NoteTag.sfNoteTagName,
-            };
-            // Note: If we introduce a new note tag and the remote PT repo also introduces a note tag,
-            // the tag introduced here will get overwritten
-            int noteTagId = _paratextService.UpdateCommentTag(_userSecret, targetParatextId, newNoteTag);
-            await _projectDoc.SubmitJson0OpAsync(op => op.Set(p => p.TranslateConfig.DefaultNoteTagId, noteTagId));
+            // Check if the note tag was overwritten by a conflicting S/R in a previous sync.
+            // This can happen if a user creates a note tag in Paratext between syncs, leading to
+            // a conflict where the user's tag overwrites the SF note tag during S/R.
+            bool tagWasOverwritten =
+                _projectDoc.Data.NoteTags?.Any(t =>
+                    t.TagId == noteTagId && (t.Name != NoteTag.sfNoteTagName || t.Icon != NoteTag.sfNoteTagIcon))
+                == true;
+            if (!tagWasOverwritten)
+                return;
+            // The note tag was overwritten; fall through to re-create it.
         }
+        var newNoteTag = new NoteTag
+        {
+            TagId = NoteTag.notSetId,
+            Icon = NoteTag.sfNoteTagIcon,
+            Name = NoteTag.sfNoteTagName,
+        };
+        noteTagId = _paratextService.UpdateCommentTag(_userSecret, targetParatextId, newNoteTag);
+        await _projectDoc.SubmitJson0OpAsync(op => op.Set(p => p.TranslateConfig.DefaultNoteTagId, noteTagId));
     }
 
     private async Task UpdateCheckingNoteTag(string targetParatextId)
     {
         int noteTagId = _projectDoc.Data.CheckingConfig.NoteTagId ?? NoteTag.notSetId;
         if (noteTagId != NoteTag.notSetId)
-            return;
+        {
+            // Check if the note tag was overwritten by a conflicting S/R in a previous sync.
+            // This can happen if a user creates a note tag in Paratext between syncs, leading to
+            // a conflict where the user's tag overwrites the SF checking tag during S/R.
+            bool tagWasOverwritten =
+                _projectDoc.Data.NoteTags?.Any(t =>
+                    t.TagId == noteTagId
+                    && (t.Name != NoteTag.checkingTagName || t.Icon != NoteTag.checkingTagIcon))
+                == true;
+            if (!tagWasOverwritten)
+                return;
+            // The note tag was overwritten; fall through to re-create it.
+        }
         var newNoteTag = new NoteTag
         {
             TagId = NoteTag.notSetId,

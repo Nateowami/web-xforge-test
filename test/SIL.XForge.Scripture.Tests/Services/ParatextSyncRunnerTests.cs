@@ -843,6 +843,71 @@ public class ParatextSyncRunnerTests
     }
 
     [Test]
+    public async Task SyncAsync_RecreatesCheckingNoteTagIfOverwrittenBySR()
+    {
+        // If a user adds a note tag in Paratext between SF syncs, the tag IDs may conflict during S/R,
+        // causing the user's tag to overwrite SF's checking note tag. On the next sync, SF should detect
+        // this and re-create the SF checking note tag with a new non-conflicting ID.
+        var env = new TestEnvironment();
+        Book[] books = [new Book("MAT", 1)];
+        env.SetupSFData(false, true, false, false, books);
+        env.SetupPTData(books);
+        // Simulate the state after a conflicting S/R: NoteTagId is set, but the tag at that ID has been
+        // overwritten by the user's tag (wrong name/icon).
+        var overwrittenTags = new List<NoteTag>
+        {
+            new NoteTag
+            {
+                TagId = env.checkingNoteTagId,
+                Name = "User's Custom Tag",
+                Icon = "userIcon",
+            },
+        };
+        await env.SetupProjectNoteTags("project01", overwrittenTags);
+        await env.AddAnswerToQuestion("project01", "MAT", 1);
+
+        int newTagId = env.checkingNoteTagId + 1;
+        env.ParatextService.UpdateCommentTag(Arg.Any<UserSecret>(), "target", Arg.Any<NoteTag>())
+            .Returns(newTagId);
+
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        // The overwritten tag should have been re-created with a new ID
+        env.ParatextService.Received(1).UpdateCommentTag(Arg.Any<UserSecret>(), "target", Arg.Any<NoteTag>());
+        SFProject project = env.VerifyProjectSync(true);
+        Assert.That(project.CheckingConfig.NoteTagId, Is.EqualTo(newTagId));
+    }
+
+    [Test]
+    public async Task SyncAsync_DoesNotRecreateCheckingNoteTagIfValid()
+    {
+        // If the SF checking note tag is still valid (correct name/icon), it should not be re-created.
+        var env = new TestEnvironment();
+        Book[] books = [new Book("MAT", 1)];
+        env.SetupSFData(false, true, false, false, books);
+        env.SetupPTData(books);
+        // Simulate the normal state: NoteTagId is set and the tag has the correct name/icon.
+        var validTags = new List<NoteTag>
+        {
+            new NoteTag
+            {
+                TagId = env.checkingNoteTagId,
+                Name = NoteTag.checkingTagName,
+                Icon = NoteTag.checkingTagIcon,
+            },
+        };
+        await env.SetupProjectNoteTags("project01", validTags);
+        await env.AddAnswerToQuestion("project01", "MAT", 1);
+
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        // The valid tag should not be re-created
+        env.ParatextService.DidNotReceive().UpdateCommentTag(Arg.Any<UserSecret>(), "target", Arg.Any<NoteTag>());
+        SFProject project = env.VerifyProjectSync(true);
+        Assert.That(project.CheckingConfig.NoteTagId, Is.EqualTo(env.checkingNoteTagId));
+    }
+
+    [Test]
     public async Task SyncAsync_UpdatesExistingNoteTags()
     {
         var env = new TestEnvironment();
