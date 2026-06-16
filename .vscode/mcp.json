@@ -1,0 +1,26 @@
+{
+  // MCP server configuration for VS Code / GitHub Copilot.
+  // See: https://code.visualstudio.com/docs/copilot/chat/mcp-servers
+  //
+  // Prerequisites:
+  //   1. Install Deno (https://deno.com/)
+  //   2. Install Playwright browsers:  npx playwright install  (in the e2e directory)
+  //   3. Populate  src/SIL.XForge.Scripture/ClientApp/e2e/secrets.json  with test credentials
+  //   4. Start the local Scripture Forge application (dotnet + ng serve)
+  //
+  // Once configured, the "scripture-forge" server will appear in the VS Code MCP panel
+  // and in GitHub Copilot's tool picker.  Start a session with the start_session tool,
+  // then use the other tools (snapshot, click, fill, test_selector, …) to interact with
+  // and inspect the running application.
+  "servers": {
+    "scripture-forge": {
+      "type": "stdio",
+      "command": "deno",
+      "args": [
+        "run",
+        "--allow-all",
+        "${workspaceFolder}/src/SIL.XForge.Scripture/ClientApp/e2e/agent-tools.mts"
+      ]
+    }
+  }
+}
