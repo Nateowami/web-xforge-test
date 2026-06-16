@@ -56,5 +56,13 @@
         }
       </div>
     </mat-card>
+    @if (showSyncLog) {
+      <app-sync-log
+        [entries]="syncLog"
+        [totalCount]="syncLogTotalCount"
+        [loading]="syncLogLoading"
+        (loadMore)="loadMoreSyncLog()"
+      ></app-sync-log>
+    }
   </div>
 </ng-container>

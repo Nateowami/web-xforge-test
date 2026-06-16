@@ -53,6 +53,7 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
     private readonly ISFProjectRights _projectRights;
     private readonly IGuidService _guidService;
     private readonly IMongoDatabase _database;
+    private readonly IRepository<SyncMetrics> _syncMetrics;
 
     public SFProjectService(
         IRealtimeService realtimeService,
@@ -75,7 +76,8 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
         IEventMetricService eventMetricService,
         ISFProjectRights projectRights,
         IGuidService guidService,
-        IMongoClient mongoClient
+        IMongoClient mongoClient,
+        IRepository<SyncMetrics> syncMetrics
     )
         : base(realtimeService, siteOptions, audioService, projectSecrets, fileSystemService)
     {
@@ -95,6 +97,7 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
         _projectRights = projectRights;
         _guidService = guidService;
         _database = mongoClient.GetDatabase(dataAccessOptions.Value.MongoDatabaseName);
+        _syncMetrics = syncMetrics;
     }
 
     protected override string ProjectAdminRole => SFProjectRole.Administrator;
@@ -1052,6 +1055,79 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
             pageIndex,
             pageSize
         );
+    }
+
+    /// <summary>
+    /// Gets the sync metrics for a project.
+    /// </summary>
+    /// <param name="curUserId">The current user identifier.</param>
+    /// <param name="systemRoles">The current user's system roles.</param>
+    /// <param name="projectId">The SF project identifier.</param>
+    /// <param name="pageIndex">The zero-based page index for pagination.</param>
+    /// <param name="pageSize">The number of results per page.</param>
+    /// <returns>The sync metrics for the project, paginated.</returns>
+    /// <exception cref="DataNotFoundException">The project does not exist.</exception>
+    /// <exception cref="ForbiddenException">The user does not have permission to view sync metrics.</exception>
+    /// <exception cref="FormatException">The page index or page size is invalid.</exception>
+    public async Task<QueryResults<SyncMetrics>> GetSyncMetricsAsync(
+        string curUserId,
+        string[] systemRoles,
+        string projectId,
+        int pageIndex = 0,
+        int pageSize = 5
+    )
+    {
+        // Ensure that the page index is valid
+        if (pageIndex < 0)
+        {
+            throw new FormatException($"{nameof(pageIndex)} is not a valid page index.");
+        }
+
+        // Ensure that the page size is valid
+        if (pageSize <= 0)
+        {
+            throw new FormatException($"{nameof(pageSize)} is not a valid page size.");
+        }
+
+        // System admins and serval admins can view full stack traces; project admins and translators can view
+        // the log, but errorDetails (stack traces) are stripped from results.
+        bool isSystemAdmin = systemRoles.Contains(SystemRole.SystemAdmin) || systemRoles.Contains(SystemRole.ServalAdmin);
+
+        // Verify the project exists
+        await using IConnection conn = await RealtimeService.ConnectAsync(curUserId);
+        IDocument<SFProject> projectDoc = await conn.FetchAsync<SFProject>(projectId);
+        if (!projectDoc.IsLoaded)
+        {
+            throw new DataNotFoundException("The project does not exist.");
+        }
+
+        // Check that the user has permission: system admins have full access; project admins and translators
+        // can view the log (but will have errorDetails stripped below).
+        if (
+            !isSystemAdmin
+            && !IsProjectAdmin(projectDoc.Data, curUserId)
+            && !IsProjectTranslator(projectDoc.Data, curUserId)
+        )
+        {
+            throw new ForbiddenException();
+        }
+
+        // Query the sync metrics, ordered by most recent first
+        var query = _syncMetrics.Query().Where(sm => sm.ProjectRef == projectId);
+        var orderedQuery = query.OrderByDescending(sm => sm.DateQueued);
+
+        var countTask = query.CountAsync();
+        var resultsTask = orderedQuery.Skip(pageIndex * pageSize).Take(pageSize).ToListAsync();
+
+        await Task.WhenAll(countTask, resultsTask);
+        List<SyncMetrics> rawResults = resultsTask.Result;
+
+        // For non-system-admin users, construct new objects that omit error details (stack traces)
+        List<SyncMetrics> results = isSystemAdmin
+            ? rawResults
+            : rawResults.Select(entry => entry with { ErrorDetails = null }).ToList();
+
+        return new QueryResults<SyncMetrics> { Results = results, UnpagedCount = countTask.Result };
     }
 
     public SFProjectSecret GetProjectSecretByShareKey(string shareKey)

@@ -1,6 +1,7 @@
 #nullable disable warnings
 using System;
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using SIL.XForge.Models;
 
 namespace SIL.XForge.Scripture.Models;
@@ -19,6 +20,8 @@ public record SyncMetrics : IIdentifiable
     public string RequiresId { get; set; }
     public string ProductVersion { get; set; }
     public string ProjectRef { get; set; }
+
+    [JsonConverter(typeof(JsonStringEnumConverter))]
     public SyncStatus Status { get; set; }
     public string UserRef { get; set; }
 

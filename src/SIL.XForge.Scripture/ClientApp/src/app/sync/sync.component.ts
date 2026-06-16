@@ -6,7 +6,9 @@ import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { ActivatedRoute } from '@angular/router';
 import { TranslocoModule } from '@ngneat/transloco';
+import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
+import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { firstValueFrom } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { AuthService } from 'xforge-common/auth.service';
@@ -17,12 +19,16 @@ import { I18nService } from 'xforge-common/i18n.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
+import { UserService } from 'xforge-common/user.service';
 import { environment } from '../../environments/environment';
 import { SFProjectDoc } from '../core/models/sf-project-doc';
 import { ParatextService } from '../core/paratext.service';
 import { SFProjectService } from '../core/sf-project.service';
 import { NoticeComponent } from '../shared/notice/notice.component';
+import { SyncMetrics } from './sync-metrics';
+import { SyncLogComponent } from './sync-log/sync-log.component';
 import { SyncProgressComponent } from './sync-progress/sync-progress.component';
+
 /** Reports as to whether a given project is actively syncing right now. */
 export function isSFProjectSyncing(project: SFProjectProfile): boolean {
   return project.sync.queuedCount > 0;
@@ -32,17 +38,35 @@ enum SyncErrorCodes {
   UserPermission = -1
 }
 
+/** Default number of sync history entries to show. */
+const DEFAULT_SYNC_LOG_PAGE_SIZE = 5;
+
 @Component({
   selector: 'app-sync',
   templateUrl: './sync.component.html',
   styleUrls: ['./sync.component.scss'],
-  imports: [TranslocoModule, NoticeComponent, MatCard, MatButton, MatIcon, SyncProgressComponent, MatHint, MatTooltip]
+  imports: [
+    TranslocoModule,
+    NoticeComponent,
+    MatCard,
+    MatButton,
+    MatIcon,
+    SyncProgressComponent,
+    SyncLogComponent,
+    MatHint,
+    MatTooltip
+  ]
 })
 export class SyncComponent extends DataLoadingComponent implements OnInit {
   isAppOnline: boolean = false;
   showParatextLogin = false;
   syncDisabled: boolean = false;
   projectDoc?: SFProjectDoc;
+
+  syncLog: SyncMetrics[] = [];
+  syncLogTotalCount: number = 0;
+  syncLogPageSize: number = DEFAULT_SYNC_LOG_PAGE_SIZE;
+  syncLogLoading: boolean = false;
 
   private _syncActive: boolean = false;
   private isSyncCancelled = false;
@@ -58,6 +82,7 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     private readonly onlineStatusService: OnlineStatusService,
     private readonly dialogService: DialogService,
     private readonly authService: AuthService,
+    private readonly userService: UserService,
     private destroyRef: DestroyRef
   ) {
     super(noticeService, 'SyncComponent');
@@ -128,6 +153,10 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
           );
         }
       }
+      // Reload sync log after a sync completes, if the log is visible
+      if (this.showSyncLog) {
+        void this.loadSyncLog();
+      }
     }
     this.isSyncCancelled = false;
     this._syncActive = isActive;
@@ -151,6 +180,18 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     return this.i18n.translateAndInsertTags('sync.sync_failure_support_message', {
       email: `<a target="_blank" href="mailto:${environment.issueEmail}">${environment.issueEmail}</a>`
     });
+  }
+
+  /** Whether the current user is allowed to see the sync log (system admin, serval admin, project admin, or translator). */
+  get showSyncLog(): boolean {
+    if (
+      this.authService.currentUserRoles.includes(SystemRole.SystemAdmin) ||
+      this.authService.currentUserRoles.includes(SystemRole.ServalAdmin)
+    ) {
+      return true;
+    }
+    const userRole: string | undefined = this.projectDoc?.data?.userRoles[this.userService.currentUserId];
+    return userRole === SFProjectRole.ParatextAdministrator || userRole === SFProjectRole.ParatextTranslator;
   }
 
   ngOnInit(): void {
@@ -179,6 +220,11 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
       this.projectDoc = await this.projectService.get(projectId);
       this.checkSyncStatus();
       this.loadingFinished();
+
+      // Load the sync log if the user is an admin
+      if (this.showSyncLog && this.isAppOnline) {
+        void this.loadSyncLog();
+      }
 
       // Check to see if a sync has started when the project document changes
       // TODO Clean up the use of nested subscribe()
@@ -219,6 +265,29 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     }
     void this.projectService.onlineCancelSync(this.projectDoc.id);
     this.isSyncCancelled = true;
+  }
+
+  /** Loads more sync log entries. */
+  async loadMoreSyncLog(): Promise<void> {
+    if (this.projectDoc == null) {
+      return;
+    }
+    this.syncLogPageSize += DEFAULT_SYNC_LOG_PAGE_SIZE;
+    await this.loadSyncLog();
+  }
+
+  private async loadSyncLog(): Promise<void> {
+    if (this.projectDoc == null) {
+      return;
+    }
+    this.syncLogLoading = true;
+    try {
+      const results = await this.projectService.onlineSyncMetrics(this.projectDoc.id, 0, this.syncLogPageSize);
+      this.syncLogTotalCount = results.unpagedCount;
+      this.syncLog = Array.isArray(results.results) ? results.results : [];
+    } finally {
+      this.syncLogLoading = false;
+    }
   }
 
   private checkSyncStatus(): void {
