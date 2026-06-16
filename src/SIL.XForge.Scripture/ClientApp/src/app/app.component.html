@@ -90,14 +90,15 @@
           }
         </mat-menu>
 
-        @if (currentUser) {
-          <button
-            mat-icon-button
-            [matTooltip]="currentUser.displayName"
-            [matMenuTriggerFor]="userMenu"
-            (click)="dismissInstallIcon()"
-            class="user-menu-btn"
-          >
+        <!-- User menu button is always visible so users can log out even when in a bad state -->
+        <button
+          mat-icon-button
+          [matTooltip]="currentUser?.displayName ?? ''"
+          [matMenuTriggerFor]="userMenu"
+          (click)="dismissInstallIcon()"
+          class="user-menu-btn"
+        >
+          @if (currentUser) {
             <app-avatar id="avatarId" [user]="currentUser"> </app-avatar>
             @if (showInstallIconOnAvatar$ | async) {
               <mat-icon class="user-icon-badge install-badge">install_mobile</mat-icon>
@@ -105,90 +106,95 @@
             @if (!isAppOnline) {
               <mat-icon class="user-icon-badge offline-indicator">cloud_off</mat-icon>
             }
-          </button>
-        }
+          } @else {
+            <mat-icon>person</mat-icon>
+          }
+        </button>
         <mat-menu #userMenu="matMenu" class="user-menu">
-          <div class="pseudo-menu-item user-info">
-            <div>{{ t("logged_in_as") }}</div>
-            <div class="name-and-edit-button">
-              <div id="user-menu-name">{{ currentUser?.displayName }}</div>
-              <button mat-icon-button (click)="editName()" id="edit-name-btn">
-                <mat-icon>edit</mat-icon>
-              </button>
+          @if (currentUser) {
+            <div class="pseudo-menu-item user-info">
+              <div>{{ t("logged_in_as") }}</div>
+              <div class="name-and-edit-button">
+                <div id="user-menu-name">{{ currentUser.displayName }}</div>
+                <button mat-icon-button (click)="editName()" id="edit-name-btn">
+                  <mat-icon>edit</mat-icon>
+                </button>
+              </div>
             </div>
-          </div>
-          <mat-divider></mat-divider>
-          @if (isSystemAdmin) {
-            <button
-              mat-menu-item
-              id="system-admin-btn"
-              [disabled]="!isAppOnline"
-              appRouterLink="/system-administration"
-            >
-              <mat-icon>admin_panel_settings</mat-icon>
-              {{ t("system_administration") }}
-            </button>
-          }
-          @if (isServalAdmin) {
-            <button
-              mat-menu-item
-              id="serval-admin-btn"
-              [disabled]="!isAppOnline"
-              appRouterLink="/serval-administration"
-            >
-              <mat-icon>tune</mat-icon>
-              {{ t("serval_administration") }}
-            </button>
-          }
-          @if (isSystemAdmin) {
-            <button mat-menu-item id="hangfire-dashboard-btn" [disabled]="!isAppOnline" (click)="hangfireDashboard()">
-              <mat-icon>pending_actions</mat-icon>
-              {{ t("hangfire_dashboard") }}
-            </button>
-          }
-          <button mat-menu-item appRouterLink="/projects" id="project-home-link">
-            <mat-icon>home</mat-icon> {{ "my_projects.my_projects" | transloco }}
-          </button>
-          @if (featureFlags.showDeveloperTools.enabled) {
-            <button mat-menu-item [matMenuTriggerFor]="appearanceMenu">
-              <mat-icon>palette</mat-icon>
-              {{ t("appearance") }}
-            </button>
-            <mat-menu #appearanceMenu="matMenu" class="appearance-menu">
-              <button mat-menu-item (click)="setAppearance('device')">
-                <mat-icon>devices</mat-icon>
-                <span class="appearance-text">{{ t("appearance_device") }}</span>
-                @if (appearanceSetting === "device") {
-                  <span><mat-icon>check</mat-icon></span>
-                }
+            <mat-divider></mat-divider>
+            @if (isSystemAdmin) {
+              <button
+                mat-menu-item
+                id="system-admin-btn"
+                [disabled]="!isAppOnline"
+                appRouterLink="/system-administration"
+              >
+                <mat-icon>admin_panel_settings</mat-icon>
+                {{ t("system_administration") }}
               </button>
-              <button mat-menu-item (click)="setAppearance('dark')">
-                <mat-icon>dark_mode</mat-icon>
-                <span class="appearance-text">{{ t("appearance_dark") }}</span>
-                @if (appearanceSetting === "dark") {
-                  <span><mat-icon>check</mat-icon></span>
-                }
+            }
+            @if (isServalAdmin) {
+              <button
+                mat-menu-item
+                id="serval-admin-btn"
+                [disabled]="!isAppOnline"
+                appRouterLink="/serval-administration"
+              >
+                <mat-icon>tune</mat-icon>
+                {{ t("serval_administration") }}
               </button>
-              <button mat-menu-item (click)="setAppearance('light')">
-                <mat-icon>light_mode</mat-icon>
-                <span class="appearance-text">{{ t("appearance_light") }}</span>
-                @if (appearanceSetting === "light") {
-                  <span><mat-icon>check</mat-icon></span>
-                }
+            }
+            @if (isSystemAdmin) {
+              <button mat-menu-item id="hangfire-dashboard-btn" [disabled]="!isAppOnline" (click)="hangfireDashboard()">
+                <mat-icon>pending_actions</mat-icon>
+                {{ t("hangfire_dashboard") }}
               </button>
-            </mat-menu>
-          }
-          @if (canChangePassword) {
-            <button mat-menu-item (click)="changePassword()" [disabled]="!isAppOnline">
-              <mat-icon>vpn_key</mat-icon>
-              {{ t("change_password") }}
+            }
+            <button mat-menu-item appRouterLink="/projects" id="project-home-link">
+              <mat-icon>home</mat-icon> {{ "my_projects.my_projects" | transloco }}
             </button>
+            @if (featureFlags.showDeveloperTools.enabled) {
+              <button mat-menu-item [matMenuTriggerFor]="appearanceMenu">
+                <mat-icon>palette</mat-icon>
+                {{ t("appearance") }}
+              </button>
+              <mat-menu #appearanceMenu="matMenu" class="appearance-menu">
+                <button mat-menu-item (click)="setAppearance('device')">
+                  <mat-icon>devices</mat-icon>
+                  <span class="appearance-text">{{ t("appearance_device") }}</span>
+                  @if (appearanceSetting === "device") {
+                    <span><mat-icon>check</mat-icon></span>
+                  }
+                </button>
+                <button mat-menu-item (click)="setAppearance('dark')">
+                  <mat-icon>dark_mode</mat-icon>
+                  <span class="appearance-text">{{ t("appearance_dark") }}</span>
+                  @if (appearanceSetting === "dark") {
+                    <span><mat-icon>check</mat-icon></span>
+                  }
+                </button>
+                <button mat-menu-item (click)="setAppearance('light')">
+                  <mat-icon>light_mode</mat-icon>
+                  <span class="appearance-text">{{ t("appearance_light") }}</span>
+                  @if (appearanceSetting === "light") {
+                    <span><mat-icon>check</mat-icon></span>
+                  }
+                </button>
+              </mat-menu>
+            }
+            @if (canChangePassword) {
+              <button mat-menu-item (click)="changePassword()" [disabled]="!isAppOnline">
+                <mat-icon>vpn_key</mat-icon>
+                {{ t("change_password") }}
+              </button>
+            }
+            @if (canInstallOnDevice$ | async) {
+              <button mat-menu-item (click)="installOnDevice()">
+                <div class="install-button"><mat-icon>install_mobile</mat-icon> {{ t("install_on_device") }}</div>
+              </button>
+            }
           }
-          @if (canInstallOnDevice$ | async) {
-            <button mat-menu-item (click)="installOnDevice()">
-              <div class="install-button"><mat-icon>install_mobile</mat-icon> {{ t("install_on_device") }}</div>
-            </button>
-          }
+          <!-- Log out and online status are always visible so users can log out even when in a bad state -->
           <button mat-menu-item (click)="logOut()" id="log-out-link">
             <mat-icon>logout</mat-icon> {{ t("log_out") }}
           </button>
