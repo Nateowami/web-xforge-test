@@ -1,10 +1,7 @@
-import { HarnessLoader } from '@angular/cdk/testing';
-import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { DebugElement, getDebugNode } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { MatCheckboxHarness } from '@angular/material/checkbox/testing';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { escapeRegExp, merge } from 'lodash-es';
@@ -87,12 +84,16 @@ describe('ServalProjectsComponent', () => {
     tick();
     env.fixture.detectChanges();
 
-    env.setInputValue(env.filterInput, '02');
+    // SUT
+    env.component.onSearch({ terms: [{ fieldId: 'name', value: '02' }], isValid: true, errors: [] });
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
 
     expect(env.rows.length).toEqual(1);
   }));
 
-  it('should filter projects with custom serval config set', fakeAsync(async () => {
+  it('should filter projects with custom serval config set', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setupProjectData();
     env.fixture.detectChanges();
@@ -100,12 +101,19 @@ describe('ServalProjectsComponent', () => {
     env.fixture.detectChanges();
 
     expect(env.rows.length).toEqual(3);
-    // Toggle the checkbox to filter projects with servalConfig
-    await env.toggleServalConfigFilter();
+    // SUT: filter to projects that have a custom serval config
+    env.component.onSearch({ terms: [{ fieldId: 'customConfig', value: true }], isValid: true, errors: [] });
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
     // Only project01 has servalConfig set, so only 1 row should be displayed
     expect(env.rows.length).toEqual(1);
 
-    await env.toggleServalConfigFilter();
+    // SUT: clear the filter
+    env.component.onSearch({ terms: [], isValid: true, errors: [] });
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
     expect(env.rows.length).toEqual(3);
   }));
 
@@ -134,7 +142,6 @@ class TestProjectDoc extends ProjectDoc {
 class TestEnvironment {
   readonly component: ServalProjectsComponent;
   readonly fixture: ComponentFixture<ServalProjectsComponent>;
-  readonly loader: HarnessLoader;
 
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
 
@@ -158,7 +165,6 @@ class TestEnvironment {
 
     this.fixture = TestBed.createComponent(ServalProjectsComponent);
     this.component = this.fixture.componentInstance;
-    this.loader = TestbedHarnessEnvironment.loader(this.fixture);
   }
 
   get table(): DebugElement {
@@ -167,10 +173,6 @@ class TestEnvironment {
 
   get rows(): DebugElement[] {
     return Array.from(this.table.nativeElement.querySelectorAll('tbody tr')).map(r => getDebugNode(r) as DebugElement);
-  }
-
-  get filterInput(): DebugElement {
-    return this.fixture.debugElement.query(By.css('#project-filter'));
   }
 
   get paginator(): DebugElement {
@@ -187,23 +189,6 @@ class TestEnvironment {
 
   clickButton(button: DebugElement): void {
     button.nativeElement.click();
-    this.fixture.detectChanges();
-    tick();
-    this.fixture.detectChanges();
-  }
-
-  setInputValue(input: DebugElement, value: string): void {
-    const inputElem = input.nativeElement as HTMLInputElement;
-    inputElem.value = value;
-    inputElem.dispatchEvent(new Event('keyup'));
-    this.fixture.detectChanges();
-    tick();
-    this.fixture.detectChanges();
-  }
-
-  async toggleServalConfigFilter(): Promise<void> {
-    const checkbox = await this.loader.getHarness(MatCheckboxHarness);
-    await checkbox.toggle();
     this.fixture.detectChanges();
     tick();
     this.fixture.detectChanges();

@@ -118,7 +118,11 @@ describe('SaUsersComponent', () => {
 
     // All users shown
     expect(env.userRows.length).toEqual(3);
-    env.setInputValue(env.filterInput, '2');
+    // SUT
+    env.component.onSearch({ terms: [{ fieldId: 'name', value: '2' }], isValid: true, errors: [] });
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
     // Subset shown
     expect(env.userRows.length).toEqual(1);
   }));
@@ -199,10 +203,6 @@ class TestEnvironment {
     // querying the debug table element doesn't seem to work, so we query the native element instead and convert back
     // to debug elements
     return Array.from(this.table.nativeElement.querySelectorAll('tr')).map(r => getDebugNode(r) as DebugElement);
-  }
-
-  get filterInput(): DebugElement {
-    return this.fixture.debugElement.query(By.css('#user-filter'));
   }
 
   get paginator(): DebugElement {
@@ -287,17 +287,5 @@ class TestEnvironment {
         })
       }
     ]);
-  }
-
-  setInputValue(input: HTMLInputElement | DebugElement, value: string): void {
-    if (input instanceof DebugElement) {
-      input = (input as DebugElement).nativeElement as HTMLInputElement;
-    }
-
-    input.value = value;
-    input.dispatchEvent(new Event('input'));
-    this.fixture.detectChanges();
-    tick();
-    this.fixture.detectChanges();
   }
 }

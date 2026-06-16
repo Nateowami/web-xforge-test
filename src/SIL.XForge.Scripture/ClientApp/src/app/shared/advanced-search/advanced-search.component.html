@@ -1,0 +1,55 @@
+<mat-form-field class="search-field" subscriptSizing="dynamic">
+  <mat-label>Search</mat-label>
+  <input
+    matInput
+    id="advanced-search-input"
+    [(ngModel)]="queryText"
+    (ngModelChange)="onQueryChange()"
+    placeholder="e.g. name:&quot;My Project&quot; drafting:true"
+    autocomplete="off"
+    spellcheck="false"
+  />
+  <mat-icon matSuffix>search</mat-icon>
+</mat-form-field>
+
+@if (!parsedQuery.isValid) {
+  <div class="search-errors" role="alert">
+    @for (error of parsedQuery.errors; track error.position) {
+      <div class="search-error">
+        <mat-icon class="error-icon">error_outline</mat-icon>
+        <span>{{ error.message }}</span>
+      </div>
+    }
+  </div>
+}
+
+<div class="field-reference">
+  <button
+    mat-button
+    class="field-reference-toggle"
+    type="button"
+    (click)="toggleFieldReference()"
+    [attr.aria-expanded]="fieldReferenceExpanded"
+  >
+    <mat-icon class="toggle-icon">{{ fieldReferenceExpanded ? 'expand_less' : 'expand_more' }}</mat-icon>
+    Available fields:
+    @if (!fieldReferenceExpanded) {
+      <span class="field-ids-preview">{{ fieldIdsPreview }}</span>
+    }
+  </button>
+
+  @if (fieldReferenceExpanded) {
+    <ul class="field-list">
+      @for (field of fieldsDef.fields; track field.id) {
+        <li class="field-item">
+          <code class="field-id">{{ field.id }}</code>
+          <span class="field-label">{{ field.label }}</span>
+          <code class="field-example">{{ exampleFor(field.id) }}</code>
+          @if (field.description != null) {
+            <span class="field-description">{{ field.description }}</span>
+          }
+        </li>
+      }
+    </ul>
+  }
+</div>

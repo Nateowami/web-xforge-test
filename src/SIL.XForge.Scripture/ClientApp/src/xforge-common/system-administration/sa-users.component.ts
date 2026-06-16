@@ -1,11 +1,10 @@
 import { Component, DestroyRef, HostBinding, OnInit } from '@angular/core';
 import { MatIconButton } from '@angular/material/button';
 import { MatDialogConfig } from '@angular/material/dialog';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
-import { MatInput } from '@angular/material/input';
 import { MatPaginator } from '@angular/material/paginator';
 import { MatCell, MatCellDef, MatColumnDef, MatRow, MatRowDef, MatTable } from '@angular/material/table';
+import { escapeRegExp } from 'lodash-es';
 import { Project } from 'realtime-server/lib/esm/common/models/project';
 import { User } from 'realtime-server/lib/esm/common/models/user';
 import { obj } from 'realtime-server/lib/esm/common/utils/obj-path';
@@ -14,13 +13,15 @@ import { RealtimeQuery } from 'xforge-common/models/realtime-query';
 import { UserDoc } from 'xforge-common/models/user-doc';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { environment } from '../../environments/environment';
+import { AdvancedSearchComponent } from '../../app/shared/advanced-search/advanced-search.component';
+import { ParsedSearchQuery, SearchFieldsDef } from '../../app/shared/advanced-search/search-query-parser';
 import { AvatarComponent } from '../avatar/avatar.component';
 import { DataLoadingComponent } from '../data-loading-component';
 import { DialogService } from '../dialog.service';
 import { ProjectDoc } from '../models/project-doc';
 import { NoticeService } from '../notice.service';
 import { ProjectService } from '../project.service';
-import { QueryParameters } from '../query-parameters';
+import { QueryFilter, QueryParameters } from '../query-parameters';
 import { RouterLinkDirective } from '../router-link.directive';
 import { UserService } from '../user.service';
 import { SaDeleteDialogComponent, SaDeleteUserDialogData } from './sa-delete-dialog.component';
@@ -41,9 +42,7 @@ interface Row {
   templateUrl: './sa-users.component.html',
   styleUrls: ['./sa-users.component.scss'],
   imports: [
-    MatFormField,
-    MatLabel,
-    MatInput,
+    AdvancedSearchComponent,
     MatTable,
     MatColumnDef,
     MatCellDef,
@@ -65,6 +64,18 @@ export class SaUsersComponent extends DataLoadingComponent implements OnInit {
   pageSize: number = 50;
 
   userRows: Row[] = [];
+
+  /** Fields available for the advanced search box. */
+  readonly searchFieldsDef: SearchFieldsDef = {
+    fields: [
+      { id: 'displayName', label: 'Display name', type: 'text' },
+      { id: 'name', label: 'Full name', type: 'text' },
+      { id: 'email', label: 'Email address', type: 'text' }
+    ]
+  };
+
+  /** The last valid search query emitted by the advanced search component. */
+  private searchQuery: ParsedSearchQuery = { terms: [], isValid: true, errors: [] };
 
   private readonly searchTerm$ = new BehaviorSubject<string>('');
   private readonly queryParameters$ = new BehaviorSubject<QueryParameters>(this.getQueryParameters());
@@ -124,11 +135,11 @@ export class SaUsersComponent extends DataLoadingComponent implements OnInit {
       });
   }
 
-  updateSearchTerm(target: EventTarget | null): void {
-    const termTarget = target as HTMLInputElement;
-    if (termTarget?.value != null) {
-      this.searchTerm$.next(termTarget.value);
-    }
+  /** Called when the advanced search emits a new query; rebuilds the realtime query parameters. */
+  onSearch(query: ParsedSearchQuery): void {
+    this.pageIndex = 0;
+    this.searchQuery = query;
+    this.queryParameters$.next(this.getQueryParameters());
   }
 
   updatePage(pageIndex: number, pageSize: number): void {
@@ -179,10 +190,35 @@ export class SaUsersComponent extends DataLoadingComponent implements OnInit {
   }
 
   private getQueryParameters(): QueryParameters {
-    return {
+    const params: QueryParameters = {
       $sort: { [obj<User>().pathStr(u => u.name)]: 1 },
       $skip: this.pageIndex * this.pageSize,
       $limit: this.pageSize
     };
+
+    if (this.searchQuery.isValid && this.searchQuery.terms.length > 0) {
+      const termFilters: QueryFilter[] = [];
+      for (const term of this.searchQuery.terms) {
+        const textValue = escapeRegExp(term.value as string);
+        switch (term.fieldId) {
+          case 'displayName':
+            termFilters.push({ [obj<User>().pathStr(u => u.displayName)]: { $regex: `.*${textValue}.*`, $options: 'i' } });
+            break;
+          case 'name':
+            termFilters.push({ [obj<User>().pathStr(u => u.name)]: { $regex: `.*${textValue}.*`, $options: 'i' } });
+            break;
+          case 'email':
+            termFilters.push({ [obj<User>().pathStr(u => u.email)]: { $regex: `.*${textValue}.*`, $options: 'i' } });
+            break;
+        }
+      }
+      if (termFilters.length === 1) {
+        Object.assign(params, termFilters[0]);
+      } else if (termFilters.length > 1) {
+        params.$and = termFilters;
+      }
+    }
+
+    return params;
   }
 }

@@ -1,10 +1,6 @@
 import { Component, DestroyRef, OnInit } from '@angular/core';
-import { FormsModule } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
-import { MatCheckbox } from '@angular/material/checkbox';
-import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
-import { MatInput } from '@angular/material/input';
 import { MatPaginator } from '@angular/material/paginator';
 import {
   MatCell,
@@ -19,6 +15,7 @@ import {
   MatTable
 } from '@angular/material/table';
 import { Router } from '@angular/router';
+import { escapeRegExp } from 'lodash-es';
 import { Project } from 'realtime-server/lib/esm/common/models/project';
 import { obj } from 'realtime-server/lib/esm/common/utils/obj-path';
 import { SFProject, SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
@@ -27,9 +24,11 @@ import { BehaviorSubject } from 'rxjs';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { I18nService } from 'xforge-common/i18n.service';
 import { NoticeService } from 'xforge-common/notice.service';
-import { QueryParameters } from 'xforge-common/query-parameters';
+import { QueryFilter, QueryParameters } from 'xforge-common/query-parameters';
 import { RouterLinkDirective } from 'xforge-common/router-link.directive';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
+import { AdvancedSearchComponent } from '../shared/advanced-search/advanced-search.component';
+import { ParsedSearchQuery, SearchFieldsDef } from '../shared/advanced-search/search-query-parser';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { projectLabel } from '../shared/utils';
 import { DraftSourcesAsTranslateSourceArrays, projectToDraftSources } from '../translate/draft-generation/draft-utils';
@@ -85,7 +84,7 @@ class Row {
   templateUrl: './serval-projects.component.html',
   styleUrls: ['./serval-projects.component.scss'],
   imports: [
-    FormsModule,
+    AdvancedSearchComponent,
     MatButton,
     MatTable,
     MatColumnDef,
@@ -93,14 +92,10 @@ class Row {
     MatHeaderCellDef,
     MatCell,
     MatCellDef,
-    MatCheckbox,
     MatHeaderRow,
     MatHeaderRowDef,
     MatIcon,
     MatRow,
-    MatLabel,
-    MatFormField,
-    MatInput,
     MatRowDef,
     MatPaginator,
     RouterLinkDirective
@@ -113,7 +108,24 @@ export class ServalProjectsComponent extends DataLoadingComponent implements OnI
   length: number = 0;
   pageIndex: number = 0;
   pageSize: number = 50;
-  showProjectsWithCustomServalConfig: boolean = false;
+
+  /** Fields available for the advanced search box. */
+  readonly searchFieldsDef: SearchFieldsDef = {
+    fields: [
+      { id: 'name', label: 'Project name', type: 'text' },
+      { id: 'shortName', label: 'Project short name', type: 'text' },
+      { id: 'drafting', label: 'Generating drafts enabled', type: 'boolean' },
+      {
+        id: 'customConfig',
+        label: 'Has custom Serval configuration',
+        type: 'boolean',
+        description: 'Filter for projects that have a custom Serval configuration JSON override.'
+      }
+    ]
+  };
+
+  /** The last valid search query emitted by the advanced search component. */
+  private searchQuery: ParsedSearchQuery = { terms: [], isValid: true, errors: [] };
 
   private projectDocs?: Readonly<SFProjectProfileDoc[]>;
 
@@ -152,21 +164,16 @@ export class ServalProjectsComponent extends DataLoadingComponent implements OnI
       });
   }
 
-  updateSearchTerm(target: EventTarget | null): void {
-    const termTarget = target as HTMLInputElement;
-    if (termTarget?.value != null) {
-      this.searchTerm$.next(termTarget.value);
-    }
+  /** Called when the advanced search emits a new query; rebuilds the realtime query parameters. */
+  onSearch(query: ParsedSearchQuery): void {
+    this.pageIndex = 0;
+    this.searchQuery = query;
+    this.queryParameters$.next(this.getQueryParameters());
   }
 
   updatePage(pageIndex: number, pageSize: number): void {
     this.pageIndex = pageIndex;
     this.pageSize = pageSize;
-    this.queryParameters$.next(this.getQueryParameters());
-  }
-
-  updateServalConfigFilter(): void {
-    this.pageIndex = 0;
     this.queryParameters$.next(this.getQueryParameters());
   }
 
@@ -200,9 +207,37 @@ export class ServalProjectsComponent extends DataLoadingComponent implements OnI
       $limit: this.pageSize
     };
 
-    // Filter for projects with servalConfig set
-    if (this.showProjectsWithCustomServalConfig) {
-      params[obj<SFProject>().pathStr(q => q.translateConfig.draftConfig?.servalConfig)] = { $ne: null };
+    if (this.searchQuery.isValid && this.searchQuery.terms.length > 0) {
+      const termFilters: QueryFilter[] = [];
+      for (const term of this.searchQuery.terms) {
+        switch (term.fieldId) {
+          case 'name':
+            termFilters.push({
+              [obj<Project>().pathStr(p => p.name)]: { $regex: `.*${escapeRegExp(term.value as string)}.*`, $options: 'i' }
+            });
+            break;
+          case 'shortName':
+            termFilters.push({
+              [obj<SFProjectProfile>().pathStr(p => p.shortName)]: { $regex: `.*${escapeRegExp(term.value as string)}.*`, $options: 'i' }
+            });
+            break;
+          case 'drafting':
+            termFilters.push({ [obj<SFProject>().pathStr(q => q.translateConfig.preTranslate)]: term.value });
+            break;
+          case 'customConfig':
+            // true = has custom config (field is not null); false = no custom config (field is null)
+            termFilters.push({
+              [obj<SFProject>().pathStr(q => q.translateConfig.draftConfig?.servalConfig)]:
+                term.value === true ? { $ne: null } : null
+            });
+            break;
+        }
+      }
+      if (termFilters.length === 1) {
+        Object.assign(params, termFilters[0]);
+      } else if (termFilters.length > 1) {
+        params.$and = termFilters;
+      }
     }
 
     return params;

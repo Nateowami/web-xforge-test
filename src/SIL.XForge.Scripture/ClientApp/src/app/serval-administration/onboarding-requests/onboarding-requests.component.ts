@@ -14,6 +14,8 @@ import { NoticeService } from 'xforge-common/notice.service';
 import { OwnerComponent } from 'xforge-common/owner/owner.component';
 import { RouterLinkDirective } from 'xforge-common/router-link.directive';
 import { UserService } from 'xforge-common/user.service';
+import { AdvancedSearchComponent } from '../../shared/advanced-search/advanced-search.component';
+import { ParsedSearchQuery, SearchFieldsDef } from '../../shared/advanced-search/search-query-parser';
 import { NoticeComponent } from '../../shared/notice/notice.component';
 import { projectLabel } from '../../shared/utils';
 import {
@@ -87,7 +89,8 @@ type FilterName = keyof typeof filterOptions;
     MatProgressSpinnerModule,
     MatButtonToggleModule,
     RouterLinkDirective,
-    MatInputModule
+    MatInputModule,
+    AdvancedSearchComponent
   ]
 })
 export class OnboardingRequestsComponent extends DataLoadingComponent implements OnInit {
@@ -102,6 +105,25 @@ export class OnboardingRequestsComponent extends DataLoadingComponent implements
 
   // Resolution options
   readonly resolutionOptions = ONBOARDING_REQUEST_RESOLUTION_OPTIONS;
+
+  /** Fields available for the advanced search box. */
+  readonly searchFieldsDef: SearchFieldsDef = {
+    fields: [
+      { id: 'project', label: 'Project name', type: 'text' },
+      { id: 'languageCode', label: 'Target language code', type: 'text' },
+      {
+        id: 'status',
+        label: 'Status',
+        type: 'text',
+        description: 'Filter by status key: new, in_progress, or completed.'
+      },
+      { id: 'dateBefore', label: 'Submitted before', type: 'date' },
+      { id: 'dateAfter', label: 'Submitted after', type: 'date' }
+    ]
+  };
+
+  /** The last valid search query emitted by the advanced search component. */
+  private searchQuery: ParsedSearchQuery = { terms: [], isValid: true, errors: [] };
 
   value: number | null = null;
 
@@ -222,6 +244,12 @@ export class OnboardingRequestsComponent extends DataLoadingComponent implements
     return this.userDisplayNames.get(userId) || 'Loading...';
   }
 
+  /** Called when the advanced search emits a new query; re-runs client-side filtering. */
+  onSearchChange(query: ParsedSearchQuery): void {
+    this.searchQuery = query;
+    this.filterRequests();
+  }
+
   getStatus = this.onboardingRequestService.getStatus;
 
   getResolution = this.onboardingRequestService.getResolution;
@@ -250,9 +278,54 @@ export class OnboardingRequestsComponent extends DataLoadingComponent implements
   filterRequests(): void {
     const filterOption = this.filterOptions[this._activeFilter];
     const filterFunction = filterOption?.filter;
-    if (filterFunction) {
-      this.filteredRequests = this.requests.filter(request => filterFunction(request, this.currentUserId));
+    let filtered = filterFunction ? this.requests.filter(request => filterFunction(request, this.currentUserId)) : this.requests;
+
+    // Apply advanced search text filters on top of the status button filter
+    if (this.searchQuery.isValid && this.searchQuery.terms.length > 0) {
+      filtered = filtered.filter(request => this.requestMatchesSearchQuery(request));
     }
+
+    this.filteredRequests = filtered;
+  }
+
+  /** Returns true when the request matches all terms in the current advanced search query. */
+  private requestMatchesSearchQuery(request: OnboardingRequest): boolean {
+    for (const term of this.searchQuery.terms) {
+      switch (term.fieldId) {
+        case 'project': {
+          if (typeof term.value !== 'string') break;
+          const projectName = this.getProjectName(request.submission.projectId).toLowerCase();
+          if (!projectName.includes(term.value.toLowerCase())) return false;
+          break;
+        }
+        case 'languageCode': {
+          if (typeof term.value !== 'string') break;
+          const langCode = request.submission.formData.translationLanguageIsoCode.toLowerCase();
+          if (!langCode.includes(term.value.toLowerCase())) return false;
+          break;
+        }
+        case 'status': {
+          if (typeof term.value !== 'string') break;
+          if (!request.status.toLowerCase().includes(term.value.toLowerCase())) return false;
+          break;
+        }
+        case 'dateBefore': {
+          if (typeof term.value !== 'string') break;
+          const submittedAt = new Date(request.submission.timestamp);
+          const filterDate = new Date(term.value);
+          if (submittedAt >= filterDate) return false;
+          break;
+        }
+        case 'dateAfter': {
+          if (typeof term.value !== 'string') break;
+          const submittedAt = new Date(request.submission.timestamp);
+          const filterDate = new Date(term.value);
+          if (submittedAt <= filterDate) return false;
+          break;
+        }
+      }
+    }
+    return true;
   }
 
   /**
