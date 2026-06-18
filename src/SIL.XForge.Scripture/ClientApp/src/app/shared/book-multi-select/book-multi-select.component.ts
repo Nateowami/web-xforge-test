@@ -5,6 +5,7 @@ import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { MatTooltip } from '@angular/material/tooltip';
 import { TranslocoModule } from '@ngneat/transloco';
 import { Canon } from '@sillsdev/scripture';
+import { cloneDeep, isEqual } from 'lodash-es';
 import { L10nPercentPipe } from 'xforge-common/l10n-percent.pipe';
 import { estimatedActualBookProgress, ProgressService, ProjectProgress } from '../progress-service/progress.service';
 import { Book } from './book-multi-select';
@@ -52,6 +53,15 @@ export class BookMultiSelectComponent implements OnChanges {
   private cachedProgress?: ProjectProgress;
   private loadedProgressProjectId?: string;
 
+  /** Deep copy of the inputs initBookOptions last ran on, used to skip redundant rebuilds (see ngOnChanges). */
+  private previousInputs?: {
+    availableBooks: Book[];
+    selectedBooks: Book[];
+    projectId?: string;
+    basicMode: boolean;
+    readonly: boolean;
+  };
+
   bookOptions: BookOption[] = [];
 
   booksOT: Book[] = [];
@@ -71,6 +81,17 @@ export class BookMultiSelectComponent implements OnChanges {
   constructor(private readonly progressService: ProgressService) {}
 
   ngOnChanges(): void {
+    const inputs = {
+      availableBooks: this.availableBooks,
+      selectedBooks: this.selectedBooks,
+      projectId: this.projectId,
+      basicMode: this.basicMode,
+      readonly: this.readonly
+    };
+    // Compare by content so getter-bound inputs (new array refs, identical contents) don't rebuild every pass. Snapshot
+    // a deep copy so an in-place mutation of a bound array is still detected (the snapshot won't change along with it).
+    if (isEqual(inputs, this.previousInputs)) return;
+    this.previousInputs = cloneDeep(inputs);
     void this.initBookOptions();
   }
 
