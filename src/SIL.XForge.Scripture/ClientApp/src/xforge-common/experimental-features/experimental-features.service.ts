@@ -12,6 +12,14 @@ export interface ExperimentalFeature {
   featureFlag: FeatureFlag;
 }
 
+// The planned order for rolling out partial book drafting is:
+// a) behind a feature flag
+// b) available as a user-facing experimental feature
+// c) eventually enabled for all users
+// We need to update the rest of the application to handle partial book drafts at least acceptably well before marking
+// it an experimental feature.
+const SF_UPDATED_TO_SUPPORT_HANDLING_DRAFTS_WITH_PARTIAL_BOOKS = false;
+
 @Injectable({ providedIn: 'root' })
 export class ExperimentalFeaturesService {
   constructor(
@@ -26,8 +34,11 @@ export class ExperimentalFeaturesService {
       description:
         'Choose which chapters to generate, so that your existing translations of other chapters in the same book can be used to train the language model and improve draft quality.',
       available: () =>
-        this.doesUserHaveRoleOnAnyProject(SFProjectRole.ParatextAdministrator) ||
-        this.doesUserHaveRoleOnAnyProject(SFProjectRole.ParatextTranslator),
+        SF_UPDATED_TO_SUPPORT_HANDLING_DRAFTS_WITH_PARTIAL_BOOKS &&
+        this.doesUserHaveAnyOfRolesOnAnyProject([
+          SFProjectRole.ParatextAdministrator,
+          SFProjectRole.ParatextTranslator
+        ]),
       featureFlag: this.featureFlagService.partialBookDrafting
     }
   ];
@@ -40,9 +51,12 @@ export class ExperimentalFeaturesService {
     return this.availableExperimentalFeatures.length > 0;
   }
 
-  /** Helper method for experimental features, since many of them will be limited to a particular role */
-  private doesUserHaveRoleOnAnyProject(role: SFProjectRole): boolean {
+  /** Helper method for experimental features, since many of them will be limited to particular roles */
+  private doesUserHaveAnyOfRolesOnAnyProject(roles: SFProjectRole[]): boolean {
     const projectDocs = this.userProjectsService.projectDocs ?? [];
-    return projectDocs.some(projectDoc => projectDoc.data?.userRoles[this.userService.currentUserId] === role);
+    return projectDocs.some(projectDoc => {
+      const userRoleOnProject = projectDoc.data?.userRoles[this.userService.currentUserId];
+      return roles.some(role => role === userRoleOnProject);
+    });
   }
 }
