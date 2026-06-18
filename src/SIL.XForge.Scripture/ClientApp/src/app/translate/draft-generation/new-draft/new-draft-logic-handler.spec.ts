@@ -16,7 +16,7 @@ import {
   ExcludedDraftingBook,
   NewDraftLogicHandler
 } from './new-draft-logic-handler';
-import { VerboseScriptureRange } from './scripture-range';
+import { VerboseScriptureRange } from '../../../shared/scripture-range';
 
 const mockDestroyRef = { onDestroy: () => () => {}, destroyed: false } as unknown as DestroyRef;
 

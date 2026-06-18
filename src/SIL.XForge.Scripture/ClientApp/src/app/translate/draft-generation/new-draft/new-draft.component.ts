@@ -48,7 +48,7 @@ import {
   NewDraftLogicHandler,
   scriptureRangeToBookListWithoutChapterDetail
 } from './new-draft-logic-handler';
-import { ChapterSet, VerboseScriptureRange } from './scripture-range';
+import { ChapterSet, VerboseScriptureRange } from '../../../shared/scripture-range';
 import { defaultSelectedTrainingDataFiles } from './training-data-file-selection';
 import { formatTrainingBooksSummary } from './training-data-summary';
 

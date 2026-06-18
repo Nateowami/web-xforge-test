@@ -31,7 +31,7 @@ import { DraftSourcesService } from '../draft-sources.service';
 import { TrainingDataService } from '../training-data/training-data.service';
 import { DraftProgressService } from './new-draft-logic-handler';
 import { NewDraftComponent } from './new-draft.component';
-import { VerboseScriptureRange } from './scripture-range';
+import { VerboseScriptureRange } from '../../../shared/scripture-range';
 
 // Project IDs used throughout the stories.
 const TARGET_ID = 'target-project-id';

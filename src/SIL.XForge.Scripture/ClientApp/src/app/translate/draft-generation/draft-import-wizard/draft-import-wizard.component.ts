@@ -44,7 +44,7 @@ import { NoticeComponent } from '../../../shared/notice/notice.component';
 import { booksFromScriptureRange, projectLabel } from '../../../shared/utils';
 import { SyncProgressComponent } from '../../../sync/sync-progress/sync-progress.component';
 import { DraftNotificationService } from '../draft-notification.service';
-import { ChapterSet, VerboseScriptureRange } from '../new-draft/scripture-range';
+import { ChapterSet, VerboseScriptureRange } from '../../../shared/scripture-range';
 
 /**
  * Represents a book available for import with its draft chapters.

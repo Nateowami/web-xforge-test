@@ -11,7 +11,7 @@ import {
 import { projectLabel } from '../../../shared/utils';
 import { DraftSourcesAsArrays } from '../draft-source';
 import { DraftSourcesService } from '../draft-sources.service';
-import { ChapterSet, VerboseScriptureRange } from './scripture-range';
+import { ChapterSet, VerboseScriptureRange } from '../../../shared/scripture-range';
 
 /**
  * Minimum number of chapters a source book must have before it is offered for partial (chapter-level) drafting.

@@ -1,6 +1,6 @@
 import { Canon } from '@sillsdev/scripture';
 import { I18nService } from 'xforge-common/i18n.service';
-import { ChapterSet, VerboseScriptureRange } from './scripture-range';
+import { ChapterSet, VerboseScriptureRange } from '../../../shared/scripture-range';
 
 /**
  * A contiguous run of fully-used training books (rendered as a book range), or a single book that is only partly

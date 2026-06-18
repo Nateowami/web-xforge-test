@@ -8,7 +8,7 @@ import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { LocationService } from 'xforge-common/location.service';
 import { getTestTranslocoModule } from 'xforge-common/test-utils';
-import { VerboseScriptureRange } from './scripture-range';
+import { VerboseScriptureRange } from '../../../shared/scripture-range';
 import { formatTrainingBooksSummary } from './training-data-summary';
 
 const mockedLocationService = mock(LocationService);

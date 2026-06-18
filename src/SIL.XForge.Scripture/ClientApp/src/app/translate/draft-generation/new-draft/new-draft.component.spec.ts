@@ -29,7 +29,7 @@ import {
   NewDraftLogicHandler
 } from './new-draft-logic-handler';
 import { NewDraftComponent } from './new-draft.component';
-import { VerboseScriptureRange } from './scripture-range';
+import { VerboseScriptureRange } from '../../../shared/scripture-range';
 
 const SOURCE_SHORT_NAME = 'DS1';
 const TARGET_SHORT_NAME = 'TP1';
