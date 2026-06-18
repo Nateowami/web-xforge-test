@@ -37,7 +37,7 @@ import { NllbLanguageService } from '../../nllb-language.service';
 import { ConfirmSourcesComponent } from '../confirm-sources/confirm-sources.component';
 import { BuildConfig } from '../draft-generation';
 import { DraftGenerationService } from '../draft-generation.service';
-import { DraftSource } from '../draft-source';
+import { CopyrightMessage, DraftSource, getCopyrightMessages } from '../draft-source';
 import { DraftSourcesService } from '../draft-sources.service';
 import { TrainingDataService } from '../training-data/training-data.service';
 import { DraftPendingUpdatesComponent } from './draft-pending-updates/draft-pending-updates.component';
@@ -51,11 +51,6 @@ import {
 import { ChapterSet, VerboseScriptureRange } from './scripture-range';
 import { defaultSelectedTrainingDataFiles } from './training-data-file-selection';
 import { formatTrainingBooksSummary } from './training-data-summary';
-
-interface CopyrightMessage {
-  banner: string;
-  notice?: string;
-}
 
 interface ChapterInputError {
   key: I18nKeyForComponent<'new_draft'>;
@@ -396,13 +391,7 @@ export class NewDraftComponent {
   get copyrightMessages(): CopyrightMessage[] {
     const sources = this.logicHandler.sources;
     if (sources == null) return [];
-    return (
-      [...sources.trainingSources, ...sources.draftingSources]
-        .map(s => ({ banner: s.copyrightBanner, notice: s.copyrightNotice }))
-        .filter(s => s.banner != null)
-        // deduplicate by banner text
-        .filter((value, index, self) => index === self.findIndex(v => v.banner === value.banner)) as CopyrightMessage[]
-    );
+    return getCopyrightMessages([...sources.trainingSources, ...sources.draftingSources]);
   }
 
   /** Index of the current page in PAGES_BY_ORDER, or -1 on non-step pages (loading, pending updates, abort). */

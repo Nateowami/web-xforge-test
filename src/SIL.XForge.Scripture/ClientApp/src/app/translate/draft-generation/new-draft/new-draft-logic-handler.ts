@@ -78,18 +78,15 @@ export class DraftProgressService {
     });
     const scriptureRange = new VerboseScriptureRange('');
     for (const bookProgress of progress.books) {
-      // Add the book to the scripture range
-      scriptureRange.books.set(bookProgress.bookId, new ChapterSet([]));
+      const chapters = new ChapterSet([]);
       for (const chapterProgress of bookProgress.chapters) {
         if (chapterHasContent(chapterProgress)) {
-          scriptureRange.books.get(bookProgress.bookId)?.chapters.add(chapterProgress.chapterNumber);
+          chapters.chapters.add(chapterProgress.chapterNumber);
         }
       }
-    }
-    // Remove empty books from the scripture ranges, since they shouldn't be offered for selection
-    for (const [bookId, chapterSet] of scriptureRange.books) {
-      if (chapterSet.chapters.size === 0) {
-        scriptureRange.books.delete(bookId);
+      // Only include books with content; empty books shouldn't be offered for selection.
+      if (chapters.count() > 0) {
+        scriptureRange.books.set(bookProgress.bookId, chapters);
       }
     }
     return scriptureRange;

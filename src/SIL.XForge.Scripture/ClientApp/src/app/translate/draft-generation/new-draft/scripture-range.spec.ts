@@ -169,13 +169,6 @@ describe('ScriptureRange', () => {
       expect(range.toString()).toBe('GEN1-3,5;EXO2;LEV1-28');
     });
 
-    it('computes intersection correctly', () => {
-      const range1 = new VerboseScriptureRange('GEN1-5,7;EXO2-4');
-      const range2 = new VerboseScriptureRange('GEN3-4,6;EXO3;LEV1-2');
-      const intersection = range1.intersection(range2);
-      expect(intersection.toString()).toBe('GEN3-4;EXO3');
-    });
-
     it('computes union correctly', () => {
       const range1 = new VerboseScriptureRange('GEN1-5,7;EXO2-4');
       const range2 = new VerboseScriptureRange('GEN3-4,6;EXO3;LEV1-2');

@@ -192,19 +192,6 @@ export class VerboseScriptureRange {
       .join(VerboseScriptureRange.bookSeparator);
   }
 
-  intersection(other: VerboseScriptureRange): VerboseScriptureRange {
-    const result = new VerboseScriptureRange('');
-    for (const [bookId, chapters] of this.books) {
-      const otherChapters = other.books.get(bookId);
-      if (otherChapters != null) {
-        const resultChapters = chapters.intersection(otherChapters);
-        result.books.set(bookId, resultChapters);
-      }
-    }
-    result.removeEmptyBooks();
-    return result;
-  }
-
   union(other: VerboseScriptureRange): VerboseScriptureRange {
     const result = new VerboseScriptureRange('');
     for (const [bookId, chapters] of this.books) {

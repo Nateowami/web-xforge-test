@@ -55,7 +55,7 @@ import {
 import { booksFromScriptureRange, projectLabel } from '../../../shared/utils';
 import { NllbLanguageService } from '../../nllb-language.service';
 import { ConfirmSourcesComponent } from '../confirm-sources/confirm-sources.component';
-import { DraftSource } from '../draft-source';
+import { CopyrightMessage, DraftSource, getCopyrightMessages } from '../draft-source';
 import { DraftSourcesService } from '../draft-sources.service';
 import { TrainingDataService } from '../training-data/training-data.service';
 
@@ -84,12 +84,6 @@ interface ProjectPendingUpdate {
   projectId: string;
   name: string;
   syncUrl: string;
-}
-
-/** Copyright banner for a project. */
-interface CopyrightMessage {
-  banner: string;
-  notice?: string;
 }
 
 @Component({
@@ -385,13 +379,7 @@ export class DraftGenerationStepsComponent implements OnInit {
             this.activatedProject.projectDoc?.data?.translateConfig.draftConfig.sendEmailOnBuildFinished ?? false;
 
           // Load any copyright messages that are available
-          this.copyrightMessages = [...trainingSources, ...draftingSources]
-            .map(s => ({
-              banner: s.copyrightBanner,
-              notice: s.copyrightNotice
-            }))
-            .filter(s => s.banner != null)
-            .filter((value, index, self) => index === self.findIndex(v => v.banner === value.banner));
+          this.copyrightMessages = getCopyrightMessages([...trainingSources, ...draftingSources]);
 
           // See if the target and any of the sources need updating
           const projectIds: string[] = [
