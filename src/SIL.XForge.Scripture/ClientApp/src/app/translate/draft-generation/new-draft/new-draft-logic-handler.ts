@@ -1,5 +1,6 @@
 import { DestroyRef, Injectable } from '@angular/core';
 import { Canon } from '@sillsdev/scripture';
+import { mapValues } from 'lodash-es';
 import { BehaviorSubject, firstValueFrom, skip } from 'rxjs';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { filterNullish, quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
@@ -121,10 +122,6 @@ export type NewDraftAbortMode = 'config_changed' | 'project_syncing' | 'no_acces
  */
 export function scriptureRangeToBookListWithoutChapterDetail(range: VerboseScriptureRange): string[] {
   return Array.from(range.books.keys());
-}
-
-function mapObject<T, U>(obj: { [key: string]: T }, mapFn: (key: string, value: T) => U): { [key: string]: U } {
-  return Object.fromEntries(Object.entries(obj).map(([key, value]) => [key, mapFn(key, value)]));
 }
 
 /**
@@ -674,7 +671,7 @@ export class NewDraftLogicHandler {
     // component's per-book auto-pairing when a user selects a target book (otherwise the books would have no reference
     // pair and forward-validation would block).
     const autoSelected = new Set(booksToAutoSelect);
-    this.selectedTrainingSourceBooks = mapObject(this.availableTrainingSourceBooks, (_projectId, bookIds) =>
+    this.selectedTrainingSourceBooks = mapValues(this.availableTrainingSourceBooks, bookIds =>
       bookIds.filter(bookId => autoSelected.has(bookId))
     );
 
@@ -724,10 +721,10 @@ export class NewDraftLogicHandler {
 
     // Limit available and selected training source books to not exceed available target training scripture range
     const availableTargetRange = this.availableTargetTrainingScriptureRange;
-    this.availableTrainingSourceBooks = mapObject(this.trainingSourceBooks, (_projectId, bookIds) =>
+    this.availableTrainingSourceBooks = mapValues(this.trainingSourceBooks, bookIds =>
       bookIds.filter(bookId => availableTargetRange.books.has(bookId))
     );
-    this.selectedTrainingSourceBooks = mapObject(this.selectedTrainingSourceBooks, (projectId, bookIds) =>
+    this.selectedTrainingSourceBooks = mapValues(this.selectedTrainingSourceBooks, (bookIds, projectId) =>
       bookIds.filter(bookId => this.availableTrainingSourceBooks[projectId]?.includes(bookId))
     );
   }
