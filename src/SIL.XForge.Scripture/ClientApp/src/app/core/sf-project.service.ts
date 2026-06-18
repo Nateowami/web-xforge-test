@@ -98,8 +98,10 @@ export class SFProjectService extends ProjectService<SFProject, SFProjectDoc> {
       // If the book is present without chapters, then the chapter is present
       if (range.length === bookId.length) return true;
 
-      // Expand the chapter range, and see if the specified chapter number is present
-      if (expandNumbers(range.slice(bookId.length)).includes(chapterNum)) return true;
+      // Expand the chapter range, and see if the specified chapter number is present. Invalid notation expands to
+      // null and is treated as the chapter not being present.
+      const chapters: number[] | null = expandNumbers(range.slice(bookId.length));
+      if (chapters != null && chapters.includes(chapterNum)) return true;
     }
 
     // The chapter was not present in the book
