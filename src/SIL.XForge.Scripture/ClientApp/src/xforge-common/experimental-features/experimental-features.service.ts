@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
+import { NewDraftComponent } from '../../app/translate/draft-generation/new-draft/new-draft.component';
 import { FeatureFlag, FeatureFlagService } from '../feature-flags/feature-flag.service';
 import { SFUserProjectsService } from '../user-projects.service';
 import { UserService } from '../user.service';
@@ -11,14 +12,6 @@ export interface ExperimentalFeature {
   available: () => boolean;
   featureFlag: FeatureFlag;
 }
-
-// The planned order for rolling out partial book drafting is:
-// a) behind a feature flag
-// b) available as a user-facing experimental feature
-// c) eventually enabled for all users
-// We need to update the rest of the application to handle partial book drafts at least acceptably well before marking
-// it an experimental feature.
-const SF_UPDATED_TO_SUPPORT_HANDLING_DRAFTS_WITH_PARTIAL_BOOKS = false;
 
 @Injectable({ providedIn: 'root' })
 export class ExperimentalFeaturesService {
@@ -34,7 +27,7 @@ export class ExperimentalFeaturesService {
       description:
         'Choose which chapters to generate, so that your existing translations of other chapters in the same book can be used to train the language model and improve draft quality.',
       available: () =>
-        SF_UPDATED_TO_SUPPORT_HANDLING_DRAFTS_WITH_PARTIAL_BOOKS &&
+        NewDraftComponent.SF_UPDATED_TO_SUPPORT_HANDLING_DRAFTS_WITH_PARTIAL_BOOKS &&
         this.doesUserHaveAnyOfRolesOnAnyProject([
           SFProjectRole.ParatextAdministrator,
           SFProjectRole.ParatextTranslator

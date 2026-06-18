@@ -31,6 +31,7 @@ import { Book } from '../../../shared/book-multi-select/book-multi-select';
 import { BookMultiSelectComponent } from '../../../shared/book-multi-select/book-multi-select.component';
 import { CopyrightBannerComponent } from '../../../shared/copyright-banner/copyright-banner.component';
 import { NoticeComponent } from '../../../shared/notice/notice.component';
+import { ChapterSet, VerboseScriptureRange } from '../../../shared/scripture-range';
 import { projectLabel } from '../../../shared/utils';
 import { isSFProjectSyncing } from '../../../sync/sync.component';
 import { NllbLanguageService } from '../../nllb-language.service';
@@ -48,7 +49,6 @@ import {
   NewDraftLogicHandler,
   scriptureRangeToBookListWithoutChapterDetail
 } from './new-draft-logic-handler';
-import { ChapterSet, VerboseScriptureRange } from '../../../shared/scripture-range';
 import { defaultSelectedTrainingDataFiles } from './training-data-file-selection';
 import { formatTrainingBooksSummary } from './training-data-summary';
 
@@ -87,6 +87,14 @@ const PAGES_BY_ORDER = [
   ]
 })
 export class NewDraftComponent {
+  // The planned order for rolling out partial book drafting is:
+  // a) behind a feature flag
+  // b) available as a user-facing experimental feature
+  // c) eventually enabled for all users
+  // We need to update the rest of the application to handle partial book drafts at least acceptably well before marking
+  // it an experimental feature.
+  static SF_UPDATED_TO_SUPPORT_HANDLING_DRAFTS_WITH_PARTIAL_BOOKS = false;
+
   logicHandler: NewDraftLogicHandler;
 
   page: (typeof PAGES_BY_ORDER)[number]['page'] | 'loading' | 'pending_updates' | 'abort' = 'loading';
