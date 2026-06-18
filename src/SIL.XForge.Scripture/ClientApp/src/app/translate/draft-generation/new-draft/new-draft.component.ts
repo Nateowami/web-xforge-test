@@ -634,16 +634,20 @@ export class NewDraftComponent {
     errors: Map<string, ChapterInputError>,
     emptyErrorKey: I18nKeyForComponent<'new_draft'>
   ): ChapterSet | null {
-    if (value.trim() === '') {
-      errors.set(bookId, { key: emptyErrorKey });
-      return null;
-    }
+    let parsed: ChapterSet;
     try {
-      return ChapterSet.fromUserInput(value);
+      parsed = ChapterSet.fromUserInput(value);
     } catch {
       errors.set(bookId, { key: 'chapter_input.invalid_range' });
       return null;
     }
+    // Checked after parsing: fromUserInput normalizes whitespace and separators away, so empty, whitespace-only, and
+    // separator-only input all resolve to an empty set here.
+    if (parsed.count() === 0) {
+      errors.set(bookId, { key: emptyErrorKey });
+      return null;
+    }
+    return parsed;
   }
 
   onDraftingChaptersBlurred(bookId: string, value: string): void {

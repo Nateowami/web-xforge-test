@@ -81,6 +81,26 @@ describe('NewDraftComponent', () => {
       expect(env.selectedDraftingScriptureRange).not.toBe('GEN');
     });
 
+    // A lone separator (',' or the Arabic comma '،') is non-empty but normalizes to no chapters; it must be rejected
+    // like empty input rather than committed as a zero-chapter (whole-book) selection.
+    it('rejects separator-only input that normalizes to no chapters', async () => {
+      const env = new TestEnvironment(testState);
+      await env.waitForInit();
+      env.component.logicHandler.selectDraftingBooks(['GEN']);
+      const defaultRange = env.selectedDraftingScriptureRange;
+
+      env.component.onDraftingChaptersBlurred('GEN', ',');
+      expect(env.component.draftingChapterErrors.get('GEN')?.key).toBe('chapter_input.empty_draft');
+
+      // The Arabic comma is normalized to a list separator too, so it has the same empty result.
+      env.component.onDraftingChaptersBlurred('GEN', '،');
+      expect(env.component.draftingChapterErrors.get('GEN')?.key).toBe('chapter_input.empty_draft');
+
+      // The book must keep its prior range rather than collapsing to a whole-book 'GEN' selection.
+      expect(env.selectedDraftingScriptureRange).toBe(defaultRange);
+      expect(env.selectedDraftingScriptureRange).not.toBe('GEN');
+    });
+
     it('sets a chapters_not_in_source error with source name for out-of-range chapters', async () => {
       const env = new TestEnvironment(testState);
       await env.waitForInit();
