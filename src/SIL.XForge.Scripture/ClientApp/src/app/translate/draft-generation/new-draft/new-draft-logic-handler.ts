@@ -358,7 +358,9 @@ export class NewDraftLogicHandler {
     this.targetProjectScriptureRange = canonicalTargetProgress;
     this.availableDraftingScriptureRange = available;
     this.excludedDraftingBooks = excluded;
-    this.availableTargetTrainingScriptureRange = canonicalTargetProgress;
+    // Clone: this range is narrowed in limitAvailableTrainingRangeBasedOnSelectedDraftingRange, so it must not alias
+    // targetProjectScriptureRange.
+    this.availableTargetTrainingScriptureRange = canonicalTargetProgress.clone();
     this.trainingSourceBooks = Object.fromEntries(
       bundle.trainingSourcesProgress.map(source => [
         source.projectId,

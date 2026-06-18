@@ -200,12 +200,13 @@ export class VerboseScriptureRange {
         const resultChapters = chapters.union(otherChapters);
         result.books.set(bookId, resultChapters);
       } else {
-        result.books.set(bookId, chapters);
+        // Clone so the result owns its ChapterSets and doesn't alias the operands.
+        result.books.set(bookId, chapters.clone());
       }
     }
     for (const [bookId, chapters] of other.books) {
       if (!result.books.has(bookId)) {
-        result.books.set(bookId, chapters);
+        result.books.set(bookId, chapters.clone());
       }
     }
     result.removeEmptyBooks();
@@ -220,7 +221,8 @@ export class VerboseScriptureRange {
         const resultChapters = chapters.difference(otherChapters);
         result.books.set(bookId, resultChapters);
       } else {
-        result.books.set(bookId, chapters);
+        // Clone so the result owns its ChapterSets and doesn't alias the operands.
+        result.books.set(bookId, chapters.clone());
       }
     }
     result.removeEmptyBooks();
