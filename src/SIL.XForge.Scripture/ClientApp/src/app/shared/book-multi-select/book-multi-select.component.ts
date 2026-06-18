@@ -5,6 +5,7 @@ import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { MatTooltip } from '@angular/material/tooltip';
 import { TranslocoModule } from '@ngneat/transloco';
 import { Canon } from '@sillsdev/scripture';
+import { cloneDeep, isEqual } from 'lodash-es';
 import { L10nPercentPipe } from 'xforge-common/l10n-percent.pipe';
 import { estimatedActualBookProgress, ProgressService, ProjectProgress } from '../progress-service/progress.service';
 import { Book } from './book-multi-select';
@@ -45,6 +46,22 @@ export class BookMultiSelectComponent implements OnChanges {
 
   protected loaded = false;
 
+  // Fetch progress only when projectId changes, not on every ngOnChanges. Otherwise, if a consumer binds
+  // availableBooks/selectedBooks to a new array reference each change-detection pass, the awaited fetch reschedules
+  // change detection on every pass and loops forever (browser freeze). Caching keeps initBookOptions synchronous
+  // after the first load, breaking the loop.
+  private cachedProgress?: ProjectProgress;
+  private loadedProgressProjectId?: string;
+
+  /** Deep copy of the inputs initBookOptions last ran on, used to skip redundant rebuilds (see ngOnChanges). */
+  private previousInputs?: {
+    availableBooks: Book[];
+    selectedBooks: Book[];
+    projectId?: string;
+    basicMode: boolean;
+    readonly: boolean;
+  };
+
   bookOptions: BookOption[] = [];
 
   booksOT: Book[] = [];
@@ -64,6 +81,17 @@ export class BookMultiSelectComponent implements OnChanges {
   constructor(private readonly progressService: ProgressService) {}
 
   ngOnChanges(): void {
+    const inputs = {
+      availableBooks: this.availableBooks,
+      selectedBooks: this.selectedBooks,
+      projectId: this.projectId,
+      basicMode: this.basicMode,
+      readonly: this.readonly
+    };
+    // Compare by content so getter-bound inputs (new array refs, identical contents) don't rebuild every pass. Snapshot
+    // a deep copy so an in-place mutation of a bound array is still detected (the snapshot won't change along with it).
+    if (isEqual(inputs, this.previousInputs)) return;
+    this.previousInputs = cloneDeep(inputs);
     void this.initBookOptions();
   }
 
@@ -71,10 +99,18 @@ export class BookMultiSelectComponent implements OnChanges {
     // Only load progress if not in basic mode
     let progress: ProjectProgress | undefined;
     if (this.basicMode === false) {
+      // A projectId is required to load progress, but it may be bound asynchronously. Treat a null id as
+      // "not ready yet": show the loading state and recover on a later change once it arrives.
       if (this.projectId == null) {
-        throw new Error('app-book-multi-select requires a projectId input to initialize when not in basic mode');
+        this.loaded = false;
+        return;
       }
-      progress = await this.progressService.getProgress(this.projectId, { maxStalenessMs: 30_000 });
+      // Reuse the cached progress unless the project changed (see cachedProgress above).
+      if (this.projectId !== this.loadedProgressProjectId) {
+        this.cachedProgress = await this.progressService.getProgress(this.projectId, { maxStalenessMs: 30_000 });
+        this.loadedProgressProjectId = this.projectId;
+      }
+      progress = this.cachedProgress;
     }
     this.loaded = true;
 
