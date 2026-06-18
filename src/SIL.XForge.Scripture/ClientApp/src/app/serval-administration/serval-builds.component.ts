@@ -1013,8 +1013,7 @@ export class ServalBuildsComponent extends DataLoadingComponent implements OnIni
       .join('; ');
   }
 
-  /** Formats a sorted array of numbers into compact range notation, e.g. [1,2,3,5,7,8,9] → "1-3, 5, 7-9". */
-  /** Compact, display-formatted chapter range notation, e.g. [1, 2, 3, 7] -> "1-3, 7". */
+  /** Formats numbers into compact range notation, e.g. [7, 1, 3, 2] → "1-3, 7" (sorted, de-duplicated). */
   static compactRangeNotation(nums: number[]): string {
     return new ChapterSet(nums).toStringForDisplay();
   }
