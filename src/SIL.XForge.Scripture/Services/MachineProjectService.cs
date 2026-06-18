@@ -1224,8 +1224,12 @@ public class MachineProjectService(
             ],
         };
 
-        // If no explicit target range was provided, set each target filter's scripture range to match its
-        // corresponding source filter's scripture range.
+        // The legacy draft UI does not specify an explicit target training range, so it is derived here from the
+        // union of the source training ranges. The new draft component always specifies a target training range —
+        // though it may be an empty string, which is NOT the same as not specifying one at all (an empty range means
+        // "train on no target books", so it must skip this fallback; hence `== null`, not IsNullOrEmpty). Once the
+        // legacy stepper is gone every build will specify a target range, so this fallback can be removed and the
+        // presence of a target range enforced instead.
         if (explicitTargetRange == null)
         {
             foreach (TrainingCorpusConfig trainingCorpusConfig in translationBuildConfig.TrainOn)

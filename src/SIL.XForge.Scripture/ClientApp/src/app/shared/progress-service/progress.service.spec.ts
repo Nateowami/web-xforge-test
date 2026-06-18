@@ -115,6 +115,41 @@ describe('ProgressService', () => {
     verify(mockedProjectService.getProjectProgress(projectId)).twice();
   }));
 
+  it('fetches fresh data for maxStalenessMs:0 even while a request is in flight', fakeAsync(() => {
+    // maxStalenessMs:0 means "up-to-the-moment data" (e.g. right after an in-place sync). A request already in flight
+    // under a laxer staleness may have started before that moment, so the zero-staleness caller needs its own fresh
+    // fetch rather than coalescing onto the older one and receiving its (potentially stale) result.
+    const env = new TestEnvironment();
+    const projectId = 'project1';
+    const staleBooks: BookProgressWithChapterProgress[] = [
+      { bookId: 'GEN', verseSegments: 100, blankVerseSegments: 20, chapters: [] }
+    ];
+    const freshBooks: BookProgressWithChapterProgress[] = [
+      { bookId: 'GEN', verseSegments: 120, blankVerseSegments: 15, chapters: [] }
+    ];
+    let resolveStale: ((value: BookProgressWithChapterProgress[]) => void) | undefined;
+    let resolveFresh: ((value: BookProgressWithChapterProgress[]) => void) | undefined;
+    const stalePromise: Promise<BookProgressWithChapterProgress[]> = new Promise(resolve => (resolveStale = resolve));
+    const freshPromise: Promise<BookProgressWithChapterProgress[]> = new Promise(resolve => (resolveFresh = resolve));
+    when(mockedProjectService.getProjectProgress(projectId)).thenReturn(stalePromise).thenReturn(freshPromise);
+
+    // The first request starts and stays in flight (not yet resolved).
+    let result1: ProjectProgress | undefined;
+    env.service.getProgress(projectId, { maxStalenessMs: 1000 }).then(r => (result1 = r));
+
+    let result2: ProjectProgress | undefined;
+    // SUT
+    env.service.getProgress(projectId, { maxStalenessMs: 0 }).then(r => (result2 = r));
+
+    resolveStale!(staleBooks);
+    resolveFresh!(freshBooks);
+    flushMicrotasks();
+
+    expect(result1?.books).toEqual(staleBooks);
+    expect(result2?.books).toEqual(freshBooks);
+    verify(mockedProjectService.getProjectProgress(projectId)).twice();
+  }));
+
   it('should deduplicate concurrent requests for the same project', fakeAsync(() => {
     const env = new TestEnvironment();
     const projectId = 'project1';

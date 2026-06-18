@@ -325,7 +325,10 @@ export class ProgressService {
     string,
     { timestampMs: number; progress: ProjectProgressWithChapterProgress }
   >();
-  private requestCache = new Map<string, Promise<ProjectProgressWithChapterProgress>>();
+  private requestCache = new Map<
+    string,
+    { startedAtMs: number; promise: Promise<ProjectProgressWithChapterProgress> }
+  >();
 
   async getProgressWithChapterProgress(
     projectId: string,
@@ -335,9 +338,12 @@ export class ProgressService {
     if (cachedProgress != null && Date.now() - cachedProgress.timestampMs < options.maxStalenessMs) {
       return cachedProgress.progress;
     }
+    // An in-flight request is a not-yet-settled cache entry: coalesce onto it only if it began recently enough to
+    // satisfy this caller's freshness window. A forced refresh (maxStalenessMs: 0) never qualifies, so it always
+    // starts its own fetch rather than reusing a request that may have begun before whatever prompted the refresh.
     const existingRequest = this.requestCache.get(projectId);
-    if (existingRequest) {
-      return existingRequest;
+    if (existingRequest != null && Date.now() - existingRequest.startedAtMs < options.maxStalenessMs) {
+      return existingRequest.promise;
     }
     const requestTimestamp = Date.now();
     const requestPromise = this.projectService
@@ -348,14 +354,19 @@ export class ProgressService {
         );
         const progress = new ProjectProgressWithChapterProgress(sortedBookProgress);
         this.projectProgressCache.set(projectId, { timestampMs: requestTimestamp, progress });
-        this.requestCache.delete(projectId);
+        // Only clear the slot if it is still ours; a later forced refresh may have replaced this in-flight entry.
+        if (this.requestCache.get(projectId)?.promise === requestPromise) {
+          this.requestCache.delete(projectId);
+        }
         return progress;
       })
       .catch(error => {
-        this.requestCache.delete(projectId);
+        if (this.requestCache.get(projectId)?.promise === requestPromise) {
+          this.requestCache.delete(projectId);
+        }
         throw error;
       });
-    this.requestCache.set(projectId, requestPromise);
+    this.requestCache.set(projectId, { startedAtMs: requestTimestamp, promise: requestPromise });
     return requestPromise;
   }
 
