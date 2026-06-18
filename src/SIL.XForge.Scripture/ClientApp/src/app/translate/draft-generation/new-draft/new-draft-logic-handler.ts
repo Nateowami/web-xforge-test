@@ -194,8 +194,17 @@ export class NewDraftLogicHandler {
   availableTrainingSourceBooks: { [projectId: string]: string[] } = {};
   selectedTrainingSourceBooks: { [projectId: string]: string[] } = {};
 
-  booksOfferedForPartialDrafting: string[] = [];
-  booksOfferedForPartialTargetTraining: string[] = [];
+  get booksOfferedForPartialDrafting(): string[] {
+    return Array.from(this.selectedDraftingScriptureRange.books.keys()).filter(bookId =>
+      this.isBookEligibleForPartialDrafting(bookId)
+    );
+  }
+
+  get booksOfferedForPartialTargetTraining(): string[] {
+    return Array.from(this.selectedTargetTrainingScriptureRange.books.keys()).filter(bookId =>
+      this.isBookEligibleForPartialTargetTraining(bookId)
+    );
+  }
 
   /**
    * SPecifies what input mode the user is using. When a book is selected for use as drafting, it must be automatically
@@ -377,8 +386,6 @@ export class NewDraftLogicHandler {
     this.selectedTrainingSourceBooks = {};
     this.availableTrainingSourceBooks = {};
     this.targetTrainingBooksWithoutSource = [];
-    this.booksOfferedForPartialDrafting = [];
-    this.booksOfferedForPartialTargetTraining = [];
     this.trainingBooksWereAutoSelected = false;
     this.hasVisitedTrainingBooksInputMode = false;
     this.inputMode = 'draft_books';
@@ -437,9 +444,6 @@ export class NewDraftLogicHandler {
       }
     }
     this.selectedDraftingScriptureRange = newDraftingScriptureRange;
-
-    const partialBookDraftingBooks = books.filter(bookId => this.isBookEligibleForPartialDrafting(bookId));
-    this.booksOfferedForPartialDrafting = partialBookDraftingBooks;
   }
 
   selectDraftingChapters(bookId: string, chapters: string): void {
@@ -567,9 +571,6 @@ export class NewDraftLogicHandler {
       newTargetTrainingScriptureRange.books.set(bookId, bookRange.clone());
     }
     this.selectedTargetTrainingScriptureRange = newTargetTrainingScriptureRange;
-
-    const partialBookTargetTrainingBooks = books.filter(bookId => this.isBookEligibleForPartialTargetTraining(bookId));
-    this.booksOfferedForPartialTargetTraining = partialBookTargetTrainingBooks;
   }
 
   private isBookEligibleForPartialTargetTraining(bookId: string): boolean {
@@ -711,13 +712,6 @@ export class NewDraftLogicHandler {
     this.selectedTargetTrainingScriptureRange = this.selectedTargetTrainingScriptureRange.difference(
       this.selectedDraftingScriptureRange
     );
-
-    // Re-derive the partial-training offering from the current selection: a book is only offered for partial target
-    // training while it is being drafted, so a book dropped from the drafting selection must drop out here too
-    // (otherwise it would keep a stale per-chapter input when the user returns to the training step).
-    this.booksOfferedForPartialTargetTraining = Array.from(
-      this.selectedTargetTrainingScriptureRange.books.keys()
-    ).filter(bookId => this.isBookEligibleForPartialTargetTraining(bookId));
 
     // Limit available and selected training source books to not exceed available target training scripture range
     const availableTargetRange = this.availableTargetTrainingScriptureRange;
