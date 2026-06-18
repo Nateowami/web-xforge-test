@@ -8,15 +8,10 @@ import { ActivatedProjectService } from 'xforge-common/activated-project.service
 import { SFProjectProfileDoc } from '../../../core/models/sf-project-profile-doc';
 import { SFProjectService } from '../../../core/sf-project.service';
 import { chapterCounts } from '../../../shared/progress-service/progress.service';
+import { VerboseScriptureRange } from '../../../shared/scripture-range';
 import { DraftSource, DraftSourcesAsArrays } from '../draft-source';
 import { DraftSourcesService } from '../draft-sources.service';
-import {
-  ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET,
-  DraftProgressService,
-  ExcludedDraftingBook,
-  NewDraftLogicHandler
-} from './new-draft-logic-handler';
-import { VerboseScriptureRange } from '../../../shared/scripture-range';
+import { DraftProgressService, ExcludedDraftingBook, NewDraftLogicHandler } from './new-draft-logic-handler';
 
 const mockDestroyRef = { onDestroy: () => () => {}, destroyed: false } as unknown as DestroyRef;
 
@@ -30,6 +25,8 @@ function allBooksExcept(excludedBooks: string[]): string {
 }
 
 const FULL_CANON_SCRIPTURE_RANGE = allBooksExcept([]);
+
+const ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET_ORIGINAL_VALUE = NewDraftLogicHandler.ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET;
 
 describe('NewDraftLogicHandler', () => {
   const teamStartingToTranslateGenesis = {
@@ -60,7 +57,7 @@ describe('NewDraftLogicHandler', () => {
 
   // The gate is shared static state; reset it after each test so a gate test doesn't leak into other specs.
   afterEach(() => {
-    NewDraftLogicHandler.allowDraftingBooksNotInTarget = ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET;
+    NewDraftLogicHandler.ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET = ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET_ORIGINAL_VALUE;
   });
 
   describe('initialization', () => {
@@ -1015,7 +1012,7 @@ class TestEnvironment {
   constructor(state: TestState, sources$?: BehaviorSubject<DraftSourcesAsArrays>) {
     // Default to allowing books not in the target so the membership gate stays out of the way of tests that aren't
     // exercising it. Gate tests set this explicitly.
-    NewDraftLogicHandler.allowDraftingBooksNotInTarget = state.allowDraftingBooksNotInTarget ?? true;
+    NewDraftLogicHandler.ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET = state.allowDraftingBooksNotInTarget ?? true;
 
     const project = createTestProjectProfile({
       texts: (state.targetTextBooks ?? []).map(bookId => ({

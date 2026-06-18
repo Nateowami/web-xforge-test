@@ -18,32 +18,30 @@ import { ParatextProject } from '../../../core/models/paratext-project';
 import { SFProjectProfileDoc } from '../../../core/models/sf-project-profile-doc';
 import { ParatextService } from '../../../core/paratext.service';
 import { SFProjectService } from '../../../core/sf-project.service';
+import { VerboseScriptureRange } from '../../../shared/scripture-range';
 import { NllbLanguageService } from '../../nllb-language.service';
 import { DraftGenerationService } from '../draft-generation.service';
 import { DraftSource } from '../draft-source';
 import { DraftSourcesService } from '../draft-sources.service';
 import { TrainingDataService } from '../training-data/training-data.service';
-import {
-  ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET,
-  DraftProgressService,
-  NewDraftLogicHandler
-} from './new-draft-logic-handler';
+import { DraftProgressService, NewDraftLogicHandler } from './new-draft-logic-handler';
 import { NewDraftComponent } from './new-draft.component';
-import { VerboseScriptureRange } from '../../../shared/scripture-range';
 
 const SOURCE_SHORT_NAME = 'DS1';
 const TARGET_SHORT_NAME = 'TP1';
+
+const ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET_ORIGINAL_VALUE = NewDraftLogicHandler.ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET;
 
 describe('NewDraftComponent', () => {
   beforeEach(() => {
     TestBed.configureTestingModule({ providers: [TestOnlineStatusService, provideTestOnlineStatus()] });
     // These tests aren't exercising the target-membership gate, and the test project has no text list, so allow
     // drafting books regardless of target membership. Reset afterwards so it doesn't leak into other specs.
-    NewDraftLogicHandler.allowDraftingBooksNotInTarget = true;
+    NewDraftLogicHandler.ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET = true;
   });
 
   afterEach(() => {
-    NewDraftLogicHandler.allowDraftingBooksNotInTarget = ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET;
+    NewDraftLogicHandler.ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET = ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET_ORIGINAL_VALUE;
   });
 
   // GEN: source has 50 chapters, target has GEN1-5 -> eligible for partial drafting

@@ -8,10 +8,10 @@ import {
   bookAppearsCompleteForTrainingAutoSelection,
   ProgressService
 } from '../../../shared/progress-service/progress.service';
+import { ChapterSet, VerboseScriptureRange } from '../../../shared/scripture-range';
 import { projectLabel } from '../../../shared/utils';
 import { DraftSourcesAsArrays } from '../draft-source';
 import { DraftSourcesService } from '../draft-sources.service';
-import { ChapterSet, VerboseScriptureRange } from '../../../shared/scripture-range';
 
 /**
  * Minimum number of chapters a source book must have before it is offered for partial (chapter-level) drafting.
@@ -36,16 +36,6 @@ function chapterHasContent(chapter: { verseSegments: number; blankVerseSegments:
   const completionRatio = (chapter.verseSegments - chapter.blankVerseSegments) / chapter.verseSegments;
   return completionRatio > MIN_CHAPTER_COMPLETION_RATIO_FOR_CONTENT;
 }
-
-/**
- * When false (current behavior, matching the legacy stepper), a book is only offered for drafting if it also exists in
- * the target project's text list. This is a temporary restriction: the current UI doesn't handle drafting a book that
- * isn't already in the target. SF-3822 is intended to lift this soon, at which point this can be changed to true and
- * any canonical book with source content is offered regardless of target membership.
- *
- * Overridable on the class (NewDraftLogicHandler.allowDraftingBooksNotInTarget) so tests can exercise both branches.
- */
-export const ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET = false;
 
 /**
  * Why a book that a user might expect to see was left out of the list offered for drafting. Every excluded book is
@@ -150,8 +140,15 @@ function withoutExtraMaterialBooks(range: VerboseScriptureRange): VerboseScriptu
  *
  */
 export class NewDraftLogicHandler {
-  /** See ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET. Exposed as a static so tests can exercise both branches. */
-  static allowDraftingBooksNotInTarget = ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET;
+  /**
+   * When false (current behavior, matching the legacy stepper), a book is only offered for drafting if it also exists
+   * in the target project's text list. This is a temporary restriction: the current UI doesn't handle drafting a book
+   * that isn't already in the target. SF-3822 is intended to lift this soon, at which point this can be changed to true
+   * (or deleted), and any canonical book with source content is offered regardless of target membership.
+   *
+   * Overridable on the class (NewDraftLogicHandler.ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET) so tests can exercise both branches.
+   */
+  static ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET = false;
 
   status$ = new BehaviorSubject<'init' | 'input' | 'abort'>('init');
   abortMode: NewDraftAbortMode = null;
@@ -498,7 +495,7 @@ export class NewDraftLogicHandler {
         excluded.push({ bookId, reason: 'non_canonical' });
       } else if (!draftSourceProgress.books.has(bookId)) {
         excluded.push({ bookId, reason: 'no_source_content' });
-      } else if (!NewDraftLogicHandler.allowDraftingBooksNotInTarget && !targetTextBookIds.has(bookId)) {
+      } else if (!NewDraftLogicHandler.ALLOW_DRAFTING_BOOKS_NOT_IN_TARGET && !targetTextBookIds.has(bookId)) {
         excluded.push({ bookId, reason: 'not_in_target' });
       } else {
         available.books.set(bookId, draftSourceProgress.books.get(bookId)!.clone());
