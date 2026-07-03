@@ -243,6 +243,10 @@ export = withActivityLogging({
       callback(new Error('Connection not found.'));
       return;
     }
+    if (id === '') {
+      callback(new Error(`createDoc called with an empty document id in collection '${collection}'.`));
+      return;
+    }
     const options: any = {};
     doc.submitSource = source != null;
     if (source != null) {
@@ -273,6 +277,12 @@ export = withActivityLogging({
   ): void => {
     if (server == null) {
       callback(new Error('Server not started.'));
+      return;
+    }
+    // An empty id makes ShareDB's fetch never call back (hangs the caller). Fail fast instead —
+    // an empty id means the caller had no document key (e.g. a missing user-id claim on the JWT).
+    if (id === '') {
+      callback(new Error(`fetchDoc called with an empty document id in collection '${collection}'.`));
       return;
     }
     const doc = getDoc(handle, collection, id);
@@ -420,6 +430,10 @@ export = withActivityLogging({
     const doc = getDoc(handle, collection, id);
     if (doc == null) {
       callback(new Error('Connection not found.'));
+      return;
+    }
+    if (id === '') {
+      callback(new Error(`submitOp called with an empty document id in collection '${collection}'.`));
       return;
     }
     const options: any = {};
