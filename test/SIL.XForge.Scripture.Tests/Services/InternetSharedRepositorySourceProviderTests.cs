@@ -78,11 +78,14 @@ public class InternetSharedRepositorySourceProviderTests
             }
             var siteOptions = Substitute.For<IOptions<SiteOptions>>();
             siteOptions.Value.Returns(new SiteOptions { Name = "xForge" });
+            var paratextOptions = Substitute.For<IOptions<ParatextOptions>>();
+            paratextOptions.Value.Returns(new ParatextOptions());
             Provider = new InternetSharedRepositorySourceProvider(
                 MockJwtTokenHelper,
                 siteOptions,
                 Substitute.For<IHgWrapper>(),
-                new MockLogger<InternetSharedRepositorySourceProvider>()
+                new MockLogger<InternetSharedRepositorySourceProvider>(),
+                paratextOptions
             );
         }
     }
