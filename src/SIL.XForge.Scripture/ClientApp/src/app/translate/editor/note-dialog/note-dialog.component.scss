@@ -27,6 +27,12 @@ h1 {
     min-height: 200px;
   }
 }
+// Scripture text follows the project direction and note content detects its own direction, so their alignment has to
+// resolve against the element itself rather than be inherited from the direction of the user interface
+.text,
+.note-content {
+  text-align: start;
+}
 .text-row {
   display: flex;
   min-height: 30px;
@@ -50,6 +56,8 @@ h1 {
   .note {
     padding: 20px 0;
     display: flex;
+    // The note content takes a full row, so this puts the icon and user at the end of the next row
+    flex-direction: row-reverse;
     flex-wrap: wrap;
     .content {
       flex: 1 1 100%;
@@ -88,24 +96,6 @@ h1 {
 .assigned-user {
   opacity: 0.5;
 }
-.rtl {
-  .note,
-  .text {
-    text-align: right;
-  }
-  .text {
-    direction: rtl;
-  }
-  .note .content {
-    direction: rtl;
-  }
-}
-.ltr {
-  .note {
-    flex-direction: row-reverse;
-  }
-}
-
 .note-content-and-actions {
   display: flex;
   @include breakpoints.media-breakpoint-down(xs) {

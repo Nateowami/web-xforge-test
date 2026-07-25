@@ -287,19 +287,23 @@ describe('NoteDialogComponent', () => {
     expect(env.component.segmentText).toEqual('');
   }));
 
-  it('uses rtl direction with rtl project', fakeAsync(() => {
+  it('uses rtl direction for the scripture text of an rtl project', fakeAsync(() => {
     env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread(), isRightToLeftProject: true });
     expect(env.component.isRtl).withContext('setup').toBeTrue();
-    // RTL is detected and applied.
-    expect(env.dialogContentArea.classes.rtl).toBeTrue();
-    expect(env.dialogContentArea.classes.ltr).toBeUndefined();
+    // RTL is detected and applied to the scripture text, but not to the rest of the dialog, which follows the
+    // direction of the user interface locale
+    expect(env.textRowElement.nativeElement.getAttribute('dir')).toEqual('rtl');
+    expect(env.dialogContentArea.nativeElement.getAttribute('dir')).toBeNull();
+    // Note content determines its own direction from the text it contains
+    expect(env.noteContentElements[0].nativeElement.getAttribute('dir')).toEqual('auto');
   }));
 
-  it('uses ltr direction with ltr project', fakeAsync(() => {
+  it('uses ltr direction for the scripture text of an ltr project', fakeAsync(() => {
     env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread() });
     expect(env.component.isRtl).withContext('setup').toBeFalse();
-    expect(env.dialogContentArea.classes.rtl).toBeUndefined();
-    expect(env.dialogContentArea.classes.ltr).toBeTrue();
+    expect(env.textRowElement.nativeElement.getAttribute('dir')).toEqual('ltr');
+    expect(env.dialogContentArea.nativeElement.getAttribute('dir')).toBeNull();
+    expect(env.noteContentElements[0].nativeElement.getAttribute('dir')).toEqual('auto');
   }));
 
   it('show insert note dialog content', fakeAsync(() => {
@@ -1063,6 +1067,10 @@ class TestEnvironment {
 
   get noteText(): DebugElement {
     return this.overlayContainerElement.query(By.css('.note-text'));
+  }
+
+  get noteContentElements(): DebugElement[] {
+    return this.overlayContainerElement.queryAll(By.css('.notes .note-content'));
   }
 
   get textRowElement(): DebugElement {

@@ -1,5 +1,5 @@
 import { CdkScrollable } from '@angular/cdk/scrolling';
-import { NgClass, NgStyle } from '@angular/common';
+import { NgStyle } from '@angular/common';
 import { Component, Inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButton, MatIconButton } from '@angular/material/button';
@@ -86,7 +86,6 @@ type SaveOption = 'save' | 'resolve';
     MatDialogTitle,
     CdkScrollable,
     MatDialogContent,
-    NgClass,
     MatIconButton,
     MatMenuTrigger,
     MatIcon,
@@ -200,6 +199,14 @@ export class NoteDialogComponent implements OnInit {
       return false;
     }
     return this.projectProfileDoc.data.isRightToLeft ?? false;
+  }
+
+  /**
+   * The direction of the project's scripture text. Only the scripture text follows the project direction; the rest of
+   * the dialog follows the direction of the user interface locale.
+   */
+  get textDirection(): 'rtl' | 'ltr' {
+    return this.isRtl ? 'rtl' : 'ltr';
   }
 
   get isSegmentDifferentFromContext(): boolean {
