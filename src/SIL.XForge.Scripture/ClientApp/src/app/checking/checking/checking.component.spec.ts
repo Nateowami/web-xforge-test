@@ -32,7 +32,7 @@ import {
   SFProjectUserConfig
 } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
 import { createTestProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config-test-data';
-import { TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
+import { getTextAudioId, TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { getTextDocId, TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import { fromVerseRef, VerseRefData } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import * as RichText from 'rich-text';
@@ -2683,6 +2683,38 @@ describe('CheckingComponent', () => {
       discardPeriodicTasks();
     }));
 
+    it('stops chapter audio playback when the chapter audio is replaced remotely', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      env.setChapterAudio('test-audio-short.webm');
+      const audio = env.mockScriptureAudioAndPlay();
+      when(audio.audioSource).thenReturn('test-audio-short.webm');
+
+      // Another user replaces the audio for this chapter. Playback of the old audio has to be stopped before the
+      // player is given the new audio, otherwise the player reports that it is playing while the rest of the
+      // component is being checked, and that it is not once the player has been updated (SF-3450).
+      env.setChapterAudio('test-audio-player.webm');
+      env.simulateRemoteTextAudioChange();
+
+      verify(audio.stop()).once();
+      expect(env.component.showScriptureAudioPlayer).toBe(true);
+      flush();
+      discardPeriodicTasks();
+    }));
+
+    it('keeps playing chapter audio when a remote change leaves the chapter audio unchanged', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      env.setChapterAudio('test-audio-short.webm');
+      const audio = env.mockScriptureAudioAndPlay();
+      when(audio.audioSource).thenReturn('test-audio-short.webm');
+
+      env.simulateRemoteTextAudioChange();
+
+      verify(audio.stop()).never();
+      expect(env.component.showScriptureAudioPlayer).toBe(true);
+      flush();
+      discardPeriodicTasks();
+    }));
+
     it('notifies admin if chapter audio is absent and hide scripture text is enabled', fakeAsync(async () => {
       const env = new TestEnvironment({
         user: ADMIN_USER,
@@ -2826,6 +2858,10 @@ class TestEnvironment {
   questionReadTimer: number = 2000;
   fileSyncComplete: Subject<void> = new Subject();
 
+  private readonly textAudioRemoteDocChanges$: Subject<TextAudioDoc> = new Subject<TextAudioDoc>();
+  private mockedTextAudioDoc!: TextAudioDoc;
+  private mockedTextAudio!: TextAudio;
+
   private readonly params$: BehaviorSubject<Params>;
   private readonly queryParams$: BehaviorSubject<Params>;
   private readonly adminProjectUserConfig: SFProjectUserConfig = createTestProjectUserConfig({
@@ -2908,6 +2944,7 @@ class TestEnvironment {
     const query = mock(RealtimeQuery<TextAudioDoc>) as RealtimeQuery<TextAudioDoc>;
     when(query.remoteChanges$).thenReturn(new BehaviorSubject<void>(undefined));
     when(query.localChanges$).thenReturn(new BehaviorSubject<void>(undefined));
+    when(query.remoteDocChanges$).thenReturn(this.textAudioRemoteDocChanges$);
     when(query.ready$).thenReturn(new BehaviorSubject<boolean>(true));
     const doc = mock(TextAudioDoc);
     const textAudio = mock<TextAudio>();
@@ -2916,6 +2953,8 @@ class TestEnvironment {
     when(doc.id).thenReturn('project01:43:1:target');
     when(doc.data).thenReturn(instance(textAudio));
     when(query.docs).thenReturn([instance(doc)]);
+    this.mockedTextAudioDoc = doc;
+    this.mockedTextAudio = textAudio;
     when(mockedProjectService.queryAudioText('project01', anything())).thenResolve(instance(query));
 
     this.fixture = TestBed.createComponent(CheckingComponent);
@@ -3548,6 +3587,21 @@ class TestEnvironment {
     when(audio.isPlaying).thenReturn(true);
     this.component.scriptureAudioPlayer = instance(audio);
     return audio;
+  }
+
+  /** Points the mocked text audio doc at the current chapter, with the specified audio. */
+  setChapterAudio(audioUrl: string): void {
+    when(this.mockedTextAudioDoc.id).thenReturn(
+      getTextAudioId('project01', this.component.book!, this.component.chapter!)
+    );
+    when(this.mockedTextAudio.audioUrl).thenReturn(audioUrl);
+  }
+
+  /** Simulates a remote change to a text audio doc, as when another user saves chapter audio. */
+  simulateRemoteTextAudioChange(): void {
+    this.textAudioRemoteDocChanges$.next(instance(this.mockedTextAudioDoc));
+    tick();
+    this.fixture.detectChanges();
   }
 
   simulateNewRemoteAnswer(dataId: string = 'newAnswer1', text: string = 'new answer from another user'): void {

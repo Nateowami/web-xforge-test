@@ -680,13 +680,15 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
             // TODO (scripture audio) Only fetch the timing data for the currently active chapter
             void this.projectService.queryAudioText(routeProjectId, this.destroyRef).then(query => {
               this.textAudioQuery = query;
-              this.audioChangedSub = merge(this.textAudioQuery.remoteChanges$, this.textAudioQuery.localChanges$)
+              // 'remoteDocChanges$' is needed as well as the query level observables, because replacing the audio for
+              // a chapter that already has audio modifies the existing doc rather than changing the query results.
+              this.audioChangedSub = merge(
+                this.textAudioQuery.remoteChanges$,
+                this.textAudioQuery.localChanges$,
+                this.textAudioQuery.remoteDocChanges$
+              )
                 .pipe(quietTakeUntilDestroyed(this.destroyRef))
-                .subscribe(() => {
-                  if (this.chapterAudioSource === '') {
-                    this.hideChapterAudio();
-                  }
-                });
+                .subscribe(() => this.onChapterAudioChanged());
             });
 
             // TODO: check for remote changes to file data more generically
@@ -1341,6 +1343,20 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     const filterFunction = questionFilterFunctions[this.activeQuestionFilter];
 
     return unfilteredQuestions.filter(q => (q.data == null ? false : filterFunction(q.getAnswers())));
+  }
+
+  /** Responds to the audio for a chapter being added, replaced, or removed, possibly by another user. */
+  private onChapterAudioChanged(): void {
+    const source: string = this.chapterAudioSource;
+    if (source === '') {
+      this.hideChapterAudio();
+    } else if (this._scriptureAudioPlayer != null && this._scriptureAudioPlayer.audioSource !== source) {
+      // Giving the player the new source ends any playback of the old audio, so stop the playback here, before the
+      // new source is rendered. Otherwise the player still reports that it is playing while the rest of the component
+      // is being checked, and reports that it is not by the time the player itself has been updated (SF-3450).
+      this._scriptureAudioPlayer.stop();
+      this.changeDetector.markForCheck();
+    }
   }
 
   private updateAudioMissingWarning(): void {
