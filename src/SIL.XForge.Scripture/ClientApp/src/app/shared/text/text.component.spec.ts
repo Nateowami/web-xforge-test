@@ -1451,6 +1451,38 @@ describe('TextComponent', () => {
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
   }));
 
+  it('matches a verse bridge segment for every verse in the bridge', fakeAsync(() => {
+    const chapterNum = 1;
+    const delta = new Delta();
+    delta.insert(`Title for chapter ${chapterNum}`, { segment: 's_1' });
+    delta.insert('\n', { para: { style: 's' } });
+    delta.insert({ chapter: { number: chapterNum.toString(), style: 'c' } });
+    delta.insert({ blank: true }, { segment: 'p_1' });
+    delta.insert({ verse: { number: '10', style: 'v' } });
+    delta.insert('verse 10.', { segment: `verse_${chapterNum}_10` });
+    delta.insert({ verse: { number: '11-13', style: 'v' } });
+    delta.insert('verses 11 through 13.', { segment: `verse_${chapterNum}_11-13` });
+    delta.insert({ verse: { number: '14', style: 'v' } });
+    delta.insert('verse 14.', { segment: `verse_${chapterNum}_14` });
+    delta.insert('\n', { para: { style: 'p' } });
+    const env = new TestEnvironment({ chapterNum, textDoc: delta.ops });
+    env.waitForEditor();
+
+    // the first, middle and last verse of the bridge should all match the bridge segment
+    for (const verseNum of ['11', '12', '13']) {
+      expect(env.component.getVerseSegments(new VerseRef('MAT', chapterNum.toString(), verseNum)))
+        .withContext(`verse ${verseNum}`)
+        .toEqual([`verse_${chapterNum}_11-13`]);
+    }
+    // verses outside the bridge should not match it
+    expect(env.component.getVerseSegments(new VerseRef('MAT', chapterNum.toString(), '10'))).toEqual([
+      `verse_${chapterNum}_10`
+    ]);
+    expect(env.component.getVerseSegments(new VerseRef('MAT', chapterNum.toString(), '14'))).toEqual([
+      `verse_${chapterNum}_14`
+    ]);
+  }));
+
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
     const env = new TestEnvironment();
     env.id = new TextDocId('project01', 40, 1);

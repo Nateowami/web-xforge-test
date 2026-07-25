@@ -372,9 +372,10 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
 
   /** Get the segments that fall within a given verse reference. A segment is considered
    * to be in the reference if (1) its ref is in the format verse_c_v or verse_c_v-w, and that
-   * ref is within the given verse reference, or (2) its ref is not in that format, but the
-   * first preceding segment with a ref in that format is within the given verse reference.
+   * ref overlaps the given verse reference, or (2) its ref is not in that format, but the
+   * first preceding segment with a ref in that format overlaps the given verse reference.
    * For example, the result for MAT 1:1 can be as follows: [verse_1_1, verse_1_1/p_1, s_1]
+   * A verse bridge segment overlaps any verse within it, so verse_1_11-13 is returned for MAT 1:12.
    */
   getVerseSegments(verseRef?: VerseRef): string[] {
     const segmentsInVerseRef: string[] = [];
@@ -394,9 +395,10 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
         matchStartNum = Number.parseInt(verseParts[0]);
         matchLastNum = Number.parseInt(verseParts[verseParts.length - 1]);
       }
-      const matchStartsWithin: boolean = matchStartNum >= startVerseNum && matchStartNum <= lastVerseNum;
-      const matchEndsWithin: boolean = matchLastNum >= startVerseNum && matchLastNum <= lastVerseNum;
-      if (matchStartsWithin || matchEndsWithin) {
+      // The segment matches if its verse range overlaps the requested verse range at all. Note that a verse bridge
+      // such as verse_1_11-13 overlaps verse 12 even though neither of its endpoints is within the requested range.
+      const overlaps: boolean = matchStartNum <= lastVerseNum && matchLastNum >= startVerseNum;
+      if (overlaps) {
         segmentsInVerseRef.push(segment);
       }
     }
