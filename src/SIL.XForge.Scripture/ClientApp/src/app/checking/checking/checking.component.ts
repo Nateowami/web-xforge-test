@@ -57,7 +57,7 @@ import { PermissionsService } from '../../core/permissions.service';
 import { SFProjectService } from '../../core/sf-project.service';
 import { BookChapterChooserComponent } from '../../shared/book-chapter-chooser/book-chapter-chooser.component';
 import { ShareButtonComponent } from '../../shared/share/share-button.component';
-import { getVerseRefFromSegmentRef, getVerseStrFromSegmentRef } from '../../shared/verse-utils';
+import { getVerseStrFromSegmentRef } from '../../shared/verse-utils';
 import { ChapterAudioDialogData } from '../chapter-audio-dialog/chapter-audio-dialog.component';
 import { ChapterAudioDialogService } from '../chapter-audio-dialog/chapter-audio-dialog.service';
 import { BookChapter, CheckingUtils, isQuestionScope, QuestionScope } from '../checking.utils';
@@ -1076,30 +1076,11 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     this._scriptureAudioPlayer?.pause();
     this.answersPanel?.questionComponent?.stopAudio();
 
-    // Get the segment to set the scripture reference
+    // Get the segment to set the scripture reference. If the selected segment is not a verse segment,
+    // the nearest verse segment is used, which is the verse that is highlighted in the text.
     let verseRef: VerseRef | undefined = undefined;
     if (this.scripturePanel != null) {
-      let segmentRef: string | undefined = this.scripturePanel.textComponent.segmentRef;
-      if (segmentRef != null && this.book != null) {
-        verseRef = getVerseRefFromSegmentRef(this.book, segmentRef);
-
-        // If this segment is not a verse segment, keep looking down the chapter until we get a verse segment
-        while (verseRef == null) {
-          segmentRef = this.scripturePanel.textComponent.getNextSegmentRef(segmentRef);
-          if (segmentRef == null) break;
-          verseRef = getVerseRefFromSegmentRef(this.book, segmentRef);
-        }
-
-        // And then if we still do not have a verse segment, look back up the chapter until we get a verse segment
-        if (segmentRef == null) {
-          segmentRef = this.scripturePanel.textComponent.segmentRef;
-          while (verseRef == null) {
-            segmentRef = this.scripturePanel.textComponent.getPrevSegmentRef(segmentRef);
-            if (segmentRef == null) break;
-            verseRef = getVerseRefFromSegmentRef(this.book, segmentRef);
-          }
-        }
-      }
+      verseRef = this.scripturePanel.textComponent.getNearestVerseRef(this.scripturePanel.textComponent.segmentRef);
     }
 
     verseRef ??= new VerseRef(this.book ?? 0, this.chapter ?? 1, 1);

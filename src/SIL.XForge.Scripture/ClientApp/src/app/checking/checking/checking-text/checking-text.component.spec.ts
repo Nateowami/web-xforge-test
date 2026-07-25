@@ -147,6 +147,38 @@ describe('CheckingTextComponent', () => {
     expect(env.isSegmentHighlighted('verse_1_6b')).toBe(true);
   }));
 
+  it('highlights the verse a section heading belongs to, rather than the heading', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.component.highlightSegment = true;
+    env.component.id = new TextDocId('project01', 41, 1);
+    env.component.questionVerses = [new VerseRef('MRK', '1', '1')];
+    env.component.activeVerse = new VerseRef('MRK', '1', '1');
+    env.wait();
+    expect(env.isSegmentHighlighted('verse_1_1')).toBe(true);
+
+    // s_2 is a section heading between verse 2-3 and verse 4
+    env.component.textComponent.setSegment('s_2');
+    env.wait();
+
+    expect(env.isSegmentHighlighted('s_2')).toBe(false);
+    expect(env.isSegmentHighlighted('verse_1_4')).toBe(true);
+    expect(env.isSegmentHighlighted('verse_1_1')).toBe(false);
+  }));
+
+  it('highlights the first verse when content before the first verse is selected', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.component.highlightSegment = true;
+    env.component.id = new TextDocId('project01', 41, 1);
+    env.wait();
+
+    // s_1 is the chapter title, which comes before verse 1
+    env.component.textComponent.setSegment('s_1');
+    env.wait();
+
+    expect(env.isSegmentHighlighted('s_1')).toBe(false);
+    expect(env.isSegmentHighlighted('verse_1_1')).toBe(true);
+  }));
+
   it('can set text direction explicitly', fakeAsync(() => {
     const env = new TestEnvironment();
     env.wait();

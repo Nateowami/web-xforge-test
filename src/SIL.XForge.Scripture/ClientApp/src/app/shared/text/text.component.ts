@@ -105,6 +105,12 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   @Input() multiSegmentSelection = false;
   @Input() subscribeToUpdates = true;
   @Input() selectableVerses: boolean = false;
+  /**
+   * Whether the selected segment highlight is restricted to verse segments. When true, selecting
+   * content that is not part of a verse (such as a section heading) highlights the verse that
+   * content belongs to, rather than the content itself.
+   */
+  @Input() highlightVerseSegmentsOnly: boolean = false;
   @Input() lynxAutoCorrectionsEnabled: boolean = false;
   @Input() lynxInsightsEnabled: boolean = false;
   @Output() updated = new EventEmitter<TextUpdatedEvent>(true);
@@ -769,6 +775,35 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     return segments.filter(s => VERSE_REGEX.test(s));
   }
 
+  /**
+   * Gets the verse ref of a segment. For a segment that is not part of a verse (such as a section
+   * heading or the book title), the verse ref of the nearest verse segment that follows it is
+   * returned, or of the nearest verse segment that precedes it if it is not followed by any.
+   * @returns The verse ref, or undefined if the chapter contains no verse segments.
+   */
+  getNearestVerseRef(segmentRef: string): VerseRef | undefined {
+    if (this._id == null) {
+      return undefined;
+    }
+    let verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(this._id.bookNum, segmentRef);
+
+    // look down the chapter until a verse segment is found
+    let ref: string | undefined = segmentRef;
+    while (verseRef == null && ref != null) {
+      ref = this.getNextSegmentRef(ref);
+      verseRef = ref == null ? undefined : getVerseRefFromSegmentRef(this._id.bookNum, ref);
+    }
+
+    // and then, if there was none, look back up the chapter
+    ref = segmentRef;
+    while (verseRef == null && ref != null) {
+      ref = this.getPrevSegmentRef(ref);
+      verseRef = ref == null ? undefined : getVerseRefFromSegmentRef(this._id.bookNum, ref);
+    }
+
+    return verseRef;
+  }
+
   getSegmentElement(segment: string): Element | null {
     return this.editor == null ? null : this.editor.container.querySelector(`usx-segment[data-segment="${segment}"]`);
   }
@@ -1002,9 +1037,15 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     }
     if (segmentRefs == null && this._segment != null) {
       // baseVerse will be null for extra verse content (i.e. mt_1, s_1)
-      const baseVerse: VerseRef | undefined = getVerseRefFromSegmentRef(this._id.bookNum, this._segment.ref);
-      segmentRefs = baseVerse == null ? [this._segment.ref] : this.getVerseSegments(baseVerse);
-      // segmentRefs = this.getVerseSegments(baseVerse);
+      const baseVerse: VerseRef | undefined = this.highlightVerseSegmentsOnly
+        ? this.getNearestVerseRef(this._segment.ref)
+        : getVerseRefFromSegmentRef(this._id.bookNum, this._segment.ref);
+      if (baseVerse != null) {
+        segmentRefs = this.getVerseSegments(baseVerse);
+      } else {
+        // there is no verse to highlight, so highlight the content itself, unless restricted to verses
+        segmentRefs = this.highlightVerseSegmentsOnly ? [] : [this._segment.ref];
+      }
     }
     if (segmentRefs == null) {
       this.highlightMarkerVisible = false;

@@ -13,7 +13,7 @@ import {
   projectLabel,
   XmlUtils
 } from './utils';
-import { getVerseNumbers } from './verse-utils';
+import { getVerseNumbers, verseRefFromMouseEvent } from './verse-utils';
 
 describe('shared utils', () => {
   describe('projectLabel function', () => {
@@ -202,6 +202,24 @@ describe('shared utils', () => {
     });
     it('gets the verse number from a verse range', () => {
       expect(getVerseNumbers(new VerseRef('GEN', '2', '3,4-6'))).toEqual([3, 4, 6]);
+    });
+  });
+
+  describe('verseRefFromMouseEvent function', () => {
+    function clickOnSegment(segmentRef: string): MouseEvent {
+      const element: HTMLElement = document.createElement('usx-segment');
+      element.setAttribute('data-segment', segmentRef);
+      return { target: element } as unknown as MouseEvent;
+    }
+
+    it('gets the verse ref of a verse segment', () => {
+      expect(verseRefFromMouseEvent(clickOnSegment('verse_2_3'), 1)?.toString()).toEqual('GEN 2:3');
+      expect(verseRefFromMouseEvent(clickOnSegment('verse_2_3/p_1'), 1)?.toString()).toEqual('GEN 2:3');
+    });
+
+    it('returns undefined for a segment that is not part of a verse', () => {
+      expect(verseRefFromMouseEvent(clickOnSegment('s_1'), 1)).toBeUndefined();
+      expect(verseRefFromMouseEvent(clickOnSegment('p_1'), 1)).toBeUndefined();
     });
   });
 

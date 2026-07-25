@@ -118,6 +118,10 @@ export function verseRefFromMouseEvent(event: MouseEvent, bookNum: number): Vers
     return undefined;
   }
   const segmentParts = clickSegment.split('_', 3);
+  if (segmentParts.length < 3) {
+    // the segment is not part of a verse, such as a section heading (i.e. s_1)
+    return undefined;
+  }
   const versePart = segmentParts[2].split('/')[0];
   return new VerseRef(Canon.bookNumberToId(bookNum), segmentParts[1], versePart);
 }
