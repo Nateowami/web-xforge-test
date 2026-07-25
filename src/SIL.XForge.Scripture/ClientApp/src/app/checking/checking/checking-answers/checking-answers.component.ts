@@ -186,10 +186,6 @@ export class CheckingAnswersComponent implements OnInit {
       this.hideAnswerForm();
     }
     this._questionDoc = questionDoc;
-    if (this.projectUserConfigDoc != null && this.projectUserConfigDoc.data != null) {
-      this.userAnswerRefsRead = cloneDeep(this.projectUserConfigDoc.data.answerRefsRead);
-    }
-
     this.showRemoteAnswers();
     if (questionDoc == null) {
       return;
@@ -369,8 +365,6 @@ export class CheckingAnswersComponent implements OnInit {
     if (this.projectUserConfigDoc == null || this.projectUserConfigDoc.data == null) {
       return;
     }
-    // update read answers list so when the answers are rendered again after editing they won't be shown as unread
-    this.userAnswerRefsRead = cloneDeep(this.projectUserConfigDoc.data.answerRefsRead);
     this.activeAnswer = cloneDeep(answer);
     if (this.activeAnswer.verseRef != null) {
       this.verseRef = toVerseRef(this.activeAnswer.verseRef);
@@ -616,6 +610,10 @@ export class CheckingAnswersComponent implements OnInit {
   private refreshAnswersHighlightStatus(): void {
     this.answersHighlightStatus.clear();
     setTimeout(() => {
+      // Note which answers had been read before the answers now on screen get marked as read (which happens a couple
+      // of seconds after they are shown). Reading this any earlier can miss answers that were read previously, and
+      // would draw attention to answers the user has already read.
+      this.userAnswerRefsRead = cloneDeep(this.projectUserConfigDoc?.data?.answerRefsRead ?? []);
       for (const answer of this.answers) {
         this.answersHighlightStatus.set(answer.dataId, this.shouldDrawAttentionToAnswer(answer));
       }

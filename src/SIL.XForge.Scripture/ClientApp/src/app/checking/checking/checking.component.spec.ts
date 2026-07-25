@@ -1905,6 +1905,27 @@ describe('CheckingComponent', () => {
       expect(env.totalAnswersMessageCount).toEqual(2);
     }));
 
+    it('only newly shown answers are highlighted when proj admin shows unread answers', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      // Select a question with one answer, not authored by the project admin.
+      env.selectQuestion(6);
+      expect(env.answers.length).withContext('setup').toEqual(1);
+      // The answer was unread when the question was opened, and is marked as read after the read timer.
+      expect(env.getAnswer(0).classes['attention']).withContext('setup').toBe(true);
+      expect(env.component.answersPanel!.projectUserConfigDoc!.data!.answerRefsRead)
+        .withContext('setup')
+        .toContain('a6Id');
+
+      env.simulateNewRemoteAnswer();
+      env.clickButton(env.showUnreadAnswersButton);
+
+      expect(env.answers.length).toEqual(2);
+      expect(env.getAnswerText(0)).withContext('setup').toContain('new answer from another user');
+      expect(env.getAnswer(0).classes['attention']).withContext('incoming answer is unread').toBe(true);
+      expect(env.getAnswer(1).classes['attention']).withContext('already read this answer').toBeUndefined();
+      flush();
+    }));
+
     it('proj admin sees total answer count if >0 answers', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER });
       // Select a question with at least one answer, but with no answers
