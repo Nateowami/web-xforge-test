@@ -3084,6 +3084,25 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('stores the whole verse as the note context when the cursor is not in the verse segment', fakeAsync(() => {
+      // The cursor can be in a segment that holds none, or only part, of the verse text, e.g. the paragraph
+      // segment before a verse. The note context should still be the verse text the note dialog displayed.
+      const env = new TestEnvironment();
+      env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_1' });
+      env.wait();
+      env.setSelectionAndInsertNote('verse_1_4/p_1');
+
+      env.mockNoteDialogRef.close({ noteContent: 'content in the thread' });
+      env.wait();
+      const [, config] = capture(mockedMatDialog.open).last();
+      expect((config as MatDialogConfig).data!.verseRef.toString()).toEqual('MAT 1:4');
+
+      const [, noteThread] = capture(mockedSFProjectService.createNoteThread).last();
+      expect(noteThread.originalSelectedText).toEqual('target: chapter 1, verse 4.\nParagraph break.');
+
+      env.dispose();
+    }));
+
     it('allows adding a note to an existing thread', fakeAsync(() => {
       const projectId: string = 'project01';
       const threadDataId: string = 'dataid04';

@@ -114,7 +114,7 @@ import { SFProjectDoc } from '../../core/models/sf-project-doc';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SF_DEFAULT_TRANSLATE_SHARE_ROLE } from '../../core/models/sf-project-role-info';
 import { SFProjectUserConfigDoc } from '../../core/models/sf-project-user-config-doc';
-import { TextDocId } from '../../core/models/text-doc';
+import { TextDoc, TextDocId } from '../../core/models/text-doc';
 import { Revision } from '../../core/paratext.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { SFProjectService } from '../../core/sf-project.service';
@@ -1528,7 +1528,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         notes: [note],
         position: { start: 0, length: 0 },
         originalContextBefore: '',
-        originalSelectedText: this.target?.segmentText!,
+        originalSelectedText: await this.getVerseText(params.verseRef),
         originalContextAfter: '',
         status: NoteStatus.Todo,
         publishedToSF: true
@@ -1562,6 +1562,19 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         await this.updateNoteReadRefs(note.dataId);
       }
     }
+  }
+
+  /**
+   * Gets the text of the verse a note is anchored to, i.e. the text the note dialog displays as the note context.
+   * This is taken from the text doc rather than the editor's current segment, as the cursor can be somewhere else
+   * entirely (e.g. in a paragraph segment that contains no verse text).
+   */
+  private async getVerseText(verseRef: VerseRef): Promise<string> {
+    if (this.projectId == null || this.bookNum == null || this.chapter == null) return '';
+    const textDoc: TextDoc = await this.projectService.getText(
+      new TextDocId(this.projectId, this.bookNum, this.chapter)
+    );
+    return textDoc.getSegmentTextIncludingRelated(verseRef.verse ?? verseRef.verseNum.toString());
   }
 
   private async updateDraftTabVisibility(): Promise<void> {
