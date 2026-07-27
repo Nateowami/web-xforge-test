@@ -149,6 +149,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   private cursorMoveKeyHoldDelay: number = 500; // Press and hold ms delay before switching to system cursor
 
   private clickSubs: Map<string, Subscription[]> = new Map<string, Subscription[]>();
+  /** The selection to restore when editing is enabled again. See setEditingEnabled(). */
+  private selectionBeforeEditingDisabled: Range | null = null;
   private _isReadOnly: boolean = true;
   private _editorStyles: any = { fontSize: '1rem' };
   private activePresenceSubscription?: Subscription;
@@ -713,6 +715,36 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     }
   }
 
+  /**
+   * Prevents or restores editing of the text, without changing the read-only appearance of the editor. This is used
+   * while a dialog is open over the text: the cursor is left in the text when a dialog is opened by clicking a note
+   * within it, and on mobile devices the on-screen keyboard stays attached to that text, which otherwise allows
+   * characters to be typed into the text behind the dialog. The cursor position is restored when editing is enabled
+   * again, so that the text is in the same state as before the dialog was opened.
+   */
+  setEditingEnabled(enabled: boolean): void {
+    if (this._editor == null) {
+      return;
+    }
+    if (enabled) {
+      // Text that is read-only regardless should stay that way
+      if (!this.readOnlyEnabled) {
+        this._editor.enable(true);
+        if (this.selectionBeforeEditingDisabled != null) {
+          this._editor.setSelection(this.selectionBeforeEditingDisabled);
+        }
+      }
+      this.selectionBeforeEditingDisabled = null;
+    } else {
+      if (this._editor.isEnabled()) {
+        this.selectionBeforeEditingDisabled = this._editor.getSelection();
+      }
+      // Blurring removes the cursor from the text, dismissing the on-screen keyboard on mobile devices
+      this._editor.blur();
+      this._editor.enable(false);
+    }
+  }
+
   setSegment(segmentRef: string, checksum?: number, focus: boolean = false, end: boolean = true): boolean {
     if (!this.initialTextFetched) {
       this.initialSegmentRef = segmentRef;
@@ -1260,7 +1292,9 @@ export class TextComponent implements AfterViewInit, OnDestroy {
             .subscribe(event => {
               const noteText = attributeFromMouseEvent(event, 'USX-NOTE', 'title');
               const noteType = attributeFromMouseEvent(event, 'USX-NOTE', 'data-style');
-              this.dialogService.openMatDialog(TextNoteDialogComponent, {
+              // Clicking the note left the cursor in the text; don't allow editing it under the dialog
+              this.setEditingEnabled(false);
+              const dialogRef = this.dialogService.openMatDialog(TextNoteDialogComponent, {
                 width: '600px',
                 data: {
                   type: noteType,
@@ -1268,6 +1302,10 @@ export class TextComponent implements AfterViewInit, OnDestroy {
                   isRightToLeft: this.isRtl
                 } as NoteDialogData
               });
+              dialogRef
+                .beforeClosed()
+                .pipe(quietTakeUntilDestroyed(this.destroyRef))
+                .subscribe(() => this.setEditingEnabled(true));
             })
         )
       );

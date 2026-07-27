@@ -2337,6 +2337,25 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('does not allow the text to be edited while the note dialog is open', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+      const targetEditor: Quill = env.component.target!.editor!;
+      expect(targetEditor.isEnabled()).toBe(true);
+
+      const note = env.fixture.debugElement.query(By.css('display-note'));
+      note.nativeElement.click();
+      env.wait();
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+      expect(targetEditor.isEnabled()).withContext('while the dialog is open').toBe(false);
+
+      env.mockNoteDialogRef.close();
+      env.wait();
+      expect(targetEditor.isEnabled()).withContext('after the dialog closed').toBe(true);
+      env.dispose();
+    }));
+
     it('note belongs to a segment after a blank', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
@@ -2793,10 +2812,18 @@ describe('EditorComponent', () => {
       )!;
       verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
       env.wait();
-      expect(env.activeElementTagName).toBe('DIV');
+      // the editor is not focused while the dialog is open, so that the text cannot be edited under it
+      expect(env.activeElementClasses).withContext('dialog opened').not.toContain('ql-editor');
       expect(element.classList).withContext('dialog opened').toContain('highlight-segment');
-      mockedMatDialog.closeAll();
+      // note that this needs to be the mock's instance, or the dialog is not actually closed
+      instance(mockedMatDialog).closeAll();
+      env.wait();
       expect(element.classList).withContext('dialog closed').toContain('highlight-segment');
+      // the cursor is restored to the segment it was in when the dialog closes
+      expect(env.activeElementClasses).withContext('dialog closed').toContain('ql-editor');
+      const selection: Range = env.targetEditor.getSelection()!;
+      expect(selection.index).toBeGreaterThanOrEqual(segmentRange.index);
+      expect(selection.index).toBeLessThanOrEqual(segmentRange.index + segmentRange.length);
       env.dispose();
     }));
 
@@ -5786,6 +5813,10 @@ export class MockNoteDialogRef {
   }
 
   afterClosed(): Observable<NoteDialogResult | void> {
+    return this.close$;
+  }
+
+  beforeClosed(): Observable<NoteDialogResult | void> {
     return this.close$;
   }
 }

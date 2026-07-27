@@ -1698,6 +1698,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       textDocId: new TextDocId(this.projectDoc!.id, this.bookNum, this.chapter),
       verseRef
     };
+    // Keep the text from being edited while the dialog is over it. Clicking a note icon leaves the cursor in the text,
+    // and on a mobile device the on-screen keyboard stays attached to it, so characters typed while the dialog is open
+    // would otherwise end up in the verse the note is on. Editing (and the cursor position) is restored before the
+    // dialog closes.
+    this.target?.setEditingEnabled(false);
+
     const dialogRef: MatDialogRef<NoteDialogComponent, NoteDialogResult | undefined> = this.openMatDialog<
       NoteDialogComponent,
       NoteDialogData,
@@ -1708,6 +1714,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       disableClose: true,
       data: noteDialogData
     });
+    dialogRef
+      .beforeClosed()
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.target?.setEditingEnabled(true));
 
     const currentVerseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
     this.setNoteFabVisibility('hidden');

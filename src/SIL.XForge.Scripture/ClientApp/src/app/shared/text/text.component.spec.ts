@@ -1,5 +1,6 @@
 import { Component, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatDialogRef } from '@angular/material/dialog';
 import { TranslocoService } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { QuillService } from 'ngx-quill';
@@ -13,7 +14,7 @@ import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge
 import { TextAnchor } from 'realtime-server/lib/esm/scriptureforge/models/text-anchor';
 import { TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import * as RichText from 'rich-text';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subject } from 'rxjs';
 import { LocalPresence } from 'sharedb/lib/sharedb';
 import { anything, instance, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
@@ -1443,12 +1444,22 @@ describe('TextComponent', () => {
     const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
     env.waitForEditor();
 
+    const dialogClosing$ = new Subject<void>();
+    when(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thenReturn({
+      beforeClosed: () => dialogClosing$
+    } as unknown as MatDialogRef<TextNoteDialogComponent>);
+
     [TextNoteType.Footnote, TextNoteType.EndNote, TextNoteType.CrossReference].forEach(noteStyle => {
       const note = env.quillEditor.querySelector('usx-note[data-style="' + noteStyle + '"]') as HTMLElement;
       expect(note).withContext(noteStyle).not.toBeNull();
       note!.click();
     });
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
+
+    // the text cannot be edited while the dialog is open over it, and can be edited again once it closes
+    expect(env.component.editor!.isEnabled()).toBe(false);
+    dialogClosing$.next();
+    expect(env.component.editor!.isEnabled()).toBe(true);
   }));
 
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
