@@ -225,6 +225,36 @@ describe('ResumeCheckingService', () => {
     expect(opsSets[2].value).toEqual(23);
   }));
 
+  it("should record the book's first chapter when the route has no chapter", fakeAsync(async () => {
+    const userConfigDoc = mock(SFProjectUserConfigDoc);
+    const opsSets: { path: string; value: any }[] = [];
+    when(userConfigDoc.submitJson0Op(anything())).thenCall((fn: (op: Json0OpBuilder<SFProjectUserConfig>) => void) => {
+      fn({
+        set: (path: any, value: any) => {
+          opsSets.push({ path: path.toString(), value });
+        }
+      } as Json0OpBuilder<SFProjectUserConfig>);
+    });
+
+    service['projectUserConfigDoc$'].next(instance(userConfigDoc));
+
+    // A book whose chapters do not start at 1, e.g. only chapter 3 exists in Paratext
+    when(mockActivatedProjectService.projectDoc).thenReturn({
+      id: 'project01',
+      data: { texts: [{ bookNum: 41, chapters: [{ number: 3 } as Chapter] } as TextInfo] } as SFProjectProfile
+    } as SFProjectProfileDoc);
+
+    when(mockRouter.url).thenReturn('/projects/project01/checking');
+    when(mockRouter.routerState).thenReturn({
+      snapshot: { root: { firstChild: { params: { bookId: 'MRK' } as Params } as ActivatedRouteSnapshot } }
+    } as any);
+    routerEvents$.next(new NavigationEnd(-1, '', '')); // Trigger route change
+
+    verify(userConfigDoc.submitJson0Op(anything())).once();
+    expect(opsSets[2].path).toContain('puc.selectedChapterNum');
+    expect(opsSets[2].value).toEqual(3);
+  }));
+
   function setUpQuestions(newLocal: QuestionDoc[]): void {
     const query: RealtimeQuery<QuestionDoc> = mock(RealtimeQuery);
     when(query.ready$).thenReturn(of(true));

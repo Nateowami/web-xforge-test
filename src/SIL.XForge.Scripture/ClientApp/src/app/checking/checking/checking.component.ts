@@ -614,6 +614,17 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
           // If book/chapter is specified in route, use routed book/chapter even if it contains no questions
           if (routeBookNum != null && routeChapterNum != null) {
             this.book = routeBookNum;
+
+            // A book's chapters are not necessarily numbered 1..n (a book may only have e.g. chapter 3 in Paratext),
+            // so the routed chapter may not exist. Redirect to the first chapter that does, otherwise the chapter
+            // selector shows nothing and the scripture panel reports that the chapter does not exist.
+            if (this.chapters.length > 0 && !this.chapters.includes(routeChapterNum)) {
+              this.navigateBookChapter(routeProjectId, routeScope, routeBookNum, this.chapters[0], {
+                replaceUrl: true
+              });
+              return;
+            }
+
             this.chapter = routeChapterNum;
             this.routeBookChapter = {
               bookNum: this.book,

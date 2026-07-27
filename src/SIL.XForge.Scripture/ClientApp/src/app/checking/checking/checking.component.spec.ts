@@ -34,6 +34,7 @@ import {
 import { createTestProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config-test-data';
 import { TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { getTextDocId, TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
+import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { fromVerseRef, VerseRefData } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import * as RichText from 'rich-text';
 import { BehaviorSubject, firstValueFrom, of, Subject } from 'rxjs';
@@ -233,6 +234,23 @@ describe('CheckingComponent', () => {
       });
 
       expect(env.router.url).toContain('MAT/1?scope=book');
+    }));
+
+    it('reroutes when the chapter provided does not exist in the book', fakeAsync(() => {
+      // A book's chapters do not necessarily start at chapter 1, e.g. when only chapter 3 exists in Paratext
+      const testProject: SFProject = TestEnvironment.generateTestProject();
+      const matthew: TextInfo = testProject.texts.find(t => t.bookNum === 40)!;
+      matthew.chapters = matthew.chapters.filter(c => c.number === 3);
+
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        testProject,
+        projectBookRoute: 'MAT',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+
+      expect(env.router.url).toContain('MAT/3?scope=chapter');
     }));
 
     describe('Prev/Next question buttons', () => {

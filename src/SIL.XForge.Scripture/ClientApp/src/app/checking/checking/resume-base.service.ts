@@ -71,12 +71,19 @@ export abstract class ResumeBaseService {
         } else if (this.router.url.includes('translate')) {
           selectedTask = 'translate';
         }
+        // When the route has no chapter, record the book's first chapter. It is not necessarily chapter 1: a book may
+        // only have e.g. chapter 3 in Paratext, and recording a chapter that does not exist sends the user to a
+        // non-existent chapter the next time they resume.
+        const firstChapterNum: number | undefined = this.activatedProjectService.projectDoc?.data?.texts.find(
+          t => t.bookNum === routeBookNum
+        )?.chapters[0]?.number;
+
         await this.projectUserConfigDoc$.value.submitJson0Op(op => {
           if (selectedTask != null) {
             op.set<string>(puc => puc.selectedTask!, selectedTask);
           }
           op.set(puc => puc.selectedBookNum!, routeBookNum);
-          op.set(puc => puc.selectedChapterNum!, routeChapterNum ?? 1);
+          op.set(puc => puc.selectedChapterNum!, routeChapterNum ?? firstChapterNum ?? 1);
         });
       }
     });
