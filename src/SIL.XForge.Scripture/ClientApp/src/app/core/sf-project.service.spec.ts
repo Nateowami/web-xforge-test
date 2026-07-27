@@ -4,6 +4,7 @@ import { fakeAsync, TestBed } from '@angular/core/testing';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { anything, mock, verify, when } from 'ts-mockito';
 import { CommandService } from 'xforge-common/command.service';
+import { RealtimeQuery } from 'xforge-common/models/realtime-query';
 import { RealtimeService } from 'xforge-common/realtime.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { SFProjectService } from './sf-project.service';
@@ -190,6 +191,28 @@ describe('SFProjectService', () => {
       });
       verify(mockedCommandService.onlineInvoke(anything(), 'setQualityEstimationConfig', anything())).once();
       expect().nothing();
+    }));
+  });
+
+  describe('onlineIsProjectAvailable', () => {
+    it('should return true when the project is found', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      when(mockedRealtimeService.onlineQuery(anything(), anything())).thenResolve({ count: 1 } as RealtimeQuery);
+      expect(await env.service.onlineIsProjectAvailable('project01')).toBe(true);
+    }));
+
+    it('should return false when the project is not found', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      when(mockedRealtimeService.onlineQuery(anything(), anything())).thenResolve({ count: 0 } as RealtimeQuery);
+      expect(await env.service.onlineIsProjectAvailable('project01')).toBe(false);
+    }));
+
+    it('should return false when the query is denied', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      when(mockedRealtimeService.onlineQuery(anything(), anything())).thenReject(
+        new Error('403: Permission denied (read)')
+      );
+      expect(await env.service.onlineIsProjectAvailable('project01')).toBe(false);
     }));
   });
 

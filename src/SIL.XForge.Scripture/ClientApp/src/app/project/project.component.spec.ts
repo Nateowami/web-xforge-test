@@ -1,8 +1,7 @@
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { ActivatedRoute, ActivatedRouteSnapshot, Router } from '@angular/router';
-import { TranslocoService } from '@ngneat/transloco';
+import { ActivatedRoute, ActivatedRouteSnapshot, Router, UrlTree } from '@angular/router';
 import { User } from 'realtime-server/lib/esm/common/models/user';
 import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
@@ -19,7 +18,7 @@ import { DialogService } from 'xforge-common/dialog.service';
 import { UserDoc } from 'xforge-common/models/user-doc';
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
-import { configureTestingModule } from 'xforge-common/test-utils';
+import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { ResumeCheckingService } from '../checking/checking/resume-checking.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
@@ -30,18 +29,17 @@ import { ProjectComponent } from './project.component';
 const mockedUserService = mock(UserService);
 const mockedActivatedRoute = mock(ActivatedRoute);
 const mockedRouter = mock(Router);
-const mockedTranslocoService = mock(TranslocoService);
 const mockResumeCheckingService = mock(ResumeCheckingService);
 const mockedDialogService = mock(DialogService);
 
 describe('ProjectComponent', () => {
   configureTestingModule(() => ({
+    imports: [getTestTranslocoModule()],
     providers: [
       provideTestRealtime(SF_TYPE_REGISTRY),
       { provide: UserService, useMock: mockedUserService },
       { provide: ActivatedRoute, useMock: mockedActivatedRoute },
       { provide: Router, useMock: mockedRouter },
-      { provide: TranslocoService, useMock: mockedTranslocoService },
       { provide: ResumeCheckingService, useMock: mockResumeCheckingService },
       { provide: DialogService, useMock: mockedDialogService },
       provideHttpClient(withInterceptorsFromDi()),
@@ -151,6 +149,33 @@ describe('ProjectComponent', () => {
     expect().nothing();
   }));
 
+  it('shows page not found when the project does not exist', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.pageNotFoundVisible).toBe(true);
+  }));
+
+  it('does not show page not found while the user doc is catching up', fakeAsync(() => {
+    const env = new TestEnvironment();
+    // the project can be read, but the user doc does not list it yet
+    env.setProjectData({ memberProjectIdSuffixes: [1], omitProjectsFromUserDoc: true });
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.pageNotFoundVisible).toBe(false);
+    verify(mockedRouter.navigate(anything(), anything())).never();
+
+    env.addUserToProject(1);
+    env.fixture.detectChanges();
+
+    expect(env.pageNotFoundVisible).toBe(false);
+    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate', 'MAT']), anything())).once();
+  }));
+
   it('navigate old sharing link to new joining link', fakeAsync(() => {
     const env = new TestEnvironment(true);
     env.fixture.detectChanges();
@@ -192,7 +217,8 @@ class TestEnvironment {
     when(mockedUserService.getCurrentUser()).thenCall(() =>
       this.realtimeService.subscribe(UserDoc.COLLECTION, 'user01')
     );
-    when(mockedTranslocoService.translate<string>(anything())).thenReturn('The project link is invalid.');
+    // needed by the router links on the page not found component
+    when(mockedRouter.createUrlTree(anything(), anything())).thenReturn({ toString: () => '/projects' } as UrlTree);
     const snapshot = new ActivatedRouteSnapshot();
     snapshot.queryParams = enableSharing ? { sharing: 'true', shareKey: 'shareKey01' } : {};
     when(mockedActivatedRoute.snapshot).thenReturn(snapshot);
@@ -206,6 +232,10 @@ class TestEnvironment {
     this.component = this.fixture.componentInstance;
   }
 
+  get pageNotFoundVisible(): boolean {
+    return this.fixture.nativeElement.querySelector('app-page-not-found') != null;
+  }
+
   setProjectData(
     args: {
       projectIdSuffix?: number;
@@ -215,6 +245,8 @@ class TestEnvironment {
       role?: SFProjectRole;
       checkingEnabled?: boolean;
       memberProjectIdSuffixes?: number[];
+      /** Adds the projects, but leaves them off of the user doc, as when the user doc has not yet caught up. */
+      omitProjectsFromUserDoc?: boolean;
     } = {}
   ): void {
     if (args.projectIdSuffix != null) {
@@ -270,7 +302,13 @@ class TestEnvironment {
 
     this.realtimeService.addSnapshot<User>(UserDoc.COLLECTION, {
       id: 'user01',
-      data: createTestUser({ sites: { sf: { projects: memberProjectIdSuffixes.map(suffix => `project${suffix}`) } } })
+      data: createTestUser({
+        sites: {
+          sf: {
+            projects: args.omitProjectsFromUserDoc ? [] : memberProjectIdSuffixes.map(suffix => `project${suffix}`)
+          }
+        }
+      })
     });
   }
 

@@ -137,6 +137,22 @@ export class SFProjectService extends ProjectService<SFProject, SFProjectDoc> {
     return this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, id);
   }
 
+  /**
+   * Determines whether a project with the specified id exists. Only the count of matching projects is requested, so
+   * unlike getProfile() this can safely be called for a project that the user is not on.
+   */
+  async onlineIsProjectAvailable(id: string): Promise<boolean> {
+    try {
+      const query = await this.realtimeService.onlineQuery(SFProjectProfileDoc.COLLECTION, {
+        _id: id,
+        $count: true
+      });
+      return query.count > 0;
+    } catch {
+      return false;
+    }
+  }
+
   getUserConfig(id: string, userId: string): Promise<SFProjectUserConfigDoc> {
     return this.realtimeService.subscribe(SFProjectUserConfigDoc.COLLECTION, getSFProjectUserConfigDocId(id, userId));
   }

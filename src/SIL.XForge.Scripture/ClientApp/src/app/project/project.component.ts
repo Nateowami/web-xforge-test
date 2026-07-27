@@ -13,14 +13,19 @@ import { environment } from '../../environments/environment';
 import { ResumeCheckingService } from '../checking/checking/resume-checking.service';
 import { PermissionsService } from '../core/permissions.service';
 import { SFProjectService } from '../core/sf-project.service';
+import { PageNotFoundComponent } from '../shared/page-not-found/page-not-found.component';
 type TaskType = 'translate' | 'checking';
 
 @Component({
   selector: 'app-projects',
   templateUrl: './project.component.html',
-  styleUrls: ['./project.component.scss']
+  styleUrls: ['./project.component.scss'],
+  imports: [PageNotFoundComponent]
 })
 export class ProjectComponent extends DataLoadingComponent implements OnInit {
+  /** Whether the project id in the URL does not refer to a project that exists. */
+  projectNotFound = false;
+
   constructor(
     private readonly route: ActivatedRoute,
     private readonly projectService: SFProjectService,
@@ -63,7 +68,12 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
 
     navigateToProject$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(async projectId => {
       if (userDoc.data?.sites[environment.siteId].projects?.includes(projectId)) {
+        this.projectNotFound = false;
         void this.navigateToProject(projectId);
+      } else {
+        // The user doc can lag behind the server just after the user is added to a project, so only report the
+        // project as missing once the server has confirmed that no such project exists.
+        this.projectNotFound = !(await this.projectService.onlineIsProjectAvailable(projectId));
       }
     });
   }
