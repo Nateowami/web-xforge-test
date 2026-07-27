@@ -263,6 +263,22 @@ describe('EditorComponent', () => {
     env.dispose();
   }));
 
+  it('stops offering a book that was deleted by a remote sync', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectUserConfig();
+    env.wait();
+
+    // The user is on Matthew while another user syncs the deletion of Luke in Paratext
+    expect(env.component.bookNum).toEqual(40);
+    expect(env.component.books).toContain(42);
+
+    env.removeBook('project01', 42);
+
+    expect(env.component.books).not.toContain(42);
+    expect(env.component.bookNum).toEqual(40);
+    env.dispose();
+  }));
+
   it('remote user config should not change segment', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setProjectUserConfig({
@@ -5410,6 +5426,15 @@ class TestEnvironment {
     keydownEvent.key = 'ArrowDown';
     keydownEvent.initEvent('keydown', true, true);
     this.component.target!.editor!.root.dispatchEvent(keydownEvent);
+    this.wait();
+  }
+
+  /** Removes a book from the project the way a sync of a Paratext book deletion does. */
+  removeBook(projectId: string, bookNum: number): void {
+    const projectDoc: SFProjectProfileDoc = this.getProjectDoc(projectId);
+    const index: number = projectDoc.data!.texts.findIndex(t => t.bookNum === bookNum);
+    projectDoc.submitJson0Op(op => op.remove(p => p.texts, index), false);
+
     this.wait();
   }
 

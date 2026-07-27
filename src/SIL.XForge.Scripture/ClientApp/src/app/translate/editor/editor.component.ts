@@ -819,18 +819,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           return;
         }
 
-        const projectTexts: number[] = this.projectDoc.data.texts.map(t => t.bookNum);
-        const draftedBooks: number[] = booksFromScriptureRange(
-          this.projectDoc.data.translateConfig.draftConfig?.draftedScriptureRange
-        );
-        this.books = Array.from(new Set([...projectTexts, ...draftedBooks])).sort((a, b) => a - b);
-        this.text = this.projectDoc.data.texts.find(t => t.bookNum === bookNum);
-
-        const allChapters: number = Math.max(
-          this.text?.chapters[this.text.chapters.length - 1]?.number ?? 1,
-          expectedBookChapters(Canon.bookNumberToId(bookNum))
-        );
-        this.chapters = Array.from({ length: allChapters }, (_, i) => i + 1);
+        this.updateBookAndChapterLists(bookNum);
 
         this.updateVerseNumber();
 
@@ -844,6 +833,11 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           this.setupTranslationEngine();
           this.projectDataChangesSub?.unsubscribe();
           this.projectDataChangesSub = this.projectDoc.remoteChanges$.subscribe(async () => {
+            // The project's books and chapters can change while the editor is open, e.g. when
+            // another user syncs a book deletion made in Paratext. Refresh the lists so that books
+            // and chapters that no longer exist stop being offered in the book/chapter chooser.
+            this.updateBookAndChapterLists(bookNum);
+
             let sourceId: TextDocId | undefined;
             if (this.hasSource && this.chapter != null) {
               sourceId = new TextDocId(
@@ -1808,6 +1802,29 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     this.interactiveTranslatorFactory = this.translationEngineService.createInteractiveTranslatorFactory(
       this.projectDoc.id
     );
+  }
+
+  /**
+   * Sets the books and chapters offered by the book/chapter chooser, and the current text, from the
+   * project doc.
+   */
+  private updateBookAndChapterLists(bookNum: number): void {
+    if (this.projectDoc?.data == null) {
+      return;
+    }
+
+    const projectTexts: number[] = this.projectDoc.data.texts.map(t => t.bookNum);
+    const draftedBooks: number[] = booksFromScriptureRange(
+      this.projectDoc.data.translateConfig.draftConfig?.draftedScriptureRange
+    );
+    this.books = Array.from(new Set([...projectTexts, ...draftedBooks])).sort((a, b) => a - b);
+    this.text = this.projectDoc.data.texts.find(t => t.bookNum === bookNum);
+
+    const allChapters: number = Math.max(
+      this.text?.chapters[this.text.chapters.length - 1]?.number ?? 1,
+      expectedBookChapters(Canon.bookNumberToId(bookNum))
+    );
+    this.chapters = Array.from({ length: allChapters }, (_, i) => i + 1);
   }
 
   private async changeText(): Promise<void> {
