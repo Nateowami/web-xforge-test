@@ -51,6 +51,11 @@ h1 {
     padding: 20px 0;
     display: flex;
     flex-wrap: wrap;
+    // The user name and date wrap onto the line below the note content, where they need to line up
+    // with the edit and delete buttons at the end of that content. Reversing the row puts that
+    // wrapped line at the end of the note's own direction (set below from the project's text
+    // direction), rather than at the end of the UI locale's direction.
+    flex-direction: row-reverse;
     .content {
       flex: 1 1 100%;
     }
@@ -88,21 +93,19 @@ h1 {
 .assigned-user {
   opacity: 0.5;
 }
+// The scripture context and the notes are in the project's language, so they are laid out in the
+// direction of the project's text. This has to be stated explicitly, because otherwise they inherit
+// the direction of the UI locale, which need not match.
 .rtl {
   .note,
   .text {
-    text-align: right;
-  }
-  .text {
-    direction: rtl;
-  }
-  .note .content {
     direction: rtl;
   }
 }
 .ltr {
-  .note {
-    flex-direction: row-reverse;
+  .note,
+  .text {
+    direction: ltr;
   }
 }
 

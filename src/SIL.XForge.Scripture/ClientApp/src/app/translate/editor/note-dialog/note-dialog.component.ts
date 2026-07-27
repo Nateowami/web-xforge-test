@@ -35,6 +35,7 @@ import { isParatextRole } from 'realtime-server/lib/esm/scriptureforge/models/sf
 import { toVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
+import { LocaleDirection } from 'xforge-common/models/i18n-locale';
 import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
 import { UserService } from 'xforge-common/user.service';
 import { BiblicalTermDoc } from '../../../core/models/biblical-term-doc';
@@ -200,6 +201,14 @@ export class NoteDialogComponent implements OnInit {
       return false;
     }
     return this.projectProfileDoc.data.isRightToLeft ?? false;
+  }
+
+  /**
+   * The direction of the UI locale. The note user name and date are UI text rather than project
+   * text, so they stay in this direction even when the project's text runs the other way.
+   */
+  get uiDirection(): LocaleDirection {
+    return this.i18n.direction;
   }
 
   get isSegmentDifferentFromContext(): boolean {

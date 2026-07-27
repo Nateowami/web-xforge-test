@@ -302,6 +302,38 @@ describe('NoteDialogComponent', () => {
     expect(env.dialogContentArea.classes.ltr).toBeTrue();
   }));
 
+  it('shows the note user beside the edit buttons when the UI direction is not the text direction', fakeAsync(() => {
+    // The note user name wraps onto the line below the note content, where it belongs beneath the
+    // edit and delete buttons. Which side that is depends on the project's text direction only, and
+    // not on the direction of the UI locale (SF-3630).
+    const originalDir: string = document.body.dir;
+    document.body.dir = 'rtl';
+    try {
+      env = new TestEnvironment({
+        noteThread: TestEnvironment.getNoteThread(undefined, undefined, true),
+        isRightToLeftProject: true
+      });
+      expect(env.noteHasEditActions(4)).toBe(true);
+      expect(env.sideWithinNote(4, '.note-user')).toEqual('left');
+      expect(env.sideWithinNote(4, '.edit-actions')).toEqual('left');
+    } finally {
+      document.body.dir = originalDir;
+    }
+  }));
+
+  it('shows the note user beside the edit buttons in an ltr project in an rtl UI', fakeAsync(() => {
+    const originalDir: string = document.body.dir;
+    document.body.dir = 'rtl';
+    try {
+      env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread(undefined, undefined, true) });
+      expect(env.noteHasEditActions(4)).toBe(true);
+      expect(env.sideWithinNote(4, '.note-user')).toEqual('right');
+      expect(env.sideWithinNote(4, '.edit-actions')).toEqual('right');
+    } finally {
+      document.body.dir = originalDir;
+    }
+  }));
+
   it('show insert note dialog content', fakeAsync(() => {
     env = new TestEnvironment({ verseRef: new VerseRef('MAT 1:1'), noteTagId: 6 });
     expect(env.noteInputElement).toBeTruthy();
@@ -1144,6 +1176,15 @@ class TestEnvironment {
 
   getNoteContent(noteNumber: number): string {
     return this.notes[noteNumber - 1].query(By.css('.note-content')).nativeElement.textContent;
+  }
+
+  /** Which half of the note the specified element is laid out in. */
+  sideWithinNote(noteNumber: number, selector: string): 'left' | 'right' {
+    const note: DebugElement = this.notes[noteNumber - 1];
+    const noteRect: DOMRect = note.nativeElement.getBoundingClientRect();
+    const elementRect: DOMRect = note.query(By.css(selector)).nativeElement.getBoundingClientRect();
+    const noteCenter: number = noteRect.left + noteRect.width / 2;
+    return elementRect.left + elementRect.width / 2 < noteCenter ? 'left' : 'right';
   }
 
   noteHasEditActions(noteNumber: number): boolean {
