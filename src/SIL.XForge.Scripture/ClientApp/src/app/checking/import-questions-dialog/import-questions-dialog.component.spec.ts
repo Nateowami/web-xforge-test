@@ -446,6 +446,44 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('reports rows for chapters the project does not have and skips them', fakeAsync(() => {
+    // the project only has MAT 1
+    const env = new TestEnvironment();
+
+    env.selectFileWithContents([
+      ['Reference', 'Questions'],
+      ['MAT 4:1', 'Question for a chapter that is not in the project'],
+      ['MAT 1:2', 'Question for MAT 1:2']
+    ]);
+
+    expect(env.headerText).toBe('These rows in the CSV file were invalid and will be skipped.');
+    const invalidRows = env.tableRows;
+    expect(invalidRows.length).toBe(1);
+    expect(env.getColumnTwoText(invalidRows[0])).toEqual('MAT 4:1');
+
+    env.click(env.continueImportButton);
+
+    const questionRows = env.tableRows;
+    expect(questionRows.length).toBe(1);
+    expect(env.getRowReference(questionRows[0])).toEqual('MAT 1:2');
+
+    env.click(env.backButton);
+  }));
+
+  it('shows questions only for chapters in the project when importing from Transcelerator', fakeAsync(() => {
+    const questions: TransceleratorQuestion[] = [
+      { book: 'MAT', startChapter: '4', startVerse: '1', text: 'Question for MAT 4:1', id: '1' },
+      { book: 'MAT', startChapter: '1', startVerse: '1', text: 'Question for MAT 1:1', id: '2' }
+    ];
+    const env = new TestEnvironment({ transceleratorQuestions: questions });
+
+    env.click(env.importFromTransceleratorButton);
+
+    expect(env.tableRows.length).toBe(1);
+    expect(env.getRowReference(env.tableRows[0])).toEqual('MAT 1:1');
+    env.click(env.backButton);
+  }));
+
   it('allows reference and questions columns to be anywhere and ignores irrelevant columns', fakeAsync(() => {
     // (also, it infers the book from the file name)
     const env = new TestEnvironment({ includeAllBooks: true });
@@ -793,7 +831,11 @@ class TestEnvironment {
 
     const gen: TextInfo = {
       bookNum: 1,
-      chapters: [{ number: 41, lastVerse: 57, isValid: true, permissions: {} }],
+      chapters: [
+        { number: 1, lastVerse: 31, isValid: true, permissions: {} },
+        { number: 41, lastVerse: 57, isValid: true, permissions: {} },
+        { number: 43, lastVerse: 34, isValid: true, permissions: {} }
+      ],
       hasSource: false,
       permissions: {}
     };

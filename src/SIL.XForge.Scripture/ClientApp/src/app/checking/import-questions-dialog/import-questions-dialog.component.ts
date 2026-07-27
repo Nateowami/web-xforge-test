@@ -36,6 +36,7 @@ import { TranslocoModule, TranslocoService } from '@ngneat/transloco';
 import { Canon, VerseRef } from '@sillsdev/scripture';
 import { ngfModule } from 'angular-file';
 import { Question } from 'realtime-server/lib/esm/scriptureforge/models/question';
+import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { fromVerseRef, toVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { Subject } from 'rxjs';
 import { CsvService } from 'xforge-common/csv-service.service';
@@ -341,7 +342,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
 
     questions.sort((a, b) => a.verseRef.BBBCCCVVV - b.verseRef.BBBCCCVVV);
 
-    for (const question of questions.filter(q => this.data.textsByBookId[q.verseRef.book] != null)) {
+    for (const question of questions.filter(q => this.chapterExistsInProject(q.verseRef))) {
       // Questions imported from Transcelerator are considered duplicates if the ID and verse ref is the same. The
       // version in SF should be updated if the text is different from the version being imported. Transcelerator does
       // not allow changing the reference for a question, as of 2021-03-09
@@ -366,6 +367,15 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
 
   referenceForDisplay(q: SourceQuestion): string {
     return q.verseRef.toString();
+  }
+
+  /**
+   * Whether the reference points to a book and chapter that exist in this project. A reference can be perfectly valid
+   * scripture and still not exist, such as NAM 4:1 when Nahum only has three chapters.
+   */
+  private chapterExistsInProject(verseRef: VerseRef): boolean {
+    const text: TextInfo | undefined = this.data.textsByBookId[verseRef.book];
+    return text != null && text.chapters.some(chapter => chapter.number === verseRef.chapterNum);
   }
 
   clearFilters(): void {
@@ -733,8 +743,16 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
         const refStartsWithBook: boolean = Canon.allBookIds.includes(reference.slice(0, 3)) && reference[3] === ' ';
         const fullReference: string =
           refStartsWithBook || defaultBookId == null ? reference : defaultBookId + ' ' + reference;
+        const verseRef = new VerseRef(fullReference);
+        // A reference can parse fine and still point to a chapter the project doesn't have. Report those rows to the
+        // user rather than importing questions that can't be shown. References to books the project doesn't have are
+        // left to be filtered out silently, since a spreadsheet may cover more books than the project does.
+        if (this.data.textsByBookId[verseRef.book] != null && !this.chapterExistsInProject(verseRef)) {
+          invalidRows.push([rowNumber, reference, questionText]);
+          continue;
+        }
         questions.push({
-          verseRef: new VerseRef(fullReference),
+          verseRef,
           text: questionText
         });
       } catch {
