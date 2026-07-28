@@ -1,5 +1,5 @@
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
@@ -17,6 +17,7 @@ const mockedAuthGuard = mock(AuthGuard);
 const mockedAuthService = mock(AuthService);
 const mockedProjectService = mock(SFProjectService);
 const mockedUserService = mock(UserService);
+const mockedRouter = mock(Router);
 
 describe('EventMetricsAuthGuard', () => {
   const project01 = 'project01';
@@ -26,6 +27,7 @@ describe('EventMetricsAuthGuard', () => {
     providers: [
       { provide: AuthGuard, useMock: mockedAuthGuard },
       { provide: AuthService, useMock: mockedAuthService },
+      { provide: Router, useMock: mockedRouter },
       { provide: SFProjectService, useMock: mockedProjectService },
       { provide: UserService, useMock: mockedUserService }
     ]

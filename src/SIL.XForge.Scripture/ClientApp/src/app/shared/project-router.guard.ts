@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { ActivatedRouteSnapshot, CanDeactivate, Router, RouterStateSnapshot } from '@angular/router';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
@@ -6,7 +6,7 @@ import { isResource } from 'realtime-server/lib/esm/scriptureforge/models/sf-pro
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { from, Observable, of } from 'rxjs';
-import { map, switchMap } from 'rxjs/operators';
+import { map, switchMap, tap } from 'rxjs/operators';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
 import { UserService } from 'xforge-common/user.service';
@@ -15,6 +15,8 @@ import { PermissionsService } from '../core/permissions.service';
 import { SFProjectService } from '../core/sf-project.service';
 
 export abstract class RouterGuard {
+  private readonly router = inject(Router);
+
   constructor(
     protected readonly authGuard: AuthGuard,
     protected readonly projectService: SFProjectService
@@ -22,7 +24,25 @@ export abstract class RouterGuard {
 
   canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
     const projectId = 'projectId' in next.params ? next.params['projectId'] : '';
-    return this.authGuard.canActivate(next, state).pipe(switchMap(() => this.allowTransition(projectId)));
+    return this.authGuard.canActivate(next, state).pipe(
+      switchMap(isLoggedIn => {
+        // If the user is not logged in the auth guard is already sending them to the login page
+        if (!isLoggedIn) return of(false);
+        return this.allowTransition(projectId).pipe(
+          tap(allowed => {
+            if (!allowed) {
+              // Merely returning false cancels the navigation, which leaves the user looking at a blank page when
+              // there is no page to stay on (a page load or refresh). This happens when a user's role changes to one
+              // without access to the page they are on. Send them to the project page, which forwards them to a page
+              // their role can access.
+              void this.router.navigate(projectId === '' ? ['/projects'] : ['/projects', projectId], {
+                replaceUrl: true
+              });
+            }
+          })
+        );
+      })
+    );
   }
 
   allowTransition(projectId: string): Observable<boolean> {
@@ -146,18 +166,13 @@ export class CheckingAuthGuard extends RouterGuard {
   constructor(
     authGuard: AuthGuard,
     projectService: SFProjectService,
-    private router: Router,
     private readonly permissions: PermissionsService
   ) {
     super(authGuard, projectService);
   }
 
   check(projectDoc: SFProjectProfileDoc): boolean {
-    if (this.permissions.canAccessCommunityChecking(projectDoc)) {
-      return true;
-    }
-    void this.router.navigate(['/projects', projectDoc.id], { replaceUrl: true });
-    return false;
+    return this.permissions.canAccessCommunityChecking(projectDoc);
   }
 }
 
@@ -168,18 +183,13 @@ export class TranslateAuthGuard extends RouterGuard {
   constructor(
     authGuard: AuthGuard,
     projectService: SFProjectService,
-    private router: Router,
     private readonly permissions: PermissionsService
   ) {
     super(authGuard, projectService);
   }
 
   check(projectDoc: SFProjectProfileDoc): boolean {
-    if (this.permissions.canAccessTranslate(projectDoc)) {
-      return true;
-    }
-    void this.router.navigate(['/projects', projectDoc.id], { replaceUrl: true });
-    return false;
+    return this.permissions.canAccessTranslate(projectDoc);
   }
 }
 

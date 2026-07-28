@@ -373,6 +373,35 @@ public class MachineApiServiceTests
     }
 
     [Test]
+    public async Task ApplyPreTranslationToProjectAsync_NoDraftPermissionNotifiesTheClient()
+    {
+        // Set up test environment. The user's Paratext role changed while they were importing a draft, so they no
+        // longer have permission to apply drafts. The client waits on SignalR, so it must be told the job failed.
+        var env = new TestEnvironment();
+        env.ProjectRights.HasRight(Arg.Any<SFProject>(), User01, SFProjectDomain.Drafts, Operation.Create)
+            .Returns(false);
+
+        // SUT
+        Assert.ThrowsAsync<ForbiddenException>(() =>
+            env.Service.ApplyPreTranslationToProjectAsync(
+                User01,
+                Project01,
+                scriptureRange: "GEN",
+                Project02,
+                DateTime.UtcNow,
+                CancellationToken.None
+            )
+        );
+
+        await env
+            .DraftNotifier.Received()
+            .NotifyDraftApplyProgress(
+                Project01,
+                Arg.Is<DraftApplyState>(s => s.BookNum == 0 && s.ChapterNum == 0 && s.Status == DraftApplyStatus.Failed)
+            );
+    }
+
+    [Test]
     public async Task ApplyPreTranslationToProjectAsync_NoChapterDeltas()
     {
         // Set up test environment
@@ -5734,6 +5763,8 @@ public class MachineApiServiceTests
             ExceptionHandler = Substitute.For<IExceptionHandler>();
             var hubContext = Substitute.For<IHubContext<NotificationHub, INotifier>>();
             var draftHubContext = Substitute.For<IHubContext<DraftNotificationHub, IDraftNotifier>>();
+            DraftNotifier = Substitute.For<IDraftNotifier>();
+            draftHubContext.Clients.Groups(Arg.Any<IReadOnlyList<string>>()).Returns(DraftNotifier);
             MachineProjectService = Substitute.For<IMachineProjectService>();
             MockLogger = new MockLogger<MachineApiService>();
             ParatextService = Substitute.For<IParatextService>();
@@ -5901,6 +5932,7 @@ public class MachineApiServiceTests
         public IExceptionHandler ExceptionHandler { get; }
         public IMachineProjectService MachineProjectService { get; }
         public MockLogger<MachineApiService> MockLogger { get; }
+        public IDraftNotifier DraftNotifier { get; }
         public IParatextService ParatextService { get; }
         public IPreTranslationService PreTranslationService { get; }
         public MemoryRepository<DraftMetrics> DraftMetrics { get; }

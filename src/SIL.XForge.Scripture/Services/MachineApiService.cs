@@ -120,19 +120,44 @@ public class MachineApiService(
         CancellationToken cancellationToken
     )
     {
-        // Ensure that the user has permission to access the draft project
-        SFProject project = await EnsureProjectPermissionAsync(
-            curUserId,
-            sfProjectId,
-            isServalAdmin: false,
-            cancellationToken
-        );
-
-        // Retrieve the user secret
-        Attempt<UserSecret> attempt = await userSecrets.TryGetAsync(curUserId, cancellationToken);
-        if (!attempt.TryResult(out UserSecret userSecret))
+        SFProject project;
+        UserSecret userSecret;
+        try
         {
-            throw new DataNotFoundException("The user does not exist.");
+            // Ensure that the user has permission to access the draft project
+            project = await EnsureProjectPermissionAsync(
+                curUserId,
+                sfProjectId,
+                isServalAdmin: false,
+                cancellationToken
+            );
+
+            // Retrieve the user secret
+            Attempt<UserSecret> attempt = await userSecrets.TryGetAsync(curUserId, cancellationToken);
+            if (!attempt.TryResult(out userSecret))
+            {
+                throw new DataNotFoundException("The user does not exist.");
+            }
+        }
+        catch (Exception e)
+        {
+            // The client displays a modal progress dialog until SignalR reports that this background job has finished.
+            // Failing before the job starts without notifying the client (e.g. when the user's Paratext role changed
+            // and they no longer have permission to apply drafts) leaves that dialog waiting indefinitely.
+            await draftHubContext.NotifyDraftApplyProgress(
+                sfProjectId,
+                new DraftApplyState
+                {
+                    BookNum = 0,
+                    ChapterNum = 0,
+                    Status = DraftApplyStatus.Failed,
+                    Message =
+                        e is ForbiddenException
+                            ? "You do not have permission to apply drafts to this project."
+                            : $"An error occurred applying your draft. Please email {siteOptions.Value.IssuesEmail} for help.",
+                }
+            );
+            throw;
         }
 
         // Connect to the realtime server
