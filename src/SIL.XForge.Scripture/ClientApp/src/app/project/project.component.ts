@@ -100,6 +100,10 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
         this.navigateToTranslate(projectId, project, projectUserConfig);
       } else if (task === 'checking') {
         await this.navigateToChecking(projectId);
+      } else {
+        // there is nothing in this project the user is permitted to open (e.g. a community checker
+        // in a project where checking has been turned off), so don't leave them on a blank page
+        void this.router.navigate(['/projects'], { replaceUrl: true });
       }
     } finally {
       this.loadingFinished();

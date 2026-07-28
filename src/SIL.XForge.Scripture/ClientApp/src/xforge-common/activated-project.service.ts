@@ -112,7 +112,11 @@ export class ActivatedProjectService {
       return;
     }
     this.projectId = projectId;
-    const projectDoc: SFProjectProfileDoc = await this.projectService.getProfile(projectId);
+    // The URL may refer to a project that does not exist, or that this user may not read. That is
+    // not an error to report to the user; the route guards send them somewhere they can go.
+    const projectDoc: SFProjectProfileDoc | undefined = await this.projectService
+      .getProfile(projectId)
+      .catch(() => undefined);
     // Make sure the project ID is still the same before updating the project document
     if (this.projectId === projectId) {
       this.projectDoc = projectDoc;

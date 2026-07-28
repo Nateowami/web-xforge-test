@@ -71,11 +71,11 @@ describe('EventMetricsAuthGuard', () => {
     env.wait();
   }));
 
-  it('cannot activate if user is logged in but does not have any administrator role', fakeAsync(() => {
+  it('redirects to the project if user is logged in but does not have any administrator role', fakeAsync(() => {
     const env = new TestEnvironment(true, SystemRole.User);
 
     env.service.canActivate(env.getActivatedRouteSnapshot(project02), {} as RouterStateSnapshot).subscribe(result => {
-      expect(result).toBe(false);
+      expect(result.toString()).toEqual(`/projects/${project02}`);
     });
 
     env.wait();

@@ -41,8 +41,15 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     this._delete$ = merge(this.localDelete$, this.adapter.delete$);
     this.updateOfflineDataSub = merge(this.adapter.remoteChanges$, this.adapter.idle$, this.adapter.create$).subscribe(
       async () => {
-        if (this.subscribePromise != null) {
-          await this.subscribePromise;
+        try {
+          if (this.subscribePromise != null) {
+            await this.subscribePromise;
+          }
+        } catch {
+          // Subscribing failed (e.g. the user is not permitted to read this doc), so there is
+          // nothing to store offline. Whoever called subscribe() gets the error; reporting it from
+          // here would only show the user an unexpected error dialog.
+          return;
         }
         void this.updateOfflineData();
       }
