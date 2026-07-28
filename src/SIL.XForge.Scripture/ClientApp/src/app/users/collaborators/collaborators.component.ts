@@ -14,6 +14,7 @@ import { isParatextRole, SFProjectRole } from 'realtime-server/lib/esm/scripture
 import { BehaviorSubject, combineLatest, distinctUntilChanged, filter, tap } from 'rxjs';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { AvatarComponent } from 'xforge-common/avatar/avatar.component';
+import { isNetworkError } from 'xforge-common/command.service';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ExternalUrlService } from 'xforge-common/external-url.service';
@@ -170,8 +171,24 @@ export class CollaboratorsComponent extends DataLoadingComponent implements OnIn
       this.i18n.translate('collaborators.confirm_remove_user', { user: row.user.displayName }),
       'collaborators.remove_user'
     );
-    if (confirmed) {
-      void this.projectService.onlineRemoveUser(this.projectId, row.id);
+    if (!confirmed) {
+      return;
+    }
+    // The user can go offline while the confirmation dialog is open, in which case the request would fail with an
+    // unhandled error (see SF-1833). The remove button itself is already disabled when offline.
+    if (!this.onlineStatusService.isOnline) {
+      this.noticeService.show(this.i18n.translateStatic('collaborators.connect_network_to_manage_users'));
+      return;
+    }
+    try {
+      await this.projectService.onlineRemoveUser(this.projectId, row.id);
+    } catch (error) {
+      // The connection can also be lost while the request is in flight
+      if (isNetworkError(error) || !this.onlineStatusService.isOnline) {
+        this.noticeService.show(this.i18n.translateStatic('collaborators.connect_network_to_manage_users'));
+      } else {
+        throw error;
+      }
     }
   }
 

@@ -322,6 +322,44 @@ describe('CollaboratorsComponent', () => {
     expect().nothing();
   }));
 
+  it('should not remove user from project if the connection was lost while confirming', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupProjectData();
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+    // The user goes offline while the confirmation dialog is open
+    when(mockedDialogService.confirm(anything(), anything())).thenCall(() => {
+      env.testOnlineStatusService.setIsOnline(false);
+      return Promise.resolve(true);
+    });
+    env.clickElement(env.userRowMoreMenuElement(1, UserType.Paratext));
+    env.clickElement(env.removeUserItemOnRow(1, UserType.Paratext));
+    verify(mockedProjectService.onlineRemoveUser(anything(), anything())).never();
+    verify(mockedNoticeService.show(anything())).once();
+    expect().nothing();
+  }));
+
+  it('should notify the user if removing a user fails because the connection was lost', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupProjectData();
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+    when(mockedProjectService.onlineRemoveUser(anything(), anything())).thenReject(
+      new CommandError(
+        CommandErrorCode.Other,
+        'Error invoking removeUser: Http failure response for command-api/projects: 504 Gateway Timeout'
+      )
+    );
+    env.clickElement(env.userRowMoreMenuElement(1, UserType.Paratext));
+    expect(() => {
+      env.clickElement(env.removeUserItemOnRow(1, UserType.Paratext));
+    }).not.toThrow();
+    verify(mockedNoticeService.show(anything())).once();
+    expect().nothing();
+  }));
+
   it('should disable collaborators if not connected', fakeAsync(() => {
     const env = new TestEnvironment(false);
     env.setupProjectData();
