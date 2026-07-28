@@ -17,6 +17,10 @@ public static class Program
 {
     public static async Task Main(string[] args)
     {
+        // Determine the environment ourselves, rather than letting the host default to Production,
+        // so that a missing or misspelled environment never quietly runs against QA or Live.
+        string environment = HostEnvironments.Resolve(args, Directory.GetCurrentDirectory());
+
         // Build the host
         var host = Host.CreateDefaultBuilder(args)
             // Host configuration (command-line args + environment variables)
@@ -25,10 +29,6 @@ public static class Program
                 config.SetBasePath(Directory.GetCurrentDirectory());
 
                 // Load hosting.json first, then environment-specific
-                string environment =
-                    Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
-                    ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT")
-                    ?? "Development";
                 var tempConfig = new ConfigurationBuilder()
                     .SetBasePath(Directory.GetCurrentDirectory())
                     .AddJsonFile("hosting.json", optional: true, reloadOnChange: true)
@@ -44,6 +44,9 @@ public static class Program
                 config.AddCommandLine(args);
             })
             .ConfigureWebHostDefaults(webHostBuilder => webHostBuilder.UseStartup<Startup>())
+            // Applied after the web host, so that the environment the app reports is always the one
+            // whose settings were loaded above
+            .UseEnvironment(environment)
             .ConfigureAppConfiguration(
                 (context, config) =>
                 {
@@ -72,8 +75,7 @@ public static class Program
         bool useExistingRealtimeServer = configuration.GetValue<bool>("Realtime:UseExistingRealtimeServer");
         if (!useExistingRealtimeServer)
         {
-            string environment = host.Services.GetRequiredService<IHostEnvironment>().EnvironmentName;
-            Migrator.RunMigrations(environment);
+            Migrator.RunMigrations(host.Services.GetRequiredService<IHostEnvironment>().EnvironmentName);
         }
 
         await host.RunAsync();

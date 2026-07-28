@@ -68,6 +68,10 @@ on:
         description: "The domain name that will be hosting the application."
         type: string
         required: true
+      deploy_environment:
+        description: "The ASP.NET Core environment the deployed app runs as: Staging for QA, Production for Live."
+        type: string
+        required: true
     secrets:
       deploy_known_hosts:
         required: true
@@ -176,6 +180,7 @@ jobs:
           BUILD_NUMBER: ${{inputs.version_number}}
           DEPLOY_DESTINATION: ${{secrets.deploy_server}}
           DEPLOY_CREDENTIALS: ~/.ssh/deploy_key
+          DEPLOY_ENVIRONMENT: ${{inputs.deploy_environment}}
           HOSTNAME: ${{inputs.server_domain_name}}
           ALTERNATE_DOMAIN: ${{secrets.alternate_domain}}
           PARATEXT_CLIENT_ID: ${{secrets.paratext_client_id}}

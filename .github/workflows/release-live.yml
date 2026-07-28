@@ -126,3 +126,4 @@ jobs:
       vcs_tag_prefix: "SFv"
       project: "SIL.XForge.Scripture"
       server_domain_name: "scriptureforge.org"
+      deploy_environment: "Production"

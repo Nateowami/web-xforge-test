@@ -10,11 +10,20 @@ SERVICE_UNIT_SUFFIX=""
 # Relative to repo root
 ERROR_PAGES_PATH="src/SIL.XForge.Scripture/ErrorPages"
 ALTERNATE_DOMAIN="${ALTERNATE_DOMAIN-}"
+# Staging for QA, Production for Live. The app runs as Development unless told otherwise, so a
+# deployment must state its environment rather than relying on how the server was configured.
+DEPLOY_ENVIRONMENT="${DEPLOY_ENVIRONMENT:?must be set to Staging or Production}"
 
 scriptDir="$(dirname "$0")"
 "${scriptDir}"/build-production "$@"
 
 cd "${scriptDir}/.."
+
+cat <<EOF >"$BUILD_OUTPUT/app/environment.json"
+{
+  "environment": "${DEPLOY_ENVIRONMENT}"
+}
+EOF
 
 cat <<EOF >"$BUILD_OUTPUT/app/secrets.json"
 {

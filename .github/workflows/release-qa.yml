@@ -147,3 +147,4 @@ jobs:
       vcs_tag_prefix: "SF-QAv"
       project: "SIL.XForge.Scripture"
       server_domain_name: "qa.scriptureforge.org"
+      deploy_environment: "Staging"
