@@ -1,5 +1,6 @@
 import { Component, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatDialogRef } from '@angular/material/dialog';
 import { TranslocoService } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { QuillService } from 'ngx-quill';
@@ -13,9 +14,9 @@ import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge
 import { TextAnchor } from 'realtime-server/lib/esm/scriptureforge/models/text-anchor';
 import { TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import * as RichText from 'rich-text';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subject } from 'rxjs';
 import { LocalPresence } from 'sharedb/lib/sharedb';
-import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { anything, instance, mock, resetCalls, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { MockConsole } from 'xforge-common/mock-console';
 import { UserDoc } from 'xforge-common/models/user-doc';
@@ -48,6 +49,8 @@ const mockedTranslocoService = mock(TranslocoService);
 const mockedUserService = mock(UserService);
 const mockedConsole: MockConsole = MockConsole.install();
 const mockedDialogService = mock(DialogService);
+/** Emits when the dialog returned by the mocked DialogService is closed. */
+let dialogClosed$: Subject<void>;
 
 describe('TextComponent', () => {
   configureTestingModule(() => ({
@@ -66,6 +69,11 @@ describe('TextComponent', () => {
 
   beforeEach(async () => {
     mockedConsole.reset();
+    resetCalls(mockedDialogService);
+    dialogClosed$ = new Subject<void>();
+    when(mockedDialogService.openMatDialog(anything(), anything())).thenReturn({
+      afterClosed: () => dialogClosed$.asObservable()
+    } as MatDialogRef<unknown>);
 
     // Pre-load Quill before each test to avoid async Quill import issues
     const quillService = TestBed.inject(QuillService);
@@ -1449,6 +1457,57 @@ describe('TextComponent', () => {
       note!.click();
     });
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
+  }));
+
+  it('restores the cursor position when the footnote dialog closes', fakeAsync(() => {
+    const chapterNum = 2;
+    const noteSegmentRef: string = `verse_${chapterNum}_2`;
+    const firstSegmentRef: string = `verse_${chapterNum}_1`;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'lazy dog', attributes: { segment: firstSegmentRef } },
+      { insert: { verse: { number: '2', style: 'v' } } },
+      { insert: 'quick brown', attributes: { segment: noteSegmentRef } },
+      {
+        insert: {
+          note: {
+            caller: '+',
+            style: 'f',
+            contents: { ops: [{ insert: 'footnote text' }] }
+          }
+        },
+        attributes: { segment: noteSegmentRef }
+      },
+      { insert: ' fox', attributes: { segment: noteSegmentRef } },
+      { insert: '\n', attributes: { para: { style: 'p' } } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+
+    const noteSegmentRange = env.component.getSegmentRange(noteSegmentRef)!;
+    env.component.editor!.setSelection(noteSegmentRange.index + 5, 0, 'user');
+    tick();
+    const indexBeforeDialog: number = env.component.editor!.getSelection()!.index;
+    expect(env.component.segmentRef).toEqual(noteSegmentRef);
+
+    const note = env.quillEditor.querySelector('usx-note[data-style="f"]') as HTMLElement;
+    note.click();
+    tick();
+
+    // Angular Material restores focus to the editor element on close, which lands the cursor at the beginning of
+    // the text rather than where the user left it
+    const firstSegmentRange = env.component.getSegmentRange(firstSegmentRef)!;
+    env.component.editor!.setSelection(firstSegmentRange.index, 0, 'user');
+    tick();
+    expect(env.component.segmentRef).toEqual(firstSegmentRef);
+
+    dialogClosed$.next();
+    tick();
+
+    expect(env.component.editor!.getSelection()!.index).toEqual(indexBeforeDialog);
+    expect(env.component.segmentRef).toEqual(noteSegmentRef);
+    flush();
   }));
 
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {

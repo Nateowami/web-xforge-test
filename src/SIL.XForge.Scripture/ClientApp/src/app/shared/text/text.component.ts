@@ -1260,7 +1260,10 @@ export class TextComponent implements AfterViewInit, OnDestroy {
             .subscribe(event => {
               const noteText = attributeFromMouseEvent(event, 'USX-NOTE', 'title');
               const noteType = attributeFromMouseEvent(event, 'USX-NOTE', 'data-style');
-              this.dialogService.openMatDialog(TextNoteDialogComponent, {
+              // Record where the cursor is so it can be put back when the dialog closes. Angular Material restores
+              // focus to the editor element itself, which lands the cursor at the very beginning of the text.
+              const selection: Range | null | undefined = this._editor?.getSelection();
+              const dialogRef = this.dialogService.openMatDialog(TextNoteDialogComponent, {
                 width: '600px',
                 data: {
                   type: noteType,
@@ -1268,12 +1271,27 @@ export class TextComponent implements AfterViewInit, OnDestroy {
                   isRightToLeft: this.isRtl
                 } as NoteDialogData
               });
+              dialogRef
+                .afterClosed()
+                .pipe(quietTakeUntilDestroyed(this.destroyRef))
+                .subscribe(() => this.restoreSelection(selection));
             })
         )
       );
     }
 
     this.createLocalCursor();
+  }
+
+  /** Puts the cursor back where it was before a dialog took focus away from the editor. */
+  private restoreSelection(selection: Range | null | undefined): void {
+    if (this._editor == null || selection == null) {
+      return;
+    }
+    const currentSelection: Range | null = this._editor.getSelection();
+    if (currentSelection?.index !== selection.index || currentSelection?.length !== selection.length) {
+      this._editor.setSelection(selection.index, selection.length, 'user');
+    }
   }
 
   private createLocalCursor(): void {
