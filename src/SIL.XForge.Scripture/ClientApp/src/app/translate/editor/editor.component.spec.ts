@@ -3382,6 +3382,37 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('keeps the insert note fab available in a section heading', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      env.clickSegmentRef('verse_1_1');
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('visible');
+
+      // s_1 is before the first verse, so the note belongs to the verse that follows it
+      env.setSelectionAndInsertNote('s_1');
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+      const [, config] = capture(mockedMatDialog.open).last();
+      expect((config!.data! as NoteDialogData).verseRef!.equals(new VerseRef('LUK', '1', '1'))).toBeTrue();
+      env.dispose();
+    }));
+
+    it('inserts a note on the following verse for a section heading mid chapter', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      // s_2 sits between verse 2-3 and verse 4
+      env.setSelectionAndInsertNote('s_2');
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+      const [, config] = capture(mockedMatDialog.open).last();
+      expect((config!.data! as NoteDialogData).verseRef!.equals(new VerseRef('LUK', '1', '4'))).toBeTrue();
+      env.dispose();
+    }));
+
     it('does not allow selecting section headings', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();

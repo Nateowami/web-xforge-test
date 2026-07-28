@@ -968,7 +968,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         this.source.setSegment(this.target.segmentRef);
         this.syncScrollRequested$.next();
       }
-      if (segment == null || !VERSE_REGEX.test(segment.ref)) {
+      if (segment == null || this.getNoteVerseRef(segment.ref) == null) {
         this.resetCommenterVerseSelection();
       }
 
@@ -997,8 +997,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           });
         }
         if (this.bookNum != null && this.hasEditRight) {
-          const verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(this.bookNum, this.target.segmentRef);
-          this.toggleVerseRefElement(verseRef);
+          this.toggleVerseRefElement(this.getNoteVerseRef(this.target.segmentRef));
         }
         await this.translateSegment();
       } finally {
@@ -1118,8 +1117,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       // Toggle the segment the cursor is focused in - the timeout allows for Quill to get its focus set
       setTimeout(() => {
         if (this.target != null && this.targetFocused && this.bookNum != null && this.hasEditRight) {
-          const verseRef = getVerseRefFromSegmentRef(this.bookNum, this.target.segmentRef);
-          this.toggleVerseRefElement(verseRef);
+          this.toggleVerseRefElement(this.getNoteVerseRef(this.target.segmentRef));
         }
       }, 50);
     }
@@ -2326,6 +2324,28 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       this.insertNoteFab.nativeElement.style.marginTop = '0px';
       this.showAddCommentButton = false;
     }
+  }
+
+  /**
+   * Gets the verse ref that a note added at the given segment should be anchored to. Segments that are not verse
+   * segments, such as section headings, do not belong to a verse of their own, so use the verse that follows the
+   * segment in the chapter, or, if there is none, the verse that precedes it.
+   */
+  private getNoteVerseRef(segmentRef?: string): VerseRef | undefined {
+    const target: TextComponent | undefined = this.target;
+    if (this.bookNum == null || target == null || segmentRef == null || segmentRef === '') return undefined;
+    let verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(this.bookNum, segmentRef);
+
+    // look down the chapter for a verse segment, and then back up the chapter if none was found
+    const nextRefs = [(ref: string) => target.getNextSegmentRef(ref), (ref: string) => target.getPrevSegmentRef(ref)];
+    for (const nextRef of nextRefs) {
+      let ref: string | undefined = segmentRef;
+      while (verseRef == null && ref != null) {
+        ref = nextRef(ref);
+        if (ref != null) verseRef = getVerseRefFromSegmentRef(this.bookNum, ref);
+      }
+    }
+    return verseRef;
   }
 
   private toggleVerseRefElement(verseRef?: VerseRef): void {
