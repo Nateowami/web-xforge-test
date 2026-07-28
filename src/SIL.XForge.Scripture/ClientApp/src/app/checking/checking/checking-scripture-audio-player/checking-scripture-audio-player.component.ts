@@ -32,7 +32,7 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
   @Input() set textDocId(value: TextDocId | undefined) {
     this._textDocId = value;
     // set the verse label
-    this.verseLabel = this.currentVerseLabel;
+    this.updateVerseRef();
   }
 
   @Input() set timing(value: AudioTiming[]) {
@@ -48,11 +48,11 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     this._showSegment = value;
   }
 
-  verseLabel: string = this.emptyVerseLabel;
   audioSource?: string;
 
   protected _showSegment = false;
 
+  private _verseRef?: VerseRef;
   private _audioIsAvailable: boolean = false;
   private _timing: AudioTiming[] = [];
   private _textDocId?: TextDocId;
@@ -67,6 +67,12 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
 
   ngAfterViewInit(): void {
     this.doAudioSubscriptions();
+  }
+
+  /** Localized on each change detection so the label follows the UI language, which can change while the player is
+   * open. */
+  get verseLabel(): string {
+    return this._verseRef == null ? this.emptyVerseLabel : this.i18n.localizeReference(this._verseRef);
   }
 
   get isAudioAvailable(): boolean {
@@ -91,16 +97,20 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     return this._timing.length;
   }
 
-  private get currentVerseLabel(): string {
-    if (this._textDocId == null) return this.emptyVerseLabel;
+  /** Recalculates the verse the label refers to. The label itself is localized when it is displayed, so that a change
+   * of UI language is picked up without having to interact with the player. */
+  private updateVerseRef(): void {
+    if (this._textDocId == null) {
+      this._verseRef = undefined;
+      return;
+    }
     const currentTime: number = this.audioPlayer?.audio?.currentTime ?? 0;
     const currentVerseStr: string = this.getCurrentVerseStr(currentTime);
-    const verseRef = new VerseRef(
+    this._verseRef = new VerseRef(
       Canon.bookNumberToId(this._textDocId.bookNum),
       this._textDocId.chapterNum.toString(),
       currentVerseStr
     );
-    return this.i18n.localizeReference(verseRef);
   }
 
   close(): void {
@@ -122,7 +132,7 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     } else {
       this.audioPlayer.audio.currentTime = this.getNextVerseRefTime(currentTimingIndex);
     }
-    this.verseLabel = this.currentVerseLabel;
+    this.updateVerseRef();
   }
 
   pause(): void {
@@ -152,7 +162,7 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     } else {
       this.audioPlayer.audio.currentTime = this.getPreviousVerseRefTime(currentTimingIndex);
     }
-    this.verseLabel = this.currentVerseLabel;
+    this.updateVerseRef();
   }
 
   stop(): void {
@@ -236,7 +246,7 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
       )
       .subscribe(() => {
         if (this._textDocId == null) return;
-        this.verseLabel = this.currentVerseLabel;
+        this.updateVerseRef();
         const audioTextRef: AudioTextRef | undefined = CheckingUtils.parseAudioRefByTime(
           this._timing,
           audio.currentTime

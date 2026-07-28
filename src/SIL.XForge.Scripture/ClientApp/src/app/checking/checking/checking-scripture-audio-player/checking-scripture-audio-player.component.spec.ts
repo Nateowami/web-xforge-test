@@ -1,12 +1,13 @@
 import { Component, DebugElement, Input, NgZone, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { TranslocoService, TranslocoTestingModule } from '@ngneat/transloco';
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
 import { BehaviorSubject } from 'rxjs';
+import { en } from 'xforge-common/i18n.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
-import { getTestTranslocoModule } from 'xforge-common/test-utils';
 import { TextDocId } from '../../../core/models/text-doc';
 import { AudioPlayerComponent } from '../../../shared/audio/audio-player/audio-player.component';
 import { AudioPlayerStub, getAudioTimings, getAudioTimingWithHeadings } from '../../checking-test.utils';
@@ -14,6 +15,8 @@ import { CheckingScriptureAudioPlayerComponent } from './checking-scripture-audi
 
 const audioFile = 'test-audio-player.webm';
 const textDocId: TextDocId = new TextDocId('project01', 1, 1);
+/** A second language, so that a change of UI language can be tested. Missing keys fall back to English. */
+const es = { canon: { book_names: { GEN: 'Génesis' } } };
 
 describe('ScriptureAudioComponent', () => {
   it('can play and pause audio', fakeAsync(() => {
@@ -222,6 +225,17 @@ describe('ScriptureAudioComponent', () => {
     expect(env.audioPauseSpy).toHaveBeenCalledTimes(1);
   }));
 
+  it('localizes the verse label when the UI language changes', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    expect(env.verseLabel.nativeElement.textContent).toEqual('Genesis 1:1');
+
+    // the label should follow the UI language without the user having to interact with the player
+    env.changeUiLanguage('es');
+
+    expect(env.verseLabel.nativeElement.textContent).toEqual('Génesis 1:1');
+  }));
+
   it('disable player controls when audio is unavailable', fakeAsync(() => {
     const env = new TestEnvironment();
 
@@ -278,7 +292,17 @@ class TestEnvironment {
 
     TestBed.configureTestingModule({
       imports: [
-        getTestTranslocoModule(),
+        TranslocoTestingModule.forRoot({
+          langs: { en, es },
+          translocoConfig: {
+            availableLangs: ['en', 'es'],
+            reRenderOnLangChange: true,
+            fallbackLang: 'en',
+            defaultLang: 'en',
+            missingHandler: { useFallbackTranslation: true }
+          },
+          preloadLangs: true
+        }),
         HostComponent,
         CheckingScriptureAudioPlayerComponent,
         AudioPlayerStubComponent
@@ -346,6 +370,11 @@ class TestEnvironment {
 
   clickPreviousRef(): void {
     this.previousRefButton.nativeElement.click();
+  }
+
+  changeUiLanguage(lang: string): void {
+    TestBed.inject(TranslocoService).setActiveLang(lang);
+    this.wait();
   }
 
   wait(): void {
