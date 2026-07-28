@@ -44,7 +44,7 @@ import { SharedbRealtimeRemoteStore } from './sharedb-realtime-remote-store';
 import { provideTestOnlineStatus } from './test-online-status-providers';
 import { TestOnlineStatusService } from './test-online-status.service';
 import { configureTestingModule, getTestTranslocoModule } from './test-utils';
-import { aspCultureCookieValue } from './utils';
+import { ASP_CULTURE_COOKIE_NAME, aspCultureCookieValue } from './utils';
 
 const mockedAuth0Service = mock(Auth0Service);
 const mockedLocationService = mock(LocationService);
@@ -171,6 +171,28 @@ describe('AuthService', () => {
     if (logoutOptions != null) {
       expect(logoutOptions.logoutParams!.returnTo).withContext('logged out returnTo').toBeDefined();
     }
+  }));
+
+  it('should keep the interface language cookie when logging out', fakeAsync(() => {
+    const env = new TestEnvironment({ isOnline: true, isLoggedIn: true });
+
+    env.logOut();
+    tick();
+
+    // The landing page shown after logging out is rendered by the server using this cookie
+    verify(mockedCookieService.deleteAll('/')).once();
+    verify(
+      mockedCookieService.set(
+        ASP_CULTURE_COOKIE_NAME,
+        aspCultureCookieValue(env.language),
+        anything(),
+        '/',
+        undefined,
+        true,
+        'Lax'
+      )
+    ).once();
+    expect().nothing();
   }));
 
   it('should expire token', fakeAsync(() => {

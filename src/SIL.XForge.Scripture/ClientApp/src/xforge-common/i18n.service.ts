@@ -19,7 +19,7 @@ import { LocationService } from './location.service';
 import { DateFormat } from './models/date-format';
 import { Locale, LocaleDirection } from './models/i18n-locale';
 import { PseudoLocalization } from './pseudo-localization';
-import { ASP_CULTURE_COOKIE_NAME, aspCultureCookieValue, getAspCultureCookieLanguage, getI18nLocales } from './utils';
+import { ASP_CULTURE_COOKIE_NAME, getAspCultureCookieLanguage, getI18nLocales, setAspCultureCookie } from './utils';
 
 export interface TextAroundTemplate {
   before: string;
@@ -208,17 +208,7 @@ export class I18nService {
     this.currentLocale$.next(locale);
     this.conjunctionListFormatter = undefined;
     this.transloco.setActiveLang(locale.canonicalTag);
-    const date = new Date();
-    date.setFullYear(date.getFullYear() + 1);
-    this.cookieService.set(
-      ASP_CULTURE_COOKIE_NAME,
-      aspCultureCookieValue(locale.canonicalTag),
-      date,
-      '/',
-      undefined,
-      true,
-      'Strict'
-    );
+    setAspCultureCookie(this.cookieService, locale.canonicalTag);
     this.bugsnagService.leaveBreadcrumb(
       'Set Locale',
       {

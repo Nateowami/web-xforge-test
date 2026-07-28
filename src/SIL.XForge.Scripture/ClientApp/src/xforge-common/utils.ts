@@ -1,6 +1,7 @@
 import { translate } from '@ngneat/transloco';
 import Bowser from 'bowser';
 import ObjectID from 'bson-objectid';
+import { CookieService } from 'ngx-cookie-service';
 import locales from '../../../locales.json';
 import versionData from '../../../version.json';
 import { environment } from '../environments/environment';
@@ -148,6 +149,19 @@ export function getAspCultureCookieLanguage(cookie: string): string {
     }
   });
   return uic ?? c ?? 'en';
+}
+
+/**
+ * Writes the language the UI is displayed in to the ASP .NET Core culture cookie, so that
+ * server-rendered pages (such as the landing page) use the same language as the Angular app.
+ */
+export function setAspCultureCookie(cookieService: CookieService, language: string): void {
+  const expires = new Date();
+  expires.setFullYear(expires.getFullYear() + 1);
+  // SameSite is Lax rather than Strict (matching the cookie LanguageController writes) so that the
+  // server-rendered pages are localized even when the user arrives from another site, since a
+  // Strict cookie is not sent on cross-site navigations.
+  cookieService.set(ASP_CULTURE_COOKIE_NAME, aspCultureCookieValue(language), expires, '/', undefined, true, 'Lax');
 }
 
 export function getI18nLocales(): Locale[] {

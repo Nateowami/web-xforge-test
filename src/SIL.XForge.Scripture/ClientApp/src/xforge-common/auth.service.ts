@@ -31,7 +31,7 @@ import { OnlineStatusService } from './online-status.service';
 import { SharedbRealtimeRemoteStore } from './sharedb-realtime-remote-store';
 import { USERS_URL } from './url-constants';
 import { filterNullish } from './util/rxjs-util';
-import { ASP_CULTURE_COOKIE_NAME, getAspCultureCookieLanguage } from './utils';
+import { ASP_CULTURE_COOKIE_NAME, getAspCultureCookieLanguage, setAspCultureCookie } from './utils';
 
 export const XF_USER_ID_CLAIM = 'http://xforge.org/userid';
 export const XF_ROLE_CLAIM = 'http://xforge.org/role';
@@ -275,7 +275,13 @@ export class AuthService {
       );
     }
     if (proceedWithLogout) {
+      // The UI language is not part of the user's session, and the landing page the user lands on after logging out
+      // is rendered by the server from this cookie, so preserve it across the cookie deletion below.
+      const languageCookie: string = this.cookieService.get(ASP_CULTURE_COOKIE_NAME);
       this.cookieService.deleteAll('/');
+      if (languageCookie !== '') {
+        setAspCultureCookie(this.cookieService, getAspCultureCookieLanguage(languageCookie));
+      }
       await this.offlineStore.deleteDB();
       this.localSettings.clear();
       this.unscheduleRenewal();
