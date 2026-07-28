@@ -1147,21 +1147,26 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
 
     let bestMatch: QuestionDoc | undefined;
 
+    // the clicked verse can be a combined verse i.e. 1-2, so match against the whole range it covers
+    const clickedVerses: VerseRef[] = verseRef.allVerses(true);
+    const clickedStartVerseNum: number = clickedVerses[0].verseNum;
+    const clickedEndVerseNum: number = clickedVerses[clickedVerses.length - 1].verseNum;
+
     for (const questionDoc of this.questionDocs) {
       const questionVerseRef = questionDoc.data == null ? undefined : toVerseRef(questionDoc.data.verseRef);
       if (questionVerseRef == null || questionVerseRef.bookNum !== this.book) {
         continue;
       }
-      if (questionVerseRef.chapterNum === verseRef.chapterNum && questionVerseRef.verseNum === verseRef.verseNum) {
+      if (questionVerseRef.chapterNum !== verseRef.chapterNum) {
+        continue;
+      }
+      if (questionVerseRef.verseNum === clickedStartVerseNum) {
         bestMatch = questionDoc;
         break;
-      } else if (
-        questionVerseRef.chapterNum === verseRef.chapterNum &&
-        questionVerseRef.verseNum <= verseRef.verseNum
-      ) {
+      } else if (questionVerseRef.verseNum <= clickedEndVerseNum) {
         const allVerses = questionVerseRef.allVerses(true);
         const endRef = allVerses[allVerses.length - 1];
-        if (endRef.verseNum >= verseRef.verseNum) {
+        if (endRef.verseNum >= clickedStartVerseNum) {
           bestMatch = questionDoc;
         }
       }

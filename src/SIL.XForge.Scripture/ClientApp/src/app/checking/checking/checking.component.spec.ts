@@ -403,10 +403,11 @@ describe('CheckingComponent', () => {
       tick();
 
       env.clickButton(env.addQuestionButton);
+      // the last verse of the chapter is the combined verse 7-8
       verify(
         mockedQuestionDialogService.questionDialog(
           objectContaining({
-            defaultVerse: new VerseRef(43, 1, 6)
+            defaultVerse: new VerseRef('JHN', '1', '7-8')
           })
         )
       ).once();
@@ -2442,6 +2443,34 @@ describe('CheckingComponent', () => {
       expect(env.currentQuestion).toBe(4);
     }));
 
+    it('can select a question on either verse of a combined verse from the text', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      // move a question to each verse of the combined verse 7-8
+      env.setQuestionVerseRef('q2Id', new VerseRef('JHN 1:7'));
+      env.setQuestionVerseRef('q3Id', new VerseRef('JHN 1:8'));
+
+      env.getVerse(1, '7-8').dispatchEvent(new Event('click'));
+      env.waitForSliderUpdate();
+      tick(env.questionReadTimer);
+      env.fixture.detectChanges();
+      expect(env.selectedQuestionText).toContain('John 1, Q2 text');
+      expect(env.isSegmentHighlighted(1, '7-8')).toBe(true);
+
+      // the question on the end verse of the combined verse is selected when it is the only match
+      env.setQuestionVerseRef('q2Id', new VerseRef('JHN 1:5'));
+      env.getVerse(1, 5).dispatchEvent(new Event('click'));
+      env.waitForSliderUpdate();
+      tick(env.questionReadTimer);
+      env.fixture.detectChanges();
+      env.getVerse(1, '7-8').dispatchEvent(new Event('click'));
+      env.waitForSliderUpdate();
+      tick(env.questionReadTimer);
+      env.fixture.detectChanges();
+      expect(env.selectedQuestionText).toContain('John 1, Q3 text');
+      expect(env.isSegmentHighlighted(1, '7-8')).toBe(true);
+      env.waitForQuestionTimersToComplete();
+    }));
+
     it('quill editor element lang attribute is set from project language', fakeAsync(() => {
       const env = new TestEnvironment({ user: CHECKER_USER });
       env.waitForAudioPlayer();
@@ -3026,6 +3055,23 @@ class TestEnvironment {
       }
     }
     return -1;
+  }
+
+  /** The text of the question highlighted in the questions pane, or undefined if none is highlighted. */
+  get selectedQuestionText(): string | undefined {
+    const selected: DebugElement | undefined = this.questions.find(question => question.classes['selected']);
+    return selected == null ? undefined : selected.nativeElement.textContent;
+  }
+
+  setQuestionVerseRef(dataId: string, verseRef: VerseRef): void {
+    const questionDoc: QuestionDoc = this.realtimeService.get<QuestionDoc>(
+      QuestionDoc.COLLECTION,
+      getQuestionDocId('project01', dataId)
+    );
+    questionDoc.submitJson0Op(op => op.set(q => q.verseRef, fromVerseRef(verseRef)), false);
+    this.realtimeService.updateQueryAdaptersRemote();
+    tick(100);
+    this.fixture.detectChanges();
   }
 
   async getFontSizeMenu(): Promise<MatMenuHarness> {
@@ -3959,6 +4005,10 @@ class TestEnvironment {
     delta.insert('\n', { para: { style: 'p' } });
     delta.insert({ verse: { number: '6', style: 'v' } });
     delta.insert(`ישע`, { segment: `verse_${chapter}_6` });
+    delta.insert('\n', { para: { style: 'p' } });
+    // a combined verse, as Paratext produces for \v 7-8
+    delta.insert({ verse: { number: '7-8', style: 'v' } });
+    delta.insert(`target: chapter ${chapter}, verses 7-8.`, { segment: `verse_${chapter}_7-8` });
     delta.insert('\n', { para: { style: 'p' } });
     delta.insert('End of chapter heading', { segment: 's1_2' });
     delta.insert('\n', { para: { style: 's1' } });
