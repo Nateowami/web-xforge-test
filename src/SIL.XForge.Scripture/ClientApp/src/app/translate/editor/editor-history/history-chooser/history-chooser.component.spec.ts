@@ -1,5 +1,7 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { SimpleChange } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatSelectChange } from '@angular/material/select';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { TextInfoPermission } from 'realtime-server/lib/esm/scriptureforge/models/text-info-permission';
@@ -97,6 +99,57 @@ describe('HistoryChooserComponent', () => {
     env.wait();
     expect(env.component.selectedRevision).toBeDefined();
     expect(env.historySelect).toBeDefined();
+  }));
+
+  it('should not report an error if the connection is lost while loading the history', fakeAsync(() => {
+    const env = new TestEnvironment();
+    // The service worker returns a synthesized 504 for a request it cannot fulfill while offline
+    env.rejectSnapshotWith(new HttpErrorResponse({ status: 504, statusText: 'Gateway Timeout' }));
+    env.triggerNgOnChanges();
+    env.wait();
+    expect(env.component.selectedRevision).toBeUndefined();
+    expect(env.component.selectedSnapshot).toBeUndefined();
+    expect(env.historySelect).toBeNull();
+  }));
+
+  it('should load the history again when the connection is restored', fakeAsync(() => {
+    const env = new TestEnvironment();
+    // A request that fails because the browser has no connection is reported with a status of 0
+    env.rejectSnapshotWith(new HttpErrorResponse({ status: 0 }));
+    env.triggerNgOnChanges();
+    env.wait();
+    expect(env.component.selectedRevision).toBeUndefined();
+
+    env.resolveSnapshot();
+    env.testOnlineStatusService.setIsOnline(false);
+    env.wait();
+    env.testOnlineStatusService.setIsOnline(true);
+    env.wait();
+    expect(env.component.selectedRevision).toBeDefined();
+    expect(env.component.selectedSnapshot).toBeDefined();
+    expect(env.historySelect).toBeDefined();
+  }));
+
+  it('should report an error if the history fails to load for any other reason', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.rejectSnapshotWith(new HttpErrorResponse({ status: 500, statusText: 'Internal Server Error' }));
+    env.triggerNgOnChanges();
+
+    // Call directly, as the view is not initialized, so that the rejection can be observed
+    let error: unknown;
+    env.component.loadHistory().catch(err => (error = err));
+    tick();
+    expect(error).toBeInstanceOf(HttpErrorResponse);
+  }));
+
+  it('should show a message if the connection is lost when a revision is selected', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.triggerNgOnChanges();
+    env.wait();
+    env.rejectSnapshotWith(new HttpErrorResponse({ status: 504, statusText: 'Gateway Timeout' }));
+    env.component.onSelectionChanged({ value: env.component.historyRevisions[0] } as MatSelectChange);
+    env.wait();
+    verify(mockedNoticeService.show(anything())).once();
   }));
 
   it('should allow no revisions', fakeAsync(() => {
@@ -273,6 +326,14 @@ describe('HistoryChooserComponent', () => {
       });
 
       when(mockedParatextService.getRevisions('project01', 'MAT', 1)).thenResolve([{ timestamp: 'date_here' }]);
+      this.resolveSnapshot();
+      when(mockedProjectService.getProfile('project01')).thenCall(() =>
+        this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, 'project01')
+      );
+      when(mockedTextDocService.canRestore(anything(), 40, 1)).thenReturn(true);
+    }
+
+    resolveSnapshot(): void {
       when(mockedParatextService.getSnapshot('project01', 'MAT', 1, 'date_here')).thenResolve({
         data: { ops: [] },
         id: 'id',
@@ -280,10 +341,10 @@ describe('HistoryChooserComponent', () => {
         v: 1,
         isValid: this.isSnapshotValid
       });
-      when(mockedProjectService.getProfile('project01')).thenCall(() =>
-        this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, 'project01')
-      );
-      when(mockedTextDocService.canRestore(anything(), 40, 1)).thenReturn(true);
+    }
+
+    rejectSnapshotWith(error: HttpErrorResponse): void {
+      when(mockedParatextService.getSnapshot('project01', 'MAT', 1, 'date_here')).thenReject(error as unknown as Error);
     }
 
     get historySelect(): HTMLElement {

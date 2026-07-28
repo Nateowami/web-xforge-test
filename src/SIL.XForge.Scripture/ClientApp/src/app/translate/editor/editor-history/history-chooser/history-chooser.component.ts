@@ -1,4 +1,5 @@
 import { AsyncPipe, NgClass } from '@angular/common';
+import { HttpErrorResponse } from '@angular/common/http';
 import {
   AfterViewInit,
   Component,
@@ -205,6 +206,13 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
             await this.selectRevision(this.historyRevisions[0]);
           }
         }
+      } catch (err) {
+        if (!this.isConnectionError(err)) throw err;
+        // The connection was lost while the history was loading. Discard whatever was loaded so that the history is
+        // loaded again when the connection is restored, and so the offline notice is displayed in the meantime.
+        this.historyRevisions = [];
+        this.selectedRevision = undefined;
+        this.selectedSnapshot = undefined;
       } finally {
         this.loading$.next(false);
       }
@@ -216,6 +224,9 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
 
     try {
       await this.selectRevision(e.value);
+    } catch (err) {
+      if (!this.isConnectionError(err)) throw err;
+      this.noticeService.show(this.i18n.translateStatic('editor_history_tab.offline_notice'));
     } finally {
       this.loading$.next(false);
     }
@@ -281,6 +292,15 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
   toggleDiff(): void {
     this.showDiff = !this.showDiff;
     this.showDiffChange.emit(this.showDiff);
+  }
+
+  /**
+   * Determines whether an error was caused by the connection being lost, rather than by the server rejecting the
+   * request. A request that fails because the browser has no connection is reported with a status of 0, while the
+   * service worker synthesizes a 504 Gateway Timeout for a request it cannot fulfill from its cache while offline.
+   */
+  private isConnectionError(err: unknown): boolean {
+    return err instanceof HttpErrorResponse && (err.status === 0 || err.status === 504);
   }
 
   private async selectRevision(revision: Revision): Promise<void> {
