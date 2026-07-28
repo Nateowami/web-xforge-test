@@ -24,8 +24,12 @@
 
 app-text {
   display: block;
-  overflow-y: scroll;
-  max-height: calc(100vh - 25rem);
+  overflow-y: auto;
+  // Share whatever height the dialog has with the selection preview, rather than sizing off the
+  // viewport. A viewport-based calculation collapses the scripture text to zero height on short
+  // viewports (a phone in landscape), leaving nothing to select from.
+  flex: 1 1 auto;
+  min-height: 6em;
 }
 
 .selection-reference {
@@ -34,8 +38,11 @@ app-text {
 
 .selection-preview {
   font-family: var(--project-font);
+  // 16em where there is room, but allowed to shrink so the scripture text above keeps its share
+  flex: 0 1 auto;
   height: 16em;
-  overflow-y: scroll;
+  min-height: 4em;
+  overflow-y: auto;
   margin-top: 1em;
   > p {
     margin-bottom: 0;
