@@ -53,6 +53,20 @@ export class CheckingUtils {
     return question.answers.filter(answer => answer.ownerRef === userId && !answer.deleted).length > 0;
   }
 
+  /**
+   * Whether the user has added an answer to this question at some point, counting an answer they
+   * have since deleted. Other users' answers are hidden from a user until they have answered, so
+   * that their answer isn't influenced by the others; once they have answered, they have already
+   * seen the other answers (and may have liked or commented on them), so deleting their own answer
+   * should not hide them again.
+   */
+  static hasUserEverAnswered(question: Question | undefined, userId: string): boolean {
+    if (question == null) {
+      return false;
+    }
+    return question.answers.some(answer => answer.ownerRef === userId);
+  }
+
   static hasUserReadQuestion(
     question: Question | undefined,
     projectUserConfig: SFProjectUserConfig | undefined

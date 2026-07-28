@@ -1970,19 +1970,19 @@ describe('CheckingComponent', () => {
       expect(env.unreadAnswersBannerCount).toEqual(1);
       expect(env.totalAnswersMessageCount).toEqual(3);
 
-      // The current user deletes her own answer, which puts her back to just seeing the Add answer button. She
-      // should not see any other answers or the show-remote banner.
+      // The current user deletes her own answer. She gets the Add answer button back, but the other answers stay
+      // visible: she has already seen them, and may have liked or commented on them. The show-remote banner goes
+      // away because the pending remote answer is now shown.
       // This spec is not concerning itself with other interesting ways for the current user's answer to be deleted,
       // other than them deleting their own answer on the current checking-answers.component.
       env.deleteAnswerOwnedBy();
       expect(env.addAnswerButton).not.toBeNull();
       expect(env.showUnreadAnswersButton).toBeNull();
-      expect(env.answers.length).toEqual(0);
       // Behind the scenes, the showable answer list should have absorbed any pending remote answers, but also lost the
       // current users answer. So it was 2, lost 1 (deleted), and gained 1 (which was pending), and so stayed at 2.
+      expect(env.answers.length).toEqual(2);
       expect(env.component.answersPanel!.answers.length).toEqual(2);
-      // Total answers heading is not shown if user deleted her answer.
-      expect(env.totalAnswersMessageCount).toBeNull();
+      expect(env.totalAnswersMessageCount).toEqual(2);
 
       // Adding an answer should result in seeing all answers, and no banner.
       env.answerQuestion('New/replaced answer from current user');
@@ -1998,6 +1998,30 @@ describe('CheckingComponent', () => {
       expect(env.showUnreadAnswersButton).not.toBeNull();
       expect(env.unreadAnswersBannerCount).toEqual(1);
       expect(env.totalAnswersMessageCount).toEqual(4);
+      flush();
+    }));
+
+    it("other users' answers stay visible, with the user's like and comment, after the user deletes their own answer", fakeAsync(() => {
+      const env = new TestEnvironment({ user: CHECKER_USER });
+      env.selectQuestion(7);
+      // Other users' answers are hidden until the user has answered.
+      expect(env.answers.length).withContext('setup').toEqual(0);
+      env.answerQuestion('New answer from current user');
+      expect(env.answers.length).withContext('setup').toEqual(2);
+      expect(env.getAnswerText(1)).withContext('setup').toEqual('Answer 7 on question');
+
+      // The user likes and comments on the other user's answer.
+      env.clickButton(env.likeButtons[1]);
+      expect(env.getLikeTotal(1)).toEqual(1);
+      env.commentOnAnswer(1, 'I agree with this answer');
+
+      // Deleting their own answer leaves the other answer, their like and their comment on screen.
+      env.deleteAnswerOwnedBy();
+      expect(env.addAnswerButton).not.toBeNull();
+      expect(env.answers.length).toEqual(1);
+      expect(env.getAnswerText(0)).toEqual('Answer 7 on question');
+      expect(env.getLikeTotal(0)).toEqual(1);
+      expect(env.getAnswerCommentText(0, 3)).toEqual('I agree with this answer');
       flush();
     }));
 
@@ -3308,7 +3332,7 @@ class TestEnvironment {
     if (audioFilename != null) {
       commentAudio = { status: 'processed', blob: getAudioBlob(), fileName: audioFilename };
     }
-    const commentsComponent = this.fixture.debugElement.query(By.css('#answer-comments'))!
+    const commentsComponent = this.getAnswer(answerIndex).query(By.css('#answer-comments'))!
       .componentInstance as CheckingCommentsComponent;
     commentsComponent.submit({ text: comment, audio: commentAudio });
     this.waitForSliderUpdate();

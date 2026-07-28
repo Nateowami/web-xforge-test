@@ -207,7 +207,7 @@ export class CheckingAnswersComponent implements OnInit {
         // If the user hasn't added an answer yet and is able to, then
         // don't hold back any incoming answers from appearing right away
         // as soon as the user adds their answer.
-        if (this.currentUserTotalAnswers === 0 && this.canAddAnswer && !this.canManageQuestions) {
+        if (!this.currentUserHasEverAnswered && this.canAddAnswer && !this.canManageQuestions) {
           this.showRemoteAnswers();
           return;
         }
@@ -271,6 +271,11 @@ export class CheckingAnswersComponent implements OnInit {
     return this._questionDoc.getAnswers(this.userService.currentUserId).length;
   }
 
+  /** Whether the user has added an answer to this question, including one they have since deleted. */
+  get currentUserHasEverAnswered(): boolean {
+    return CheckingUtils.hasUserEverAnswered(this._questionDoc?.data, this.userService.currentUserId);
+  }
+
   /** Answer belonging to current user, if any. Assumes they don't have more than one answer. */
   get currentUserAnswer(): Answer | null {
     if (this._questionDoc == null || this._questionDoc.data == null) {
@@ -328,11 +333,14 @@ export class CheckingAnswersComponent implements OnInit {
   }
 
   get shouldShowAnswers(): boolean {
-    return (
-      !this.answerFormVisible &&
-      this.totalAnswers > 0 &&
-      (this.currentUserTotalAnswers > 0 || !this.canAddAnswer || this.canManageQuestions)
-    );
+    if (this.answerFormVisible) {
+      return false;
+    }
+    // Only the user's own answer is ever listed, so there is nothing to show once it is deleted.
+    if (!this.shouldSeeAnswersList) {
+      return this.currentUserTotalAnswers > 0;
+    }
+    return this.totalAnswers > 0 && (this.currentUserHasEverAnswered || !this.canAddAnswer || this.canManageQuestions);
   }
 
   get totalAnswers(): number {

@@ -348,7 +348,7 @@ export class CheckingQuestionsComponent implements OnInit, OnChanges {
         if (questionDoc != null && questionDoc.data != null && !this.hasUserReadQuestion(questionDoc)) {
           op.add(puc => puc.questionRefsRead, questionDoc.data.dataId);
         }
-        if (this.hasUserAnswered(questionDoc) || !this.canAddAnswer || this.canManageQuestions) {
+        if (this.hasUserEverAnswered(questionDoc) || !this.canAddAnswer || this.canManageQuestions) {
           for (const answer of this.getAnswers(questionDoc)) {
             if (!this.hasUserReadAnswer(answer)) {
               op.add(puc => puc.answerRefsRead, answer.dataId);
@@ -387,6 +387,11 @@ export class CheckingQuestionsComponent implements OnInit, OnChanges {
 
   hasUserAnswered(questionDoc: QuestionDoc): boolean {
     return CheckingUtils.hasUserAnswered(questionDoc.data, this.userService.currentUserId);
+  }
+
+  /** Whether the user has added an answer to this question, including one they have since deleted. */
+  hasUserEverAnswered(questionDoc: QuestionDoc): boolean {
+    return CheckingUtils.hasUserEverAnswered(questionDoc.data, this.userService.currentUserId);
   }
 
   hasUserReadQuestion(questionDoc: QuestionDoc): boolean {

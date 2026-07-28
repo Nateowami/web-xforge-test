@@ -1,4 +1,5 @@
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
+import { Question } from 'realtime-server/lib/esm/scriptureforge/models/question';
 import { VerseRefData } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { getAudioTimings, getAudioTimingWithHeadings } from './checking-test.utils';
 import {
@@ -87,6 +88,22 @@ describe('CheckingUtils', () => {
       iteration: 2
     });
   });
+
+  it('counts a deleted answer for hasUserEverAnswered but not for hasUserAnswered', () => {
+    const question: Question = env.createQuestion([
+      { ownerRef: 'user01', deleted: false },
+      { ownerRef: 'user02', deleted: true }
+    ]);
+
+    expect(CheckingUtils.hasUserAnswered(question, 'user01')).toBe(true);
+    expect(CheckingUtils.hasUserAnswered(question, 'user02')).toBe(false);
+    expect(CheckingUtils.hasUserAnswered(question, 'user03')).toBe(false);
+
+    expect(CheckingUtils.hasUserEverAnswered(question, 'user01')).toBe(true);
+    expect(CheckingUtils.hasUserEverAnswered(question, 'user02')).toBe(true);
+    expect(CheckingUtils.hasUserEverAnswered(question, 'user03')).toBe(false);
+    expect(CheckingUtils.hasUserEverAnswered(undefined, 'user01')).toBe(false);
+  });
 });
 
 describe('Misc checking functions', () => {
@@ -174,4 +191,26 @@ class TestEnvironment {
   ];
 
   constructor() {}
+
+  createQuestion(answers: { ownerRef: string; deleted: boolean }[]): Question {
+    const date = new Date().toJSON();
+    return {
+      dataId: 'question01',
+      projectRef: 'project01',
+      ownerRef: 'user01',
+      verseRef: { bookNum: 43, chapterNum: 1, verseNum: 1 },
+      answers: answers.map((answer, index) => ({
+        dataId: `answer${index}`,
+        ownerRef: answer.ownerRef,
+        deleted: answer.deleted,
+        likes: [],
+        comments: [],
+        dateCreated: date,
+        dateModified: date
+      })),
+      isArchived: false,
+      dateCreated: date,
+      dateModified: date
+    };
+  }
 }
