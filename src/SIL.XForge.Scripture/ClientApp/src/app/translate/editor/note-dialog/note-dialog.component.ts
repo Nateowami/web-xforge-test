@@ -151,13 +151,15 @@ export class NoteDialogComponent implements OnInit {
         this.projectId,
         this.userRole
       );
-      if (this.threadDoc != null && projectDoc != null && projectDoc.data?.paratextUsers != null) {
-        this.paratextProjectUsers = projectDoc.data.paratextUsers;
-        this.isAssignedToOtherUser = this.threadDoc.isAssignedToOtherUser(
-          this.userService.currentUserId,
-          this.paratextProjectUsers
-        );
-      }
+      this.paratextProjectUsers = projectDoc?.data?.paratextUsers;
+    }
+    if (this.threadDoc != null) {
+      // Users without a Paratext role cannot access the list of Paratext users, but a note assigned to a Paratext
+      // user is still assigned to someone else, so gray out its icon as the editor does.
+      this.isAssignedToOtherUser = this.threadDoc.isAssignedToOtherUser(
+        this.userService.currentUserId,
+        this.paratextProjectUsers ?? []
+      );
     }
     // extract note info and content for display
     await this.updateNotesToDisplayAsync();

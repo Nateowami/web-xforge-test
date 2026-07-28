@@ -275,6 +275,22 @@ describe('NoteDialogComponent', () => {
     }
   }));
 
+  it('shows correct coloured icon based on assignment for non-paratext users', fakeAsync(() => {
+    // user03 is a commenter, so the list of paratext users is not available to them
+    const currentUserId = 'user03';
+    const noteThread: NoteThread = TestEnvironment.defaultNoteThread;
+
+    noteThread.assignment = AssignedUsers.TeamUser;
+    env = new TestEnvironment({ noteThread, currentUserId });
+    expect(env.component.flagIcon).withContext(AssignedUsers.TeamUser).toEqual('/assets/icons/TagIcons/flag01.png');
+    env.closeDialog();
+
+    // A note assigned to a paratext user is assigned to somebody else, as it is in the editor
+    noteThread.assignment = 'opaqueuser01';
+    env = new TestEnvironment({ noteThread, currentUserId });
+    expect(env.component.flagIcon).withContext('opaqueuser01').toEqual('/assets/icons/TagIcons/flag04.png');
+  }));
+
   it('hides assigned user for non-paratext users', fakeAsync(() => {
     env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread(), currentUserId: 'user02' });
     expect(env.threadAssignedUser).toBeFalsy();
