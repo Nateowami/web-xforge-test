@@ -1255,9 +1255,14 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     }
     // Mobile users can use the bottom sheet to add new notes
     if (this.breakpointObserver.isMatched(this.mediaBreakpointService.width('<', Breakpoint.LG))) {
-      this.toggleAddingMobileNote();
       this.setNoteFabVisibility('hidden');
-      this.bottomSheetRef = this.bottomSheet.open(this.TemplateBottomSheet, { hasBackdrop: false });
+      // guard against toggling off an entry form that is already showing, which would leave an empty bottom sheet
+      if (!this.addingMobileNote) {
+        this.toggleAddingMobileNote();
+      }
+      if (this.bottomSheetRef?.containerInstance == null) {
+        this.bottomSheetRef = this.bottomSheet.open(this.TemplateBottomSheet, { hasBackdrop: false });
+      }
     } else {
       void this.showNoteThread(undefined, verseRef);
     }
@@ -1698,6 +1703,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       textDocId: new TextDocId(this.projectDoc!.id, this.bookNum, this.chapter),
       verseRef
     };
+    const currentVerseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
+    // Hide the add comment UI, otherwise the mobile bottom sheet shows behind the note dialog
+    this.showAddCommentButton = false;
     const dialogRef: MatDialogRef<NoteDialogComponent, NoteDialogResult | undefined> = this.openMatDialog<
       NoteDialogComponent,
       NoteDialogData,
@@ -1709,8 +1717,6 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       data: noteDialogData
     });
 
-    const currentVerseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
-    this.setNoteFabVisibility('hidden');
     const result: NoteDialogResult | undefined = await lastValueFrom(dialogRef.afterClosed());
 
     if (result != null) {
@@ -1728,6 +1734,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     if (this.isInsertNoteFabEnabled) {
       this.setNoteFabVisibility('visible');
       this.positionInsertNoteFab();
+    } else if (this.isCommenterOnMobileDevice && this.showAddCommentUI && this.commenterSelectedVerseRef != null) {
+      // restore the bottom sheet that a commenter on mobile uses in place of the FAB
+      this.showAddCommentButton = true;
     }
   }
 

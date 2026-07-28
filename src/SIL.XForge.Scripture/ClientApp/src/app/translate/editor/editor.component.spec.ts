@@ -2933,6 +2933,59 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('dismisses the mobile bottom sheet when a note dialog is opened', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_1' });
+      env.setCurrentUser('user04');
+      env.wait();
+
+      // Allow check for mobile viewports to return TRUE
+      env.breakpointObserver.matchedResult = true;
+      env.clickSegmentRef('verse_1_2');
+      env.insertNoteFab.nativeElement.click();
+      env.wait();
+      expect(env.mobileNoteTextArea).toBeTruthy();
+
+      // clicking an existing note must not leave the bottom sheet showing behind the note dialog
+      const noteElement: HTMLElement = env.getNoteThreadIconElement('verse_1_3', 'dataid02')!;
+      noteElement.click();
+      env.wait();
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+      expect(env.mobileNoteTextArea).toBeNull();
+      expect(env.bottomSheetVerseReference).toBeNull();
+
+      env.mockNoteDialogRef.close();
+      env.wait();
+      env.dispose();
+    }));
+
+    it('keeps the mobile note form when the insert note button is activated again', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_1' });
+      env.setCurrentUser('user04');
+      env.wait();
+
+      // Allow check for mobile viewports to return TRUE
+      env.breakpointObserver.matchedResult = true;
+      env.clickSegmentRef('verse_1_2');
+      env.insertNoteFab.nativeElement.click();
+      env.wait();
+      expect(env.mobileNoteTextArea).toBeTruthy();
+      env.component.mobileNoteControl.setValue('a partly typed note');
+
+      // the FAB is hidden at this point, but activating it again must not empty out the bottom sheet
+      env.insertNoteFab.nativeElement.click();
+      env.wait();
+      expect(env.mobileNoteTextArea).toBeTruthy();
+      expect(document.querySelectorAll('.fab-bottom-sheet').length).toEqual(1);
+      expect(env.component.mobileNoteControl.value).toEqual('a partly typed note');
+
+      // Close the bottom sheet
+      env.bottomSheetCloseButton!.click();
+      env.wait();
+      env.dispose();
+    }));
+
     it('shows current selected verse on bottom sheet', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
