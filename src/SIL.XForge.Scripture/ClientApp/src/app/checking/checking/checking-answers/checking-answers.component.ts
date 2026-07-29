@@ -249,6 +249,11 @@ export class CheckingAnswersComponent implements OnInit {
     }
   }
 
+  /** Ids of the answers that are being shown to the user, and so can be considered read. */
+  get shownAnswerIds(): string[] {
+    return this.answers.map(answer => answer.dataId);
+  }
+
   get remoteAnswersCount(): number {
     return this.allAnswers.length - this.answers.length;
   }

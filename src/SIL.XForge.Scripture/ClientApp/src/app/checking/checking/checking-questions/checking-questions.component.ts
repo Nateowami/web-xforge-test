@@ -338,7 +338,13 @@ export class CheckingQuestionsComponent implements OnInit, OnChanges {
     }
   }
 
-  updateElementsRead(questionDoc: QuestionDoc): void {
+  /**
+   * Marks the question, and the answers and comments on it, as read.
+   * @param shownAnswerIds If specified, only the answers with these ids are marked as read. Answers that have not been
+   * shown to the user yet (such as answers that arrived while the user was looking at the question) must not be marked
+   * as read, or the user will lose any indication that there is something new to look at.
+   */
+  updateElementsRead(questionDoc: QuestionDoc, shownAnswerIds?: string[]): void {
     if (this._projectUserConfigDoc == null) {
       return;
     }
@@ -350,6 +356,9 @@ export class CheckingQuestionsComponent implements OnInit, OnChanges {
         }
         if (this.hasUserAnswered(questionDoc) || !this.canAddAnswer || this.canManageQuestions) {
           for (const answer of this.getAnswers(questionDoc)) {
+            if (shownAnswerIds != null && !shownAnswerIds.includes(answer.dataId)) {
+              continue;
+            }
             if (!this.hasUserReadAnswer(answer)) {
               op.add(puc => puc.answerRefsRead, answer.dataId);
             }

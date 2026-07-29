@@ -1449,7 +1449,9 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
       void questionDoc.submitJson0Op(op => op.insert(q => q.answers, 0, answers[0]));
     }
 
-    this.questionsList.updateElementsRead(questionDoc);
+    // Only the answers the user has been shown can be considered read. In particular, answers that arrived while the
+    // user was looking at the question are still hidden behind the show-more-unread banner.
+    this.questionsList.updateElementsRead(questionDoc, this.answersPanel?.shownAnswerIds);
     this.refreshSummary();
   }
 

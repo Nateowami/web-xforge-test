@@ -1905,6 +1905,46 @@ describe('CheckingComponent', () => {
       expect(env.totalAnswersMessageCount).toEqual(2);
     }));
 
+    it('unread answers badge remains when changing the status of a shown answer', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      const question = env.selectQuestion(6);
+
+      env.simulateNewRemoteAnswer();
+      expect(env.getUnread(question)).withContext('setup').toEqual(1);
+      expect(env.showUnreadAnswersButton).withContext('setup').not.toBeNull();
+
+      // Marking the shown answer for export should not mark the unread answer as read.
+      env.clickButton(env.getExportAnswerButton(0));
+      expect(env.getUnread(question)).toEqual(1);
+
+      // Nor should marking it as resolved.
+      env.clickButton(env.getResolveAnswerButton(0));
+      expect(env.getUnread(question)).toEqual(1);
+      expect(env.showUnreadAnswersButton).not.toBeNull();
+
+      flush();
+      discardPeriodicTasks();
+    }));
+
+    it('unread answers badge remains when editing an answer', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      // Question 7 has an answer owned by the project admin.
+      const question = env.selectQuestion(7);
+
+      env.simulateNewRemoteAnswer();
+      expect(env.getUnread(question)).withContext('setup').toEqual(1);
+
+      env.clickButton(env.getAnswerEditButton(0));
+      env.setTextFieldValue(env.yourAnswerField, 'Edited answer');
+      env.clickButton(env.saveAnswerButton);
+      env.waitForSliderUpdate();
+      expect(env.getUnread(question)).toEqual(1);
+      expect(env.showUnreadAnswersButton).not.toBeNull();
+
+      flush();
+      discardPeriodicTasks();
+    }));
+
     it('proj admin sees total answer count if >0 answers', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER });
       // Select a question with at least one answer, but with no answers
