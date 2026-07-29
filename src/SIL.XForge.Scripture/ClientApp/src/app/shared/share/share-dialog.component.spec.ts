@@ -9,6 +9,7 @@ import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-
 import { firstValueFrom } from 'rxjs';
 import { anything, instance, mock, verify, when } from 'ts-mockito';
 import { NAVIGATOR } from 'xforge-common/browser-globals';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { Locale } from 'xforge-common/models/i18n-locale';
 import { UserDoc } from 'xforge-common/models/user-doc';
 import { NoticeService } from 'xforge-common/notice.service';
@@ -310,6 +311,26 @@ describe('ShareDialogComponent', () => {
     expect(env.canChangeLinkUsage).toBe(true);
   }));
 
+  it('should select a different role if the selected role can no longer be shared', fakeAsync(() => {
+    env = new TestEnvironment({ userId: TestUsers.Admin });
+    expect(env.component.shareRole).toEqual(SFProjectRole.CommunityChecker);
+
+    env.disableCheckingSharing();
+
+    expect(env.isDialogOpen).toBe(true);
+    expect(env.component.shareRole).toEqual(SF_DEFAULT_TRANSLATE_SHARE_ROLE);
+    // No key is requested for the role that can no longer be shared, as the server would deny it
+    verify(
+      mockedProjectService.onlineGetLinkSharingKey('project01', SFProjectRole.CommunityChecker, anything(), anything())
+    ).once();
+  }));
+
+  it('should not report an error if the server denies the share key request', fakeAsync(() => {
+    env = new TestEnvironment({ userId: TestUsers.Admin, linkSharingKeyDenied: true });
+    expect(env.isDialogOpen).toBe(true);
+    expect(env.copyLinkButton.disabled).toBe(true);
+  }));
+
   it('shareLink is for projectId and has specific key', fakeAsync(() => {
     env = new TestEnvironment({ projectId: 'myProject1' });
     env.component.setLocale(env.locale);
@@ -345,6 +366,7 @@ interface TestEnvironmentArgs {
   checkingShareEnabled?: boolean;
   shareAPIEnabled?: boolean;
   translateShareEnabled?: boolean;
+  linkSharingKeyDenied?: boolean;
 }
 
 class TestEnvironment {
@@ -371,7 +393,8 @@ class TestEnvironment {
     checkingEnabled = true,
     checkingShareEnabled = true,
     shareAPIEnabled = true,
-    translateShareEnabled = true
+    translateShareEnabled = true,
+    linkSharingKeyDenied = false
   }: TestEnvironmentArgs = {}) {
     this.fixture = TestBed.createComponent(ChildViewContainerComponent);
     const permissions = [SF_PROJECT_RIGHTS.joinRight(SFProjectDomain.UserInvites, Operation.Create)];
@@ -411,9 +434,15 @@ class TestEnvironment {
     );
     when(mockedUserService.currentUserId).thenReturn(userId);
     when(mockedUserService.getCurrentUser()).thenResolve({ data: createTestUser() } as UserDoc);
-    when(mockedProjectService.onlineGetLinkSharingKey(projectId, anything(), anything(), anything())).thenResolve(
-      checkingShareEnabled || translateShareEnabled ? 'linkSharing01' : ''
-    );
+    if (linkSharingKeyDenied) {
+      when(mockedProjectService.onlineGetLinkSharingKey(projectId, anything(), anything(), anything())).thenReject(
+        new CommandError(CommandErrorCode.Forbidden, 'The user does not have permission to perform this operation.')
+      );
+    } else {
+      when(mockedProjectService.onlineGetLinkSharingKey(projectId, anything(), anything(), anything())).thenResolve(
+        checkingShareEnabled || translateShareEnabled ? 'linkSharing01' : ''
+      );
+    }
     when(mockedProjectService.onlineReserveLinkSharingKey(anything(), anything())).thenResolve();
     when(mockedProjectService.generateSharingUrl(anything(), anything())).thenCall(
       () =>

@@ -20,6 +20,7 @@ import { Operation } from 'realtime-server/lib/esm/common/models/project-rights'
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { NAVIGATOR } from 'xforge-common/browser-globals';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { Locale } from 'xforge-common/models/i18n-locale';
 import { UserDoc } from 'xforge-common/models/user-doc';
@@ -104,8 +105,11 @@ export class ShareDialogComponent extends ShareBaseComponent {
       this.projectDoc = value[0];
       this.isProjectAdmin = value[1];
       this.projectDoc.remoteChanges$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(() => {
-        if (this.shareLinkUsageOptions.length === 0) {
+        if (this.availableRoles.length === 0) {
           this.dialogRef.close();
+        } else if (!this.availableRoles.includes(this.shareRole)) {
+          // An admin has stopped this role from being shared while the dialog was open
+          this.setRole(this.defaultShareRole);
         } else if (!this.shareLinkUsageOptions.includes(this.shareLinkType)) {
           this.resetLinkUsageOptions();
         } else {
@@ -284,7 +288,12 @@ export class ShareDialogComponent extends ShareBaseComponent {
   }
 
   private resetLinkUsageOptions(): void {
-    this.setLinkType(this.shareLinkUsageOptions[0]);
+    const options = this.shareLinkUsageOptions;
+    if (options.length === 0) {
+      this.dialogRef.close();
+      return;
+    }
+    this.setLinkType(options[0]);
   }
 
   /**
@@ -300,6 +309,14 @@ export class ShareDialogComponent extends ShareBaseComponent {
       .then((shareKey: string) => {
         this.linkSharingKey = shareKey;
         this.linkSharingReady = true;
+      })
+      .catch(error => {
+        // Sharing can be turned off while the dialog is open. The project doc change that updates or closes the
+        // dialog can arrive after the request has already been rejected, so this is not an error worth reporting.
+        if (error instanceof CommandError && error.code === CommandErrorCode.Forbidden) {
+          return;
+        }
+        throw error;
       });
   }
 }

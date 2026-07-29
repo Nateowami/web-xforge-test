@@ -17,7 +17,7 @@ import { Operation } from 'realtime-server/lib/esm/common/models/project-rights'
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { BehaviorSubject, combineLatest, startWith } from 'rxjs';
-import { CommandError } from 'xforge-common/command.service';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -163,7 +163,16 @@ export class ShareControlComponent extends ShareBaseComponent {
     if (this._projectId == null || this.email.invalid || this.email.value == null) {
       return;
     }
-    this.isAlreadyInvited = await this.projectService.onlineIsAlreadyInvited(this._projectId, this.email.value);
+    try {
+      this.isAlreadyInvited = await this.projectService.onlineIsAlreadyInvited(this._projectId, this.email.value);
+    } catch (err) {
+      // The user's permission to invite others can be revoked while this form is open. Typing an email address
+      // should not raise an error dialog; sending the invitation reports the problem if it is still there.
+      if (!(err instanceof CommandError && err.code === CommandErrorCode.Forbidden)) {
+        throw err;
+      }
+      this.isAlreadyInvited = false;
+    }
   }
 
   async sendEmail(form: FormGroupDirective): Promise<void> {
