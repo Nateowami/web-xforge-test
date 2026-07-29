@@ -177,6 +177,12 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
       return;
     }
     this.projectDoc = await this.projectService.get(projectId);
+    // The project may have finished syncing already, such as when the user is connecting again after an earlier
+    // attempt succeeded without them seeing it. The sync progress component only reports completion when the
+    // project changes, so navigate to the project now rather than waiting for a sync that is already over.
+    if (this.projectDoc.data != null && this.projectDoc.data.sync.queuedCount === 0) {
+      this.updateStatus(false);
+    }
   }
 
   updateStatus(inProgress: boolean): void {

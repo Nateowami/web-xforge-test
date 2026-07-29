@@ -103,7 +103,10 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
     /// </summary>
     /// <param name="curUserId">The current user identifier.</param>
     /// <param name="settings">The create project settings.</param>
-    /// <returns>The Scripture Forge identifier of the created project.</returns>
+    /// <returns>
+    /// The Scripture Forge identifier of the created project, or of the existing project if the user has already
+    /// connected it.
+    /// </returns>
     /// <exception cref="DataNotFoundException">The user or project does not exist.</exception>
     /// <exception cref="InvalidOperationException">The project already exists.</exception>
     /// <exception cref="ForbiddenException">The user does not have permission to connect to the project.</exception>
@@ -112,6 +115,19 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
         Attempt<UserSecret> userSecretAttempt = await _userSecrets.TryGetAsync(curUserId);
         if (!userSecretAttempt.TryResult(out UserSecret userSecret))
             throw new DataNotFoundException("The user does not exist.");
+
+        // The project may already have been connected by an earlier request whose outcome the user did not see,
+        // such as when their connection drops while connecting. If they are already on that project, return it so
+        // that connecting again takes them to it instead of failing.
+        SFProject? existingProject = await RealtimeService
+            .QuerySnapshots<SFProject>()
+            .FirstOrDefaultAsync(sfProject => sfProject.ParatextId == settings.ParatextId);
+        if (existingProject is not null)
+        {
+            if (existingProject.UserRoles.ContainsKey(curUserId))
+                return existingProject.Id;
+            throw new InvalidOperationException(ErrorAlreadyConnectedKey);
+        }
 
         string projectDir = Path.Join(SiteOptions.Value.SiteDir, "sync", settings.ParatextId);
         if (FileSystemService.DirectoryExists(projectDir))

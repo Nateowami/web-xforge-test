@@ -3172,15 +3172,16 @@ public class SFProjectServiceTests
                 Arg.Any<CancellationToken>()
             )
             .Returns(Task.FromResult(Attempt.Success(SFProjectRole.Administrator)));
-        SFProject existingSfProject = env.GetProject(Project01);
-        string ptProjectDir = Path.Join("xforge", "sync", "paratext_" + Project01);
+        // The project is not in SF, so the leftover directory is not from a project the user can be taken to
+        Assert.That(
+            env.RealtimeService.GetRepository<SFProject>().Query().Any(p => p.ParatextId == PTProjectIdNotYetInSF),
+            Is.False,
+            "setup"
+        );
+        string ptProjectDir = Path.Join("xforge", "sync", PTProjectIdNotYetInSF);
         env.FileSystemService.DirectoryExists(ptProjectDir).Returns(true);
-        Assert.That(env.ProjectSecrets.Contains(Project01), Is.True, "setup");
         InvalidOperationException thrown = Assert.ThrowsAsync<InvalidOperationException>(() =>
-            env.Service.CreateProjectAsync(
-                User01,
-                new SFProjectCreateSettings() { ParatextId = existingSfProject.ParatextId }
-            )
+            env.Service.CreateProjectAsync(User01, new SFProjectCreateSettings() { ParatextId = PTProjectIdNotYetInSF })
         );
         Assert.That(thrown.Message, Does.Contain("A directory for this project already exists."));
         Assert.That(
@@ -3201,7 +3202,9 @@ public class SFProjectServiceTests
                 Arg.Any<CancellationToken>()
             )
             .Returns(Task.FromResult(Attempt.Success(SFProjectRole.Administrator)));
-        SFProject existingSfProject = env.GetProject(Project01);
+        // Another administrator connected this project, and the current user is not on it
+        SFProject existingSfProject = env.GetProject(Project02);
+        Assert.That(existingSfProject.UserRoles.ContainsKey(User01), Is.False, "setup");
         // SUT
         InvalidOperationException thrown = Assert.ThrowsAsync<InvalidOperationException>(() =>
             env.Service.CreateProjectAsync(
@@ -3215,6 +3218,39 @@ public class SFProjectServiceTests
             Is.EqualTo(projectCount),
             "should not have changed"
         );
+    }
+
+    [Test]
+    public async Task CreateProjectAsync_AlreadyConnectedByUser_ReturnsExistingProject()
+    {
+        // A user connecting a project they have already connected - such as when their connection dropped before
+        // they saw the first attempt succeed - should be given the project rather than an error.
+        var env = new TestEnvironment();
+        int projectCount = env.RealtimeService.GetRepository<SFProject>().Query().Count();
+        env.ParatextService.TryGetProjectRoleAsync(
+                Arg.Any<UserSecret>(),
+                Arg.Any<string>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(Task.FromResult(Attempt.Success(SFProjectRole.Administrator)));
+        SFProject existingSfProject = env.GetProject(Project01);
+        Assert.That(existingSfProject.UserRoles.ContainsKey(User01), Is.True, "setup");
+        // The first attempt will have left a directory for the project behind
+        env.FileSystemService.DirectoryExists(Path.Join("xforge", "sync", existingSfProject.ParatextId)).Returns(true);
+
+        // SUT
+        string sfProjectId = await env.Service.CreateProjectAsync(
+            User01,
+            new SFProjectCreateSettings() { ParatextId = existingSfProject.ParatextId }
+        );
+
+        Assert.That(sfProjectId, Is.EqualTo(Project01));
+        Assert.That(
+            env.RealtimeService.GetRepository<SFProject>().Query().Count(),
+            Is.EqualTo(projectCount),
+            "should not have changed"
+        );
+        await env.SyncService.DidNotReceive().SyncAsync(Arg.Any<SyncConfig>());
     }
 
     [Test]

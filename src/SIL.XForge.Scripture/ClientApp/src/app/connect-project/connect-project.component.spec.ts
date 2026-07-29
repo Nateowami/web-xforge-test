@@ -31,6 +31,8 @@ import { ConnectProjectComponent } from './connect-project.component';
 interface TestEnvironmentParams {
   hasConnection?: boolean;
   paratextId?: string | null;
+  /** The queued sync count of the project that creating returns. Zero means it has finished syncing already. */
+  queuedCount?: number;
 }
 
 const mockedAuthService = mock(AuthService);
@@ -229,6 +231,21 @@ describe('ConnectProjectComponent', () => {
     verify(mockedRouter.navigate(deepEqual(['/projects', 'project01']))).never();
   }));
 
+  it('goes to the project when it has finished syncing already', fakeAsync(() => {
+    // An earlier connect attempt by this user succeeded without them seeing it - such as when their connection
+    // dropped - so connecting again returns that project, whose initial sync is over. There will be no further sync
+    // progress to wait for, so the user should be taken to the project.
+    const env = new TestEnvironment({ paratextId: null, queuedCount: 0 });
+    env.setupDefaultProjectData();
+    env.waitForProjectsResponse();
+
+    env.clickElement(env.submitButton);
+    tick();
+
+    verify(mockedSFProjectService.onlineCreate(anything())).once();
+    verify(mockedRouter.navigate(deepEqual(['/projects', 'project01']))).once();
+  }));
+
   it('shows error message when resources fail to load, but still allows selecting a based on project', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setupDefaultProjectData();
@@ -369,7 +386,7 @@ class TestEnvironment {
         checkingConfig: {
           checkingEnabled: settings.checkingEnabled
         },
-        sync: { queuedCount: 1 },
+        sync: { queuedCount: params.queuedCount ?? 1 },
         userRoles: {
           user01: SFProjectRole.ParatextAdministrator
         },
