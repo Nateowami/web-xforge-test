@@ -169,6 +169,13 @@
         white-space: unset;
       }
     }
+
+    // While the audio is uploading the selected files cannot be removed
+    .delete.disabled {
+      pointer-events: none;
+      opacity: 0.5;
+      cursor: default;
+    }
   }
 }
 

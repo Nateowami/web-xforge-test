@@ -81,6 +81,44 @@ describe('ChapterAudioDialogComponent', () => {
     expect(env.component.timingErrorMessageKey).toEqual('');
   }));
 
+  it('does not allow the audio or timing data to be removed while saving', fakeAsync(async () => {
+    const promiseForResult: Promise<ChapterAudioDialogResult> = firstValueFrom(env.dialogRef.afterClosed());
+    env.onlineStatus = true;
+    await env.component.audioUpdate(env.audioFile);
+    await env.component.prepareTimingFileUpload(env.timingFile);
+
+    let completeUpload: (url: string) => void = () => {};
+    when(
+      mockedFileService.onlineUploadFileOrFail(
+        FileType.Audio,
+        anything(),
+        TextAudioDoc.COLLECTION,
+        anything(),
+        anything(),
+        anything(),
+        true
+      )
+    ).thenReturn(new Promise<string>(resolve => (completeUpload = resolve)));
+
+    const saving: Promise<void> = env.component.save();
+    await env.wait();
+
+    expect(env.component.isLoadingAudio).toBe(true);
+    expect(env.timingDeleteButton.classList.contains('disabled')).toBe(true);
+    expect(env.audioDeleteButton.classList.contains('disabled')).toBe(true);
+
+    // Deletes that get through anyway must not change what is saved
+    env.component.deleteTimingData();
+    env.component.deleteAudioData();
+    completeUpload('audio url');
+    await saving;
+    await env.wait();
+
+    const result: ChapterAudioDialogResult = await promiseForResult;
+    expect(result.timingData.length).toEqual(2);
+    expect(result.audioUrl).toEqual('audio url');
+  }));
+
   it('should default selection to first chapter with question and no audio', fakeAsync(() => {
     const chapterOfFirstQuestion: Chapter = TestEnvironment.textsByBookId[
       Canon.bookNumberToId(env.question1.data?.verseRef.bookNum!)
@@ -743,6 +781,14 @@ class TestEnvironment {
 
   get offlineError(): HTMLElement {
     return this.fetchElement('#offline-error');
+  }
+
+  get audioDeleteButton(): HTMLElement {
+    return this.overlayContainerElement.querySelector('.wrapper-audio .delete') as HTMLElement;
+  }
+
+  get timingDeleteButton(): HTMLElement {
+    return this.overlayContainerElement.querySelector('.wrapper-timing .delete') as HTMLElement;
   }
 
   get wrapperTiming(): HTMLElement {

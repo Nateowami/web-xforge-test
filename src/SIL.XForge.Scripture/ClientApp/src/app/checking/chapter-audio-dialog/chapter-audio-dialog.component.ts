@@ -224,11 +224,15 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   deleteAudioData(): void {
+    // Removing the audio while it is being saved would upload a file the dialog no longer has
+    if (this._loadingAudio) return;
     this.audio = undefined;
     if (this.fileDropzone) this.fileDropzone.nativeElement.value = '';
   }
 
   deleteTimingData(): void {
+    // Removing the timing data while the audio is being saved would save the chapter with no timings
+    if (this._loadingAudio) return;
     this.timing = [];
     this.timing_processed = [];
     this._timingErrorKey = undefined;
@@ -317,6 +321,9 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   async save(): Promise<void> {
+    // Do not start a second save while the audio is still uploading
+    if (this._loadingAudio) return;
+
     let canSave = false;
     if (this.allFieldsValid) {
       canSave = true;
@@ -578,6 +585,8 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   private processUploadedFiles(files: FileList): void {
+    // Changing the files while the audio is being saved would save data the user did not see validated
+    if (this._loadingAudio) return;
     for (let index = 0; index < files.length; index++) {
       const file: File | null = files.item(index);
       if (file == null) {

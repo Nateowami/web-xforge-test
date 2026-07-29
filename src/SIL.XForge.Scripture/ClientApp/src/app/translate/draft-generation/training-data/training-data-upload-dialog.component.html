@@ -2,9 +2,15 @@
   <h2 mat-dialog-title>{{ t("upload_training_data") }}</h2>
   <mat-dialog-content class="mat-typography">
     <div class="dropzone" #dropzone>
-      <input type="file" #fileDropzone accept=".csv,.tsv,.txt,.xls,.xlsx" (change)="uploadedFiles($event)" />
+      <input
+        type="file"
+        #fileDropzone
+        accept=".csv,.tsv,.txt,.xls,.xlsx"
+        [disabled]="isUploading"
+        (change)="uploadedFiles($event)"
+      />
       <label>{{ t("drag_and_drop_files") }}<br />- {{ t("drag_and_drop_or_browse") }} -</label>
-      <button mat-flat-button color="primary" type="submit">{{ t("browse_files") }}</button>
+      <button mat-flat-button color="primary" type="submit" [disabled]="isUploading">{{ t("browse_files") }}</button>
     </div>
     <div class="data-blocks">
       <div class="wrapper valid">
@@ -18,7 +24,7 @@
             <app-info [text]="t('filename_already_exists')" icon="warning" type="warning"></app-info>
           }
           <span>{{ trainingDataFilename }}</span>
-          <mat-icon (click)="deleteTrainingData()" class="delete">delete</mat-icon>
+          <mat-icon (click)="deleteTrainingData()" class="delete" [class.disabled]="isUploading">delete</mat-icon>
         } @else {
           <mat-icon>file_download_off</mat-icon>
           <span>{{ t("no_training_data_file_uploaded") }}</span>

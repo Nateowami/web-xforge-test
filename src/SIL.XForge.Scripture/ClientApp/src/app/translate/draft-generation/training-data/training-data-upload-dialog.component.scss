@@ -123,5 +123,12 @@
         var(--sf-training-data-upload-data-blocks-text-color-valid)
       );
     }
+
+    // While the file is uploading it cannot be removed
+    .delete.disabled {
+      pointer-events: none;
+      opacity: 0.5;
+      cursor: default;
+    }
   }
 }

@@ -90,6 +90,10 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   }
 
   deleteTrainingData(): void {
+    // Removing the file while it is being uploaded would leave the upload with nothing to record
+    if (this._isUploading) {
+      return;
+    }
     this._showFilenameExists = false;
     this.trainingDataFile = undefined;
     this.fileDropzone!.nativeElement.value = '';
@@ -112,8 +116,8 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   }
 
   async save(): Promise<void> {
-    // We cannot save a file if it has not been uploaded, or if offline
-    if (!this.hasBeenUploaded) {
+    // We cannot save a file if it has not been uploaded, if offline, or if a save is already running
+    if (!this.hasBeenUploaded || this._isUploading) {
       return;
     }
 
@@ -164,6 +168,10 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   }
 
   private processUploadedFiles(files: FileList): void {
+    // Swapping the file out while it is being uploaded would save the new file name for the old file
+    if (this._isUploading) {
+      return;
+    }
     for (let index = 0; index < files.length; index++) {
       const file: File | null = files.item(index);
       if (file == null) {

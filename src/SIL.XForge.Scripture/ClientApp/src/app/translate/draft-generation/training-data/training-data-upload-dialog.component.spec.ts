@@ -53,6 +53,43 @@ describe('TrainingDataUploadDialogComponent', () => {
     expect(result.dataId).not.toEqual('');
   });
 
+  it('does not allow the file to be removed while it is uploading', async () => {
+    const env = new TestEnvironment();
+    let result: TrainingData = { dataId: '' } as TrainingData;
+    env.dialogRef.afterClosed().subscribe((_result: TrainingData) => {
+      result = _result;
+    });
+    env.component.updateTrainingData(env.trainingDataFile);
+
+    let completeUpload: (url: string) => void = () => {};
+    when(
+      mockedFileService.onlineUploadFileOrFail(
+        FileType.TrainingData,
+        anything(),
+        TrainingDataDoc.COLLECTION,
+        anything(),
+        anything(),
+        anything(),
+        true
+      )
+    ).thenReturn(new Promise<string>(resolve => (completeUpload = resolve)));
+
+    const saving: Promise<void> = env.component.save();
+    await env.wait();
+
+    expect(env.component.isUploading).toBe(true);
+    expect(env.deleteButton.classList.contains('disabled')).toBe(true);
+    expect(env.fileUploadElement.disabled).toBe(true);
+
+    // A delete that gets through anyway must not discard the file being uploaded
+    env.component.deleteTrainingData();
+    completeUpload('training data file url');
+    await saving;
+    await env.wait();
+
+    expect(result.title).toEqual('test.csv');
+  });
+
   it('can drag and drop to initiate an upload', async () => {
     const env = new TestEnvironment();
     const dataTransfer = new DataTransfer();
@@ -148,6 +185,10 @@ class TestEnvironment {
 
   get fileNameExistsWarning(): HTMLElement {
     return this.overlayContainerElement.querySelector('.wrapper-training-data-file app-info') as HTMLElement;
+  }
+
+  get deleteButton(): HTMLElement {
+    return this.overlayContainerElement.querySelector('.wrapper-training-data-file .delete') as HTMLElement;
   }
 
   get wrapperTrainingDataFile(): HTMLElement {

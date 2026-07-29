@@ -11,11 +11,14 @@
           multiple
           #fileDropzone
           accept=".csv,.tsv,.txt,audio/*"
+          [disabled]="isLoadingAudio"
           (change)="uploadedFiles($event)"
           [matTooltip]="t('browse_files_tooltip')"
         />
         <label>{{ t("drag_and_drop_files") }}</label>
-        <button mat-flat-button color="primary" type="submit">{{ t("browse_files") }}</button>
+        <button mat-flat-button color="primary" type="submit" [disabled]="isLoadingAudio">
+          {{ t("browse_files") }}
+        </button>
       </div>
       <div class="data-blocks">
         <div class="wrapper wrapper-audio" [ngClass]="{ valid: isAudioUploaded, invalid: isAudioInvalid }">
@@ -32,7 +35,7 @@
               <span>{{ audioFilename }}</span>
             }
             @if (isAudioUploaded) {
-              <mat-icon (click)="deleteAudioData()" class="delete">delete</mat-icon>
+              <mat-icon (click)="deleteAudioData()" class="delete" [class.disabled]="isLoadingAudio">delete</mat-icon>
             }
           } @else {
             <mat-icon>play_disabled</mat-icon>
@@ -57,7 +60,7 @@
             <span>{{ t(timingErrorMessageKey) }}</span>
           }
           @if (isTimingUploaded && !hasTimingDataError) {
-            <mat-icon (click)="deleteTimingData()" class="delete">delete</mat-icon>
+            <mat-icon (click)="deleteTimingData()" class="delete" [class.disabled]="isLoadingAudio">delete</mat-icon>
           }
         </div>
       </div>
