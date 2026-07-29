@@ -106,9 +106,17 @@ describe('JoinComponent', () => {
     expect().nothing();
   }));
 
-  it('sets locale when not logged in and locale not supplied', fakeAsync(() => {
+  it('does not set locale synchronously, which would cause ExpressionChangedAfterItHasBeenCheckedError', fakeAsync(() => {
+    new TestEnvironment({ isLoggedIn: false, locale: 'fr', tickAfterCreate: false });
+    verify(mockedI18nService.setLocale(anything())).never();
+    tick();
+    verify(mockedI18nService.setLocale('fr')).once();
+    expect().nothing();
+  }));
+
+  it('leaves locale alone when not logged in and locale not supplied', fakeAsync(() => {
     new TestEnvironment({ isLoggedIn: false });
-    verify(mockedI18nService.setLocale('en')).once();
+    verify(mockedI18nService.setLocale(anything())).never();
     expect().nothing();
   }));
 
@@ -244,6 +252,8 @@ interface TestEnvironmentConstructorArgs {
   isLoggedIn?: boolean;
   shareKey?: string;
   locale?: string;
+  /** Set to false to inspect the state of the component before any asynchronous work has run. */
+  tickAfterCreate?: boolean;
   callback?: (env: TestEnvironment) => void;
 }
 
@@ -260,6 +270,7 @@ class TestEnvironment {
     isLoggedIn = false,
     shareKey = 'abc123',
     locale,
+    tickAfterCreate = true,
     callback
   }: TestEnvironmentConstructorArgs = {}) {
     when(mockedActivatedRoute.params).thenReturn(of({ shareKey, locale }));
@@ -284,10 +295,12 @@ class TestEnvironment {
 
     this.fixture = TestBed.createComponent(JoinComponent);
     this.component = this.fixture.componentInstance;
-    tick();
-    this.fixture.detectChanges();
-    tick();
-    this.fixture.detectChanges();
+    if (tickAfterCreate) {
+      tick();
+      this.fixture.detectChanges();
+      tick();
+      this.fixture.detectChanges();
+    }
   }
 
   click(element: DebugElement): void {

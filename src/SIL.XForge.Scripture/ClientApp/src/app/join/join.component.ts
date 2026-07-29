@@ -82,7 +82,7 @@ export class JoinComponent extends DataLoadingComponent {
     const joining$ = this.route.params.pipe(
       map(params => ({
         shareKey: params['shareKey'] as string,
-        locale: (params['locale'] as string | undefined) ?? I18nService.defaultLocale.canonicalTag
+        locale: params['locale'] as string | undefined
       })),
       filter(key => typeof key.shareKey === 'string')
     );
@@ -92,9 +92,15 @@ export class JoinComponent extends DataLoadingComponent {
       distinctUntilChanged()
     );
     checkLinkSharing$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(joining => {
-      // Set locale only if not logged in
-      if (this.authService.currentUserId == null) {
-        this.i18nService.setLocale(joining.locale);
+      const locale = joining.locale;
+      // Use the locale of the link only if the link specifies one and the user is not logged in. A link without a
+      // locale leaves the locale alone, rather than overriding the language the user already chose (on the home page,
+      // or with the locale query parameter of an emailed invitation).
+      if (locale != null && this.authService.currentUserId == null) {
+        // This route can be activated during a change detection cycle. Changing the locale re-renders bindings that
+        // have already been checked, which throws ExpressionChangedAfterItHasBeenCheckedError, so wait until the
+        // current cycle has finished.
+        queueMicrotask(() => this.i18nService.setLocale(locale));
       }
       void this.initialize(joining.shareKey);
     });
