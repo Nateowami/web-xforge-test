@@ -1940,10 +1940,15 @@ public class ParatextSyncRunner : IParatextSyncRunner
                             userIdsAdded.Add(updatedSFUserId);
                         }
 
-                        string paratextRole = ptUserInRegistry?.Role ?? SFProjectRole.None;
-                        if (paratextRole != existingUser.Role)
+                        if (updateRoles)
                         {
-                            op.Set(pd => pd.ParatextUsers[index].Role, paratextRole);
+                            // Only update the role if we received user information from Paratext. Resources have no
+                            // members in the registry, so every user would otherwise be demoted to no role.
+                            string paratextRole = ptUserInRegistry?.Role ?? SFProjectRole.None;
+                            if (paratextRole != existingUser.Role)
+                            {
+                                op.Set(pd => pd.ParatextUsers[index].Role, paratextRole);
+                            }
                         }
                     }
                 }

@@ -2013,6 +2013,41 @@ public class ParatextSyncRunnerTests
     }
 
     [Test]
+    public async Task SyncAsync_DoesNotUpdateRolesForResource()
+    {
+        var env = new TestEnvironment();
+        env.SetupSFData(false, false, false, true, new Book("MAT", 1, true));
+        env.SetupPTData(new Book("MAT", 1, true));
+
+        // Resources have no members in the Paratext registry
+        env.ParatextService.IsResource(Arg.Any<string>()).Returns(true);
+        env.ParatextService.ResourceDocsNeedUpdating(Arg.Any<SFProject>(), Arg.Any<ParatextResource>()).Returns(false);
+        env.ParatextService.SendReceiveAsync(
+                Arg.Any<UserSecret>(),
+                Arg.Any<string>(),
+                Arg.Any<IProgress<ProgressState>>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<SyncMetrics>()
+            )
+            .Returns(new ParatextResource());
+        env.ParatextService.GetParatextUsersAsync(Arg.Any<UserSecret>(), Arg.Any<SFProject>(), CancellationToken.None)
+            .Returns([]);
+
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        SFProject project = env.GetProject();
+        Assert.That(project.Sync.LastSyncSuccessful, Is.True);
+        Assert.That(
+            project.ParatextUsers.Single(u => u.Username == "User 1").Role,
+            Is.EqualTo(SFProjectRole.Administrator)
+        );
+        Assert.That(
+            project.ParatextUsers.Single(u => u.Username == "User 2").Role,
+            Is.EqualTo(SFProjectRole.Translator)
+        );
+    }
+
+    [Test]
     public async Task SyncAsync_UpdatesParatextNoteThreadDoc()
     {
         var env = new TestEnvironment();
