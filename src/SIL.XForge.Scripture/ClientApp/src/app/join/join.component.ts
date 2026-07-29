@@ -143,7 +143,8 @@ export class JoinComponent extends DataLoadingComponent {
       }
     } catch (e) {
       await this.handleJoiningError(e);
-      this.locationService.go(this.locationService.origin);
+      // Replace the share link in the browser history so the back button does not return to a link that cannot be used
+      this.locationService.replace(this.locationService.origin);
     }
     this.status = 'input';
   }
@@ -181,7 +182,8 @@ export class JoinComponent extends DataLoadingComponent {
       this.joiningResponse = await this.anonymousService.checkShareKey(shareKey);
     } catch (e) {
       await this.handleJoiningError(e);
-      this.locationService.go(this.locationService.origin);
+      // Replace the share link in the browser history so the back button does not return to a link that cannot be used
+      this.locationService.replace(this.locationService.origin);
     } finally {
       this.loadingFinished();
     }

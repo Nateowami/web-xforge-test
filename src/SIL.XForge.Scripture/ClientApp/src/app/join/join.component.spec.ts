@@ -163,7 +163,9 @@ describe('JoinComponent', () => {
 
       verify(mockedDialogService.message(anything())).once();
       verify(mockedErrorHandler.handleError(anything())).never();
-      verify(mockedLocationService.go('/')).once();
+      verify(mockedLocationService.replace('/')).once();
+      // The unusable link must not be left in the browser history, i.e. the back button must not return to it
+      verify(mockedLocationService.go(anything())).never();
       expect().nothing();
     }));
 
@@ -181,7 +183,7 @@ describe('JoinComponent', () => {
 
         verify(mockedDialogService.message(anything())).once();
         verify(mockedErrorHandler.handleError(anything())).never();
-        verify(mockedLocationService.go('/')).once();
+        verify(mockedLocationService.replace('/')).once();
       }
       expect().nothing();
     }));
@@ -194,7 +196,7 @@ describe('JoinComponent', () => {
       };
       new TestEnvironment({ callback });
       verify(mockedErrorHandler.handleError(anything())).once();
-      verify(mockedLocationService.go('/')).once();
+      verify(mockedLocationService.replace('/')).once();
       expect().nothing();
     }));
 
