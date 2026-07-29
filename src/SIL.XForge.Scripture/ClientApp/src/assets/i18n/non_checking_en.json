@@ -135,6 +135,7 @@
   "delete_project_dialog": {
     "are_you_sure_you_want_to_delete": "Are you sure you want to delete this project?",
     "cancel": "Cancel",
+    "cannot_delete_offline": "Projects cannot be deleted while offline. Please connect to the internet and try again.",
     "delete_cannot_be_undone": "This action {{ boldStart }}cannot{{ boldEnd }} be undone. This will permanently delete the {{ boldStart }}{{ projectName }}{{ boldEnd }} project, translation data, questions, answers, and comments.",
     "delete_this_project": "Delete this project",
     "i_understand_the_consequences": "I understand the consequences, delete this project",

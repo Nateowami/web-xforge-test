@@ -1,14 +1,15 @@
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, fakeAsync, flush, inject, TestBed, tick } from '@angular/core/testing';
 import { MatDialog, MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
+import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
 import { ChildViewContainerComponent, configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
 import { DeleteProjectDialogComponent } from './delete-project-dialog.component';
 
 describe('DeleteProjectDialogComponent', () => {
   configureTestingModule(() => ({
     imports: [getTestTranslocoModule(), DeleteProjectDialogComponent],
-    providers: [provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+    providers: [provideTestOnlineStatus(), { provide: OnlineStatusService, useClass: TestOnlineStatusService }]
   }));
 
   let dialog: MatDialog;
@@ -34,6 +35,28 @@ describe('DeleteProjectDialogComponent', () => {
     env.clickElement(env.cancelButton);
     flush();
     expect(env.afterCloseCallback).toHaveBeenCalledWith('cancel');
+  }));
+
+  it('should not allow the project to be deleted while offline', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.inputValue(env.projectInput, 'project01');
+    expect(env.component.deleteDisabled).toBe(false);
+    expect(env.offlineNotice).toBeNull();
+
+    env.setOnline(false);
+    expect(env.component.deleteDisabled).toBe(true);
+    expect(env.offlineNotice).not.toBeNull();
+    env.clickElement(env.deleteButton);
+    flush();
+    expect(env.afterCloseCallback).toHaveBeenCalledTimes(0);
+
+    // The user can delete once back online, without having to re-enter the project name
+    env.setOnline(true);
+    expect(env.component.deleteDisabled).toBe(false);
+    expect(env.offlineNotice).toBeNull();
+    env.clickElement(env.deleteButton);
+    flush();
+    expect(env.afterCloseCallback).toHaveBeenCalledWith('accept');
   }));
 
   it('should allow user to cancel', fakeAsync(() => {
@@ -74,6 +97,16 @@ describe('DeleteProjectDialogComponent', () => {
 
     get projectInput(): HTMLElement {
       return this.overlayContainerElement.querySelector('#project-entry') as HTMLElement;
+    }
+
+    get offlineNotice(): HTMLElement | null {
+      return this.overlayContainerElement.querySelector('#offline-notice');
+    }
+
+    setOnline(isOnline: boolean): void {
+      (TestBed.inject(OnlineStatusService) as TestOnlineStatusService).setIsOnline(isOnline);
+      this.fixture.detectChanges();
+      tick();
     }
 
     inputValue(element: HTMLElement, value: string): void {
