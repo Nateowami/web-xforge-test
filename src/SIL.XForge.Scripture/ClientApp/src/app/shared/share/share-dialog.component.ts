@@ -20,6 +20,7 @@ import { Operation } from 'realtime-server/lib/esm/common/models/project-rights'
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { NAVIGATOR } from 'xforge-common/browser-globals';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { Locale } from 'xforge-common/models/i18n-locale';
 import { UserDoc } from 'xforge-common/models/user-doc';
@@ -166,13 +167,17 @@ export class ShareDialogComponent extends ShareBaseComponent {
         SFProjectDomain.UserInvites,
         Operation.Create
       );
+    // isProjectAdmin is only fetched when the dialog opens, so the right has to be checked as well. Otherwise a user
+    // who is removed from the project while the dialog is open would keep requesting share keys they can't create.
+    if (!canShare) {
+      return options;
+    }
     if (this.isProjectAdmin) {
       options.push(ShareLinkType.Anyone);
       options.push(ShareLinkType.Recipient);
     } else if (
-      canShare &&
-      ((this.shareRole === SFProjectRole.CommunityChecker && this.projectDoc?.data?.checkingConfig.checkingEnabled) ||
-        this.shareRole !== SFProjectRole.CommunityChecker)
+      (this.shareRole === SFProjectRole.CommunityChecker && this.projectDoc?.data?.checkingConfig.checkingEnabled) ||
+      this.shareRole !== SFProjectRole.CommunityChecker
     ) {
       options.push(ShareLinkType.Anyone);
     }
@@ -300,6 +305,18 @@ export class ShareDialogComponent extends ShareBaseComponent {
       .then((shareKey: string) => {
         this.linkSharingKey = shareKey;
         this.linkSharingReady = true;
+      })
+      .catch((error: unknown) => {
+        // The user can lose access to the project while a request is in flight. Close the dialog instead of showing
+        // an error they can do nothing about.
+        if (
+          error instanceof CommandError &&
+          (error.code === CommandErrorCode.Forbidden || error.code === CommandErrorCode.NotFound)
+        ) {
+          this.dialogRef.close();
+        } else {
+          throw error;
+        }
       });
   }
 }

@@ -9,6 +9,7 @@ import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-
 import { firstValueFrom } from 'rxjs';
 import { anything, instance, mock, verify, when } from 'ts-mockito';
 import { NAVIGATOR } from 'xforge-common/browser-globals';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { Locale } from 'xforge-common/models/i18n-locale';
 import { UserDoc } from 'xforge-common/models/user-doc';
 import { NoticeService } from 'xforge-common/notice.service';
@@ -295,6 +296,38 @@ describe('ShareDialogComponent', () => {
     expect(env.isDialogOpen).toBe(false);
   }));
 
+  it('should close dialog if the user is removed from the project', fakeAsync(() => {
+    env = new TestEnvironment({ userId: TestUsers.CommunityChecker });
+    expect(env.isDialogOpen).toBe(true);
+    env.removeUserFromProject(TestUsers.CommunityChecker);
+    expect(env.isDialogOpen).toBe(false);
+  }));
+
+  it('should close dialog if an administrator is removed from the project', fakeAsync(() => {
+    env = new TestEnvironment({ userId: TestUsers.Admin });
+    expect(env.isDialogOpen).toBe(true);
+    verify(mockedProjectService.onlineGetLinkSharingKey(anything(), anything(), anything(), anything())).once();
+
+    env.removeUserFromProject(TestUsers.Admin);
+
+    expect(env.isDialogOpen).toBe(false);
+    // no share key should be requested for a project the user is no longer on
+    verify(mockedProjectService.onlineGetLinkSharingKey(anything(), anything(), anything(), anything())).once();
+  }));
+
+  it('should close dialog rather than report an error when the share key is denied', fakeAsync(() => {
+    env = new TestEnvironment({ userId: TestUsers.Admin });
+    expect(env.isDialogOpen).toBe(true);
+
+    when(mockedProjectService.onlineGetLinkSharingKey(anything(), anything(), anything(), anything())).thenReject(
+      new CommandError(CommandErrorCode.Forbidden, 'Error invoking linkSharingKey: Forbidden')
+    );
+    env.component.setLinkExpiration('days_ninety');
+    env.wait();
+
+    expect(env.isDialogOpen).toBe(false);
+  }));
+
   it('should remove checking role as an option if remote project settings change', fakeAsync(() => {
     env = new TestEnvironment({ userId: TestUsers.Admin });
     let roles: SFProjectRole[] = env.component.availableRoles;
@@ -505,6 +538,13 @@ class TestEnvironment {
         }),
       false
     );
+    tick();
+    this.wait();
+  }
+
+  removeUserFromProject(userId: string): void {
+    const projectDoc: SFProjectProfileDoc = this.realtimeService.get(SFProjectProfileDoc.COLLECTION, 'project01');
+    projectDoc.submitJson0Op(op => op.unset(p => p.userRoles[userId]), false);
     tick();
     this.wait();
   }
