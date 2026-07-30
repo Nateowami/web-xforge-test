@@ -123,5 +123,15 @@
         var(--sf-training-data-upload-data-blocks-text-color-valid)
       );
     }
+
+    &.invalid {
+      @include wrapperState(
+        var(--sf-training-data-upload-data-blocks-border-invalid),
+        var(--sf-training-data-upload-data-blocks-text-color-invalid)
+      );
+      span {
+        white-space: unset;
+      }
+    }
   }
 }

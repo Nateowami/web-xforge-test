@@ -12,7 +12,7 @@
           <mat-checkbox #skipFirstRow>{{ t("skip_first_row") }}</mat-checkbox>
         </ng-container>
       </div>
-      <div class="wrapper wrapper-training-data-file" [ngClass]="{ valid: hasBeenUploaded }">
+      <div class="wrapper wrapper-training-data-file" [ngClass]="{ valid: hasBeenUploaded, invalid: showFileRequired }">
         @if (hasBeenUploaded) {
           @if (showFilenameExists) {
             <app-info [text]="t('filename_already_exists')" icon="warning" type="warning"></app-info>
@@ -21,7 +21,7 @@
           <mat-icon (click)="deleteTrainingData()" class="delete">delete</mat-icon>
         } @else {
           <mat-icon>file_download_off</mat-icon>
-          <span>{{ t("no_training_data_file_uploaded") }}</span>
+          <span>{{ showFileRequired ? t("select_a_file_to_upload") : t("no_training_data_file_uploaded") }}</span>
         }
       </div>
     </div>

@@ -56,6 +56,8 @@
       variables.$greyDark
     )};
   --sf-training-data-upload-data-blocks-border-valid: #{if($is-dark, variables.$purpleLight, variables.$purpleLight)};
+  --sf-training-data-upload-data-blocks-text-color-invalid: #{if($is-dark, var(--mat-sys-error), var(--sf-error-color))};
+  --sf-training-data-upload-data-blocks-border-invalid: #{if($is-dark, var(--mat-sys-error), var(--sf-error-color))};
 }
 
 @mixin theme($theme) {

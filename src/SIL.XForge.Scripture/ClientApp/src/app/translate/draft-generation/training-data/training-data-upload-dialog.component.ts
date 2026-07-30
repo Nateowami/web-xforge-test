@@ -58,6 +58,7 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   @ViewChild('skipFirstRow') skipFirstRow?: MatCheckbox;
   private _isUploading: boolean = false;
   private _showFilenameExists: boolean = false;
+  private _showFileRequired: boolean = false;
   private trainingDataFile?: TrainingDataFileUpload;
 
   constructor(
@@ -81,11 +82,17 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
     return this._showFilenameExists;
   }
 
+  /** Whether the user tried to save without having selected a file. */
+  get showFileRequired(): boolean {
+    return this._showFileRequired;
+  }
+
   get trainingDataFilename(): string {
     return this.trainingDataFile?.fileName ?? '';
   }
 
   updateTrainingData(trainingDataFile: TrainingDataFileUpload): void {
+    this._showFileRequired = false;
     this.trainingDataFile = trainingDataFile;
   }
 
@@ -114,6 +121,7 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   async save(): Promise<void> {
     // We cannot save a file if it has not been uploaded, or if offline
     if (!this.hasBeenUploaded) {
+      this._showFileRequired = true;
       return;
     }
 

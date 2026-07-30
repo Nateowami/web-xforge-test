@@ -81,6 +81,25 @@ describe('TrainingDataUploadDialogComponent', () => {
     expect(env.fileNameExistsWarning).toBeNull();
   });
 
+  it('warns when saving without a file, and clears the warning once a file is selected', async () => {
+    const env = new TestEnvironment();
+    let closed = false;
+    env.dialogRef.afterClosed().subscribe(() => (closed = true));
+
+    await env.component.save();
+    await env.wait();
+
+    expect(env.wrapperTrainingDataFile.classList.contains('invalid')).toBe(true);
+    expect(env.wrapperTrainingDataFile.textContent).toContain('Select a training data file to upload');
+    expect(closed).toBe(false);
+
+    env.component.updateTrainingData(env.trainingDataFile);
+    await env.wait();
+
+    expect(env.wrapperTrainingDataFile.classList.contains('invalid')).toBe(false);
+    expect(env.wrapperTrainingDataFile.classList.contains('valid')).toBe(true);
+  });
+
   it('shows a warning when a file with the same name exists', async () => {
     const existingFile = {
       title: 'test.csv'

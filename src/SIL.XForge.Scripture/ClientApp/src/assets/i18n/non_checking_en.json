@@ -972,6 +972,7 @@
     "no_training_data_file_uploaded": "No training data file uploaded",
     "no_upload_offline": "Training data cannot be uploaded without connecting to the internet.",
     "save": "Save",
+    "select_a_file_to_upload": "Select a training data file to upload",
     "upload_failed": "Your file needs to have two columns, and every row must have a value in both columns. Please fill in any empty cells and try again.",
     "upload_training_data": "Upload Training Data",
     "uploading": "Uploading..."
