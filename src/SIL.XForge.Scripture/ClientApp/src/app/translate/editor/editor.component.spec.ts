@@ -3337,6 +3337,27 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('deselects a verse and closes the bottom sheet when the user can no longer add comments', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.setCommenterUser();
+      env.breakpointObserver.matchedResult = true;
+      env.wait();
+
+      env.clickSegmentRef('verse_1_2');
+      env.wait();
+      expect(env.getSegmentElement('verse_1_2')!.classList).toContain('commenter-selection');
+      expect(env.insertNoteFabMobile).toBeTruthy();
+
+      // an administrator changes the user's role from commenter to viewer
+      env.changeUserRole('project01', 'user05', SFProjectRole.Viewer);
+      env.wait();
+
+      expect(env.getSegmentElement('verse_1_2')!.classList).not.toContain('commenter-selection');
+      expect(env.insertNoteFabMobile).toBeNull();
+      env.dispose();
+    }));
+
     it('keeps insert note fab hidden for commenters on mobile devices', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();

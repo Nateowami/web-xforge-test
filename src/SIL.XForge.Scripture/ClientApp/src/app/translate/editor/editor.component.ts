@@ -725,13 +725,14 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
    * depending on the user's edit permissions and screen size.
    */
   private set showAddCommentButton(value: boolean) {
-    if (this.insertNoteFab == null || this.TemplateBottomSheet == null) return;
+    // Note that the FAB and the bottom sheet template are only rendered while the user can add comments, so they
+    // can already be gone when hiding the button, e.g. when the user's role no longer allows commenting
     this.addingMobileNote = false;
     // Mobile users without editing rights will see a bottom sheet instead of a FAB
     if (this.isCommenterOnMobileDevice) {
       this.setNoteFabVisibility('hidden');
       if (value) {
-        if (this.bottomSheetRef?.containerInstance == null) {
+        if (this.TemplateBottomSheet != null && this.bottomSheetRef?.containerInstance == null) {
           this.bottomSheetRef = this.bottomSheet.open(this.TemplateBottomSheet, { hasBackdrop: false });
         }
       } else {
@@ -844,6 +845,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           this.setupTranslationEngine();
           this.projectDataChangesSub?.unsubscribe();
           this.projectDataChangesSub = this.projectDoc.remoteChanges$.subscribe(async () => {
+            // The user may have just lost the right to add comments, e.g. an administrator changed their role from
+            // Commenter to Viewer. Clear the verse they selected for commenting along with the add comment UI.
+            if (!this.showAddCommentUI) {
+              this.resetCommenterVerseSelection();
+            }
+
             let sourceId: TextDocId | undefined;
             if (this.hasSource && this.chapter != null) {
               sourceId = new TextDocId(
