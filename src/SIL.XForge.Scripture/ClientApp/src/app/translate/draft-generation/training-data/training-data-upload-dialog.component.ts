@@ -73,6 +73,11 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
     return this.trainingDataFile?.blob != null && this.trainingDataFile?.fileName != null;
   }
 
+  /** A file must have been selected, and its name must not collide with an existing file. */
+  get canSave(): boolean {
+    return this.hasBeenUploaded && !this.showFilenameExists;
+  }
+
   get isUploading(): boolean {
     return this._isUploading;
   }
@@ -112,8 +117,8 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   }
 
   async save(): Promise<void> {
-    // We cannot save a file if it has not been uploaded, or if offline
-    if (!this.hasBeenUploaded) {
+    // We cannot save a file if it has not been uploaded, if its name already exists, or if offline
+    if (!this.canSave) {
       return;
     }
 

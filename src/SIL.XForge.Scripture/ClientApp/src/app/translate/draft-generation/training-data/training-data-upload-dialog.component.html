@@ -12,7 +12,7 @@
           <mat-checkbox #skipFirstRow>{{ t("skip_first_row") }}</mat-checkbox>
         </ng-container>
       </div>
-      <div class="wrapper wrapper-training-data-file" [ngClass]="{ valid: hasBeenUploaded }">
+      <div class="wrapper wrapper-training-data-file" [ngClass]="{ valid: canSave }">
         @if (hasBeenUploaded) {
           @if (showFilenameExists) {
             <app-info [text]="t('filename_already_exists')" icon="warning" type="warning"></app-info>
@@ -36,7 +36,7 @@
     <button mat-button [mat-dialog-close]="'close'" type="button" id="upload-cancel-btn">
       {{ t("cancel") }}
     </button>
-    <button mat-flat-button color="primary" type="submit" (click)="save()" id="upload-save-btn">
+    <button mat-flat-button color="primary" type="submit" (click)="save()" [disabled]="!canSave" id="upload-save-btn">
       {{ t("save") }}
     </button>
   </mat-dialog-actions>

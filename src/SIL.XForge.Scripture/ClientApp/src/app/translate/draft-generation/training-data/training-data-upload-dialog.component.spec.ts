@@ -6,7 +6,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { ngfModule } from 'angular-file';
 import { TrainingData } from 'realtime-server/lib/esm/scriptureforge/models/training-data';
-import { anything, mock, when } from 'ts-mockito';
+import { anything, mock, verify, when } from 'ts-mockito';
 import { FileService } from 'xforge-common/file.service';
 import { FileType } from 'xforge-common/models/file-offline-data';
 import { ChildViewContainerComponent, configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
@@ -81,11 +81,13 @@ describe('TrainingDataUploadDialogComponent', () => {
     expect(env.fileNameExistsWarning).toBeNull();
   });
 
-  it('shows a warning when a file with the same name exists', async () => {
+  it('shows a warning and prevents saving when a file with the same name exists', async () => {
     const existingFile = {
       title: 'test.csv'
     } as TrainingData;
     const env = new TestEnvironment([existingFile]);
+    let result: TrainingData | undefined;
+    env.dialogRef.afterClosed().subscribe((_result: TrainingData) => (result = _result));
     const dataTransfer = new DataTransfer();
     for (const file of TestEnvironment.uploadFiles) {
       dataTransfer.items.add(file);
@@ -95,8 +97,63 @@ describe('TrainingDataUploadDialogComponent', () => {
     env.fileUploadElement.dispatchEvent(event);
     await env.wait();
 
-    expect(env.wrapperTrainingDataFile.classList.contains('valid')).toBe(true);
+    expect(env.wrapperTrainingDataFile.classList.contains('valid')).toBe(false);
     expect(env.fileNameExistsWarning).not.toBeNull();
+    expect(env.saveButton.disabled).toBe(true);
+
+    await env.component.save();
+    await env.wait();
+
+    expect(result).toBeUndefined();
+    verify(
+      mockedFileService.onlineUploadFileOrFail(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).never();
+  });
+
+  it('does not allow saving when no file has been selected', async () => {
+    const env = new TestEnvironment();
+    let result: TrainingData | undefined;
+    env.dialogRef.afterClosed().subscribe((_result: TrainingData) => (result = _result));
+
+    expect(env.saveButton.disabled).toBe(true);
+
+    await env.component.save();
+    await env.wait();
+
+    expect(result).toBeUndefined();
+    verify(
+      mockedFileService.onlineUploadFileOrFail(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).never();
+  });
+
+  it('allows saving once a file with a unique name has been selected', async () => {
+    const env = new TestEnvironment([{ title: 'other.csv' } as TrainingData]);
+    const dataTransfer = new DataTransfer();
+    for (const file of TestEnvironment.uploadFiles) {
+      dataTransfer.items.add(file);
+    }
+    const event = new Event('change');
+    env.fileUploadElement.files = dataTransfer.files;
+    env.fileUploadElement.dispatchEvent(event);
+    await env.wait();
+
+    expect(env.saveButton.disabled).toBe(false);
   });
 });
 
@@ -148,6 +205,10 @@ class TestEnvironment {
 
   get fileNameExistsWarning(): HTMLElement {
     return this.overlayContainerElement.querySelector('.wrapper-training-data-file app-info') as HTMLElement;
+  }
+
+  get saveButton(): HTMLButtonElement {
+    return this.overlayContainerElement.querySelector('#upload-save-btn') as HTMLButtonElement;
   }
 
   get wrapperTrainingDataFile(): HTMLElement {
