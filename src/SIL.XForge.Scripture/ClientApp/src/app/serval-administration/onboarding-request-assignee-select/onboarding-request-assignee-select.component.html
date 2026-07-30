@@ -1,5 +1,15 @@
 <mat-form-field class="assignee-field" subscriptSizing="dynamic">
   <mat-select [value]="value" (selectionChange)="onSelectionChange($event.value)">
+    <!-- A custom trigger is required here. Without one, Material renders the selected option's text
+         content, which includes the text inside the avatar (the initials shown when a user has no
+         avatar image), giving a trigger like "RKMe" instead of "Me". -->
+    <mat-select-trigger>
+      @if (value) {
+        <app-owner [ownerRef]="value" [includeAvatar]="true"></app-owner>
+      } @else {
+        <span class="unassigned-option">Unassigned</span>
+      }
+    </mat-select-trigger>
     <mat-option value="">
       <span class="unassigned-option">Unassigned</span>
     </mat-option>

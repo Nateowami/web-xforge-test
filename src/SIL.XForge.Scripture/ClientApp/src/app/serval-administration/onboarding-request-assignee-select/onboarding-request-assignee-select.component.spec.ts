@@ -2,8 +2,10 @@ import { Component } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
+import { By } from '@angular/platform-browser';
 import { mock, when } from 'ts-mockito';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { OwnerComponent } from 'xforge-common/owner/owner.component';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
 import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
@@ -108,6 +110,26 @@ describe('OnboardingRequestAssigneeSelectComponent', () => {
     }));
   });
 
+  describe('trigger', () => {
+    it('should show the assignee with a custom trigger, not the option text content', fakeAsync(() => {
+      // Material's default trigger uses the selected option's text content, which would include the
+      // text inside the avatar (a user's initials when they have no avatar image)
+      const env = new TestEnvironment({ value: CURRENT_USER_ID, currentUserId: CURRENT_USER_ID });
+      env.wait();
+
+      expect(env.triggerOwnerRef).toBe(CURRENT_USER_ID);
+      expect(env.fixture.nativeElement.querySelector('.mat-mdc-select-min-line')).toBeNull();
+    }));
+
+    it('should show the unassigned text when nothing is selected', fakeAsync(() => {
+      const env = new TestEnvironment({ value: '', currentUserId: CURRENT_USER_ID });
+      env.wait();
+
+      expect(env.triggerOwnerRef).toBeUndefined();
+      expect(env.triggerText).toBe('Unassigned');
+    }));
+  });
+
   /**
    * Test environment for OnboardingRequestAssigneeSelectComponent tests.
    * Uses a TestHostComponent to drive inputs and capture output.
@@ -141,6 +163,18 @@ describe('OnboardingRequestAssigneeSelectComponent', () => {
     wait(): void {
       tick();
       this.fixture.detectChanges();
+    }
+
+    /** The owner the trigger is displaying, or undefined when it shows the unassigned text. */
+    get triggerOwnerRef(): string | undefined {
+      const owner = this.fixture.debugElement.query(By.css('mat-select-trigger app-owner'));
+      return owner == null ? undefined : (owner.componentInstance as OwnerComponent).ownerRef;
+    }
+
+    get triggerText(): string {
+      return this.fixture.debugElement
+        .query(By.css('.mat-mdc-select-value'))
+        .nativeElement.textContent.trim() as string;
     }
   }
 });

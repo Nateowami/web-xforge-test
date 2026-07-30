@@ -12,3 +12,20 @@
     color: var(--color-text-secondary);
   }
 }
+
+/* Ellipsize a long name in the trigger, which is otherwise clipped by the field width. */
+mat-select-trigger ::ng-deep {
+  .avatar {
+    flex: none;
+  }
+  .owner-text {
+    min-width: 0;
+    align-items: flex-start;
+  }
+  .name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

@@ -1,5 +1,5 @@
 import { NgClass } from '@angular/common';
-import { Component, Input, OnInit } from '@angular/core';
+import { Component, Input, OnChanges, SimpleChanges } from '@angular/core';
 import { TranslocoService } from '@ngneat/transloco';
 import { UserProfile } from 'realtime-server/lib/esm/common/models/user';
 import { AvatarComponent } from '../avatar/avatar.component';
@@ -13,7 +13,7 @@ import { UserService } from '../user.service';
   styleUrls: ['./owner.component.scss'],
   imports: [AvatarComponent, NgClass]
 })
-export class OwnerComponent implements OnInit {
+export class OwnerComponent implements OnChanges {
   @Input() ownerRef?: string;
   @Input() includeAvatar: boolean = false;
   @Input() dateTime: string = '';
@@ -44,9 +44,15 @@ export class OwnerComponent implements OnInit {
     return this.ownerDoc == null ? undefined : this.ownerDoc.data;
   }
 
-  async ngOnInit(): Promise<void> {
-    if (this.ownerRef != null) {
-      this.ownerDoc = await this.userService.getProfile(this.ownerRef);
+  /** Loads the profile for ownerRef, including when the component is reused for a different owner. */
+  async ngOnChanges(changes: SimpleChanges): Promise<void> {
+    if (changes['ownerRef'] != null) {
+      const ownerRef = this.ownerRef;
+      const ownerDoc = ownerRef == null ? undefined : await this.userService.getProfile(ownerRef);
+      // Ignore a profile that arrives after ownerRef has already changed again
+      if (ownerRef === this.ownerRef) {
+        this.ownerDoc = ownerDoc;
+      }
     }
   }
 }
