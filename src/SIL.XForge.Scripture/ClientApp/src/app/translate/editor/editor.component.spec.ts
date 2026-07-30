@@ -3254,6 +3254,32 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('updates the note icon preview when notes are deleted and the dialog is closed', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+
+      let iconElement: HTMLElement = env.getNoteThreadIconElement('verse_1_1', 'dataid01')!;
+      expect(iconElement.getAttribute('title')).toEqual('Note from user01\n--- 2 more note(s) ---');
+
+      iconElement.click();
+      env.wait();
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+
+      // the dialog deletes all but the first note, then is closed without a result
+      const noteThreadDoc: NoteThreadDoc = env.getNoteThreadDoc('project01', 'dataid01');
+      noteThreadDoc.submitJson0Op(op => {
+        op.set(nt => nt.notes[1].deleted, true);
+        op.set(nt => nt.notes[2].deleted, true);
+      });
+      env.mockNoteDialogRef.close();
+      env.wait();
+
+      iconElement = env.getNoteThreadIconElement('verse_1_1', 'dataid01')!;
+      expect(iconElement.getAttribute('title')).toEqual('Note from user01');
+      env.dispose();
+    }));
+
     it('does not select verse when opening a note thread', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();

@@ -1713,18 +1713,18 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     this.setNoteFabVisibility('hidden');
     const result: NoteDialogResult | undefined = await lastValueFrom(dialogRef.afterClosed());
 
-    if (result != null) {
-      if (result.noteContent != null || result.status != null) {
-        await this.saveNote({
-          content: result.noteContent,
-          threadDataId: threadDataId,
-          dataId: result.noteDataId,
-          verseRef: currentVerseRef,
-          status: result.status
-        });
-      }
-      this.toggleNoteThreadVerseRefs$.next();
+    if (result?.noteContent != null || result?.status != null) {
+      await this.saveNote({
+        content: result.noteContent,
+        threadDataId: threadDataId,
+        dataId: result.noteDataId,
+        verseRef: currentVerseRef,
+        status: result.status
+      });
     }
+    // Always refresh the note embeds. The dialog can change the thread without returning a result,
+    // e.g. deleting notes and then closing, and local changes do not emit on the note thread query.
+    this.toggleNoteThreadVerseRefs$.next();
     if (this.isInsertNoteFabEnabled) {
       this.setNoteFabVisibility('visible');
       this.positionInsertNoteFab();
@@ -2194,9 +2194,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
 
   /** Gets the information needed to format a particular featured verse. */
   private getFeaturedVerseRefInfo(threadDoc: NoteThreadDoc): FeaturedVerseRefInfo | undefined {
-    const notes: Note[] = threadDoc.notesInOrderClone(threadDoc.data!.notes);
-    let preview: string = notes[0].content != null ? stripHtml(notes[0].content.trim()) : '';
-    const numberOfNotes: number = notes.filter(n => !n.deleted).length;
+    const notes: Note[] = threadDoc.notesInOrderClone(threadDoc.data!.notes).filter(n => !n.deleted);
+    let preview: string = notes[0]?.content != null ? stripHtml(notes[0].content.trim()) : '';
+    const numberOfNotes: number = notes.length;
     if (numberOfNotes > 1) {
       preview += '\n' + this.i18n.translateStatic('editor.more_notes', { count: numberOfNotes - 1 });
     }
