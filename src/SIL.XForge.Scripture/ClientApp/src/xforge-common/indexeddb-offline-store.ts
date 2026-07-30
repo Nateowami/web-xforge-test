@@ -63,13 +63,24 @@ function createObjectStore(
 })
 export class IndexeddbOfflineStore extends OfflineStore {
   private openDBPromise?: Promise<IDBDatabase>;
+  /**
+   * Indicates that the database must not be used. This is set while the database is being deleted, and stays set when
+   * it is deleted for good, i.e. on log out, where the rest of the app keeps running (and keeps saving) until the
+   * browser navigates away. Without it, a save that is in progress can fail on the connection that is being closed,
+   * which surfaces to the user as an error dialog, or can recreate the database that was just deleted, leaving the
+   * previous user's data on the device.
+   */
+  private disabled: boolean = false;
 
   constructor(private readonly typeRegistry: TypeRegistry) {
     super();
   }
 
   async getAllIds(collection: string): Promise<string[]> {
-    const db = await this.openDB();
+    const db = await this.tryOpenDB();
+    if (db == null) {
+      return [];
+    }
 
     const transaction = db.transaction(collection);
     const objectStore = transaction.objectStore(collection);
@@ -91,7 +102,10 @@ export class IndexeddbOfflineStore extends OfflineStore {
   }
 
   async getAll<T extends OfflineData>(collection: string): Promise<T[]> {
-    const db = await this.openDB();
+    const db = await this.tryOpenDB();
+    if (db == null) {
+      return [];
+    }
 
     const transaction = db.transaction(collection);
     const objectStore = transaction.objectStore(collection);
@@ -101,7 +115,10 @@ export class IndexeddbOfflineStore extends OfflineStore {
 
   /** When offline this may return or it might wait until the user comes online before returning. */
   async get<T extends OfflineData>(collection: string, id: string): Promise<T | undefined> {
-    const db = await this.openDB();
+    const db = await this.tryOpenDB();
+    if (db == null) {
+      return undefined;
+    }
 
     const transaction = db.transaction(collection);
     const objectStore = transaction.objectStore(collection);
@@ -114,7 +131,11 @@ export class IndexeddbOfflineStore extends OfflineStore {
   }
 
   async query<T extends OfflineData>(collection: string, parameters: QueryParameters): Promise<QueryResults<T>> {
-    const db = await this.openDB();
+    const db = await this.tryOpenDB();
+    if (db == null) {
+      return performQuery(parameters, []);
+    }
+
     const transaction = db.transaction(collection);
     const objectStore = transaction.objectStore(collection);
     let snapshots: T[] | undefined;
@@ -134,7 +155,10 @@ export class IndexeddbOfflineStore extends OfflineStore {
   }
 
   async put(collection: string, offlineData: OfflineData): Promise<void> {
-    const db = await this.openDB();
+    const db = await this.tryOpenDB();
+    if (db == null) {
+      return;
+    }
 
     const transaction = db.transaction(collection, 'readwrite');
     const objectStore = transaction.objectStore(collection);
@@ -156,7 +180,10 @@ export class IndexeddbOfflineStore extends OfflineStore {
   }
 
   async delete(collection: string, id: string): Promise<void> {
-    const db = await this.openDB();
+    const db = await this.tryOpenDB();
+    if (db == null) {
+      return;
+    }
 
     const transaction = db.transaction(collection, 'readwrite');
     const objectStore = transaction.objectStore(collection);
@@ -168,13 +195,31 @@ export class IndexeddbOfflineStore extends OfflineStore {
     });
   }
 
-  async deleteDB(): Promise<void> {
-    await this.closeDB();
-    await new Promise<void>((resolve, reject) => {
-      const request = window.indexedDB.deleteDatabase(DATABASE_NAME);
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => resolve();
-    });
+  async deleteDB(preventFurtherUse: boolean = false): Promise<void> {
+    // Disable the store for the duration of the delete, so that operations that are in progress do not fail on the
+    // connection that is about to be closed, and do not recreate the database while it is being deleted.
+    this.disabled = true;
+    try {
+      await this.closeDB();
+      await new Promise<void>((resolve, reject) => {
+        const request = window.indexedDB.deleteDatabase(DATABASE_NAME);
+        request.onerror = () => reject(request.error);
+        request.onsuccess = () => resolve();
+      });
+    } finally {
+      this.disabled = preventFurtherUse;
+    }
+  }
+
+  /** Returns the open database, or `undefined` if the store is disabled and must not be used. */
+  private async tryOpenDB(): Promise<IDBDatabase | undefined> {
+    if (this.disabled) {
+      return undefined;
+    }
+    const db = await this.openDB();
+    // The store can be disabled while the database is being opened, in which case the connection is already being
+    // closed and creating a transaction on it would throw.
+    return this.disabled ? undefined : db;
   }
 
   private openDB(): Promise<IDBDatabase> {

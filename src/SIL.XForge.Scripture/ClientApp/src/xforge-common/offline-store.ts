@@ -15,5 +15,12 @@ export abstract class OfflineStore {
   abstract get<T extends OfflineData>(collection: string, id: string): Promise<T | undefined>;
   abstract put(collection: string, offlineData: OfflineData): Promise<void>;
   abstract delete(collection: string, id: string): Promise<void>;
-  abstract deleteDB(): Promise<void>;
+  /**
+   * Deletes the offline database.
+   *
+   * @param {boolean} [preventFurtherUse=false] Indicates whether the store should refuse all further operations. This
+   * is used when logging out, where the app keeps running (and keeps saving) until the browser navigates away, so
+   * that saves in progress neither fail nor restore the data that was just deleted.
+   */
+  abstract deleteDB(preventFurtherUse?: boolean): Promise<void>;
 }

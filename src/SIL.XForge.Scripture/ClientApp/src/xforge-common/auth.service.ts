@@ -276,7 +276,10 @@ export class AuthService {
     }
     if (proceedWithLogout) {
       this.cookieService.deleteAll('/');
-      await this.offlineStore.deleteDB();
+      // The app keeps running until the browser navigates to the Auth0 logout page, so prevent any further use of the
+      // offline store. Otherwise a save that is still in progress can fail on the database that is being deleted
+      // (which the user sees as an error dialog), or can recreate it with the data of the user that just logged out.
+      await this.offlineStore.deleteDB(true);
       this.localSettings.clear();
       this.unscheduleRenewal();
       void this.auth0.logout({ logoutParams: { returnTo: this.locationService.origin + '/' } } as LogoutOptions);

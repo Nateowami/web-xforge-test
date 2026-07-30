@@ -8,6 +8,7 @@ export class MemoryOfflineStore extends OfflineStore {
   public storageQuotaFull: boolean = false;
 
   private readonly map = new Map<string, Map<string, OfflineData>>();
+  private disabled: boolean = false;
 
   addData(collection: string, data: OfflineData): void {
     let collectionData = this.map.get(collection);
@@ -59,6 +60,9 @@ export class MemoryOfflineStore extends OfflineStore {
     if (this.storageQuotaFull) {
       return Promise.reject(new DOMException('error', 'QuotaExceededError'));
     }
+    if (this.disabled) {
+      return Promise.resolve();
+    }
     let collectionData = this.map.get(collection);
     if (collectionData == null) {
       collectionData = new Map<string, OfflineData>();
@@ -76,8 +80,9 @@ export class MemoryOfflineStore extends OfflineStore {
     return Promise.resolve();
   }
 
-  deleteDB(): Promise<void> {
+  deleteDB(preventFurtherUse: boolean = false): Promise<void> {
     this.map.clear();
+    this.disabled = preventFurtherUse;
     return Promise.resolve();
   }
 }
