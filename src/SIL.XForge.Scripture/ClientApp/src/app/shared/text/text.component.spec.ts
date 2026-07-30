@@ -1318,8 +1318,37 @@ describe('TextComponent', () => {
 
   it('can display footnote dialog', fakeAsync(() => {
     const chapterNum = 2;
+    const env = new TestEnvironment({ chapterNum, textDoc: createOpsWithNotes(chapterNum) });
+    env.waitForEditor();
+
+    [TextNoteType.Footnote, TextNoteType.EndNote, TextNoteType.CrossReference].forEach(noteStyle => {
+      const note = env.quillEditor.querySelector('usx-note[data-style="' + noteStyle + '"]') as HTMLElement;
+      expect(note).withContext(noteStyle).not.toBeNull();
+      note!.click();
+    });
+    verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
+  }));
+
+  it('can display footnote dialog when the contents are set directly, as the draft tab does', fakeAsync(() => {
+    const chapterNum = 2;
+    const env = new TestEnvironment();
+    env.waitForEditor();
+
+    // The draft and history tabs do not bind a text doc - they set the editor contents themselves
+    env.component.setContents(new Delta(createOpsWithNotes(chapterNum)), 'api');
+    env.fixture.detectChanges();
+
+    [TextNoteType.Footnote, TextNoteType.EndNote, TextNoteType.CrossReference].forEach(noteStyle => {
+      const note = env.quillEditor.querySelector('usx-note[data-style="' + noteStyle + '"]') as HTMLElement;
+      expect(note).withContext(noteStyle).not.toBeNull();
+      note!.click();
+    });
+    verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
+  }));
+
+  function createOpsWithNotes(chapterNum: number): RichText.DeltaOperation[] {
     const segmentRef: string = `verse_${chapterNum}_1`;
-    const textDocOps: RichText.DeltaOperation[] = [
+    return [
       { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
       { insert: { verse: { number: '1', style: 'v' } } },
       {
@@ -1440,16 +1469,7 @@ describe('TextComponent', () => {
         }
       }
     ];
-    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
-    env.waitForEditor();
-
-    [TextNoteType.Footnote, TextNoteType.EndNote, TextNoteType.CrossReference].forEach(noteStyle => {
-      const note = env.quillEditor.querySelector('usx-note[data-style="' + noteStyle + '"]') as HTMLElement;
-      expect(note).withContext(noteStyle).not.toBeNull();
-      note!.click();
-    });
-    verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
-  }));
+  }
 
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
     const env = new TestEnvironment();

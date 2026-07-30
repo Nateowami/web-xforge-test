@@ -44,7 +44,6 @@ import { SFProjectService } from '../../core/sf-project.service';
 import { TextDocService } from '../../core/text-doc.service';
 import { LynxInsightEditorObjectsComponent } from '../../translate/editor/lynx/insights/lynx-insight-editor-objects/lynx-insight-editor-objects.component';
 import { MultiCursorViewer } from '../../translate/editor/multi-viewer/multi-viewer.component';
-import { attributeFromMouseEvent } from '../utils';
 import { getBaseVerse, getVerseRefFromSegmentRef, getVerseStrFromSegmentRef, VERSE_REGEX } from '../verse-utils';
 import { QuillFormatRegistryService } from './quill-editor-registration/quill-format-registry.service';
 import { getAttributesAtPosition, getRetainCount } from './quill-util';
@@ -148,7 +147,6 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   private cursorMoveKeyHoldTimeout?: any;
   private cursorMoveKeyHoldDelay: number = 500; // Press and hold ms delay before switching to system cursor
 
-  private clickSubs: Map<string, Subscription[]> = new Map<string, Subscription[]>();
   private _isReadOnly: boolean = true;
   private _editorStyles: any = { fontSize: '1rem' };
   private activePresenceSubscription?: Subscription;
@@ -695,6 +693,12 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     fromEvent(this.window, 'resize')
       .pipe(quietTakeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.setHighlightMarkerPosition());
+    // Listen on the container rather than the individual notes, as the contents can be replaced at any time, e.g. by
+    // setContents() in the draft and history tabs. These notes refer to footnotes, cross-references, and end notes and
+    // not actual notes.
+    fromEvent<MouseEvent>(editor.container, 'click')
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(event => this.openTextNoteDialog(event));
     this.viewModel.editor = editor;
     void this.bindQuill(); // not awaited
     editor.container.addEventListener('beforeinput', (ev: Event) => this.onBeforeinput(ev));
@@ -1248,32 +1252,25 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
     this.loaded.emit(true);
     this.applyEditorStyles();
-    // These refer to footnotes, cross-references, and end notes and not actual notes
-    const elements = this.editor?.container.querySelectorAll('usx-note');
-    if (elements != null) {
-      this.clickSubs.get('notes')?.forEach(s => s.unsubscribe());
-      this.clickSubs.set(
-        'notes',
-        Array.from(elements).map((element: Element) =>
-          fromEvent<MouseEvent>(element, 'click')
-            .pipe(quietTakeUntilDestroyed(this.destroyRef))
-            .subscribe(event => {
-              const noteText = attributeFromMouseEvent(event, 'USX-NOTE', 'title');
-              const noteType = attributeFromMouseEvent(event, 'USX-NOTE', 'data-style');
-              this.dialogService.openMatDialog(TextNoteDialogComponent, {
-                width: '600px',
-                data: {
-                  type: noteType,
-                  text: noteText,
-                  isRightToLeft: this.isRtl
-                } as NoteDialogData
-              });
-            })
-        )
-      );
-    }
 
     this.createLocalCursor();
+  }
+
+  /** Shows the contents of a footnote, cross-reference, or end note, if one was clicked. */
+  private openTextNoteDialog(event: MouseEvent): void {
+    const note: Element | null | undefined = (event.target as Element | null)?.closest('usx-note');
+    if (note == null) {
+      return;
+    }
+
+    this.dialogService.openMatDialog(TextNoteDialogComponent, {
+      width: '600px',
+      data: {
+        type: note.getAttribute('data-style'),
+        text: note.getAttribute('title'),
+        isRightToLeft: this.isRtl
+      } as NoteDialogData
+    });
   }
 
   private createLocalCursor(): void {
