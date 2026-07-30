@@ -31,8 +31,8 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
 
   @Input() set textDocId(value: TextDocId | undefined) {
     this._textDocId = value;
-    // set the verse label
-    this.verseLabel = this.currentVerseLabel;
+    // set the reference shown in the verse label
+    this.verseRef = this.currentVerseRef;
   }
 
   @Input() set timing(value: AudioTiming[]) {
@@ -48,7 +48,8 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     this._showSegment = value;
   }
 
-  verseLabel: string = this.emptyVerseLabel;
+  /** The reference currently being played. It is localized in the template so the label follows the active locale. */
+  verseRef?: VerseRef;
   audioSource?: string;
 
   protected _showSegment = false;
@@ -91,16 +92,19 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     return this._timing.length;
   }
 
-  private get currentVerseLabel(): string {
-    if (this._textDocId == null) return this.emptyVerseLabel;
+  get verseLabel(): string {
+    return this.verseRef == null ? this.emptyVerseLabel : this.i18n.localizeReference(this.verseRef);
+  }
+
+  private get currentVerseRef(): VerseRef | undefined {
+    if (this._textDocId == null) return undefined;
     const currentTime: number = this.audioPlayer?.audio?.currentTime ?? 0;
     const currentVerseStr: string = this.getCurrentVerseStr(currentTime);
-    const verseRef = new VerseRef(
+    return new VerseRef(
       Canon.bookNumberToId(this._textDocId.bookNum),
       this._textDocId.chapterNum.toString(),
       currentVerseStr
     );
-    return this.i18n.localizeReference(verseRef);
   }
 
   close(): void {
@@ -122,7 +126,7 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     } else {
       this.audioPlayer.audio.currentTime = this.getNextVerseRefTime(currentTimingIndex);
     }
-    this.verseLabel = this.currentVerseLabel;
+    this.verseRef = this.currentVerseRef;
   }
 
   pause(): void {
@@ -152,7 +156,7 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     } else {
       this.audioPlayer.audio.currentTime = this.getPreviousVerseRefTime(currentTimingIndex);
     }
-    this.verseLabel = this.currentVerseLabel;
+    this.verseRef = this.currentVerseRef;
   }
 
   stop(): void {
@@ -236,7 +240,7 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
       )
       .subscribe(() => {
         if (this._textDocId == null) return;
-        this.verseLabel = this.currentVerseLabel;
+        this.verseRef = this.currentVerseRef;
         const audioTextRef: AudioTextRef | undefined = CheckingUtils.parseAudioRefByTime(
           this._timing,
           audio.currentTime

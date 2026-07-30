@@ -1,12 +1,15 @@
 import { Component, DebugElement, Input, NgZone, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { TranslocoTestingModule } from '@ngneat/transloco';
+import { CookieService } from 'ngx-cookie-service';
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
 import { BehaviorSubject } from 'rxjs';
+import { instance, mock } from 'ts-mockito';
+import { en, I18nService } from 'xforge-common/i18n.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
-import { getTestTranslocoModule } from 'xforge-common/test-utils';
 import { TextDocId } from '../../../core/models/text-doc';
 import { AudioPlayerComponent } from '../../../shared/audio/audio-player/audio-player.component';
 import { AudioPlayerStub, getAudioTimings, getAudioTimingWithHeadings } from '../../checking-test.utils';
@@ -14,6 +17,8 @@ import { CheckingScriptureAudioPlayerComponent } from './checking-scripture-audi
 
 const audioFile = 'test-audio-player.webm';
 const textDocId: TextDocId = new TextDocId('project01', 1, 1);
+/** Enough of a second locale to check that the verse label follows the active one. */
+const es = { canon: { book_names: { GEN: 'Génesis' } } };
 
 describe('ScriptureAudioComponent', () => {
   it('can play and pause audio', fakeAsync(() => {
@@ -76,6 +81,16 @@ describe('ScriptureAudioComponent', () => {
     env.wait();
     // verse 1
     expect(env.verseLabel.nativeElement.textContent).toEqual('Genesis 1:1');
+  }));
+
+  it('re-localizes the verse label when the interface language changes', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    expect(env.verseLabel.nativeElement.textContent).toEqual('Genesis 1:1');
+
+    env.setLocale('es');
+
+    expect(env.verseLabel.nativeElement.textContent).toEqual('Génesis 1:1');
   }));
 
   it('emits verse changed event', fakeAsync(() => {
@@ -278,12 +293,23 @@ class TestEnvironment {
 
     TestBed.configureTestingModule({
       imports: [
-        getTestTranslocoModule(),
+        // Two locales, so that switching between them can be tested. The cookie service is mocked because
+        // I18nService.setLocale persists the active locale to a cookie, which would leak into other tests.
+        TranslocoTestingModule.forRoot({
+          langs: { en, es },
+          translocoConfig: {
+            availableLangs: ['en', 'es'],
+            reRenderOnLangChange: true,
+            fallbackLang: 'en',
+            defaultLang: 'en'
+          },
+          preloadLangs: true
+        }),
         HostComponent,
         CheckingScriptureAudioPlayerComponent,
         AudioPlayerStubComponent
       ],
-      providers: [provideTestOnlineStatus()]
+      providers: [provideTestOnlineStatus(), { provide: CookieService, useValue: instance(mock(CookieService)) }]
     });
     TestBed.overrideComponent(HostComponent, { set: { template: template } });
     TestBed.overrideComponent(CheckingScriptureAudioPlayerComponent, {
@@ -346,6 +372,11 @@ class TestEnvironment {
 
   clickPreviousRef(): void {
     this.previousRefButton.nativeElement.click();
+  }
+
+  setLocale(locale: string): void {
+    TestBed.inject(I18nService).setLocale(locale);
+    this.wait();
   }
 
   wait(): void {
