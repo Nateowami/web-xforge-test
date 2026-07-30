@@ -28,6 +28,7 @@ import {
   ScriptureChooserDialogData
 } from '../scripture-chooser-dialog/scripture-chooser-dialog.component';
 import { TextComponent } from '../shared/text/text.component';
+import { getVerseStrFromSegmentRef } from '../shared/verse-utils';
 
 export interface TextChooserDialogData {
   bookNum: number;
@@ -128,15 +129,8 @@ export class TextChooserDialogComponent {
       this.selectedText = expansion.result;
       this.startClipped = expansion.startClipped;
       this.endClipped = expansion.endClipped;
-      const firstVerseNum = expansion.firstVerseNum;
-      const lastVerseNum = expansion.lastVerseNum;
 
-      this.selectedVerses = {
-        bookNum: this.bookNum,
-        chapterNum: this.chapterNum,
-        verseNum: firstVerseNum,
-        verse: firstVerseNum === lastVerseNum ? firstVerseNum.toString() : firstVerseNum + '-' + lastVerseNum
-      };
+      this.selectedVerses = this.selectedVerseRef(expansion.firstVerse, expansion.lastVerse);
       this.rawTextSelection = rawSelection;
       this.selectionChanged = true;
       this.showError = false;
@@ -263,8 +257,8 @@ export class TextChooserDialogComponent {
   ): {
     startClipped: boolean;
     endClipped: boolean;
-    firstVerseNum: number;
-    lastVerseNum: number;
+    firstVerse: string;
+    lastVerse: string;
     result: string;
   } {
     // All selected segments except the first and last. The portions of the first and last segments that were selected
@@ -405,11 +399,11 @@ export class TextChooserDialogComponent {
 
     // Find the range of verses that has been selected. If only whitespace was selected in the first segment, then the
     // selection starts in the next segment, and the starting verse is the verse of that next segment.
-    const firstVerseNum =
+    const firstVerse =
       startText.trim() === '' && segments.length > 1
         ? this.getVerseFromElement(segments[1])
         : this.getVerseFromElement(segments[0]);
-    const lastVerseNum =
+    const lastVerse =
       endText.trim() === '' && segments.length > 1
         ? this.getVerseFromElement(segments[segments.length - 2])
         : this.getVerseFromElement(segments[segments.length - 1]);
@@ -417,17 +411,37 @@ export class TextChooserDialogComponent {
     return {
       startClipped,
       endClipped,
-      firstVerseNum,
-      lastVerseNum,
+      firstVerse,
+      lastVerse,
       result
     };
   }
 
-  private getVerseFromElement(element: Element): number {
-    return parseInt(element.getAttribute('data-segment')!.split('_', 3)[2], 10);
+  /**
+   * The reference for a selection running from the verse of the first selected segment to the verse of the last one.
+   * A single segment can itself cover more than one verse (a combined verse, e.g. '2-3' for \v 2-3), so the reference
+   * has to run from the first verse of the first segment to the last verse of the last segment.
+   */
+  private selectedVerseRef(firstVerse: string, lastVerse: string): VerseRefData {
+    const firstVerseNum = parseInt(firstVerse, 10);
+    const lastVerseNums = lastVerse.match(/\d+/g);
+    const lastVerseNum = lastVerseNums == null ? firstVerseNum : parseInt(lastVerseNums[lastVerseNums.length - 1], 10);
+    return {
+      bookNum: this.bookNum,
+      chapterNum: this.chapterNum,
+      verseNum: firstVerseNum,
+      // When the whole selection is within one segment, keep that segment's verse as-is, so that verses combined with
+      // something other than a range (e.g. '5,7') and verse segment letters (e.g. '6a') are preserved
+      verse: firstVerse === lastVerse ? firstVerse : `${firstVerseNum}-${lastVerseNum}`
+    };
   }
 
-  private getSegments(verse?: number): Element[] {
+  /** The verse (which may cover multiple verses, e.g. '2-3') that a verse segment element belongs to. */
+  private getVerseFromElement(element: Element): string {
+    return getVerseStrFromSegmentRef(element.getAttribute('data-segment')!) ?? '';
+  }
+
+  private getSegments(verse?: string): Element[] {
     return this.verseSegments().filter(el => (verse == null ? true : verse === this.getVerseFromElement(el)));
   }
 

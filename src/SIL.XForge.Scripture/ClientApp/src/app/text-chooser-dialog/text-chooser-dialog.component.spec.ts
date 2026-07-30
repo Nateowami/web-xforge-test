@@ -336,6 +336,42 @@ describe('TextChooserDialogComponent', () => {
     env.closeDialog();
   }));
 
+  it('shows the whole verse range when a combined verse is selected', fakeAsync(async () => {
+    const env = new TestEnvironment(
+      { start: 0, end: TestEnvironment.segmentLen('11-12') },
+      'verse_1_11-12',
+      'verse_1_11-12'
+    );
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('target: chapter 1, verses 11-12. (Matthew 1:11-12)');
+    env.click(env.saveButton);
+    expect(await env.resultPromise).toEqual({
+      verses: { bookNum: 40, chapterNum: 1, verseNum: 11, verse: '11-12' },
+      text: 'target: chapter 1, verses 11-12.',
+      startClipped: false,
+      endClipped: false
+    });
+    flush();
+  }));
+
+  it('includes all verses of a combined verse when selecting a range ending in one', fakeAsync(async () => {
+    const env = new TestEnvironment(
+      { start: 0, end: TestEnvironment.segmentLen('11-12') },
+      'verse_1_10',
+      'verse_1_11-12'
+    );
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('verse ten target: chapter 1, verses 11-12. (Matthew 1:10-12)');
+    env.closeDialog();
+  }));
+
+  it('includes all verses of a combined verse when selecting a range starting in one', fakeAsync(async () => {
+    const env = new TestEnvironment({ start: 0, end: TestEnvironment.segmentLen(13) }, 'verse_1_11-12', 'verse_1_13');
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('target: chapter 1, verses 11-12. target: chapter 1, verse 13. (Matthew 1:11-13)');
+    env.closeDialog();
+  }));
+
   it('selection-preview inherits project font from CSS custom property', fakeAsync(() => {
     const env = new TestEnvironment({ start: 0, end: TestEnvironment.segmentLen(1) }, 'verse_1_1', 'verse_1_1');
     env.fireSelectionChange();
@@ -381,7 +417,7 @@ class TestEnvironment {
     textsByBookId: TestEnvironment.textsByBookId
   };
 
-  static segmentLen(verseNumber: number): number {
+  static segmentLen(verseNumber: number | string): number {
     return TestEnvironment.delta!.filter(
       op => op.attributes != null && op.attributes.segment === 'verse_1_' + verseNumber
     )[0].insert!.length as number;
@@ -569,6 +605,10 @@ class TestEnvironment {
     delta.insert({ blank: true }, { segment: 'verse_1_9' });
     delta.insert({ verse: { number: '10', style: 'v' } });
     delta.insert('verse ten', { segment: 'verse_1_10' });
+    delta.insert({ verse: { number: '11-12', style: 'v' } });
+    delta.insert('target: chapter 1, verses 11-12.', { segment: 'verse_1_11-12' });
+    delta.insert({ verse: { number: '13', style: 'v' } });
+    delta.insert('target: chapter 1, verse 13.', { segment: 'verse_1_13' });
     return delta;
   }
 
