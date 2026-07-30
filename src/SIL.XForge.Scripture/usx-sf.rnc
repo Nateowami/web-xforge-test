@@ -458,7 +458,8 @@ Chapter =
         attribute number { xsd:integer },
         attribute style { "c" },
         attribute sid { xsd:string { minLength = "1" pattern = "[A-Z1-4]{3} ?[0-9]+" } }?,
-        attribute altnumber { xsd:string { minLength = "1" pattern = "[0-9]+\w?(\x{200F}?[\-,][0-9]+\w?)*" } }?,
+        # An alternate chapter number (\ca) is free text in Paratext, so letters are allowed as well as digits
+        attribute altnumber { xsd:string { minLength = "1" pattern = "\w+(\x{200F}?[\-,]\w+)*" } }?,
         attribute pubnumber { xsd:string { minLength = "1" } }?,
         attribute eid { xsd:string { minLength = "1" pattern = "[A-Z1-4]{3} ?[0-9]+" } }?,
         empty
@@ -470,7 +471,8 @@ Verse =
     element verse {
         attribute number { xsd:string { minLength = "1" pattern = "[0-9]+\w?(\x{200F}?[\-,][0-9]+\w?)*" } },
         attribute style { "v" },
-        attribute altnumber { xsd:string { minLength = "1" pattern = "[0-9]+\w?(\x{200F}?[\-,:][0-9]+\w?)*" } }?,
+        # An alternate verse number (\va) is free text in Paratext, so letters are allowed as well as digits
+        attribute altnumber { xsd:string { minLength = "1" pattern = "\w+(\x{200F}?[\-,:]\w+)*" } }?,
         attribute pubnumber { xsd:string { minLength = "1" } }?,
         attribute sid { xsd:string { pattern = "[A-Z1-4]{3} ?[a-z0-9\-,:]*" } }?,
         attribute eid { xsd:string { pattern = "[A-Z1-4]{3} ?[a-z0-9\-,:]*" } }?,

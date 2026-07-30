@@ -649,7 +649,7 @@
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:minLength value="1"/>
-            <xs:pattern value="[0-9]+\w?(‏?[\-,][0-9]+\w?)*"/>
+            <xs:pattern value="\w+(‏?[\-,]\w+)*"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:attribute>
@@ -695,7 +695,7 @@
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:minLength value="1"/>
-            <xs:pattern value="[0-9]+\w?(‏?[\-,:][0-9]+\w?)*"/>
+            <xs:pattern value="\w+(‏?[\-,:]\w+)*"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:attribute>

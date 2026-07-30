@@ -2047,6 +2047,54 @@ public class DeltaUsxMapperTests
         Assert.IsTrue(chapterDeltas[0].Delta.DeepEquals(expected));
     }
 
+    [TestCase("2")]
+    [TestCase("2a")]
+    [TestCase("a")]
+    [TestCase("QA")]
+    [TestCase("1-2")]
+    [TestCase("1:2")]
+    public void ToDelta_VerseAltNumber(string altNumber)
+    {
+        // Paratext allows any text in \va ... \va*, including text without digits, so the chapter is still valid
+        XDocument usxDoc = Usx("PHM", Chapter("1"), Para("p", VerseWithAltNumber("1", altNumber)));
+
+        var mapper = new DeltaUsxMapper(_mapperGuidService, _logger, _exceptionHandler);
+        List<ChapterDelta> chapterDeltas = [.. mapper.ToChapterDeltas(usxDoc)];
+
+        var expected = Delta
+            .New()
+            .InsertBook("PHM")
+            .InsertChapter("1")
+            .InsertBlank("p_1")
+            .InsertVerse("1", altNumber: altNumber)
+            .InsertBlank("verse_1_1")
+            .InsertPara("p");
+
+        Assert.That(chapterDeltas[0].IsValid, Is.True);
+        Assert.IsTrue(chapterDeltas[0].Delta.DeepEquals(expected));
+    }
+
+    [TestCase("2")]
+    [TestCase("2a")]
+    [TestCase("a")]
+    [TestCase("QA")]
+    public void ToDelta_ChapterAltNumber(string altNumber)
+    {
+        // As with \va, \ca is free text in Paratext, so the chapter is still valid
+        XElement chapter = new XElement(
+            "chapter",
+            new XAttribute("number", "1"),
+            new XAttribute("style", "c"),
+            new XAttribute("altnumber", altNumber)
+        );
+        XDocument usxDoc = Usx("PHM", chapter, Para("p", Verse("1")));
+
+        var mapper = new DeltaUsxMapper(_mapperGuidService, _logger, _exceptionHandler);
+        List<ChapterDelta> chapterDeltas = [.. mapper.ToChapterDeltas(usxDoc)];
+
+        Assert.That(chapterDeltas[0].IsValid, Is.True);
+    }
+
     [Test]
     public void ToDelta_DoublyInvalidInline()
     {
@@ -4357,6 +4405,14 @@ public class DeltaUsxMapperTests
 
     private static XElement Verse(string number, string style = "v") =>
         new XElement("verse", new XAttribute("number", number), new XAttribute("style", style));
+
+    private static XElement VerseWithAltNumber(string number, string altNumber) =>
+        new XElement(
+            "verse",
+            new XAttribute("number", number),
+            new XAttribute("style", "v"),
+            new XAttribute("altnumber", altNumber)
+        );
 
     private static XElement Char(string style, params object[] contents) =>
         new XElement("char", new XAttribute("style", style), contents);

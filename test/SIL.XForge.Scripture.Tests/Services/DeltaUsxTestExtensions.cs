@@ -163,9 +163,17 @@ public static class DeltaUsxTestExtensions
         return delta.InsertEmbed("chapter", obj, attributes: attrs);
     }
 
-    public static Delta InsertVerse(this Delta delta, string number, string style = "v", bool invalid = false)
+    public static Delta InsertVerse(
+        this Delta delta,
+        string number,
+        string style = "v",
+        bool invalid = false,
+        string altNumber = null
+    )
     {
         var obj = new JObject(new JProperty("number", number), new JProperty("style", style));
+        if (altNumber != null)
+            obj.Add(new JProperty("altnumber", altNumber));
         JObject attrs = null;
         if (invalid)
             attrs = new JObject(new JProperty("invalid-inline", true));
