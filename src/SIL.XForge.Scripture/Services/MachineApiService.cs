@@ -103,6 +103,11 @@ public class MachineApiService(
     /// </summary>
     internal static readonly TimeSpan QueuedBuildStaleThreshold = TimeSpan.FromHours(6);
 
+    /// <summary>
+    /// How far back event metrics are searched when correlating an event with a draft generation request.
+    /// </summary>
+    private const int DraftGenerationRequestLookupTimeframeDays = 14;
+
     private static readonly IEqualityComparer<IList<string>> _listStringComparer = SequenceEqualityComparer.Create(
         EqualityComparer<string>.Default
     );
@@ -829,67 +834,74 @@ public class MachineApiService(
         // Ensure that the user has permission
         await EnsureProjectPermissionAsync(curUserId, sfProjectId, isServalAdmin: false, cancellationToken);
 
-        // If we have pre-translation job information
-        if (
-            (await projectSecrets.TryGetAsync(sfProjectId, cancellationToken)).TryResult(
-                out SFProjectSecret projectSecret
-            )
-            && (
-                projectSecret.ServalData?.PreTranslationJobId is not null
-                || projectSecret.ServalData?.PreTranslationQueuedAt is not null
-            )
-        )
-        {
-            // Cancel the Hangfire job
-            if (projectSecret.ServalData?.PreTranslationJobId is not null)
-            {
-                backgroundJobClient.Delete(projectSecret.ServalData?.PreTranslationJobId);
-            }
-
-            // Clear the pre-translation queued status and job id
-            await projectSecrets.UpdateAsync(
-                sfProjectId,
-                u =>
-                {
-                    u.Unset(p => p.ServalData.PreTranslationJobId);
-                    u.Unset(p => p.ServalData.PreTranslationQueuedAt);
-                },
-                cancellationToken: cancellationToken
-            );
-        }
-
-        // Get the translation engine id
-        string translationEngineId = GetTranslationEngineId(projectSecret, preTranslate: true);
-
         try
         {
-            // Cancel the build on Serval
-            TranslationBuild translationBuild = await translationEnginesClient.CancelBuildAsync(
-                translationEngineId,
-                cancellationToken
-            );
-
-            string buildId = translationBuild.Id;
-            string? draftGenerationRequestId = await GetDraftGenerationRequestIdForBuildAsync(sfProjectId, buildId);
-            if (!string.IsNullOrEmpty(draftGenerationRequestId))
+            // If we have pre-translation job information
+            if (
+                (await projectSecrets.TryGetAsync(sfProjectId, cancellationToken)).TryResult(
+                    out SFProjectSecret projectSecret
+                )
+                && (
+                    projectSecret.ServalData?.PreTranslationJobId is not null
+                    || projectSecret.ServalData?.PreTranslationQueuedAt is not null
+                )
+            )
             {
-                Activity.Current?.AddTag(MachineProjectService.DraftGenerationRequestIdKey, draftGenerationRequestId);
+                // Cancel the Hangfire job
+                if (projectSecret.ServalData?.PreTranslationJobId is not null)
+                {
+                    backgroundJobClient.Delete(projectSecret.ServalData?.PreTranslationJobId);
+                }
+
+                // Clear the pre-translation queued status and job id
+                await projectSecrets.UpdateAsync(
+                    sfProjectId,
+                    u =>
+                    {
+                        u.Unset(p => p.ServalData.PreTranslationJobId);
+                        u.Unset(p => p.ServalData.PreTranslationQueuedAt);
+                    },
+                    cancellationToken: cancellationToken
+                );
             }
 
-            // Return the build id so it can be logged
-            return buildId;
-        }
-        catch (ServalApiException e) when (e.StatusCode == StatusCodes.Status404NotFound)
-        {
-            // We do not mind if a 404 exception comes from Serval - we can assume the job is now cancelled
-        }
-        catch (ServalApiException e)
-        {
-            ProcessServalApiException(e);
-        }
+            // Get the translation engine id
+            string translationEngineId = GetTranslationEngineId(projectSecret, preTranslate: true);
 
-        // No build was cancelled
-        return null;
+            try
+            {
+                // Cancel the build on Serval
+                TranslationBuild translationBuild = await translationEnginesClient.CancelBuildAsync(
+                    translationEngineId,
+                    cancellationToken
+                );
+
+                string buildId = translationBuild.Id;
+                await AddDraftGenerationRequestIdTagAsync(sfProjectId, buildId);
+
+                // Return the build id so it can be logged
+                return buildId;
+            }
+            catch (ServalApiException e) when (e.StatusCode == StatusCodes.Status404NotFound)
+            {
+                // We do not mind if a 404 exception comes from Serval - we can assume the job is now cancelled
+            }
+            catch (ServalApiException e)
+            {
+                ProcessServalApiException(e);
+            }
+
+            // No build was cancelled
+            return null;
+        }
+        finally
+        {
+            // If the draft generation request identifier could not be determined from the build that was cancelled
+            // (for example, Serval had no build to cancel, or it threw an exception), record the identifier of the
+            // most recent draft generation request. Without it, the event metric for this cancellation cannot be
+            // associated with the draft generation request it pertains to.
+            await AddDraftGenerationRequestIdTagAsync(sfProjectId, servalBuildId: null);
+        }
     }
 
     public async Task<ServalBuildDto?> GetBuildAsync(
@@ -1716,6 +1728,17 @@ public class MachineApiService(
                             ? new DateTimeOffset(startEvent.TimeStamp, TimeSpan.Zero).ToUniversalTime()
                             : null;
 
+                    // The user may have cancelled the request before Serval had a build to report on
+                    EventMetric? cancelEvent = groupEvents.FirstOrDefault(e =>
+                        e.EventType == nameof(CancelPreTranslationBuildAsync)
+                    );
+                    DateTimeOffset? sfUserCancelled = null;
+                    if (cancelEvent != null)
+                    {
+                        sfUserCancelled = new DateTimeOffset(cancelEvent.TimeStamp, TimeSpan.Zero).ToUniversalTime();
+                        status = DraftGenerationBuildStatus.Canceled;
+                    }
+
                     // We could add more details to the report if we are finding that it is often occurring to have build requests that
                     // Serval is not reporting on and it's useful to have those details.
                     reports.Add(
@@ -1726,6 +1749,7 @@ public class MachineApiService(
                             Timeline = new BuildReportTimeline
                             {
                                 SFUserRequested = sfUserRequested,
+                                SFUserCancelled = sfUserCancelled,
                                 RequestTime = sfUserRequested,
                             },
                             Config = new BuildReportConfig(),
@@ -3912,8 +3936,7 @@ public class MachineApiService(
     {
         // BuildProjectAsync events serve as a record of what Serval build id corresponds to what draft generation
         // request id.
-        const int lookupTimeframeDays = 14;
-        DateTime startDate = DateTime.UtcNow.AddDays(-lookupTimeframeDays);
+        DateTime startDate = DateTime.UtcNow.AddDays(-DraftGenerationRequestLookupTimeframeDays);
         QueryResults<EventMetric> buildProjectEvents = await eventMetricService.GetEventMetricsAsync(
             projectId: sfProjectId,
             scopes: [EventScope.Drafting],
@@ -3922,6 +3945,75 @@ public class MachineApiService(
         );
         EventMetric? buildEvent = buildProjectEvents.Results.FirstOrDefault(e => e.Result?.ToString() == servalBuildId);
         return buildEvent != null ? GetRequestIdFromEvent(buildEvent) : null;
+    }
+
+    /// <summary>
+    /// Gets the draft generation request identifier for the most recent draft generation request for a project.
+    /// </summary>
+    /// <param name="sfProjectId">The Scripture Forge project identifier.</param>
+    /// <returns>The draft generation request identifier, or null if not found.</returns>
+    /// <remarks>
+    /// This is used when a Serval build identifier is not available to correlate an event with a draft generation
+    /// request. A user can only have one draft generation request in progress per project, so the most recent request
+    /// is the one that any such event pertains to.
+    /// </remarks>
+    private async Task<string?> GetLatestDraftGenerationRequestIdAsync(string sfProjectId)
+    {
+        DateTime startDate = DateTime.UtcNow.AddDays(-DraftGenerationRequestLookupTimeframeDays);
+        QueryResults<EventMetric> startEvents = await eventMetricService.GetEventMetricsAsync(
+            projectId: sfProjectId,
+            scopes: [EventScope.Drafting],
+            eventTypes: [nameof(StartPreTranslationBuildAsync)],
+            fromDate: startDate
+        );
+
+        // Event metrics are returned in descending timestamp order
+        return startEvents
+            ?.Results.Select(GetRequestIdFromEvent)
+            .FirstOrDefault(requestId => !string.IsNullOrEmpty(requestId));
+    }
+
+    /// <summary>
+    /// Records the draft generation request identifier for the current event metric, if it is not already recorded.
+    /// </summary>
+    /// <param name="sfProjectId">The Scripture Forge project identifier.</param>
+    /// <param name="servalBuildId">
+    /// The identifier of the Serval build the event pertains to, if it is known. If this is null, or no draft
+    /// generation request can be found for it, the most recent draft generation request for the project is used.
+    /// </param>
+    /// <remarks>
+    /// The draft generation request identifier definitively associates an event metric with the draft generation
+    /// request it pertains to, so it must be recorded even if the operation being logged failed.
+    /// </remarks>
+    private async Task AddDraftGenerationRequestIdTagAsync(string sfProjectId, string? servalBuildId)
+    {
+        Activity? activity = Activity.Current;
+        if (activity is null || activity.GetTagItem(MachineProjectService.DraftGenerationRequestIdKey) is not null)
+        {
+            return;
+        }
+
+        try
+        {
+            string? draftGenerationRequestId = string.IsNullOrEmpty(servalBuildId)
+                ? null
+                : await GetDraftGenerationRequestIdForBuildAsync(sfProjectId, servalBuildId);
+            draftGenerationRequestId ??= await GetLatestDraftGenerationRequestIdAsync(sfProjectId);
+            if (!string.IsNullOrEmpty(draftGenerationRequestId))
+            {
+                activity.AddTag(MachineProjectService.DraftGenerationRequestIdKey, draftGenerationRequestId);
+            }
+        }
+        catch (Exception e)
+        {
+            // Do not let a failure to record the draft generation request identifier hide the outcome of the
+            // operation being logged. This can be called from a finally block while an exception is in flight.
+            logger.LogError(
+                e,
+                "Could not record the draft generation request id for project {projectId}.",
+                sfProjectId.Sanitize()
+            );
+        }
     }
 
     private async Task<string> GetTranslationIdAsync(

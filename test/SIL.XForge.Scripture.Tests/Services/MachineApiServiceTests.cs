@@ -738,6 +738,109 @@ public class MachineApiServiceTests
     }
 
     [Test]
+    public async Task CancelPreTranslationBuildAsync_AddsDraftGenerationRequestIdTagOnServalException()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+        await env.QueueBuildAsync(Project01, preTranslate: true, dateTime: DateTime.UtcNow);
+        const string draftGenerationRequestId = "2345";
+        env.SetLatestDraftGenerationRequest(draftGenerationRequestId);
+
+        // Serval returns a 204 if there is no build running, which is thrown as a DataNotFoundException
+        env.TranslationEnginesClient.CancelBuildAsync(TranslationEngine01, CancellationToken.None)
+            .Throws(ServalApiExceptions.NoContent);
+
+        using (new Activity("TestActivity").Start())
+        {
+            // SUT
+            Assert.ThrowsAsync<DataNotFoundException>(() =>
+                env.Service.CancelPreTranslationBuildAsync(User01, Project01, CancellationToken.None)
+            );
+
+            // Verify the Activity has the draftGenerationRequestId tag, so the event metric for the cancellation
+            // can be associated with the draft generation request
+            Activity? activity = Activity.Current;
+            Assert.IsNotNull(activity, "Activity.Current should be set during execution");
+            Assert.IsTrue(
+                activity!.TagObjects.Any(t =>
+                    t.Key == MachineProjectService.DraftGenerationRequestIdKey
+                    && t.Value?.ToString() == draftGenerationRequestId
+                ),
+                "Activity should contain draftGenerationRequestId tag with correct value"
+            );
+        }
+    }
+
+    [Test]
+    public async Task CancelPreTranslationBuildAsync_AddsDraftGenerationRequestIdTagWhenNoServalBuild()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+        await env.QueueBuildAsync(Project01, preTranslate: true, dateTime: DateTime.UtcNow);
+        const string draftGenerationRequestId = "2345";
+        env.SetLatestDraftGenerationRequest(draftGenerationRequestId);
+        env.TranslationEnginesClient.CancelBuildAsync(TranslationEngine01, CancellationToken.None)
+            .Throws(ServalApiExceptions.NotFound);
+
+        using (new Activity("TestActivity").Start())
+        {
+            // SUT
+            string? actual = await env.Service.CancelPreTranslationBuildAsync(
+                User01,
+                Project01,
+                CancellationToken.None
+            );
+            Assert.IsNull(actual);
+
+            Activity? activity = Activity.Current;
+            Assert.IsNotNull(activity, "Activity.Current should be set during execution");
+            Assert.IsTrue(
+                activity!.TagObjects.Any(t =>
+                    t.Key == MachineProjectService.DraftGenerationRequestIdKey
+                    && t.Value?.ToString() == draftGenerationRequestId
+                ),
+                "Activity should contain draftGenerationRequestId tag with correct value"
+            );
+        }
+    }
+
+    [Test]
+    public async Task CancelPreTranslationBuildAsync_DoesNotOverwriteDraftGenerationRequestIdTag()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+        await env.QueueBuildAsync(Project01, preTranslate: true, dateTime: DateTime.UtcNow);
+        env.ConfigureTranslationBuild();
+        const string draftGenerationRequestId = "2345";
+        env.SetDraftGenerationMetricAssociation(draftGenerationRequestId);
+        env.SetLatestDraftGenerationRequest("9999");
+
+        using (new Activity("TestActivity").Start())
+        {
+            // SUT
+            string? actual = await env.Service.CancelPreTranslationBuildAsync(
+                User01,
+                Project01,
+                CancellationToken.None
+            );
+            Assert.AreEqual(ServalBuildId01, actual);
+
+            // The request id for the build that was cancelled must be used, and only recorded once
+            Activity? activity = Activity.Current;
+            Assert.AreEqual(
+                1,
+                activity!.TagObjects.Count(t => t.Key == MachineProjectService.DraftGenerationRequestIdKey)
+            );
+            Assert.AreEqual(
+                draftGenerationRequestId,
+                activity
+                    .TagObjects.First(t => t.Key == MachineProjectService.DraftGenerationRequestIdKey)
+                    .Value?.ToString()
+            );
+        }
+    }
+
+    [Test]
     public void GetBuildAsync_BuildEnded()
     {
         // Set up test environment
@@ -1531,6 +1634,77 @@ public class MachineApiServiceTests
         Assert.AreEqual(DraftGenerationBuildStatus.UserRequested, reports[0].Status);
         Assert.AreEqual("orphan-request-1", reports[0].DraftGenerationRequestId);
         Assert.AreEqual(User01, reports[0].RequesterSFUserId);
+    }
+
+    [Test]
+    public async Task GetBuildsSinceAsync_EventsOnlyReportShowsTheUserCancellation()
+    {
+        // A user can cancel a draft generation request before Serval has a build to report on. The cancellation must
+        // still be shown in the report for that request.
+
+        // Set up test environment
+        var env = new TestEnvironment();
+        DateTimeOffset beginning = DateTimeOffset.UtcNow.AddDays(-7);
+        env.TranslationBuildsClient.GetAllBuildsCreatedAfterAsync(beginning, CancellationToken.None)
+            .Returns(Task.FromResult<IList<TranslationBuild>>([]));
+        DateTime cancelled = DateTime.UtcNow;
+        var tags = new Dictionary<string, BsonValue>
+        {
+            { MachineProjectService.DraftGenerationRequestIdKey, "cancelled-request-1" },
+        };
+        env.EventMetricService.GetEventMetricsAsync(
+                Arg.Any<string?>(),
+                Arg.Any<EventScope[]?>(),
+                Arg.Any<string[]>(),
+                Arg.Any<DateTime?>(),
+                Arg.Any<DateTime?>(),
+                Arg.Any<int>(),
+                Arg.Any<int>()
+            )
+            .Returns(
+                Task.FromResult(
+                    new QueryResults<EventMetric>
+                    {
+                        Results =
+                        [
+                            new EventMetric
+                            {
+                                EventType = nameof(MachineApiService.StartPreTranslationBuildAsync),
+                                ProjectId = Project01,
+                                UserId = User01,
+                                TimeStamp = cancelled.AddSeconds(-5),
+                                Tags = tags,
+                            },
+                            new EventMetric
+                            {
+                                EventType = nameof(MachineApiService.CancelPreTranslationBuildAsync),
+                                ProjectId = Project01,
+                                UserId = User01,
+                                TimeStamp = cancelled,
+                                Exception = "System.AggregateException: One or more errors occurred. (Entity Deleted)",
+                                Tags = tags,
+                            },
+                        ],
+                        UnpagedCount = 2,
+                    }
+                )
+            );
+
+        // SUT
+        IReadOnlyList<ServalBuildReportDto> reports = await env.Service.GetBuildsSinceAsync(
+            User01,
+            beginning,
+            isServalAdmin: true,
+            CancellationToken.None
+        );
+
+        Assert.AreEqual(1, reports.Count);
+        Assert.AreEqual("cancelled-request-1", reports[0].DraftGenerationRequestId);
+        Assert.AreEqual(DraftGenerationBuildStatus.Canceled, reports[0].Status);
+        Assert.AreEqual(
+            new DateTimeOffset(cancelled, TimeSpan.Zero).ToUniversalTime(),
+            reports[0].Timeline.SFUserCancelled
+        );
     }
 
     [Test]
@@ -6527,6 +6701,44 @@ public class MachineApiServiceTests
                     Arg.Any<int>()
                 )
                 .Returns(Task.FromResult(QueryResults<EventMetric>.Empty));
+        }
+
+        public void SetLatestDraftGenerationRequest(string draftGenerationRequestId)
+        {
+            // Mock the event metrics service to return the most recent draft generation request for the project
+            EventMetricService
+                .GetEventMetricsAsync(
+                    Arg.Any<string?>(),
+                    Arg.Is<EventScope[]?>(s => s != null && s.Contains(EventScope.Drafting)),
+                    Arg.Is<string[]>(t => t.Contains(nameof(IMachineApiService.StartPreTranslationBuildAsync))),
+                    Arg.Any<DateTime?>(),
+                    Arg.Any<DateTime?>(),
+                    Arg.Any<int>(),
+                    Arg.Any<int>()
+                )
+                .Returns(
+                    Task.FromResult(
+                        new QueryResults<EventMetric>
+                        {
+                            Results =
+                            [
+                                new EventMetric
+                                {
+                                    EventType = nameof(IMachineApiService.StartPreTranslationBuildAsync),
+                                    ProjectId = Project01,
+                                    Tags = new Dictionary<string, BsonValue>
+                                    {
+                                        {
+                                            Services.MachineProjectService.DraftGenerationRequestIdKey,
+                                            draftGenerationRequestId
+                                        },
+                                    },
+                                },
+                            ],
+                            UnpagedCount = 1,
+                        }
+                    )
+                );
         }
 
         public void SetDraftGenerationMetricAssociation(string draftGenerationRequestId)
