@@ -338,6 +338,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   private clickSubs: Map<string, Subscription[]> = new Map<string, Subscription[]>();
   private selectionClickSubs: Subscription[] = [];
   private noteThreadQuery?: RealtimeQuery<NoteThreadDoc>;
+  /** The note dialog currently open from this editor, if any. */
+  private noteDialogRef?: MatDialogRef<NoteDialogComponent, NoteDialogResult | undefined>;
   private toggleNoteThreadVerseRefs$: BehaviorSubject<void> = new BehaviorSubject<void>(undefined);
   private initializeLynxStateSub?: Subscription;
   private targetEditorLoaded$: Subject<void> = new Subject<void>();
@@ -1538,7 +1540,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       const threadDoc: NoteThreadDoc = await this.projectService.getNoteThread(
         getNoteThreadDocId(this.projectId, params.threadDataId)
       );
-      const noteIndex: number = threadDoc.data!.notes.findIndex(n => n.dataId === params.dataId);
+      if (threadDoc.data == null) {
+        // The thread no longer exists, e.g. its book was deleted in Paratext and the deletion has been synced
+        void this.dialogService.message('editor.note_no_longer_exists');
+        return;
+      }
+      const noteIndex: number = threadDoc.data.notes.findIndex(n => n.dataId === params.dataId);
       if (noteIndex >= 0) {
         // updated the existing note
         if (threadDoc.data?.notes[noteIndex].editable === true) {
@@ -1553,7 +1560,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           void this.dialogService.message('editor.cannot_edit_note_paratext');
         }
       } else {
-        note.threadId = threadDoc.data!.threadId;
+        note.threadId = threadDoc.data.threadId;
         await threadDoc.submitJson0Op(op => {
           op.add(t => t.notes, note);
           // also set the status of the thread to be the status of the note
@@ -1711,7 +1718,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
 
     const currentVerseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
     this.setNoteFabVisibility('hidden');
+    this.noteDialogRef = dialogRef;
     const result: NoteDialogResult | undefined = await lastValueFrom(dialogRef.afterClosed());
+    this.noteDialogRef = undefined;
 
     if (result != null) {
       if (result.noteContent != null || result.status != null) {
@@ -1845,6 +1854,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     }
 
     this.onTargetDeleteSub = textDoc.delete$.subscribe(() => {
+      // A note dialog left open would be editing a note thread that no longer exists
+      this.noteDialogRef?.close();
       void this.dialogService.message(this.i18n.translate('editor.text_has_been_deleted')).then(() => {
         void this.router.navigateByUrl('/projects/' + this.projectDoc!.id + '/translate', { replaceUrl: true });
       });

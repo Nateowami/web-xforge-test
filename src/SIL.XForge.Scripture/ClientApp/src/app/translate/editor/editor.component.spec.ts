@@ -3111,6 +3111,42 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('closes an open note dialog when the text is deleted remotely', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+      const noteThreadIconElem: HTMLElement = env.getNoteThreadIconElement('verse_1_3', 'dataid04')!;
+      noteThreadIconElem.click();
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+      const closeSpy = spyOn(env.mockNoteDialogRef, 'close').and.callThrough();
+
+      env.setupDialogRef();
+      env.deleteText(new TextDocId('project01', 40, 1, 'target').toString());
+
+      expect(closeSpy).toHaveBeenCalledTimes(1);
+      env.dispose();
+    }));
+
+    it('does not add a note to a thread that no longer exists', fakeAsync(() => {
+      const projectId: string = 'project01';
+      const threadDataId: string = 'dataid04';
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+      const noteThreadIconElem: HTMLElement = env.getNoteThreadIconElement('verse_1_3', threadDataId)!;
+      noteThreadIconElem.click();
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+
+      // the thread is deleted, e.g. by a sync of a book deleted in Paratext, while the dialog is open
+      env.getNoteThreadDoc(projectId, threadDataId).delete();
+      const dialogMessage = spyOn((env.component as any).dialogService, 'message');
+      env.mockNoteDialogRef.close({ noteContent: 'content in the thread' });
+      env.wait();
+
+      expect(dialogMessage).toHaveBeenCalledWith('editor.note_no_longer_exists');
+      env.dispose();
+    }));
+
     it('allows resolving a note', fakeAsync(() => {
       const projectId: string = 'project01';
       const threadDataId: string = 'dataid01';

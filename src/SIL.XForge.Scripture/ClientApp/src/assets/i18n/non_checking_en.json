@@ -544,6 +544,7 @@
     "more_notes": "--- {{ count }} more note(s) ---",
     "navigate_to_a_valid_text": "Navigate to a valid text to insert a note",
     "no_permission_edit_chapter": "You don't have permission to edit this chapter, even though you have the {{ userRole }} role. Permissions can only be changed in Paratext.",
+    "note_no_longer_exists": "This note could not be saved because it no longer exists. Its book may have been deleted in Paratext.",
     "project_data_out_of_sync": "Your project data is out of sync. Please synchronize your project to edit this text.",
     "project_text_not_editable": "Text in this project is not editable. This setting can be changed in Paratext.",
     "save": "Save",
