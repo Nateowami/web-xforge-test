@@ -120,6 +120,41 @@ describe('SyncComponent', () => {
     expect(env.component.syncActive).toBe(false);
   }));
 
+  it('should explain sync is disabled rather than prompt for Paratext credentials when sync throws a forbidden error', fakeAsync(() => {
+    const env = new TestEnvironment();
+    when(mockedProjectService.onlineSync(env.projectId)).thenCall(() => {
+      // A system administrator disabled sync for the project just before the request was made
+      env.setSyncDisabled(env.projectId, true);
+      return Promise.reject(new CommandError(CommandErrorCode.Forbidden, 'Forbidden'));
+    });
+
+    env.clickElement(env.syncButton);
+
+    verify(mockedAuthService.requestParatextCredentialUpdate()).never();
+    verify(mockedDialogService.message(anything())).once();
+    expect(env.component.syncActive).toBe(false);
+  }));
+
+  it('should explain and disable button when sync is disabled while a sync is in progress', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.clickElement(env.syncButton);
+    expect(env.component.syncActive).toBe(true);
+    expect(env.syncDisabledMessage).toBeNull();
+
+    // A system administrator disables sync while the sync is running
+    env.setSyncDisabled(env.projectId, true);
+
+    expect(env.syncDisabledMessage).not.toBeNull();
+    // The user can still cancel the sync that is already running
+    expect(env.cancelButton.nativeElement.disabled).toBe(false);
+
+    env.emitSyncComplete(true, env.projectId);
+
+    expect(env.component.syncActive).toBe(false);
+    expect(env.syncDisabledMessage).not.toBeNull();
+    expect(env.syncButton.nativeElement.disabled).toBe(true);
+  }));
+
   it('should report error if sync has a problem', fakeAsync(() => {
     const env = new TestEnvironment();
     verify(mockedProjectService.get(env.projectId)).once();
@@ -366,6 +401,14 @@ class TestEnvironment {
     element.click();
     this.fixture.detectChanges();
     tick();
+  }
+
+  /** Simulates a system administrator enabling or disabling sync for the project. */
+  setSyncDisabled(projectId: string, syncDisabled: boolean): void {
+    const projectDoc = this.realtimeService.get<SFProjectDoc>(SFProjectDoc.COLLECTION, projectId);
+    projectDoc.submitJson0Op(op => op.set<boolean>(p => p.syncDisabled!, syncDisabled), false);
+    tick();
+    this.fixture.detectChanges();
   }
 
   setQueuedCount(projectId: string): void {

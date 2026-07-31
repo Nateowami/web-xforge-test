@@ -52,7 +52,6 @@ enum SyncErrorCodes {
 export class SyncComponent extends DataLoadingComponent implements OnInit {
   isAppOnline: boolean = false;
   showParatextLogin = false;
-  syncDisabled: boolean = false;
   projectDoc?: SFProjectDoc;
 
   private _syncActive: boolean = false;
@@ -144,6 +143,15 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     this._syncActive = isActive;
   }
 
+  /**
+   * Whether a system administrator has disabled synchronization for this project. This is read from the project doc
+   * every time it is needed, so that the page reflects the current setting even if it is changed while a sync is
+   * running.
+   */
+  get syncDisabled(): boolean {
+    return this.projectDoc?.data?.syncDisabled ?? false;
+  }
+
   get syncDisabledMessage(): string {
     return this.i18n.translateAndInsertTags('sync.sync_is_disabled', {
       email: `<a target="_blank" href="mailto:${environment.issueEmail}">${environment.issueEmail}</a>`
@@ -202,14 +210,22 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
   }
 
   syncProject(): void {
-    if (this.projectDoc == null) {
+    if (this.projectDoc == null || this.syncDisabled) {
       return;
     }
     this._syncActive = true;
     this.projectService.onlineSync(this.projectDoc.id).catch((error: any) => {
       this.checkSyncStatus();
       if ('code' in error && error.code === CommandErrorCode.Forbidden) {
-        this.authService.requestParatextCredentialUpdate();
+        if (this.syncDisabled) {
+          // Sync being disabled for the project is also reported as a forbidden error. Asking the user to update
+          // their Paratext credentials would be misleading, as re-authenticating will not make sync work.
+          void this.dialogService.message(
+            this.i18n.translate('sync.sync_is_disabled', { email: environment.issueEmail })
+          );
+        } else {
+          this.authService.requestParatextCredentialUpdate();
+        }
       } else {
         throw error;
       }
@@ -227,9 +243,6 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
   private checkSyncStatus(): void {
     if (this.projectDoc?.data == null) {
       return;
-    }
-    if (this.projectDoc.data.syncDisabled != null) {
-      this.syncDisabled = this.projectDoc.data.syncDisabled;
     }
     this._syncActive = isSFProjectSyncing(this.projectDoc.data);
     if (this.projectDoc.data.sync.lastSyncSuccessful) {
