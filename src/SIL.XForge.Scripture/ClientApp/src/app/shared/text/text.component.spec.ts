@@ -754,11 +754,17 @@ describe('TextComponent', () => {
       expect(presenceChangeEmitSpy).toHaveBeenCalledTimes(0);
     }));
 
-    it('should scroll to cursor of viewer', fakeAsync(() => {
+    it('should scroll to cursor of viewer without moving the local cursor', fakeAsync(() => {
       const env: TestEnvironment = new TestEnvironment();
       env.fixture.detectChanges();
       env.id = new TextDocId('project01', 40, 1);
       env.waitForEditor();
+
+      // the local user is in a different verse than the viewer they are looking for
+      env.component.setSegment('verse_1_3');
+      tick();
+      env.fixture.detectChanges();
+      const localSelection: QuillRange | null = env.component.editor!.getSelection();
 
       const remotePresence = 'remote-person-1';
       const remoteSegmentRef = 'verse_1_1';
@@ -768,9 +774,7 @@ describe('TextComponent', () => {
       const presenceData: PresenceData = {
         viewer: (env.component as any).getPresenceViewer(remotePresence)
       };
-      const setSelectionSpy = spyOn<any>(env.component.editor!, 'setSelection')
-        .withArgs(remoteRange)
-        .and.returnValue(true);
+      const setSelectionSpy = spyOn<any>(env.component.editor!, 'setSelection').and.callThrough();
       const presenceDataActive: PresenceData = { viewer: { ...presenceData.viewer, activeInEditor: true } };
       const presenceChannelReceiveSpy = spyOn<any>(env.component, 'onPresenceChannelReceive')
         .withArgs(remotePresence, presenceDataActive)
@@ -778,13 +782,41 @@ describe('TextComponent', () => {
         .withArgs(remotePresence, presenceData)
         .and.returnValue(true);
       env.component.scrollToViewer(presenceData.viewer);
-      expect(setSelectionSpy).toHaveBeenCalledTimes(1);
+
+      // the viewer's name is flagged, but the local user keeps their own cursor and selected verse
       expect(presenceChannelReceiveSpy).toHaveBeenCalledTimes(1);
+      expect(setSelectionSpy).not.toHaveBeenCalled();
+      expect(env.component.editor!.getSelection()).toEqual(localSelection);
+      expect(env.component.segmentRef).toEqual('verse_1_3');
 
       // Wait for timer to emit another call to not show the user as active
       presenceChannelReceiveSpy.calls.reset();
       tick(3000);
       expect(presenceChannelReceiveSpy).toHaveBeenCalledTimes(1);
+    }));
+
+    it('should scroll the viewer cursor into view when it is off screen', fakeAsync(() => {
+      const env: TestEnvironment = new TestEnvironment();
+      env.fixture.detectChanges();
+      env.id = new TextDocId('project01', 40, 1);
+      env.waitForEditor();
+
+      const remotePresence = 'remote-person-1';
+      const remoteRange: QuillRange | undefined = env.component.getSegmentRange('verse_1_5');
+      env.addRemotePresence(remotePresence, remoteRange);
+      const root: HTMLElement = env.component.editor!.root;
+      // constrain the editor so that the viewer's cursor is below the visible area
+      root.style.height = '20px';
+      root.style.overflowY = 'auto';
+      expect(root.scrollTop).toEqual(0);
+      const presenceData: PresenceData = {
+        viewer: (env.component as any).getPresenceViewer(remotePresence)
+      };
+
+      env.component.scrollToViewer(presenceData.viewer);
+
+      expect(root.scrollTop).toBeGreaterThan(0);
+      TestEnvironment.waitForPresenceTimer();
     }));
 
     it('should update presence if the user data changes', fakeAsync(() => {

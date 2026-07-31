@@ -1063,8 +1063,10 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       this.editor.root.scrollTop = 0;
       return;
     }
-    this.editor.setSelection(range);
-    this.editor.blur();
+    // Scroll the viewer's cursor into view without touching the local selection. Using
+    // setSelection() to scroll would move this user's own cursor to the other user's verse, which
+    // also moves the verse selection used for adding notes (SF-2285).
+    this.scrollRangeIntoView(range);
     const presenceData: PresenceData = {
       viewer: { ...viewer, activeInEditor: true }
     };
@@ -1074,6 +1076,27 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       this.onPresenceChannelReceive(presenceId, presenceData);
       active$.unsubscribe();
     });
+  }
+
+  /** Scroll the editor by the least amount needed to make the given range visible. */
+  private scrollRangeIntoView(range: Range): void {
+    if (this.editor == null) {
+      return;
+    }
+    const root: HTMLElement = this.editor.root;
+    const bounds = this.editor.getBounds(range.index, range.length);
+    if (bounds == null) {
+      return;
+    }
+    // getBounds() is relative to the visible area, so add the scroll position to get the offset
+    // of the range within the scrollable content
+    const top: number = bounds.top + root.scrollTop;
+    const bottom: number = top + bounds.height;
+    if (top < root.scrollTop) {
+      root.scrollTop = top;
+    } else if (bottom > root.scrollTop + root.clientHeight) {
+      root.scrollTop = bottom - root.clientHeight;
+    }
   }
 
   isSegmentBlank(ref: string): boolean {
