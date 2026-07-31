@@ -1,4 +1,4 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { ActivatedRouteSnapshot, CanDeactivate, Router, RouterStateSnapshot } from '@angular/router';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
@@ -15,6 +15,9 @@ import { PermissionsService } from '../core/permissions.service';
 import { SFProjectService } from '../core/sf-project.service';
 
 export abstract class RouterGuard {
+  // named to avoid clashing with the `router` that some subclasses inject for themselves
+  private readonly routerForGuard = inject(Router);
+
   constructor(
     protected readonly authGuard: AuthGuard,
     protected readonly projectService: SFProjectService
@@ -29,7 +32,17 @@ export abstract class RouterGuard {
     return this.authGuard.allowTransition().pipe(
       switchMap(isLoggedIn => {
         if (isLoggedIn) {
-          return from(this.projectService.getProfile(projectId)).pipe(map(projectDoc => this.check(projectDoc)));
+          return from(this.projectService.getProfile(projectId)).pipe(
+            map(projectDoc => {
+              // The project is gone, or the user may no longer read it because they were removed from it. Send them
+              // to the project route, which reports that the project is no longer accessible.
+              if (projectDoc.isDeleted) {
+                void this.routerForGuard.navigate(['/projects', projectId], { replaceUrl: true });
+                return false;
+              }
+              return this.check(projectDoc);
+            })
+          );
         }
         return of(false);
       })

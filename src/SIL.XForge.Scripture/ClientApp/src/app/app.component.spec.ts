@@ -355,6 +355,22 @@ describe('AppComponent', () => {
     expect(env.location.path()).toEqual('/projects');
   }));
 
+  it('response to opening a project that is no longer accessible', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.init();
+
+    // the user was removed from the project before they opened the link, so the realtime server will not send it
+    env.makeProjectInaccessible('project01');
+    env.navigate(['/projects', 'project01']);
+    env.wait();
+
+    verify(mockedDialogService.message(anything())).once();
+    verify(mockedSFProjectService.localDelete('project01')).once();
+    // Get past setTimeout to navigation
+    tick();
+    expect(env.location.path()).toEqual('/projects');
+  }));
+
   it('response to remote project change for serval admin', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setCurrentUser('user05');
@@ -971,6 +987,13 @@ class TestEnvironment {
   removeUserFromProject(projectId: string): void {
     const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, projectId);
     projectDoc.submitJson0Op(op => op.unset<string>(p => p.userRoles['user01']), false);
+    this.wait();
+  }
+
+  /** Makes the project doc behave the way it does when the realtime server will not let the user read it. */
+  makeProjectInaccessible(projectId: string): void {
+    const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, projectId);
+    void projectDoc.delete();
     this.wait();
   }
 

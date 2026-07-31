@@ -6,6 +6,16 @@ import { RealtimeDocAdapter } from '../realtime-remote-store';
 import { RealtimeOfflineData } from './realtime-offline-data';
 import { Snapshot } from './snapshot';
 
+/**
+ * The message the realtime server (sharedb-access) replies with when a user is not permitted to read a doc. ShareDB
+ * sends middleware errors as plain strings, so the message is all the client has to go on.
+ */
+const READ_ACCESS_DENIED_MESSAGE = '403: Permission denied (read)';
+
+function isReadAccessDeniedError(err: unknown): boolean {
+  return err instanceof Error && err.message.startsWith(READ_ACCESS_DENIED_MESSAGE);
+}
+
 export interface RealtimeDocConstructor {
   readonly COLLECTION: string;
 
@@ -33,6 +43,8 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
   private subscribedState: boolean = false;
   private subscribeQueryCount: number = 0;
   private loadOfflineDataPromise?: Promise<void>;
+  private onCreateSub: Subscription;
+  private deletedState: boolean = false;
 
   constructor(
     protected readonly realtimeService: RealtimeService,
@@ -47,7 +59,11 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
         void this.updateOfflineData();
       }
     );
-    this.onDeleteSub = this.adapter.delete$.subscribe(() => this.onDelete());
+    this.onDeleteSub = this._delete$.subscribe(() => {
+      this.deletedState = true;
+      void this.onDelete();
+    });
+    this.onCreateSub = this.adapter.create$.subscribe(() => (this.deletedState = false));
   }
 
   get id(): string {
@@ -60,6 +76,14 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
 
   get isLoaded(): boolean {
     return this.adapter.type != null;
+  }
+
+  /**
+   * Whether the data behind this doc is known to be gone: either it was deleted, or the realtime server will not let
+   * this user read it any more (e.g. they were removed from the project).
+   */
+  get isDeleted(): boolean {
+    return this.deletedState;
   }
 
   get subscribed(): boolean {
@@ -181,6 +205,7 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     }
     this.updateOfflineDataSub.unsubscribe();
     this.onDeleteSub.unsubscribe();
+    this.onCreateSub.unsubscribe();
     await this.adapter.destroy();
     this.subscribedState = false;
     await this.realtimeService.onLocalDocDispose(this);
@@ -262,7 +287,18 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
 
   private async subscribeToChanges(): Promise<void> {
     await this.loadOfflineData();
-    const promise = this.adapter.subscribe().then(() => (this.subscribedState = this.adapter.subscribed));
+    const promise = this.adapter
+      .subscribe()
+      .then(() => (this.subscribedState = this.adapter.subscribed))
+      .catch(err => {
+        // The realtime server refuses to send docs that the user is not allowed to read, such as the docs of a
+        // project they have been removed from. That is not an application error, so report it the same way as a doc
+        // that no longer exists, rather than letting it surface as an unexpected error.
+        if (!isReadAccessDeniedError(err)) {
+          throw err;
+        }
+        this.localDelete$.next();
+      });
     if (this.isLoaded) {
       void this.checkExists();
     } else {
@@ -273,7 +309,6 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
 
   private async checkExists(): Promise<void> {
     if (!(await this.adapter.exists())) {
-      void this.onDelete();
       this.localDelete$.next();
     }
   }

@@ -343,6 +343,12 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
         this._selectedProjectDoc = selectedProjectDoc;
         if (this._selectedProjectDoc == null || !this._selectedProjectDoc.isLoaded) {
           this.projectFont = null;
+          // The project was navigated to, but is gone or is no longer readable by this user, e.g. they were removed
+          // from the project before opening the link. Tell them, rather than leaving them on an empty page.
+          if (this._selectedProjectDoc?.isDeleted === true) {
+            void this.showProjectDeletedDialog();
+            void this.projectService.localDelete(this._selectedProjectDoc.id);
+          }
           return;
         }
         this.projectFont = this.fontService.getFontFamilyFromProject(this._selectedProjectDoc.data);

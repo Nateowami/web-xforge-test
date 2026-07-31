@@ -1,7 +1,9 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
+import { firstValueFrom, of } from 'rxjs';
 import { mock, when } from 'ts-mockito';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
@@ -40,12 +42,23 @@ describe('DraftNavigationAuthGuard', () => {
 describe('SyncAuthGuard', () => {
   configureTestingModule(() => ({
     providers: [
+      provideRouter([]),
       { provide: AuthGuard, useMock: mockedAuthGuard },
       { provide: AuthService, useMock: mockedAuthService },
       { provide: SFProjectService, useMock: mockedProjectService },
       { provide: UserService, useMock: mockedUserService }
     ]
   }));
+
+  it('sends the user to the project when the project is no longer accessible', async () => {
+    const env = new SyncAuthGuardTestEnvironment(false);
+    const navigate = spyOn(TestBed.inject(Router), 'navigate').and.resolveTo(true);
+    when(mockedAuthGuard.allowTransition()).thenReturn(of(true));
+    when(mockedProjectService.getProfile('project01')).thenResolve({ isDeleted: true } as SFProjectProfileDoc);
+
+    expect(await firstValueFrom(env.service.allowTransition('project01'))).toBe(false);
+    expect(navigate).toHaveBeenCalledWith(['/projects', 'project01'], { replaceUrl: true });
+  });
 
   it('administrators can access sync', async () => {
     // navigate away
