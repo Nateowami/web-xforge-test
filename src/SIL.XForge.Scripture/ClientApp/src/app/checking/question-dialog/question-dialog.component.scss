@@ -30,15 +30,27 @@ mat-form-field {
 }
 
 .mat-mdc-dialog-content {
-  max-height: 70vh;
+  // The height is limited by .dialog-container instead. A fixed limit here (or Material's
+  // default) makes the dialog taller than the viewport on short/mobile viewports, which pushes
+  // the bottom of the form (the audio controls and the action buttons) out of reach.
+  max-height: none;
 }
 
 .dialog-container {
   max-width: 560px;
+  // Keep the dialog within the viewport and give mat-dialog-content whatever height is left
+  // over after the title and the action buttons.
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 3em);
+  max-height: calc(100dvh - 3em);
 }
 
 .text-container {
   height: 10em;
+  // On viewports too short for the whole form, the scripture preview gives up its space rather
+  // than pushing the question and its audio controls out of view.
+  min-height: 4em;
   margin-bottom: 2em;
   app-checking-text {
     position: relative;
