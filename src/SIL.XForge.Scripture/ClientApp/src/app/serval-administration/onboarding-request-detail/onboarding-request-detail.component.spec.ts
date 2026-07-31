@@ -255,6 +255,41 @@ describe('OnboardingRequestDetailComponent', () => {
       verify(mockedOnboardingRequestService.approveRequest(anything())).once();
       expect().nothing();
     }));
+
+    describe('when the project no longer exists', () => {
+      // The project doc is subscribed to, so deleting the project leaves a doc with no data
+      const deletedProjectDoc = { id: 'project01', data: undefined } as unknown as SFProjectProfileDoc;
+
+      it('warns about the missing project and disables the approve button', fakeAsync(() => {
+        const env = new TestEnvironment({ mainProjectDoc: deletedProjectDoc });
+        env.wait();
+
+        expect(env.component.isMainProjectUnavailable).toBe(true);
+        expect(env.component.warnings[0]).toContain('no longer exists in Scripture Forge');
+        expect(env.approveButton.nativeElement.getAttribute('aria-disabled')).toBe('true');
+      }));
+
+      it('shows an error instead of opening the approve dialog', fakeAsync(() => {
+        const env = new TestEnvironment({
+          mainProjectDoc: deletedProjectDoc,
+          approveDialogResult: {
+            draftingSourceParatextId: 'drafting_source_pt',
+            trainingSourceParatextIds: ['training_source_pt'],
+            enableBackTranslationDrafting: false
+          }
+        });
+        env.wait();
+
+        void env.component.approveRequest();
+        flush();
+
+        verify(mockedNoticeService.showError(anything())).once();
+        verify(mockedDialogService.openMatDialog(anything(), anything())).never();
+        verify(mockedProjectService.onlineSetDraftSources(anything(), anything(), anything())).never();
+        verify(mockedOnboardingRequestService.approveRequest(anything())).never();
+        expect().nothing();
+      }));
+    });
   });
 
   /**
@@ -318,6 +353,12 @@ describe('OnboardingRequestDetailComponent', () => {
 
     get resolutionSelect(): DebugElement {
       return this.fixture.debugElement.query(By.css('.resolution-field mat-select'));
+    }
+
+    get approveButton(): DebugElement {
+      return this.fixture.debugElement
+        .queryAll(By.css('.actions-container button'))
+        .find(b => (b.nativeElement as HTMLElement).textContent?.includes('Approve & Configure Sources'))!;
     }
 
     wait(): void {

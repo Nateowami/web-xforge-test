@@ -55,6 +55,10 @@ import {
 } from './approve-request-dialog/approve-request-dialog.component';
 import { formatBookListForSILNLP } from './draft-request-detail-utils';
 
+const PROJECT_UNAVAILABLE_MESSAGE =
+  'The project this request was submitted for no longer exists in Scripture Forge (it was probably deleted), so the ' +
+  'request cannot be approved.';
+
 /**
  * Component for displaying a single onboarding request's full details.
  * Accessible from the Serval Administration interface.
@@ -166,8 +170,9 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
       this.projectShortNames.set(this.request.submission.projectId, this.mainProjectDoc.data.shortName);
       this.projectName = projectLabel(this.mainProjectDoc.data);
     } else {
+      // The project could not be loaded (it has probably been deleted), so fall back to showing its id
       this.projectNames.set(this.request.submission.projectId, this.request.submission.projectId);
-      this.projectName = this.request.submission.projectId;
+      this.projectName = undefined;
     }
 
     // Collect Paratext project IDs from form data (these are different from the main projectId)
@@ -266,6 +271,15 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
 
   get isResolved(): boolean {
     return this.request?.resolution != null && this.request.resolution !== 'unresolved';
+  }
+
+  /**
+   * Whether the project the request was submitted for is unavailable. This happens when the project has been deleted
+   * from Scripture Forge, either before the request was viewed or while it was being viewed (the project doc is
+   * subscribed to, so its data becomes null as soon as it is deleted).
+   */
+  get isMainProjectUnavailable(): boolean {
+    return this.request != null && this.mainProjectDoc?.data == null;
   }
 
   get formData(): OnboardingRequestFormData {
@@ -414,6 +428,7 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
 
   async approveRequest(): Promise<void> {
     if (this.request == null) return;
+    if (this.projectUnavailableForApproval()) return;
 
     const dialogData = this.buildApproveDialogData();
     const dialogRef = this.dialogService.openMatDialog<
@@ -423,6 +438,8 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
     >(ApproveRequestDialogComponent, { data: dialogData });
     const result = await lastValueFrom(dialogRef.afterClosed());
     if (result == null || this.request == null) return;
+    // The project may have been deleted while the dialog was open
+    if (this.projectUnavailableForApproval()) return;
 
     this.loadingStarted();
     try {
@@ -456,6 +473,16 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
       this.loadingMessage = '';
       this.loadingFinished();
     }
+  }
+
+  /**
+   * Shows an explanatory error and returns true if the request cannot be approved because its project is no longer
+   * available.
+   */
+  private projectUnavailableForApproval(): boolean {
+    if (!this.isMainProjectUnavailable) return false;
+    this.noticeService.showError(PROJECT_UNAVAILABLE_MESSAGE);
+    return true;
   }
 
   private buildApproveDialogData(): ApproveRequestDialogData {
@@ -541,6 +568,10 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
 
   get warnings(): string[] {
     const warnings: string[] = [];
+
+    if (this.isMainProjectUnavailable) {
+      warnings.push(PROJECT_UNAVAILABLE_MESSAGE);
+    }
 
     if (this.request?.resolution === 'approved' && this.mainProjectDoc?.data?.translateConfig.preTranslate !== true) {
       warnings.push('This request is marked as approved but drafting is not enabled on the project.');
