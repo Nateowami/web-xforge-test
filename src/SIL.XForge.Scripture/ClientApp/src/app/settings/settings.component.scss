@@ -115,6 +115,13 @@ mat-radio-group.tool-setting {
   mat-radio-button {
     margin-inline-start: 1em;
   }
+
+  // A row of radio buttons can be wider than the screen on a phone (or in a locale with long
+  // labels). The overflow is clipped rather than scrollable, so wrap onto more lines instead.
+  > .tool-setting-field {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
 }
 
 .mat-mdc-card-content {
