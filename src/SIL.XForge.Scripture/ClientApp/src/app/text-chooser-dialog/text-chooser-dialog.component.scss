@@ -25,7 +25,12 @@
 app-text {
   display: block;
   overflow-y: scroll;
-  max-height: calc(100vh - 25rem);
+  // The height of the dialog content is already capped (mat-dialog-content); capping it here too
+  // made this item inflexible (flexbox freezes an item whose base size exceeds its max-height),
+  // which left the selection preview as the only item that could shrink — so a chapter taller than
+  // the dialog squashed the preview to a single line. Let the scripture text absorb the shrinking
+  // instead; it scrolls.
+  min-height: 8em;
 }
 
 .selection-reference {
@@ -34,6 +39,9 @@ app-text {
 
 .selection-preview {
   font-family: var(--project-font);
+  // Fixed height (rather than sized to the selection) so the dialog doesn't jump around while the
+  // user drags a selection; never shrink, so the preview keeps showing several lines.
+  flex: none;
   height: 16em;
   overflow-y: scroll;
   margin-top: 1em;
