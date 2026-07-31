@@ -81,7 +81,11 @@ export function checkAppAccess(
     void router.navigateByUrl(route, { replaceUrl: true });
     return;
   }
-  if (pathname.includes('checking') && !roleCanAccessCommunityChecking(projectRole)) {
+  // The community checking area is unavailable both when the role cannot access it and when an
+  // administrator turns the community checking feature off
+  const canAccessCommunityChecking =
+    roleCanAccessCommunityChecking(projectRole) && projectDoc.data.checkingConfig.checkingEnabled;
+  if (pathname.includes('checking') && !canAccessCommunityChecking) {
     void router.navigateByUrl(route, { replaceUrl: true });
   }
 }

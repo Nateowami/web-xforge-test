@@ -1,9 +1,13 @@
+import { Router } from '@angular/router';
 import { VerseRef } from '@sillsdev/scripture';
 import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
+import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { DeltaOperation } from 'rich-text';
 import { SelectableProject } from '../core/models/selectable-project';
+import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import {
   booksFromScriptureRange,
+  checkAppAccess,
   compareProjectsForSorting,
   expandNumbers,
   getBookFileNameDigits,
@@ -306,6 +310,57 @@ describe('shared utils', () => {
     it('returns undefined for values that are not strings, numbers, or Dates', () => {
       expect(parseDate({})).toBeUndefined();
       expect(parseDate(true)).toBeUndefined();
+    });
+  });
+
+  describe('checkAppAccess function', () => {
+    const userId = 'user01';
+    const projectRoute = '/projects/project01';
+
+    function createProjectDoc(role: SFProjectRole, checkingEnabled: boolean): SFProjectProfileDoc {
+      return {
+        id: 'project01',
+        data: { userRoles: { [userId]: role }, checkingConfig: { checkingEnabled } }
+      } as unknown as SFProjectProfileDoc;
+    }
+
+    let router: jasmine.SpyObj<Router>;
+    beforeEach(() => (router = jasmine.createSpyObj<Router>('Router', ['navigateByUrl'])));
+
+    it('keeps a community checker in the checking area when checking is enabled', () => {
+      const projectDoc = createProjectDoc(SFProjectRole.CommunityChecker, true);
+      checkAppAccess(projectDoc, userId, '/projects/project01/checking/MAT/1', router);
+      expect(router.navigateByUrl).not.toHaveBeenCalled();
+    });
+
+    it('navigates a community checker out of the checking area when checking is disabled', () => {
+      const projectDoc = createProjectDoc(SFProjectRole.CommunityChecker, false);
+      checkAppAccess(projectDoc, userId, '/projects/project01/checking/MAT/1', router);
+      expect(router.navigateByUrl).toHaveBeenCalledWith(projectRoute, { replaceUrl: true });
+    });
+
+    it('navigates an administrator out of the checking area when checking is disabled', () => {
+      const projectDoc = createProjectDoc(SFProjectRole.ParatextAdministrator, false);
+      checkAppAccess(projectDoc, userId, '/projects/project01/checking', router);
+      expect(router.navigateByUrl).toHaveBeenCalledWith(projectRoute, { replaceUrl: true });
+    });
+
+    it('navigates a user whose role cannot access the checking area', () => {
+      const projectDoc = createProjectDoc(SFProjectRole.Commenter, true);
+      checkAppAccess(projectDoc, userId, '/projects/project01/checking/MAT/1', router);
+      expect(router.navigateByUrl).toHaveBeenCalledWith(projectRoute, { replaceUrl: true });
+    });
+
+    it('leaves other areas alone when checking is disabled', () => {
+      const projectDoc = createProjectDoc(SFProjectRole.ParatextTranslator, false);
+      checkAppAccess(projectDoc, userId, '/projects/project01/translate/MAT/1', router);
+      expect(router.navigateByUrl).not.toHaveBeenCalled();
+    });
+
+    it('navigates a user whose role cannot access the translate area', () => {
+      const projectDoc = createProjectDoc(SFProjectRole.CommunityChecker, true);
+      checkAppAccess(projectDoc, userId, '/projects/project01/translate/MAT/1', router);
+      expect(router.navigateByUrl).toHaveBeenCalledWith(projectRoute, { replaceUrl: true });
     });
   });
 });
