@@ -81,7 +81,11 @@ export function checkAppAccess(
     void router.navigateByUrl(route, { replaceUrl: true });
     return;
   }
-  if (pathname.includes('checking') && !roleCanAccessCommunityChecking(projectRole)) {
+  // Community checking is only accessible while the project setting is enabled, so leaving the user on a checking page
+  // after an admin disables it would show them questions they can no longer open (CheckingAuthGuard denies them).
+  const canAccessChecking =
+    roleCanAccessCommunityChecking(projectRole) && projectDoc.data.checkingConfig.checkingEnabled;
+  if (pathname.includes('checking') && !canAccessChecking) {
     void router.navigateByUrl(route, { replaceUrl: true });
   }
 }

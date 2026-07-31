@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Canon } from '@sillsdev/scripture';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SFProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
-import { lastValueFrom, Observable } from 'rxjs';
+import { lastValueFrom, Observable, Subscription } from 'rxjs';
 import { distinctUntilChanged, filter, first, map } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { NoticeService } from 'xforge-common/notice.service';
@@ -21,6 +21,8 @@ type TaskType = 'translate' | 'checking';
   styleUrls: ['./project.component.scss']
 })
 export class ProjectComponent extends DataLoadingComponent implements OnInit {
+  private noAccessibleTaskSub?: Subscription;
+
   constructor(
     private readonly route: ActivatedRoute,
     private readonly projectService: SFProjectService,
@@ -100,6 +102,14 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
         this.navigateToTranslate(projectId, project, projectUserConfig);
       } else if (task === 'checking') {
         await this.navigateToChecking(projectId);
+      } else {
+        // No task is accessible (e.g. a community checker while community checking is disabled), which leaves this
+        // component showing an empty page. Watch the project so the user is taken to a task as soon as one becomes
+        // available again, rather than being stranded on the empty page until they reload.
+        this.noAccessibleTaskSub?.unsubscribe();
+        this.noAccessibleTaskSub = projectDoc.remoteChanges$
+          .pipe(quietTakeUntilDestroyed(this.destroyRef))
+          .subscribe(() => void this.navigateToProject(projectId));
       }
     } finally {
       this.loadingFinished();

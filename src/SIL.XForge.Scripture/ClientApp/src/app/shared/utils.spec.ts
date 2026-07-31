@@ -1,9 +1,15 @@
+import { Router } from '@angular/router';
 import { VerseRef } from '@sillsdev/scripture';
 import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
+import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
+import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { DeltaOperation } from 'rich-text';
+import { anything, instance, mock, verify, when } from 'ts-mockito';
 import { SelectableProject } from '../core/models/selectable-project';
+import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import {
   booksFromScriptureRange,
+  checkAppAccess,
   compareProjectsForSorting,
   expandNumbers,
   getBookFileNameDigits,
@@ -16,6 +22,41 @@ import {
 import { getVerseNumbers } from './verse-utils';
 
 describe('shared utils', () => {
+  describe('checkAppAccess function', () => {
+    function createProjectDoc(role: SFProjectRole, checkingEnabled: boolean): SFProjectProfileDoc {
+      const projectDoc = mock(SFProjectProfileDoc);
+      when(projectDoc.id).thenReturn('project01');
+      when(projectDoc.data).thenReturn(
+        createTestProjectProfile({ userRoles: { user01: role }, checkingConfig: { checkingEnabled } })
+      );
+      return instance(projectDoc);
+    }
+
+    it('leaves a community checker on a checking page while checking is enabled', () => {
+      const router = mock(Router);
+      checkAppAccess(
+        createProjectDoc(SFProjectRole.CommunityChecker, true),
+        'user01',
+        '/projects/project01/checking',
+        instance(router)
+      );
+      verify(router.navigateByUrl(anything(), anything())).never();
+      expect().nothing();
+    });
+
+    it('navigates a community checker off a checking page when checking is disabled', () => {
+      const router = mock(Router);
+      checkAppAccess(
+        createProjectDoc(SFProjectRole.CommunityChecker, false),
+        'user01',
+        '/projects/project01/checking',
+        instance(router)
+      );
+      verify(router.navigateByUrl('/projects/project01', anything())).once();
+      expect().nothing();
+    });
+  });
+
   describe('projectLabel function', () => {
     const shortName = 'SN';
     const name = 'Name';

@@ -142,6 +142,25 @@ describe('ProjectComponent', () => {
     expect().nothing();
   }));
 
+  it('navigates to community checking when it is re-enabled while no task was accessible', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectData({
+      role: SFProjectRole.CommunityChecker,
+      checkingEnabled: false,
+      memberProjectIdSuffixes: [1]
+    });
+    env.fixture.detectChanges();
+    tick();
+
+    // no task is accessible, so the user is left on this (empty) page
+    verify(mockedRouter.navigate(anything(), anything())).never();
+
+    env.setCheckingEnabled(1, true);
+
+    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'checking', 'JHN', '1']), anything())).once();
+    expect().nothing();
+  }));
+
   it('do not navigate when project does not exist', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();
@@ -272,6 +291,16 @@ class TestEnvironment {
       id: 'user01',
       data: createTestUser({ sites: { sf: { projects: memberProjectIdSuffixes.map(suffix => `project${suffix}`) } } })
     });
+  }
+
+  /** Simulates an administrator changing the community checking setting in another browser. */
+  setCheckingEnabled(projectIdSuffix: number, checkingEnabled: boolean): void {
+    const projectDoc: SFProjectProfileDoc = this.realtimeService.get(
+      SFProjectProfileDoc.COLLECTION,
+      `project${projectIdSuffix}`
+    );
+    projectDoc.submitJson0Op(op => op.set(p => p.checkingConfig.checkingEnabled, checkingEnabled), false);
+    tick();
   }
 
   addUserToProject(projectIdSuffix: number): void {
