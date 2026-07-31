@@ -245,6 +245,28 @@ describe('AppComponent', () => {
     flush();
   }));
 
+  it('releases focus when opening the drawer, so the on-screen keyboard closes', fakeAsync(() => {
+    // The user is typing in the chapter editor (or any other text box) on a small viewport.
+    const env = new TestEnvironment();
+    env.breakpointObserver.emitObserveValue(false);
+    env.navigateFully(['/projects', 'project01']);
+    const textBox = document.createElement('input');
+    document.body.appendChild(textBox);
+    textBox.focus();
+    expect(document.activeElement).toBe(textBox);
+
+    // The user taps the hamburger button to open the drawer.
+    env.click(env.hamburgerMenuButton);
+
+    expect(env.isDrawerVisible).toBe(true);
+    // The text box no longer has focus, so the on-screen keyboard is no longer covering the drawer.
+    expect(document.activeElement).not.toBe(textBox);
+    textBox.remove();
+
+    discardPeriodicTasks();
+    flush();
+  }));
+
   it('does not set user locale when stored locale matches the browsing session', fakeAsync(() => {
     const env = new TestEnvironment();
     env.navigate(['/projects', 'project01']);

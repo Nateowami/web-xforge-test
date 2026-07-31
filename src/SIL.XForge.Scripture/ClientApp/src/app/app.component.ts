@@ -469,14 +469,31 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
 
   openDrawer(): void {
     this.isExpanded = true;
+    this.releaseFocus();
   }
 
   toggleDrawer(): void {
     this.isExpanded = !this.isExpanded;
+    if (this.isExpanded) {
+      this.releaseFocus();
+    }
   }
 
   drawerCollapsed(): void {
     this.isExpanded = false;
+  }
+
+  /**
+   * Removes focus from whatever the user was typing in (usually the chapter editor or a note text box) so that the
+   * on-screen keyboard closes when the drawer opens over the page. The drawer deliberately does not take focus itself
+   * (autoFocus="false"), and not every browser focuses a button that is tapped, so otherwise the keyboard can stay
+   * open on top of the drawer.
+   */
+  private releaseFocus(): void {
+    const activeElement = this.document.activeElement;
+    if (activeElement instanceof HTMLElement) {
+      activeElement.blur();
+    }
   }
 
   reloadWithUpdates(): void {
