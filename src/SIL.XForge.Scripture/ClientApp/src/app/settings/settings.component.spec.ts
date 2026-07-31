@@ -17,7 +17,7 @@ import { createTestProject } from 'realtime-server/lib/esm/scriptureforge/models
 import { TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio-test-data';
 import { of } from 'rxjs';
-import { anything, capture, deepEqual, instance, mock, verify, when } from 'ts-mockito';
+import { anything, capture, deepEqual, instance, mock, resetCalls, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
 import { createTestFeatureFlag, FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
 import { NoticeService } from 'xforge-common/notice.service';
@@ -293,6 +293,48 @@ describe('SettingsComponent', () => {
 
         expect(env.basedOnSelectValue).toContain('ParatextP2');
         expect(env.statusDone(env.basedOnStatus)).not.toBeNull();
+      }));
+
+      it('should not change Based On when the text typed in the select is not a valid selection', fakeAsync(() => {
+        const env = new TestEnvironment();
+        env.setupProject({ translateConfig: { translationSuggestionsEnabled: true } });
+        env.wait();
+        env.wait();
+        expect(env.basedOnSelectValue).toContain('ParatextP1');
+
+        env.setBasedOnValue('paratextId02');
+        expect(env.statusDone(env.basedOnStatus)).not.toBeNull();
+        resetCalls(mockedSFProjectService);
+
+        // The user deletes a character of the selected project's name, leaving invalid text behind
+        env.setBasedOnText('ParatextP');
+
+        expect(env.basedOnSelectComponent.isValid).toBe(false);
+        expect(env.statusDone(env.basedOnStatus)).toBeNull();
+        verify(mockedSFProjectService.onlineUpdateSettings(anything(), anything())).never();
+        expect(env.component.isBasedOnProjectSet).toBe(false);
+
+        // Other settings can still be saved while the invalid text remains
+        env.clickElement(env.inputElement(env.checkingCheckbox));
+
+        env.wait();
+        expect(env.statusDone(env.checkingStatus)).not.toBeNull();
+        const [, settings] = capture(mockedSFProjectService.onlineUpdateSettings).last();
+        expect(settings).toEqual({ checkingEnabled: true });
+      }));
+
+      it('should unset Based On when the select is cleared', fakeAsync(() => {
+        const env = new TestEnvironment();
+        env.setupProject({ translateConfig: { translationSuggestionsEnabled: true } });
+        env.wait();
+        env.wait();
+        expect(env.basedOnSelectValue).toContain('ParatextP1');
+
+        env.resetBasedOnProject();
+
+        expect(env.statusDone(env.basedOnStatus)).not.toBeNull();
+        const [, settings] = capture(mockedSFProjectService.onlineUpdateSettings).last();
+        expect(settings).toEqual({ sourceParatextId: 'unset', translationSuggestionsEnabled: false });
       }));
 
       it('should display Based On project even if user is not a member', fakeAsync(() => {
@@ -1001,6 +1043,12 @@ class TestEnvironment {
 
   resetBasedOnProject(): void {
     this.basedOnSelectComponent.paratextIdControl.setValue('');
+    this.wait();
+  }
+
+  /** Simulates the user typing in the Based On select, rather than selecting a project from the list. */
+  setBasedOnText(text: string): void {
+    this.basedOnSelectComponent.paratextIdControl.setValue(text);
     this.wait();
   }
 

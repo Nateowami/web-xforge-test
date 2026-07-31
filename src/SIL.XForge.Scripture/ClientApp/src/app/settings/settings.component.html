@@ -18,6 +18,7 @@
                 <p class="helper-text">{{ t("select_project_or_resource") }}</p>
                 <div class="tool-setting-field">
                   <app-project-select
+                    #basedOnProjectSelect
                     id="sourceParatextId"
                     formControlName="sourceParatextId"
                     [placeholder]="t('source_text_placeholder')"

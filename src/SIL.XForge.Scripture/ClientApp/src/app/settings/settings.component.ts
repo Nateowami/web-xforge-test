@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, DestroyRef, OnInit } from '@angular/core';
+import { Component, DestroyRef, OnInit, ViewChild } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCard, MatCardActions, MatCardContent, MatCardTitle } from '@angular/material/card';
@@ -73,6 +73,8 @@ import { DeleteProjectDialogComponent } from './delete-project-dialog/delete-pro
   ]
 })
 export class SettingsComponent extends DataLoadingComponent implements OnInit {
+  @ViewChild('basedOnProjectSelect') basedOnProjectSelect?: ProjectSelectComponent;
+
   translationSuggestionsEnabled = new FormControl(false);
   sourceParatextId = new FormControl<string | undefined>(undefined);
   biblicalTermsEnabled = new FormControl(false);
@@ -314,6 +316,16 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
   private onFormValueChanges(newValue: SFProjectSettings): void {
     if (this.projectDoc == null || this.projectDoc.data == null) {
       return;
+    }
+    // The Based On select reports an undefined value while the user is editing the text in it. Text that isn't a valid
+    // selection is not a change to the source project, so keep the saved value: otherwise editing the text unsets the
+    // source project and reports it as saved, while the select shows an invalid selection error. The status of an
+    // earlier save is cleared, so that a tick is not displayed alongside an invalid selection.
+    if (this.basedOnProjectSelect?.isValid === false) {
+      if (this.settingChanged(newValue, 'sourceParatextId')) {
+        this.controlStates.set('sourceParatextId', ElementState.Invalid);
+      }
+      newValue = { ...newValue, sourceParatextId: this.previousFormValues.sourceParatextId };
     }
     // Set status and include values for changed form items
     // Sometimes sourceParatextId is null | undefined for both new and previous values. A diff check needs to be made
