@@ -5,6 +5,20 @@
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>503: Scripture Forge is unavailable</title>
+        <!-- Global site tag (gtag.js) - Google Analytics -->
+        <script async src="https://www.googletagmanager.com/gtag/js?id=UA-22170471-15"></script>
+        <script>
+            window.dataLayer = window.dataLayer || [];
+            function gtag() {
+                dataLayer.push(arguments);
+            }
+            gtag("js", new Date());
+            // This page is served by the reverse proxy in place of whatever URL the visitor asked for, so the
+            // page view is recorded against that URL. The page title above is what marks it as an error page
+            // view rather than a real view of the same URL. Note that overriding page_location or page_path
+            // here has no effect, as the tag forwards to GA4, which builds the page view from the document.
+            gtag("config", "UA-22170471-15");
+        </script>
         <style type="text/css">
             html,
             body {
