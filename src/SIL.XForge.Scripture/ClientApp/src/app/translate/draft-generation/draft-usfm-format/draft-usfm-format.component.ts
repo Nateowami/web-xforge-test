@@ -40,6 +40,7 @@ import { DraftGenerationService } from '../draft-generation.service';
 import { DraftHandlingService } from '../draft-handling.service';
 import { DraftSourcesAsArrays } from '../draft-source';
 import { DraftSourcesService } from '../draft-sources.service';
+import { chapterDraftHasText } from '../draft-utils';
 
 @Component({
   selector: 'app-draft-usfm-format',
@@ -191,6 +192,9 @@ export class DraftUsfmFormatComponent extends DataLoadingComponent implements Af
         this.chaptersWithDrafts = [];
         for (const chapter of chapterDeltas.keys()) {
           const draftDelta: Delta = new Delta(chapterDeltas.get(chapter));
+          // The book draft includes every chapter of the drafting source, even ones nothing was drafted for.
+          // Those chapters must not be offered, as there is no draft to preview the formatting options against.
+          if (!chapterDraftHasText(draftDelta.ops)) continue;
           this.chapterDeltas.set(+chapter, draftDelta.ops);
           this.chaptersWithDrafts.push(+chapter);
         }
