@@ -44,7 +44,6 @@ import { SFProjectService } from '../../core/sf-project.service';
 import { TextDocService } from '../../core/text-doc.service';
 import { LynxInsightEditorObjectsComponent } from '../../translate/editor/lynx/insights/lynx-insight-editor-objects/lynx-insight-editor-objects.component';
 import { MultiCursorViewer } from '../../translate/editor/multi-viewer/multi-viewer.component';
-import { attributeFromMouseEvent } from '../utils';
 import { getBaseVerse, getVerseRefFromSegmentRef, getVerseStrFromSegmentRef, VERSE_REGEX } from '../verse-utils';
 import { QuillFormatRegistryService } from './quill-editor-registration/quill-format-registry.service';
 import { getAttributesAtPosition, getRetainCount } from './quill-util';
@@ -1248,32 +1247,40 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
     this.loaded.emit(true);
     this.applyEditorStyles();
-    // These refer to footnotes, cross-references, and end notes and not actual notes
-    const elements = this.editor?.container.querySelectorAll('usx-note');
-    if (elements != null) {
-      this.clickSubs.get('notes')?.forEach(s => s.unsubscribe());
-      this.clickSubs.set(
-        'notes',
-        Array.from(elements).map((element: Element) =>
-          fromEvent<MouseEvent>(element, 'click')
-            .pipe(quietTakeUntilDestroyed(this.destroyRef))
-            .subscribe(event => {
-              const noteText = attributeFromMouseEvent(event, 'USX-NOTE', 'title');
-              const noteType = attributeFromMouseEvent(event, 'USX-NOTE', 'data-style');
-              this.dialogService.openMatDialog(TextNoteDialogComponent, {
-                width: '600px',
-                data: {
-                  type: noteType,
-                  text: noteText,
-                  isRightToLeft: this.isRtl
-                } as NoteDialogData
-              });
-            })
-        )
-      );
-    }
+    this.subscribeNoteClickEvents();
 
     this.createLocalCursor();
+  }
+
+  /**
+   * Opens a dialog when a note is clicked. These notes refer to footnotes, cross-references, and end notes and not
+   * actual notes. The listener is on the editor container rather than on each note element, so that notes that are
+   * added to the editor after it was bound, such as a note restored by undo, are clickable too.
+   */
+  private subscribeNoteClickEvents(): void {
+    const container: HTMLElement | undefined = this.editor?.container;
+    if (container == null) {
+      return;
+    }
+    this.clickSubs.get('notes')?.forEach(s => s.unsubscribe());
+    this.clickSubs.set('notes', [
+      fromEvent<MouseEvent>(container, 'click')
+        .pipe(quietTakeUntilDestroyed(this.destroyRef))
+        .subscribe(event => {
+          const note: Element | null = event.target instanceof Element ? event.target.closest('usx-note') : null;
+          if (note == null) {
+            return;
+          }
+          this.dialogService.openMatDialog(TextNoteDialogComponent, {
+            width: '600px',
+            data: {
+              type: note.getAttribute('data-style') ?? undefined,
+              text: note.getAttribute('title') ?? undefined,
+              isRightToLeft: this.isRtl
+            } as NoteDialogData
+          });
+        })
+    ]);
   }
 
   private createLocalCursor(): void {

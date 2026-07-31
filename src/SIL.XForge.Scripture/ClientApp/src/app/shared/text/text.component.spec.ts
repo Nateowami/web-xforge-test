@@ -1451,6 +1451,50 @@ describe('TextComponent', () => {
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
   }));
 
+  it('can display footnote dialog after the footnote is deleted and restored with undo', fakeAsync(() => {
+    const chapterNum = 2;
+    const segmentRef: string = `verse_${chapterNum}_1`;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: `quick brown`, attributes: { segment: segmentRef } },
+      {
+        insert: {
+          note: {
+            caller: '+',
+            style: 'f',
+            contents: {
+              ops: [{ insert: 'footnote text', attributes: { char: { style: 'ft', closed: 'false' } } }]
+            }
+          }
+        },
+        attributes: { segment: segmentRef }
+      },
+      { insert: ` fox`, attributes: { segment: segmentRef } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+
+    // delete the entire verse, footnote included
+    const range: QuillRange = env.component.getSegmentRange(segmentRef)!;
+    env.component.editor!.setSelection(range.index, range.length, 'user');
+    tick();
+    env.fixture.detectChanges();
+    env.applyDelta(new Delta().retain(range.index).delete(range.length), 'user');
+    expect(env.quillEditor.querySelector('usx-note')).toBeNull();
+
+    // restore it with undo
+    env.triggerUndo();
+
+    // SUT
+    const note = env.quillEditor.querySelector('usx-note') as HTMLElement;
+    expect(note).not.toBeNull();
+    note.click();
+    verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).once();
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
     const env = new TestEnvironment();
     env.id = new TextDocId('project01', 40, 1);
