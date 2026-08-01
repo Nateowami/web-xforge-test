@@ -23,6 +23,14 @@ export interface BreadcrumbSelector {
   useParent?: boolean;
 }
 
+/**
+ * ShareDB error codes for ops that were rejected because the doc they belong to is no longer on the server, which
+ * happens when a project (and with it all of its docs) is deleted while a user still has it open. The op can never
+ * be applied, and the user has already been told that the project or book is gone, so there is nothing they can do
+ * with the error other than be alarmed by it.
+ */
+const DELETED_DOC_ERROR_CODES = ['ERR_DOC_DOES_NOT_EXIST', 'ERR_OP_VERSION_NEWER_THAN_CURRENT_SNAPSHOT'];
+
 export class AppError extends Error {
   constructor(
     message: string,
@@ -205,6 +213,11 @@ export class ExceptionHandlingService {
       if (url.pathname.startsWith('/' + MACHINE_API_BASE_URL) || url.pathname.startsWith('/' + COMMAND_API_NAMESPACE)) {
         silently = true;
       }
+    }
+
+    // Report ops rejected because their doc has been deleted on the server, but do not alarm the user about them
+    if (hasStringProp(error, 'code') && DELETED_DOC_ERROR_CODES.includes(error.code)) {
+      silently = true;
     }
 
     if (

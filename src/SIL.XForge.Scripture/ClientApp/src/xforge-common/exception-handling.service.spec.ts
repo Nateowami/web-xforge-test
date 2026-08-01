@@ -45,7 +45,8 @@ class MockConsole {
         'Original error',
         'Http failure response for (unknown url): 400 Bad Request',
         'Http failure response for http://localhost:5000/command-api/some-end-point: 504 Gateway Timeout',
-        'Http failure response for http://localhost:5000/machine-api/v3/translation/engines/some-end-point: 504 Gateway Timeout'
+        'Http failure response for http://localhost:5000/machine-api/v3/translation/engines/some-end-point: 504 Gateway Timeout',
+        'Invalid op submitted'
       ].includes(val.message) &&
       !val.message?.startsWith('Unknown error')
     ) {
@@ -158,6 +159,21 @@ describe('ExceptionHandlingService', () => {
 
     expect(env.service['handleAlert']).toHaveBeenCalled();
     verify(mockedNoticeService.showError(anything())).never();
+  }));
+
+  it('should silently report ops rejected because their doc has been deleted', fakeAsync(() => {
+    const env = new TestEnvironment();
+    spyOn<any>(env.service, 'handleAlert');
+
+    for (const code of ['ERR_DOC_DOES_NOT_EXIST', 'ERR_OP_VERSION_NEWER_THAN_CURRENT_SNAPSHOT']) {
+      env.handleError(Object.assign(new Error('Invalid op submitted'), { code }));
+    }
+
+    expect(env.service['handleAlert']).not.toHaveBeenCalled();
+
+    env.handleError(Object.assign(new Error('Invalid op submitted'), { code: 'ERR_OP_SUBMIT_REJECTED' }));
+
+    expect(env.service['handleAlert']).toHaveBeenCalled();
   }));
 
   describe('Bugsnag', () => {
