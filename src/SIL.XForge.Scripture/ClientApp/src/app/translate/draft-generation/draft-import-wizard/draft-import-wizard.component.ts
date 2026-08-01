@@ -516,6 +516,14 @@ export class DraftImportWizardComponent implements OnInit {
   }
 
   private async loadTargetProjectAndValidate(projectDoc: SFProjectDoc): Promise<void> {
+    // Subscribing to a doc resolves as soon as the locally cached snapshot is loaded, so the doc can still hold data
+    // from before the user was added to the project (e.g. the snapshot stored when they were removed from it). Fetch
+    // the latest data so that permissions are not evaluated against an outdated snapshot. If the fetch fails, fall
+    // back to whatever data the doc already has.
+    if (this.isAppOnline) {
+      await projectDoc.onlineFetch().catch(() => {});
+    }
+
     // Check permissions for all books
     this.canEditProject = this.textDocService.userHasGeneralEditRight(projectDoc?.data);
     if (this.canEditProject) {

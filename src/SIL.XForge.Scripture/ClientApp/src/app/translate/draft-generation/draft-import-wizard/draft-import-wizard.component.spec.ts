@@ -4,6 +4,7 @@ import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { MatStepper } from '@angular/material/stepper';
 import { By } from '@angular/platform-browser';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
+import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { SFProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
 import { of } from 'rxjs';
@@ -17,6 +18,7 @@ import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
 import { ParatextProject } from '../../../core/models/paratext-project';
+import { SFProjectDoc } from '../../../core/models/sf-project-doc';
 import { SFProjectProfileDoc } from '../../../core/models/sf-project-profile-doc';
 import { SFProjectUserConfigDoc } from '../../../core/models/sf-project-user-config-doc';
 import { SF_TYPE_REGISTRY } from '../../../core/models/sf-type-registry';
@@ -279,6 +281,29 @@ describe('DraftImportWizardComponent', () => {
     env.component.close();
   }));
 
+  it('validates the target project against fresh data after connecting to it', fakeAsync(() => {
+    // The locally cached copy of project05 predates the user being added back to it, so evaluating permissions
+    // against it would wrongly conclude that the user cannot edit the project.
+    const env = new TestEnvironment();
+    when(mockTextDocService.userHasGeneralEditRight(anything())).thenCall(
+      (project: SFProjectProfile | undefined) => Object.keys(project?.userRoles ?? {}).length > 0
+    );
+    env.wait();
+
+    env.selectProject('paratext05');
+    env.clickNextButton(1);
+
+    // Step 2: connect (the project is on Scripture Forge already, so the user is just added to it)
+    env.clickNextButton(2);
+
+    expect(env.staleProjectFetched).toBe(true);
+    expect(env.component.canEditProject).toBe(true);
+    expect(env.component.targetProjectDoc$.value).not.toBeUndefined();
+    // The overwrite confirmation is only calculated when the project data is available
+    expect(env.component.showOverwriteConfirmation).toBe(true);
+    env.component.close();
+  }));
+
   it('sets selected project to undefined if selected project is cleared', fakeAsync(() => {
     const env = new TestEnvironment();
     env.wait();
@@ -295,7 +320,24 @@ class TestEnvironment {
   component: DraftImportWizardComponent;
   fixture: ComponentFixture<DraftImportWizardComponent>;
 
+  /** Whether the outdated snapshot of project05 has been refreshed from the server. */
+  staleProjectFetched = false;
+
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
+
+  /**
+   * A doc for project05 that starts out holding an outdated snapshot from before the user was a member of the
+   * project, as a doc loaded from offline storage does, and only reports the current data once fetched.
+   */
+  private readonly staleProjectDoc = {
+    id: 'project05',
+    data: createTestProjectProfile({ texts: [{ bookNum: 1, chapters: [{ number: 1 }] }] }, 5),
+    onlineFetch: (): Promise<void> => {
+      this.staleProjectFetched = true;
+      (this.staleProjectDoc.data as SFProjectProfile).userRoles = { user01: SFProjectRole.ParatextTranslator };
+      return Promise.resolve();
+    }
+  } as unknown as SFProjectDoc;
 
   constructor() {
     this.fixture = TestBed.createComponent(DraftImportWizardComponent);
@@ -333,6 +375,16 @@ class TestEnvironment {
         shortName: 'P04',
         projectId: 'project04',
         isConnected: true
+      } as ParatextProject,
+      // Target project that is on Scripture Forge, but which the user is not a member of
+      {
+        paratextId: 'paratext05',
+        name: 'Project 05',
+        shortName: 'P05',
+        projectId: 'project05',
+        isConnected: false,
+        isConnectable: true,
+        role: SFProjectRole.ParatextTranslator
       } as ParatextProject
     ]);
 
@@ -373,7 +425,9 @@ class TestEnvironment {
     } as TextDoc);
     when(mockProjectService.onlineCreate(anything())).thenResolve('project02');
     when(mockProjectService.get(anything())).thenCall(id =>
-      this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, id)
+      id === 'project05'
+        ? Promise.resolve(this.staleProjectDoc)
+        : this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, id)
     );
     when(mockTextDocService.userHasGeneralEditRight(anything())).thenReturn(true);
     this.realtimeService.addSnapshot<SFProjectUserConfig>(SFProjectUserConfigDoc.COLLECTION, {
