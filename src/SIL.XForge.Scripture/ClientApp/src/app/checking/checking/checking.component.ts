@@ -52,7 +52,7 @@ import { SF_DEFAULT_SHARE_ROLE } from '../../core/models/sf-project-role-info';
 import { SFProjectUserConfigDoc } from '../../core/models/sf-project-user-config-doc';
 import { TextAudioDoc } from '../../core/models/text-audio-doc';
 import { TextDocId } from '../../core/models/text-doc';
-import { TextsByBookId } from '../../core/models/texts-by-book-id';
+import { isEmptyBook, TextsByBookId } from '../../core/models/texts-by-book-id';
 import { PermissionsService } from '../../core/permissions.service';
 import { SFProjectService } from '../../core/sf-project.service';
 import { BookChapterChooserComponent } from '../../shared/book-chapter-chooser/book-chapter-chooser.component';
@@ -327,6 +327,11 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     const textsByBook: TextsByBookId = {};
     if (this.projectDoc != null && this.projectDoc.data != null) {
       for (const text of this.projectDoc.data.texts) {
+        // ignore empty books, as the checking overview does, so that both places that open the
+        // question dialog offer the same books
+        if (isEmptyBook(text)) {
+          continue;
+        }
         textsByBook[Canon.bookNumberToId(text.bookNum)] = text;
       }
     }

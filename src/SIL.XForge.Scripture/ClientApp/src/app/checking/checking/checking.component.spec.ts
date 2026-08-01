@@ -41,6 +41,7 @@ import { first } from 'rxjs/operators';
 import {
   anyString,
   anything,
+  capture,
   instance,
   mock,
   objectContaining,
@@ -354,6 +355,26 @@ describe('CheckingComponent', () => {
       env.clickButton(env.addQuestionButton);
       verify(mockedQuestionDialogService.questionDialog(anything())).once();
       expect().nothing();
+      flush();
+      discardPeriodicTasks();
+    }));
+
+    it('should not offer empty books when opening question dialog', fakeAsync(() => {
+      const testProject: SFProject = TestEnvironment.generateTestProject();
+      // a book that exists in Paratext but has no verses yet
+      testProject.texts.push({
+        bookNum: 42,
+        hasSource: false,
+        chapters: [{ number: 1, lastVerse: 0, isValid: true, permissions: {} }],
+        permissions: {}
+      });
+      const env = new TestEnvironment({ user: ADMIN_USER, testProject });
+
+      expect(Object.keys(env.component.textsByBookId)).toEqual(['JHN', 'MAT']);
+
+      env.clickButton(env.addQuestionButton);
+      const [dialogData] = capture(mockedQuestionDialogService.questionDialog).last();
+      expect(Object.keys(dialogData.textsByBookId)).toEqual(['JHN', 'MAT']);
       flush();
       discardPeriodicTasks();
     }));
