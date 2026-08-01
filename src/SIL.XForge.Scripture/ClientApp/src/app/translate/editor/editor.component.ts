@@ -293,6 +293,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   mobileNoteControl: UntypedFormControl = new UntypedFormControl('');
   multiCursorViewers: MultiCursorViewer[] = [];
   target: TextComponent | undefined;
+  /**
+   * The text doc shown in the target editor. It is only replaced once the project, book and chapter from the route
+   * have all been resolved, so that while a new project is loading the editor is never given a location that mixes
+   * the previous route with the new one (which would make it report that the book does not exist).
+   */
+  targetTextDocId?: TextDocId;
   draftTimestamp?: Date;
   lynxInsightsEnabled = false;
   lynxAutoCorrectionsEnabled = false;
@@ -776,7 +782,6 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         const bookId = params['bookId'] as string;
         const chapterNum = params['chapter'] as string | null;
         const bookNum = bookId != null ? Canon.bookIdToNumber(bookId) : 0;
-        this._bookNum = bookNum;
 
         if (this.currentUserDoc === undefined) {
           this.currentUserDoc = await this.userService.getCurrentUser();
@@ -818,6 +823,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         if (this.projectDoc?.data == null) {
           return;
         }
+
+        // The book is only applied now that the project it belongs to has been loaded, so that the book, chapter and
+        // project the view is showing always come from the same route.
+        this._bookNum = bookNum;
 
         const projectTexts: number[] = this.projectDoc.data.texts.map(t => t.bookNum);
         const draftedBooks: number[] = booksFromScriptureRange(
@@ -2145,6 +2154,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     }
     this.toggleNoteThreadVerses(false);
     this.chapter$.next(chapter);
+    this.targetTextDocId =
+      this.projectDoc == null ? undefined : new TextDocId(this.projectDoc.id, bookNum, chapter, 'target');
     await this.changeText();
     this.toggleNoteThreadVerses(true);
     await this.updateDraftTabVisibility();

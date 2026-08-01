@@ -263,6 +263,26 @@ describe('EditorComponent', () => {
     env.dispose();
   }));
 
+  it('does not point the editor at the new book in the old project while switching projects', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.wait();
+    expect(env.component.target!.id!.toString()).toEqual('project01:MAT:1:target');
+
+    // Selecting another project and going to a book changes the project and the book at once, but loading the new
+    // project takes time. Until it has loaded, the editor must keep pointing at the location it is showing, rather
+    // than at the new book in the previous project - which it would report as a book that does not exist (SF-1203).
+    env.delayGetProfile('project02', 1000);
+    env.routeWithParams({ projectId: 'project02', bookId: 'LUK' });
+    tick(500);
+    env.fixture.detectChanges();
+    expect(env.component.target!.id!.toString()).toEqual('project01:MAT:1:target');
+
+    tick(500);
+    env.wait();
+    expect(env.component.target!.id!.toString()).toEqual('project02:LUK:1:target');
+    env.dispose();
+  }));
+
   it('remote user config should not change segment', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setProjectUserConfig({
@@ -5425,6 +5445,14 @@ class TestEnvironment {
   clickTrainingProgressCloseButton(): void {
     this.trainingProgressCloseButton.nativeElement.click();
     this.fixture.detectChanges();
+  }
+
+  /** Make fetching a project profile take time, as it does on a slow connection. */
+  delayGetProfile(projectId: string, delayMs: number): void {
+    when(mockedSFProjectService.getProfile(projectId)).thenCall(async () => {
+      await new Promise(resolve => setTimeout(resolve, delayMs));
+      return await this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, projectId);
+    });
   }
 
   routeWithParams(params: Params): void {
