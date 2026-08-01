@@ -1,3 +1,4 @@
+import { SimpleChange, SimpleChanges } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
@@ -47,6 +48,9 @@ const mockNoticeService = mock(NoticeService);
 const mockErrorReportingService = mock(ErrorReportingService);
 const mockSFProjectService = mock(SFProjectService);
 const mockProjectNotificationService = mock(ProjectNotificationService);
+
+/** Stands in for the changes Angular reports when the editor moves to a different book or chapter. */
+const bookChanged: SimpleChanges = { bookNum: {} as SimpleChange, chapter: {} as SimpleChange };
 
 describe('EditorDraftComponent', () => {
   let fixture: ComponentFixture<EditorDraftComponent>;
@@ -112,8 +116,15 @@ describe('EditorDraftComponent', () => {
     component.bookNum = 1;
     component.chapter = 1;
     component.isRightToLeft = false;
-    component.ngOnChanges();
+    component.ngOnChanges(bookChanged);
   });
+
+  /** The segments the draft editor is currently highlighting. */
+  function highlightedSegments(): string[] {
+    return (component.draftText.editor!.getContents().ops ?? [])
+      .filter(op => op.attributes?.['highlight-segment'] === true)
+      .map(op => op.attributes!['segment'] as string);
+  }
 
   it('should handle offline when component created', fakeAsync(() => {
     testOnlineStatus.setIsOnline(false);
@@ -206,6 +217,43 @@ describe('EditorDraftComponent', () => {
     flush();
   }));
 
+  it('should highlight the verse selected in the target text', fakeAsync(() => {
+    const testProjectDoc: SFProjectProfileDoc = {
+      data: createTestProjectProfile()
+    } as SFProjectProfileDoc;
+    when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), anything())).thenReturn(
+      of(draftHistory)
+    );
+    when(mockActivatedProjectService.changes$).thenReturn(of(testProjectDoc));
+    spyOn<any>(component, 'getTargetOps').and.returnValue(of(targetDelta.ops!));
+
+    component.highlightSegment = true;
+    component.segmentRef = 'verse_1_2';
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+
+    expect(component.draftCheckState).toEqual('draft-present');
+    expect(highlightedSegments()).toEqual(['verse_1_2']);
+
+    // Selecting another verse moves the highlight without re-fetching the draft
+    component.segmentRef = 'verse_1_3';
+    component.ngOnChanges({ segmentRef: {} as SimpleChange });
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+
+    expect(highlightedSegments()).toEqual(['verse_1_3']);
+    verify(mockDraftHandlingService.getBookDraft(anything(), anything())).once();
+
+    // Leaving the target editor clears the highlight
+    component.highlightSegment = false;
+    component.ngOnChanges({ highlightSegment: {} as SimpleChange });
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+
+    expect(highlightedSegments()).toEqual([]);
+    flush();
+  }));
+
   it('should get book draft when changing chapter and book', fakeAsync(() => {
     const testProjectDoc: SFProjectProfileDoc = {
       data: createTestProjectProfile()
@@ -224,7 +272,7 @@ describe('EditorDraftComponent', () => {
 
     // Changing chapter triggers another draft retrieval call.
     component.chapter = 2;
-    component.ngOnChanges();
+    component.ngOnChanges(bookChanged);
     fixture.detectChanges();
     tick(EDITOR_READY_TIMEOUT);
     verify(mockDraftHandlingService.getBookDraft(anything(), anything())).twice();
@@ -232,7 +280,7 @@ describe('EditorDraftComponent', () => {
     // Changing book triggers one more draft retrieval call.
     component.bookNum = 2;
     component.chapter = 1;
-    component.ngOnChanges();
+    component.ngOnChanges(bookChanged);
     fixture.detectChanges();
     tick(EDITOR_READY_TIMEOUT);
     verify(mockDraftHandlingService.getBookDraft(anything(), anything())).thrice();

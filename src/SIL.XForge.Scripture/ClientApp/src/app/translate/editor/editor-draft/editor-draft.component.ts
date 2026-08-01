@@ -1,5 +1,14 @@
 import { AsyncPipe, NgClass } from '@angular/common';
-import { AfterViewInit, Component, DestroyRef, EventEmitter, Input, OnChanges, ViewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  DestroyRef,
+  EventEmitter,
+  Input,
+  OnChanges,
+  SimpleChanges,
+  ViewChild
+} from '@angular/core';
 import { MatOption } from '@angular/material/autocomplete';
 import { MatButton } from '@angular/material/button';
 import { MatFormField } from '@angular/material/form-field';
@@ -87,6 +96,9 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
   @Input() isRightToLeft!: boolean;
   @Input() fontSize?: string;
   @Input() timestamp?: Date;
+  /** The segment selected in the target text, so that the corresponding verse can be highlighted in the draft. */
+  @Input() segmentRef?: string;
+  @Input() highlightSegment?: boolean;
 
   @ViewChild(TextComponent) draftText!: TextComponent;
 
@@ -204,7 +216,13 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
     return this._draftRevisions;
   }
 
-  ngOnChanges(): void {
+  ngOnChanges(changes: SimpleChanges): void {
+    // A change to the verse the user has selected only affects the highlight, and must not reload the draft
+    if (Object.keys(changes).every(input => input === 'segmentRef' || input === 'highlightSegment')) {
+      this.highlightSelectedVerse();
+      return;
+    }
+
     if (this.projectId == null || this.bookNum == null || this.chapter == null) {
       throw new Error('projectId, bookNum, or chapter is null');
     }
@@ -301,6 +319,7 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
         // Set the draft editor with the pre-translation segments
         this.draftText.setContents(this.draftDelta, 'api');
         this.draftText.applyEditorStyles();
+        this.highlightSelectedVerse();
 
         this.isDraftApplied =
           this.targetProject?.texts.find(t => t.bookNum === this.bookNum)?.chapters.find(c => c.number === this.chapter)
@@ -392,6 +411,18 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
     }
 
     return closestEarlier ?? closestLater;
+  }
+
+  /** Highlights the verse that is selected in the target text, matching the behavior of the source and resource tabs. */
+  private highlightSelectedVerse(): void {
+    if (this.draftText == null || this.bookNum == null) {
+      return;
+    }
+
+    this.draftText.highlightMatchingSegments(
+      this.bookNum,
+      this.highlightSegment === true ? this.segmentRef : undefined
+    );
   }
 
   private hasContent(delta?: DeltaOperation[]): boolean {

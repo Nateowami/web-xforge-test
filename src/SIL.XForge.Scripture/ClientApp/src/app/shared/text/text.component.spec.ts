@@ -1573,6 +1573,61 @@ describe('TextComponent', () => {
     }).toThrowError();
   }));
 
+  describe('highlightMatchingSegments', () => {
+    // The editor is not bound to a text doc; its contents are set directly, as the generated draft tab does.
+    function setUpUnboundEditor(textDocId: TextDocId, textDoc: (id: TextDocId) => TextData): TestEnvironment {
+      const env = new TestEnvironment();
+      env.fixture.detectChanges();
+      env.waitForEditor();
+      env.component.setContents(new Delta(textDoc(textDocId).ops), 'api');
+      tick();
+      env.fixture.detectChanges();
+      return env;
+    }
+
+    it('highlights all the segments of the verse', fakeAsync(() => {
+      // verse 1 has 4 lines of poetry
+      const env = setUpUnboundEditor(new TextDocId('project01', 42, 1), getPoetryVerseTextDoc);
+
+      env.component.highlightMatchingSegments(42, 'verse_1_1');
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.isSegmentHighlighted(1, '1')).toBe(true);
+      expect(env.isSegmentHighlighted(1, '1/q_1')).toBe(true);
+      expect(env.isSegmentHighlighted(1, '1/q_3')).toBe(true);
+      expect(env.isSegmentHighlighted(1, '2')).toBe(false);
+
+      TestEnvironment.waitForPresenceTimer();
+    }));
+
+    it('highlights a combined verse when one of its verses is specified, and clears the highlight', fakeAsync(() => {
+      // this text combines verses 2 and 3 into one segment, and has a section heading after verse 1
+      const env = setUpUnboundEditor(new TextDocId('project01', 41, 1), getCombinedVerseTextDoc);
+
+      env.component.highlightMatchingSegments(41, 'verse_1_3');
+      tick();
+      env.fixture.detectChanges();
+      expect(env.isSegmentHighlighted(1, '2-3')).toBe(true);
+      expect(env.getSegment('s_2')!.classList.contains('highlight-segment')).toBe(false);
+
+      // an extra verse segment is matched by its segment ref
+      env.component.highlightMatchingSegments(41, 's_2');
+      tick();
+      env.fixture.detectChanges();
+      expect(env.getSegment('s_2')!.classList.contains('highlight-segment')).toBe(true);
+      expect(env.isSegmentHighlighted(1, '2-3')).toBe(false);
+
+      // no segment specified clears the highlight
+      env.component.highlightMatchingSegments(41);
+      tick();
+      env.fixture.detectChanges();
+      expect(env.getSegment('s_2')!.classList.contains('highlight-segment')).toBe(false);
+
+      TestEnvironment.waitForPresenceTimer();
+    }));
+  });
+
   it('highlights individual segments when a verse range is requested that does not directly correspond to a segment', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();

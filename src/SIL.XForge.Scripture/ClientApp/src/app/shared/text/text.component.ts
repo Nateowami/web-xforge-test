@@ -50,7 +50,7 @@ import { QuillFormatRegistryService } from './quill-editor-registration/quill-fo
 import { getAttributesAtPosition, getRetainCount } from './quill-util';
 import { Segment } from './segment';
 import { NoteDialogData, TextNoteDialogComponent } from './text-note-dialog/text-note-dialog.component';
-import { EditorRange, TextViewModel } from './text-view-model';
+import { EditorRange, getSegmentsInVerse, TextViewModel } from './text-view-model';
 
 // When a user is active in the editor a timer starts to mark them as inactive for remote presences
 export const PRESENCE_EDITOR_ACTIVE_TIMEOUT = 3500;
@@ -1021,6 +1021,37 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     });
 
     this.highlightMarkerVisible = segmentRefs.length > 0;
+  }
+
+  /**
+   * Highlights the segments that correspond to a segment selected in another text of the same book and chapter, or
+   * clears the highlight if no segment is specified. Unlike `highlight()`, the segments are read from the editor
+   * contents rather than from the segment ranges, so this can be used on an editor whose contents were set directly and
+   * which is therefore not bound to a text doc (i.e. the generated draft tab).
+   */
+  highlightMatchingSegments(bookNum: number, segmentRef?: string): void {
+    if (this._editor == null) {
+      return;
+    }
+
+    let segmentRefs: string[] = [];
+    if (segmentRef != null && segmentRef !== '') {
+      // baseVerse will be null for extra verse content (i.e. mt_1, s_1), which is matched by segment ref
+      const baseVerse: VerseRef | undefined = getVerseRefFromSegmentRef(bookNum, segmentRef);
+      if (baseVerse == null) {
+        segmentRefs = [segmentRef];
+      } else {
+        const editorSegmentRefs: string[] = (this._editor.getContents().ops ?? [])
+          .map(op => op.attributes?.['segment'])
+          .filter(isString);
+        segmentRefs = getSegmentsInVerse(editorSegmentRefs, baseVerse);
+        // drop any trailing segments that are not part of the verse itself (i.e. a following section heading)
+        while (segmentRefs.length > 1 && !VERSE_REGEX.test(segmentRefs[segmentRefs.length - 1])) {
+          segmentRefs.pop();
+        }
+      }
+    }
+    this.viewModel.highlight(segmentRefs);
   }
 
   /**
