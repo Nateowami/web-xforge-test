@@ -114,6 +114,8 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   private _selectedProjectDoc?: SFProjectProfileDoc;
   private selectedProjectDeleteSub?: Subscription;
   private selectedProjectChangedSub?: Subscription;
+  /** Whether the user has already been told that they no longer have access to the selected project. */
+  private hasShownProjectDeletedDialog: boolean = false;
   private _isDrawerPermanent: boolean = true;
 
   constructor(
@@ -348,6 +350,7 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
         this.projectFont = this.fontService.getFontFamilyFromProject(this._selectedProjectDoc.data);
         void this.userService.setCurrentProjectId(this.currentUserDoc!, this._selectedProjectDoc.id);
 
+        this.hasShownProjectDeletedDialog = false;
         if (this.selectedProjectDeleteSub != null) {
           this.selectedProjectDeleteSub.unsubscribe();
         }
@@ -503,6 +506,13 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   }
 
   private async showProjectDeletedDialog(): Promise<void> {
+    // Losing access to a project can be signalled more than once. In particular, removing a user from a project
+    // submits a separate op for the user's role and for the user's permissions, and each op notifies subscribers.
+    // The user only needs to be told once.
+    if (this.hasShownProjectDeletedDialog) {
+      return;
+    }
+    this.hasShownProjectDeletedDialog = true;
     await this.userService.setCurrentProjectId(this.currentUserDoc!, undefined);
     await this.dialogService.message('app.project_has_been_deleted');
     this.navigateToStart();

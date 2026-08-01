@@ -355,6 +355,19 @@ describe('AppComponent', () => {
     expect(env.location.path()).toEqual('/projects');
   }));
 
+  it('only notifies once when removed from project results in more than one op', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.navigate(['/projects', 'project01']);
+    env.init();
+
+    expect(env.selectedProjectId).toEqual('project01');
+    env.removeUserFromProject('project01', true);
+    verify(mockedDialogService.message(anything())).once();
+    // Get past setTimeout to navigation
+    tick();
+    expect(env.location.path()).toEqual('/projects');
+  }));
+
   it('response to remote project change for serval admin', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setCurrentUser('user05');
@@ -968,9 +981,16 @@ class TestEnvironment {
     this.wait();
   }
 
-  removeUserFromProject(projectId: string): void {
+  removeUserFromProject(projectId: string, hasUserPermissions: boolean = false): void {
     const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, projectId);
+    if (hasUserPermissions) {
+      projectDoc.submitJson0Op(op => op.set<string[]>(p => p.userPermissions['user01'], ['questions.create']), false);
+    }
+    // The server removes the user's role and their permissions in separate ops
     projectDoc.submitJson0Op(op => op.unset<string>(p => p.userRoles['user01']), false);
+    if (hasUserPermissions) {
+      projectDoc.submitJson0Op(op => op.unset<string[]>(p => p.userPermissions['user01']), false);
+    }
     this.wait();
   }
 
