@@ -1,16 +1,71 @@
+@use 'src/xforge-common/media-breakpoints/breakpoints' as *;
+
 .training-data {
   display: grid;
-  grid-template-areas: '. . .' '. . .';
+  // minmax(0, 1fr) rather than auto: the source and target columns must be allowed to shrink below their
+  // min-content width, or long project names push their text outside the background of this element.
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  grid-template-areas:
+    'source-heading gap target-heading'
+    'sources arrow targets';
   row-gap: 1em;
+
+  // Two narrow columns leave no room for project names on a phone, so stack source above target.
+  @include media-breakpoint('<', sm) {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'source-heading'
+      'sources'
+      'arrow'
+      'target-heading'
+      'targets';
+  }
 }
 
-.arrow mat-icon {
-  scale: 2;
+.source-description {
+  grid-area: source-heading;
 }
 
-.gap,
-.arrow {
+.target-description {
+  grid-area: target-heading;
+}
+
+.sources {
+  grid-area: sources;
+}
+
+.targets {
+  grid-area: targets;
+}
+
+.gap {
+  grid-area: gap;
   padding-inline: 2em;
+
+  @include media-breakpoint('<', sm) {
+    display: none;
+  }
+}
+
+.arrow {
+  grid-area: arrow;
+  padding-inline: 2em;
+
+  @include media-breakpoint('<', sm) {
+    align-items: center;
+    padding-inline: 0;
+    padding-block: 1em;
+  }
+
+  mat-icon {
+    scale: 2;
+
+    // Point the arrow at the target block below it in the stacked layout. Mirroring for RTL (see the global
+    // mirror-rtl rule) leaves a vertical arrow pointing the same way.
+    @include media-breakpoint('<', sm) {
+      rotate: 90deg;
+    }
+  }
 }
 
 .training-data,
@@ -18,6 +73,8 @@
   background: var(--sf-source-background);
   border-radius: 4px;
   padding: 1em;
+  // A project name too long to fit its column must wrap rather than spill outside the background
+  overflow-wrap: break-word;
 }
 
 .sources,
