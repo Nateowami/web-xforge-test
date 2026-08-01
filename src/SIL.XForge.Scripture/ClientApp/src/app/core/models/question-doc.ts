@@ -26,8 +26,13 @@ export class QuestionDoc extends ProjectDataDoc<Question> {
     }
   ];
 
-  alwaysKeepFileOffline(fileType: FileType, dataId: string): boolean {
-    return this.data != null && fileType === FileType.Audio && !this.data.isArchived && this.data.dataId === dataId;
+  /**
+   * Audio uploaded for this question, or for one of its answers or comments, is kept offline. This makes the audio
+   * available to the user who recorded it as soon as it has been uploaded, without waiting for it to be downloaded
+   * back from the server.
+   */
+  alwaysKeepFileOffline(fileType: FileType, _dataId: string): boolean {
+    return this.data != null && fileType === FileType.Audio && !this.data.isArchived;
   }
 
   /**

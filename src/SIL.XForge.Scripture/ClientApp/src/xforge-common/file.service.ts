@@ -137,7 +137,13 @@ export class FileService {
       try {
         const onlineUrl = await this.onlineUploadFile(fileType, projectId, dataId, new File([blob], filename));
         if (alwaysKeepFileOffline) {
-          await this.findOrUpdateCache(fileType, dataCollection, dataId, onlineUrl);
+          // Cache the file that was just uploaded, instead of downloading it back from the server. The file is
+          // typically shown as soon as the upload finishes e.g. the audio player on an answer that has just been
+          // added, and waiting on that round trip leaves the player without any audio for as long as it takes.
+          // Caching is only an optimization, so a failure to cache must not fail the upload.
+          await this.offlineStore
+            .put(fileType, createStorageFileData(dataCollection, dataId, onlineUrl, blob))
+            .catch(() => {});
         }
         return onlineUrl;
       } catch {}

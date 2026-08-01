@@ -121,8 +121,9 @@ describe('FileService', () => {
     let url: string | undefined;
     env.simulateUploadAudio(env.doc!).then(u => (url = u));
     env.setupUploadResponse();
-    env.setupAudioResponse(env.audioUrl);
     expect(url).toBe(env.audioUrl);
+    // The uploaded file is cached without being downloaded back from the server
+    expect(env.getCachedValue(env.dataId)).toBeDefined();
     env.httpMock.verify();
   }));
 
@@ -130,7 +131,6 @@ describe('FileService', () => {
     const env = new TestEnvironment();
     env.simulateUploadAudio(env.doc!);
     env.setupUploadResponse();
-    env.setupAudioResponse(env.audioUrl);
     env.httpMock.verify();
     env.simulateAddChildWithAudio(env.doc!);
     env.setupUploadResponse();
@@ -163,7 +163,6 @@ describe('FileService', () => {
     expect(env.doc!.data!.audioUrl).not.toBe(env.audioUrl);
     env.onlineStatus = true;
     env.setupUploadResponse();
-    env.setupAudioResponse(env.audioUrl);
     env.httpMock.verify();
     expect(env.doc!.data!.audioUrl).toBe(env.audioUrl);
   }));
@@ -184,7 +183,6 @@ describe('FileService', () => {
     const env = new TestEnvironment();
     env.simulateUploadAudio(env.doc!);
     env.setupUploadResponse();
-    env.setupAudioResponse(env.audioUrl);
     env.httpMock.verify();
     expect(env.doc!.data!.audioUrl).toBeDefined();
     env.simulateDeleteFile(env.doc!);
@@ -207,7 +205,6 @@ describe('FileService', () => {
     const env = new TestEnvironment();
     env.simulateUploadAudio(env.doc!);
     env.setupUploadResponse();
-    env.setupAudioResponse(env.audioUrl);
     expect(env.getCachedValue(env.dataId)).toBeDefined();
     env.onlineStatus = false;
     env.simulateDeleteFile(env.doc!);
