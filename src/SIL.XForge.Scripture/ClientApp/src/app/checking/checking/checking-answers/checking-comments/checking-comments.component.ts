@@ -163,9 +163,11 @@ export class CheckingCommentsComponent extends SubscriptionDisposable implements
       this.initUserCommentRefsRead = cloneDeep(this.projectUserConfigDoc.data.commentRefsRead);
     }
     if (this.questionDoc != null) {
+      // Local changes are included because they can change which comments are displayed, e.g. deleting a comment
+      // reveals one that was hidden behind the "show more comments" button, and it would otherwise stay unread.
       // Give the user two seconds before marking the comment as read. This also prevents SF-624 - prematurely
       // marking a remotely added comment as read
-      this.subscribe(this.questionDoc.remoteChanges$.pipe(debounceTime(2000)), () => {
+      this.subscribe(this.questionDoc.changes$.pipe(debounceTime(2000)), () => {
         if (this.projectUserConfigDoc == null || this.projectUserConfigDoc.data == null || this.answer == null) {
           return;
         }

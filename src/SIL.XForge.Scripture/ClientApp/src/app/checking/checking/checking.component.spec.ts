@@ -2239,6 +2239,23 @@ describe('CheckingComponent', () => {
         flush();
       }));
 
+      it('comments revealed by deleting a comment are marked as read', fakeAsync(() => {
+        const env = new TestEnvironment({ user: ADMIN_USER });
+        const question = env.selectQuestion(8, false);
+        tick(env.questionReadTimer);
+        env.fixture.detectChanges();
+        expect(env.getAnswerComments(0).length).toEqual(2);
+        expect(env.getUnread(question)).toEqual(2);
+        // Deleting a comment displays comments that were hidden behind the show more button
+        env.clickButton(env.getDeleteCommentButton(0, 0));
+        env.waitForSliderUpdate();
+        tick(env.questionReadTimer);
+        env.fixture.detectChanges();
+        expect(env.getAnswerComments(0).length).toEqual(3);
+        expect(env.getUnread(question)).toEqual(0);
+        discardPeriodicTasks();
+      }));
+
       it('displays comments in real-time', fakeAsync(() => {
         const env = new TestEnvironment({ user: CHECKER_USER });
         env.selectQuestion(1);
