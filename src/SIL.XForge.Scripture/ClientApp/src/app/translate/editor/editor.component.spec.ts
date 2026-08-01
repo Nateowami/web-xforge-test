@@ -946,6 +946,42 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('moves the target to the verse clicked in the source', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_1' });
+      env.wait();
+      expect(env.component.target!.segmentRef).toBe('verse_1_1');
+
+      env.getSourceSegmentElement('verse_1_3')!.click();
+      env.wait();
+
+      expect(env.component.target!.segmentRef).toBe('verse_1_3');
+      expect(env.component.source!.segmentRef).toBe('verse_1_3');
+      expect(env.getProjectUserConfigDoc().data!.selectedSegment).toBe('verse_1_3');
+
+      env.dispose();
+    }));
+
+    it('does not move the target when text is selected in the source', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_1' });
+      env.wait();
+      expect(env.component.target!.segmentRef).toBe('verse_1_1');
+
+      // the user has selected text in the source, e.g. to copy it
+      const range = document.createRange();
+      range.selectNodeContents(env.getSourceSegmentElement('verse_1_3')!);
+      document.getSelection()!.removeAllRanges();
+      document.getSelection()!.addRange(range);
+      env.getSourceSegmentElement('verse_1_3')!.click();
+      env.wait();
+
+      expect(env.component.target!.segmentRef).toBe('verse_1_1');
+
+      document.getSelection()!.removeAllRanges();
+      env.dispose();
+    }));
+
     it('does not build machine project if no source books exists', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
@@ -5313,6 +5349,10 @@ class TestEnvironment {
 
   getSegmentElement(segmentRef: string): HTMLElement | null {
     return this.targetEditor.container.querySelector('usx-segment[data-segment="' + segmentRef + '"]');
+  }
+
+  getSourceSegmentElement(segmentRef: string): HTMLElement | null {
+    return this.sourceTextEditor.querySelector('usx-segment[data-segment="' + segmentRef + '"]');
   }
 
   getTextDoc(textId: TextDocId): TextDoc {

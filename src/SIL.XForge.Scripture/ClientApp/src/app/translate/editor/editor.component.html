@@ -111,6 +111,7 @@
                       [highlightSegment]="targetFocused"
                       (loaded)="onTextLoaded('source')"
                       (updated)="onSourceUpdated($event.delta != null)"
+                      (click)="onSourceClicked($event)"
                       [isRightToLeft]="isSourceRightToLeft"
                       [fontSize]="sourceFontSize"
                       [style.--project-font]="fontService.getFontFamilyFromProject(sourceProjectDoc)"

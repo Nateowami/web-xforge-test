@@ -90,7 +90,7 @@ import {
 } from 'rxjs/operators';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { BlurOnClickDirective } from 'xforge-common/blur-on-click.directive';
-import { CONSOLE, ConsoleInterface } from 'xforge-common/browser-globals';
+import { CONSOLE, ConsoleInterface, DOCUMENT } from 'xforge-common/browser-globals';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
@@ -348,6 +348,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   private resizeObserver?: ResizeObserver;
   private scrollSubscription?: Subscription;
   private tabStateInitialized$ = new BehaviorSubject<boolean>(false);
+  /** True while the target is being moved to a verse clicked in the source, when the source should not be scrolled. */
+  private isNavigatingFromSource: boolean = false;
   private visibleTabGroups: EditorTabGroupType[] = editorTabGroupTypes.slice();
   private readonly fabDiameter = 40;
   readonly fabVerticalCushion = 5;
@@ -371,6 +373,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     private readonly reportingService: ErrorReportingService,
     private readonly activatedProject: ActivatedProjectService,
     @Inject(CONSOLE) private readonly console: ConsoleInterface,
+    @Inject(DOCUMENT) private readonly document: Document,
     private readonly router: Router,
     private bottomSheet: MatBottomSheet,
     readonly tabState: TabStateService<EditorTabGroupType, EditorTabInfo>,
@@ -1144,6 +1147,37 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       }
       this.multiCursorViewers = multiCursorViewers;
     }
+  }
+
+  /**
+   * Moves the target to the verse that was clicked in the source, so that navigating in the source keeps the two texts
+   * together, just as clicking in the target moves the source.
+   */
+  onSourceClicked(event: MouseEvent): void {
+    if (this.target == null) {
+      return;
+    }
+    // Don't move the target if the user is selecting text in the source e.g. to copy it, as moving the target
+    // selection would clear the source selection
+    if (this.document.getSelection()?.isCollapsed === false) {
+      return;
+    }
+    const segmentRef: string | null | undefined = (event.target as Element | null)
+      ?.closest?.('usx-segment[data-segment]')
+      ?.getAttribute('data-segment');
+    if (segmentRef == null || segmentRef === '') {
+      return;
+    }
+
+    // The source is the text the user is looking at, so keep it still and scroll the target to it, rather than letting
+    // syncScroll() scroll the source to wherever the target happened to land
+    this.isNavigatingFromSource = true;
+    this.target.setSegment(segmentRef, undefined, true);
+    // Quill scrolls the target to the new selection in a timeout, so line the texts up after that
+    setTimeout(() => {
+      this.syncScrollTarget();
+      this.isNavigatingFromSource = false;
+    });
   }
 
   onSegmentRefChange(segmentRef: string): void {
@@ -2621,8 +2655,36 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     );
   }
 
+  /** Scrolls the target so that the current segment lines up with the corresponding segment in the source. */
+  private syncScrollTarget(): void {
+    if (
+      this.source?.segment == null ||
+      this.source.editor == null ||
+      this.target?.segment == null ||
+      this.target.editor == null ||
+      this.targetScrollContainer == null
+    ) {
+      return;
+    }
+
+    const sourceRange: Range = this.source.segment.range;
+    const sourceBounds: DOMRect | Bounds | null = this.source.editor.selection.getBounds(
+      sourceRange.index,
+      sourceRange.length
+    );
+    const targetBounds: DOMRect | Bounds | null = this.target.editor.selection.getBounds(
+      this.target.segment.range.index
+    );
+    if (sourceBounds == null || targetBounds == null) {
+      return;
+    }
+
+    this.targetScrollContainer.scrollTop += targetBounds.top - sourceBounds.top;
+  }
+
   private syncScroll(): void {
     if (
+      this.isNavigatingFromSource ||
       !this.hasSource ||
       this.source == null ||
       this.source.segment == null ||
