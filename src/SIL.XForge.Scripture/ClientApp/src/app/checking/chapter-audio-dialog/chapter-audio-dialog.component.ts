@@ -8,6 +8,7 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogRef,
+  MatDialogState,
   MatDialogTitle
 } from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
@@ -100,6 +101,7 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   private _timingErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _timingParseErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _loadingAudio: boolean = false;
+  private _saving: boolean = false;
 
   constructor(
     private readonly destroyRef: DestroyRef,
@@ -186,6 +188,10 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
 
   get isLoadingAudio(): boolean {
     return this._loadingAudio;
+  }
+
+  get isSaving(): boolean {
+    return this._saving;
   }
 
   get timingErrorMessageKey(): string {
@@ -317,6 +323,22 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   async save(): Promise<void> {
+    // Ignore additional clicks while a save is already in progress. Without this, double-clicking Save sends a second
+    // request before the first one finishes, which fails (e.g. deleting audio timing data that is already deleted) and
+    // shows the user an error even though the save succeeded.
+    if (this._saving) return;
+
+    this._saving = true;
+    try {
+      await this.performSave();
+    } finally {
+      // Once the dialog is closing the button remains clickable until the close animation finishes, so only allow
+      // saving again if the dialog is staying open, e.g. because the data was invalid or the upload failed.
+      this._saving = this.dialogRef.getState() !== MatDialogState.OPEN;
+    }
+  }
+
+  private async performSave(): Promise<void> {
     let canSave = false;
     if (this.allFieldsValid) {
       canSave = true;

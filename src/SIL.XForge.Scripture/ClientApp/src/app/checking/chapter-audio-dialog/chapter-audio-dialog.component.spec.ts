@@ -8,7 +8,7 @@ import { getTextAudioId, TextAudio } from 'realtime-server/lib/esm/scriptureforg
 import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio-test-data';
 import { Chapter, TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { firstValueFrom } from 'rxjs';
-import { anything, mock, spy, when } from 'ts-mockito';
+import { anything, mock, spy, verify, when } from 'ts-mockito';
 import { CsvService } from 'xforge-common/csv-service.service';
 import { FileService } from 'xforge-common/file.service';
 import { FileOfflineData, FileType } from 'xforge-common/models/file-offline-data';
@@ -538,6 +538,54 @@ describe('ChapterAudioDialogComponent', () => {
     expect(env.numberOfTimesDialogClosed).withContext('saving should occur and close dialog when online').toEqual(1);
   }));
 
+  it('only deletes existing audio once when the save button is double clicked', fakeAsync(() => {
+    env.component.book = 1;
+    env.component.chapter = 2;
+    const projectServiceSpy = spy(env.component['projectService']);
+    when(projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).thenResolve();
+
+    env.onlineStatus = true;
+    env.component.audioUpdate(env.audioFile);
+    tick();
+    env.component.prepareTimingFileUpload(env.timingFile);
+    tick();
+
+    env.component.deleteAudioData();
+    env.component.deleteTimingData();
+    env.fixture.detectChanges();
+
+    // SUT - double click, i.e. a second click that can land any time before the dialog has gone away
+    env.doubleClickSaveButton();
+
+    verify(projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).once();
+    expect(env.numberOfTimesDialogClosed).withContext('dialog should only close once').toEqual(1);
+  }));
+
+  it('only uploads audio once when the save button is double clicked', fakeAsync(() => {
+    env.onlineStatus = true;
+    env.component.audioUpdate(env.audioFile);
+    tick();
+    env.component.prepareTimingFileUpload(env.timingFile);
+    tick();
+    env.fixture.detectChanges();
+
+    // SUT - double click, i.e. a second click that can land any time before the dialog has gone away
+    env.doubleClickSaveButton();
+
+    verify(
+      mockedFileService.onlineUploadFileOrFail(
+        FileType.Audio,
+        anything(),
+        TextAudioDoc.COLLECTION,
+        anything(),
+        anything(),
+        anything(),
+        true
+      )
+    ).once();
+    expect(env.numberOfTimesDialogClosed).withContext('dialog should only close once').toEqual(1);
+  }));
+
   it('disables save button if offline, shows message', fakeAsync(async () => {
     const config: MatDialogConfig<ChapterAudioDialogData> = {
       data: {
@@ -765,6 +813,22 @@ class TestEnvironment {
 
   closeDialog(): void {
     this.dialogRef.close();
+  }
+
+  /**
+   * Clicks Save twice, letting the first save finish in between. The second click of a real double click can arrive
+   * after the save request has completed but before the dialog has finished closing, while the button is still there.
+   */
+  doubleClickSaveButton(): void {
+    this.saveButton.click();
+    tick();
+    this.fixture.detectChanges();
+    if (!this.saveButton.disabled) {
+      this.saveButton.click();
+    }
+    tick();
+    this.fixture.detectChanges();
+    flush();
   }
 
   fetchElement(query: string): HTMLElement {

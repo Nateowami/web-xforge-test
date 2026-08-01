@@ -89,7 +89,14 @@
       <button mat-button [mat-dialog-close]="'close'" type="button" id="audio-cancel-btn">
         {{ t("cancel") }}
       </button>
-      <button mat-flat-button color="primary" type="submit" (click)="save()" id="audio-save-btn" [disabled]="!isOnline">
+      <button
+        mat-flat-button
+        color="primary"
+        type="submit"
+        (click)="save()"
+        id="audio-save-btn"
+        [disabled]="!isOnline || isSaving"
+      >
         @if (isLoadingAudio) {
           <mat-spinner diameter="24" class="white-spinner"></mat-spinner>
         } @else {
