@@ -18,6 +18,20 @@ export class SelectAll {
     // Tracks the last Quill selection to avoid repetition/looping
     let lastRange: Range | null = quill.getSelection();
 
+    // A triple click asks the browser for a paragraph of text, but a paragraph here can hold several verses
+    // separated by verse number markers that are not selectable (user-select: none). Rather than selecting the
+    // verse that was clicked, the browser collapses the caret onto the marker in front of it, which belongs to
+    // the previous segment. Select the current segment instead, which is what the triple click was asking for.
+    fromEvent<MouseEvent>(quill.root, 'mousedown')
+      .pipe(quietTakeUntilDestroyed(destroyRef))
+      .subscribe(event => {
+        if (event.detail < 3 || !quill.isEnabled() || textComponent.multiSegmentSelection) return;
+        const segment = textComponent.segment;
+        if (segment == null) return;
+        event.preventDefault();
+        quill.setSelection(segment.range.index, segment.range.length, 'user');
+      });
+
     // Monitor the browser's selectionchange event from the document
     fromEvent<Event>(document, 'selectionchange')
       .pipe(quietTakeUntilDestroyed(destroyRef))

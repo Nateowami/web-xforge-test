@@ -567,6 +567,50 @@ describe('TextComponent', () => {
     }
   }));
 
+  it('triple click selects the current segment', fakeAsync(() => {
+    const env = new TestEnvironment();
+    const testSegmentRefs = ['verse_1_1', 'verse_1_3'];
+
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+
+    for (const ref of testSegmentRefs) {
+      const range: QuillRange = env.component.getSegmentRange(ref)!;
+
+      // Set segment as current segment
+      env.component.editor?.setSelection(range.index, 0, 'user');
+      expect(env.component.segmentRef).toEqual(ref);
+
+      env.triggerTripleClick();
+      tick();
+
+      const result = env.component.editor?.getSelection();
+      expect(result!.index).toEqual(range.index);
+      expect(result!.length).toEqual(range.length);
+      expect(env.component.segmentRef).toEqual(ref);
+    }
+  }));
+
+  it('does not alter the selection on a single click', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+
+    const range: QuillRange = env.component.getSegmentRange('verse_1_1')!;
+    env.component.editor?.setSelection(range.index, 0, 'user');
+
+    const event: MouseEvent = env.triggerClick(1);
+    tick();
+
+    expect(event.defaultPrevented).toBe(false);
+    const result = env.component.editor?.getSelection();
+    expect(result!.index).toEqual(range.index);
+    expect(result!.length).toEqual(0);
+  }));
+
   describe('MultiCursor Presence', () => {
     it('should update presence if the user moves the cursor', fakeAsync(() => {
       const env: TestEnvironment = new TestEnvironment();
@@ -2074,6 +2118,19 @@ class TestEnvironment {
       .withContext('setup: should be grabbing a single, specific binding in quill with the desired handler')
       .toEqual(1);
     return matchingBindings[0].handler.call({ quill: this.component.editor }, range, {});
+  }
+
+  /** Dispatch a mousedown on the editor with the click count the browser would report. */
+  triggerClick(clickCount: number): MouseEvent {
+    const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true, detail: clickCount });
+    this.component.editor!.root.dispatchEvent(event);
+    return event;
+  }
+
+  triggerTripleClick(): MouseEvent {
+    this.triggerClick(1);
+    this.triggerClick(2);
+    return this.triggerClick(3);
   }
 
   /**
