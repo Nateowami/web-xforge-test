@@ -20,7 +20,13 @@
     });
     webAuth.getTokenSilently().then(() => {
         window.location.href = "/projects";
-    }).catch(() => { });
+    }).catch(error => {
+        // Auth0 answers invalid_grant (HTTP 403) when the cached refresh token has expired or been revoked. Discard
+        // it, or every later visit repeats the same doomed request and logs a 403 in the browser console.
+        if (error != null && error.error === 'invalid_grant') {
+            webAuth.logout({ openUrl: false });
+        }
+    });
 </script>
 }
 
