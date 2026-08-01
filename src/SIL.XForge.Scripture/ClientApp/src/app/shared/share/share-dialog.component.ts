@@ -20,6 +20,7 @@ import { Operation } from 'realtime-server/lib/esm/common/models/project-rights'
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { NAVIGATOR } from 'xforge-common/browser-globals';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { Locale } from 'xforge-common/models/i18n-locale';
 import { UserDoc } from 'xforge-common/models/user-doc';
@@ -72,7 +73,6 @@ export class ShareDialogComponent extends ShareBaseComponent {
     days_threesixtyfive: 365
   };
 
-  isProjectAdmin: boolean = false;
   shareLocaleCode?: Locale = undefined;
   shareRole: SFProjectRole = this.data.defaultRole;
   shareLinkType: ShareLinkType = ShareLinkType.Anyone;
@@ -97,12 +97,8 @@ export class ShareDialogComponent extends ShareBaseComponent {
   ) {
     super(userService);
     this.projectId = this.data.projectId;
-    void Promise.all([
-      this.projectService.getProfile(this.projectId),
-      this.projectService.isProjectAdmin(this.projectId, this.userService.currentUserId)
-    ]).then(value => {
-      this.projectDoc = value[0];
-      this.isProjectAdmin = value[1];
+    void this.projectService.getProfile(this.projectId).then(projectDoc => {
+      this.projectDoc = projectDoc;
       this.projectDoc.remoteChanges$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(() => {
         if (this.shareLinkUsageOptions.length === 0) {
           this.dialogRef.close();
@@ -120,6 +116,16 @@ export class ShareDialogComponent extends ShareBaseComponent {
         .pipe(quietTakeUntilDestroyed(this.destroyRef))
         .subscribe(() => this.updateSharingKey());
     });
+  }
+
+  /** Whether the current user is an administrator of the project, according to the latest project data. This is a
+   * getter rather than a stored value so that it is correct after the user's role changes, or after they are removed
+   * from the project, while the dialog is open. */
+  get isProjectAdmin(): boolean {
+    return (
+      this.projectDoc?.data != null &&
+      this.projectDoc.data.userRoles[this.userService.currentUserId] === SFProjectRole.ParatextAdministrator
+    );
   }
 
   get canUserChangeRole(): boolean {
@@ -300,6 +306,15 @@ export class ShareDialogComponent extends ShareBaseComponent {
       .then((shareKey: string) => {
         this.linkSharingKey = shareKey;
         this.linkSharingReady = true;
+      })
+      .catch((error: unknown) => {
+        // The user's permission to share can be revoked (or the project removed) while a request is in flight. The
+        // user cannot share anymore, so close the dialog rather than reporting an error they can do nothing about.
+        if (error instanceof CommandError && error.code === CommandErrorCode.Forbidden) {
+          this.dialogRef.close();
+          return;
+        }
+        throw error;
       });
   }
 }

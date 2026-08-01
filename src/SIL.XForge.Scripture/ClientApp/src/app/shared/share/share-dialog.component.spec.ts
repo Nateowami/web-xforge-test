@@ -295,6 +295,18 @@ describe('ShareDialogComponent', () => {
     expect(env.isDialogOpen).toBe(false);
   }));
 
+  it('should close dialog without requesting a share key if the user is removed from the project', fakeAsync(() => {
+    env = new TestEnvironment({ userId: TestUsers.Admin });
+    expect(env.isDialogOpen).toBe(true);
+    verify(mockedProjectService.onlineGetLinkSharingKey(anything(), anything(), anything(), anything())).once();
+
+    env.removeUserFromProject(TestUsers.Admin);
+
+    expect(env.isDialogOpen).toBe(false);
+    // The user can no longer share, so no new share key should have been requested
+    verify(mockedProjectService.onlineGetLinkSharingKey(anything(), anything(), anything(), anything())).once();
+  }));
+
   it('should remove checking role as an option if remote project settings change', fakeAsync(() => {
     env = new TestEnvironment({ userId: TestUsers.Admin });
     let roles: SFProjectRole[] = env.component.availableRoles;
@@ -421,7 +433,6 @@ class TestEnvironment {
           this.component.shareLocaleCode!.canonicalTag
         }`
     );
-    when(mockedProjectService.isProjectAdmin(projectId, TestUsers.Admin)).thenResolve(true);
     when(mockedBrandingService.siteName).thenReturn('Scripture Forge');
 
     const config: MatDialogConfig<ShareDialogData> = {
@@ -505,6 +516,14 @@ class TestEnvironment {
         }),
       false
     );
+    tick();
+    this.wait();
+  }
+
+  /** Simulates another administrator removing the user from the project. */
+  removeUserFromProject(userId: string): void {
+    const projectDoc: SFProjectProfileDoc = this.realtimeService.get(SFProjectProfileDoc.COLLECTION, 'project01');
+    projectDoc.submitJson0Op(op => op.unset(p => p.userRoles[userId]), false);
     tick();
     this.wait();
   }
