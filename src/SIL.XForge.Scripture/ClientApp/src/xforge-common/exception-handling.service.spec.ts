@@ -45,7 +45,8 @@ class MockConsole {
         'Original error',
         'Http failure response for (unknown url): 400 Bad Request',
         'Http failure response for http://localhost:5000/command-api/some-end-point: 504 Gateway Timeout',
-        'Http failure response for http://localhost:5000/machine-api/v3/translation/engines/some-end-point: 504 Gateway Timeout'
+        'Http failure response for http://localhost:5000/machine-api/v3/translation/engines/some-end-point: 504 Gateway Timeout',
+        'Http failure response for http://localhost:5000/paratext-api/projects: 504 Gateway Timeout'
       ].includes(val.message) &&
       !val.message?.startsWith('Unknown error')
     ) {
@@ -133,7 +134,7 @@ describe('ExceptionHandlingService', () => {
     expect().nothing();
   }));
 
-  it('should silently report 504 errors from machine-api or command-api', fakeAsync(() => {
+  it('should silently report 504 errors from machine-api, command-api or paratext-api', fakeAsync(() => {
     const env = new TestEnvironment();
     spyOn<any>(env.service, 'handleAlert');
 
@@ -149,6 +150,13 @@ describe('ExceptionHandlingService', () => {
         status: 504,
         statusText: 'Gateway Timeout',
         url: 'http://localhost:5000/command-api/some-end-point'
+      })
+    );
+    env.handleError(
+      new HttpErrorResponse({
+        status: 504,
+        statusText: 'Gateway Timeout',
+        url: 'http://localhost:5000/paratext-api/projects'
       })
     );
 

@@ -121,6 +121,7 @@
     "connecting_to_project": "Connecting to {{ projectName }}...",
     "enable_community_checking": "Enable Community Checking",
     "engage_the_wider_community_to_check_scripture": "Engage the wider community to ensure that the translation is clear, accurate, and natural. Select verses, ask targeted questions, allow discussion of answers.",
+    "error_fetching_projects": "Your Paratext projects could not be fetched. Please check your Internet connection and reload the page.",
     "error_fetching_resources": "There was an error fetching the Digital Bible Library resources. You will only be able to select projects.",
     "problem_already_connected": "The project is already connected. Maybe another project administrator connected the project at the same time. Please try again. If it continues to be a problem, please report the issue so we can get it fixed.",
     "proceed": "Proceed",

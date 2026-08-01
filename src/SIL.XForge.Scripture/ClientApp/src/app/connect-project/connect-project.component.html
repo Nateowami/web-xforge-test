@@ -33,7 +33,9 @@
                   [hiddenParatextIds]="[ptProjectId]"
                   [isDisabled]="projects.length === 0"
                 ></app-project-select>
-                @if (showResourcesLoadingFailedMessage) {
+                @if (showProjectsLoadingFailedMessage) {
+                  <mat-error>{{ t("error_fetching_projects") }}</mat-error>
+                } @else if (showResourcesLoadingFailedMessage) {
                   <mat-error>{{ t("error_fetching_resources") }}</mat-error>
                 }
               </mat-card-content>

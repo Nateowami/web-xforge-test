@@ -14,6 +14,7 @@ import { I18nService } from 'xforge-common/i18n.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
+import { isOfflineGatewayTimeout } from 'xforge-common/utils';
 import { hasStringProp } from '../../type-utils';
 import { ParatextProject } from '../core/models/paratext-project';
 import { SelectableProject } from '../core/models/selectable-project';
@@ -61,6 +62,7 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
   });
   resources?: SelectableProject[];
   showResourcesLoadingFailedMessage = false;
+  showProjectsLoadingFailedMessage = false;
   state: 'connecting' | 'input' | 'offline' = 'input';
   projectDoc?: SFProjectDoc;
 
@@ -192,11 +194,16 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
     try {
       const projects: ParatextProject[] | undefined = (await this.paratextService.getProjects()) ?? [];
       this.projectsFromParatext = projects.sort(compareProjectsForSorting);
+      this.showProjectsLoadingFailedMessage = false;
       // do not wait for resources to load
       void this.fetchResources();
     } catch (error: any) {
       if (error instanceof HttpErrorResponse && error.status === 401) {
         this.authService.requestParatextCredentialUpdate(() => this.router.navigate(['/projects']));
+      } else if (isOfflineGatewayTimeout(error)) {
+        // The connection was lost before the request completed. Tell the user to try again instead of reporting an
+        // unexpected error, and load the list again if the app notices it is back online.
+        this.showProjectsLoadingFailedMessage = true;
       } else {
         throw error;
       }

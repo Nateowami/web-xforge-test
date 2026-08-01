@@ -264,6 +264,32 @@ describe('ConnectProjectComponent', () => {
     expect(env.component.ptProjectId).toEqual('requested-pt-project-id');
   }));
 
+  it('shows a message rather than an error when the connection is lost while getting projects', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupDefaultProjectData();
+    // The service worker responds to a request it could not perform with a 504
+    when(mockedParatextService.getProjects()).thenReject(
+      new HttpErrorResponse({
+        status: 504,
+        statusText: 'Gateway Timeout',
+        url: 'https://scriptureforge.org/paratext-api/projects'
+      })
+    );
+    env.waitForProjectsResponse();
+
+    expect(env.component.state).toEqual('input');
+    expect(env.projectLoadingErrorMessage.nativeElement.textContent).toContain('could not be fetched');
+
+    // the projects are fetched again if the app notices it is back online
+    env.setupDefaultProjectData();
+    env.onlineStatus = false;
+    env.onlineStatus = true;
+    env.waitForProjectsResponse();
+
+    expect(env.projectLoadingErrorMessage).toBeNull();
+    expect(env.component.projects.length).toEqual(env.paratextProjects.length);
+  }));
+
   it('should display the Paratext credentials update prompt when get projects throws a forbidden error', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setupDefaultProjectData();
@@ -455,6 +481,10 @@ class TestEnvironment {
   }
 
   get resourceLoadingErrorMessage(): DebugElement {
+    return this.fixture.debugElement.query(By.css('app-project-select + mat-error'));
+  }
+
+  get projectLoadingErrorMessage(): DebugElement {
     return this.fixture.debugElement.query(By.css('app-project-select + mat-error'));
   }
 

@@ -1,10 +1,8 @@
-import { HttpErrorResponse } from '@angular/common/http';
 import { Injectable, Injector, NgZone } from '@angular/core';
 import Bugsnag, { Breadcrumb, BrowserConfig } from '@bugsnag/js';
 import { firstValueFrom } from 'rxjs';
 import { I18nService } from 'xforge-common/i18n.service';
 import versionData from '../../../version.json';
-import { MACHINE_API_BASE_URL } from '../app/machine-api/http-client';
 import { environment } from '../environments/environment';
 import { hasObjectProp, hasStringProp } from '../type-utils';
 import { CONSOLE } from './browser-globals';
@@ -14,8 +12,7 @@ import { ErrorReportingService } from './error-reporting.service';
 import { FeatureFlagService } from './feature-flags/feature-flag.service';
 import { NoticeService } from './notice.service';
 import { PwaService } from './pwa.service';
-import { COMMAND_API_NAMESPACE } from './url-constants';
-import { objectId } from './utils';
+import { isOfflineGatewayTimeout, objectId } from './utils';
 
 export interface BreadcrumbSelector {
   element: string;
@@ -194,17 +191,9 @@ export class ExceptionHandlingService {
       return;
     }
 
-    if (
-      error instanceof HttpErrorResponse &&
-      error.status === 504 &&
-      error.statusText === 'Gateway Timeout' &&
-      error.url != null
-    ) {
-      // ignore 504 errors from ngsw-worker.js to machine-api or command-api (these happen when offline)
-      const url = new URL(error.url);
-      if (url.pathname.startsWith('/' + MACHINE_API_BASE_URL) || url.pathname.startsWith('/' + COMMAND_API_NAMESPACE)) {
-        silently = true;
-      }
+    // ignore 504 errors from ngsw-worker.js to our own APIs (these happen when offline)
+    if (isOfflineGatewayTimeout(error)) {
+      silently = true;
     }
 
     if (

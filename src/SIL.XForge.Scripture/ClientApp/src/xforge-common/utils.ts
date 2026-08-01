@@ -1,10 +1,13 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { translate } from '@ngneat/transloco';
 import Bowser from 'bowser';
 import ObjectID from 'bson-objectid';
 import locales from '../../../locales.json';
 import versionData from '../../../version.json';
+import { MACHINE_API_BASE_URL } from '../app/machine-api/http-client';
 import { environment } from '../environments/environment';
 import { Locale } from './models/i18n-locale';
+import { COMMAND_API_NAMESPACE, PARATEXT_API_NAMESPACE } from './url-constants';
 
 const BROWSER = Bowser.getParser(window.navigator.userAgent);
 
@@ -173,6 +176,30 @@ export function getLinkHTML(text: string, href: string): string {
   a.setAttribute('target', '_blank');
   a.textContent = text;
   return a.outerHTML;
+}
+
+/**
+ * Determines whether an error is a request to one of the app's own APIs that failed because the
+ * connection was lost, rather than a response from the server.
+ *
+ * When the service worker is registered it handles every request the app makes, and answers a
+ * fetch it was unable to perform with "504 Gateway Timeout" (see `safeFetch` in ngsw-worker.js).
+ * A lost connection therefore reaches the app as an HTTP error response instead of the usual
+ * network error, and looks indistinguishable from a real gateway timeout. The app cannot always
+ * tell that it is offline before making a request (a dropped connection isn't always reported by
+ * the browser), so these have to be recognized after the fact.
+ */
+export function isOfflineGatewayTimeout(error: unknown): boolean {
+  if (
+    !(error instanceof HttpErrorResponse) ||
+    error.status !== 504 ||
+    error.statusText !== 'Gateway Timeout' ||
+    error.url == null
+  ) {
+    return false;
+  }
+  const path: string = new URL(error.url, window.location.origin).pathname;
+  return [COMMAND_API_NAMESPACE, MACHINE_API_BASE_URL, PARATEXT_API_NAMESPACE].some(api => path.startsWith('/' + api));
 }
 
 /** Attempts to parse a value as JSON. If the value is not a string or cannot be parsed, returns null. */
