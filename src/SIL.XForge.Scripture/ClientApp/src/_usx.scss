@@ -365,6 +365,20 @@ usx-char {
       content: ')';
     }
   }
+
+  // Published (printed) verse number, which stands in for the verse number in a publication
+  &[data-style~='vp'] {
+    font-size: 70%;
+    color: #9a6fc4;
+    top: -0.5em;
+    position: relative;
+    &:before {
+      content: '[';
+    }
+    &:after {
+      content: ']';
+    }
+  }
 }
 
 usx-chapter {
@@ -401,6 +415,18 @@ usx-verse {
       }
       &:after {
         content: ')';
+      }
+    }
+    span[data-style='vp'] {
+      font-size: 85%;
+      color: #9a6fc4;
+      top: -0.25em;
+      position: relative;
+      &:before {
+        content: '[';
+      }
+      &:after {
+        content: ']';
       }
     }
   }
