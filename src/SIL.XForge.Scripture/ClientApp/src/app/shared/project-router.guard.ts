@@ -5,6 +5,7 @@ import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { isResource } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
+import { ProjectType } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
 import { from, Observable, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { AuthGuard } from 'xforge-common/auth.guard';
@@ -136,6 +137,41 @@ export class NmtDraftAuthGuard extends RouterGuard {
       SFProjectDomain.Texts,
       Operation.Edit
     );
+  }
+}
+
+/**
+ * Guards the draft signup form. Signing up is only meaningful for projects that do not already have drafting, so
+ * users of projects where drafting is already available are sent back to the drafting page. Without this, the form
+ * is reachable by typing the URL, even though no link to it is shown, and a pointless onboarding request can be
+ * submitted for a project that needs no approval.
+ */
+@Injectable({
+  providedIn: 'root'
+})
+export class DraftSignupAuthGuard extends NmtDraftAuthGuard {
+  constructor(
+    authGuard: AuthGuard,
+    projectService: SFProjectService,
+    userService: UserService,
+    private readonly router: Router
+  ) {
+    super(authGuard, projectService, userService);
+  }
+
+  override check(projectDoc: SFProjectProfileDoc): boolean {
+    if (!super.check(projectDoc)) {
+      return false;
+    }
+
+    const translateConfig = projectDoc.data!.translateConfig;
+    // Back translations always have drafting; other projects get it when an onboarding request is approved
+    if (translateConfig.projectType === ProjectType.BackTranslation || translateConfig.preTranslate) {
+      void this.router.navigate(['/projects', projectDoc.id, 'draft-generation'], { replaceUrl: true });
+      return false;
+    }
+
+    return true;
   }
 }
 

@@ -1,20 +1,23 @@
 import { TestBed } from '@angular/core/testing';
+import { Router } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
-import { mock, when } from 'ts-mockito';
+import { ProjectType } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
+import { anything, mock, verify, when } from 'ts-mockito';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { SFProjectService } from '../core/sf-project.service';
-import { DraftNavigationAuthGuard, SyncAuthGuard } from './project-router.guard';
+import { DraftNavigationAuthGuard, DraftSignupAuthGuard, SyncAuthGuard } from './project-router.guard';
 
 const mockedAuthGuard = mock(AuthGuard);
 const mockedAuthService = mock(AuthService);
 const mockedProjectService = mock(SFProjectService);
 const mockedUserService = mock(UserService);
+const mockedRouter = mock(Router);
 
 describe('DraftNavigationAuthGuard', () => {
   configureTestingModule(() => ({
@@ -103,10 +106,68 @@ describe('SyncAuthGuard', () => {
   });
 });
 
+describe('DraftSignupAuthGuard', () => {
+  configureTestingModule(() => ({
+    providers: [
+      { provide: AuthGuard, useMock: mockedAuthGuard },
+      { provide: SFProjectService, useMock: mockedProjectService },
+      { provide: UserService, useMock: mockedUserService },
+      { provide: Router, useMock: mockedRouter }
+    ]
+  }));
+
+  it('administrators of a project without drafting can sign up', () => {
+    const env = new DraftSignupTestEnvironment();
+    expect(env.service.check(env.projectDoc(SFProjectRole.ParatextAdministrator, ProjectType.Standard, false))).toBe(
+      true
+    );
+    verify(mockedRouter.navigate(anything(), anything())).never();
+  });
+
+  it('observers cannot sign up', () => {
+    const env = new DraftSignupTestEnvironment();
+    expect(env.service.check(env.projectDoc(SFProjectRole.ParatextObserver, ProjectType.Standard, false))).toBe(false);
+  });
+
+  it('back translation projects cannot sign up, and are sent to the drafting page', () => {
+    const env = new DraftSignupTestEnvironment();
+    expect(
+      env.service.check(env.projectDoc(SFProjectRole.ParatextAdministrator, ProjectType.BackTranslation, false))
+    ).toBe(false);
+    verify(mockedRouter.navigate(anything(), anything())).once();
+  });
+
+  it('projects with drafting already approved cannot sign up, and are sent to the drafting page', () => {
+    const env = new DraftSignupTestEnvironment();
+    expect(env.service.check(env.projectDoc(SFProjectRole.ParatextAdministrator, ProjectType.Standard, true))).toBe(
+      false
+    );
+    verify(mockedRouter.navigate(anything(), anything())).once();
+  });
+});
+
 class DraftNavigationTestEnvironment {
   service: DraftNavigationAuthGuard;
   constructor() {
     this.service = TestBed.inject(DraftNavigationAuthGuard);
+  }
+}
+
+class DraftSignupTestEnvironment {
+  service: DraftSignupAuthGuard;
+  constructor() {
+    this.service = TestBed.inject(DraftSignupAuthGuard);
+    when(mockedUserService.currentUserId).thenReturn('user01');
+  }
+
+  projectDoc(role: SFProjectRole, projectType: ProjectType, preTranslate: boolean): SFProjectProfileDoc {
+    return {
+      id: 'project01',
+      data: createTestProjectProfile({
+        userRoles: { user01: role },
+        translateConfig: { projectType, preTranslate }
+      })
+    } as SFProjectProfileDoc;
   }
 }
 

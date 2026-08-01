@@ -20,6 +20,7 @@ import { PageNotFoundComponent } from './shared/page-not-found/page-not-found.co
 import {
   CheckingAuthGuard,
   DraftNavigationAuthGuard,
+  DraftSignupAuthGuard,
   NmtDraftAuthGuard,
   SettingsAuthGuard,
   SyncAuthGuard,
@@ -76,7 +77,7 @@ export const APP_ROUTES: Routes = [
   {
     path: 'projects/:projectId/draft-generation/signup',
     component: DraftOnboardingFormComponent,
-    canActivate: [NmtDraftAuthGuard]
+    canActivate: [DraftSignupAuthGuard]
   },
   {
     path: 'projects/:projectId/draft-generation',
