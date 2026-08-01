@@ -365,6 +365,20 @@ usx-char {
       content: ')';
     }
   }
+
+  // Publishing alternate verse number, shown in square brackets to distinguish it from va
+  &[data-style~='vp'] {
+    font-size: 70%;
+    color: #5f8fd0;
+    top: -0.5em;
+    position: relative;
+    &:before {
+      content: '[';
+    }
+    &:after {
+      content: ']';
+    }
+  }
 }
 
 usx-chapter {
@@ -401,6 +415,18 @@ usx-verse {
       }
       &:after {
         content: ')';
+      }
+    }
+    span[data-style='vp'] {
+      font-size: 85%;
+      color: #5f8fd0;
+      top: -0.25em;
+      position: relative;
+      &:before {
+        content: '[';
+      }
+      &:after {
+        content: ']';
       }
     }
   }
