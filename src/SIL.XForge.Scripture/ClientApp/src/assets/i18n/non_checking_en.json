@@ -1077,6 +1077,9 @@
     "cancel": "Cancel",
     "login_cookie_deletion": "Logging out will remove your ability to log back into this account. Are you sure you want to log out?",
     "logout": "Yes, log out",
-    "paratext_credentials_expired": "Your Paratext user credentials have expired. Please log out and log back in again."
+    "logout_and_discard_offline_changes": "Log out and discard offline changes",
+    "paratext_credentials_expired": "Your Paratext user credentials have expired. Please log out and log back in again.",
+    "stay_logged_in": "Stay logged in",
+    "unsaved_offline_changes": "You have changes that were made while you were offline that have not been saved to the server."
   }
 }

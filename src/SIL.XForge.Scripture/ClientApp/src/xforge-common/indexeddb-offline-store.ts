@@ -68,6 +68,14 @@ export class IndexeddbOfflineStore extends OfflineStore {
     super();
   }
 
+  get collections(): string[] {
+    return [
+      ...Array.from(this.typeRegistry.docTypes, docType => docType.COLLECTION),
+      ...this.typeRegistry.fileTypes,
+      ...this.typeRegistry.customTypes
+    ];
+  }
+
   async getAllIds(collection: string): Promise<string[]> {
     const db = await this.openDB();
 

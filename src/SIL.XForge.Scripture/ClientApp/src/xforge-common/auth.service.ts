@@ -266,6 +266,18 @@ export class AuthService {
   }
 
   async logOut(): Promise<void> {
+    // Logging out deletes the offline store, so warn if it holds changes that have not made it to the server yet
+    if (await this.offlineStore.hasUnsavedChanges()) {
+      const discardChanges: boolean = await this.dialogService.confirmWithOptions({
+        title: 'warnings.unsaved_offline_changes',
+        affirmative: 'warnings.logout_and_discard_offline_changes',
+        negative: 'warnings.stay_logged_in',
+        emphasizeAffirmative: false
+      });
+      if (!discardChanges) {
+        return;
+      }
+    }
     let proceedWithLogout: boolean = true;
     if (await this.isLoggedInUserAnonymous) {
       proceedWithLogout = await this.dialogService.confirm(

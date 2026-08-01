@@ -9,6 +9,10 @@ export class MemoryOfflineStore extends OfflineStore {
 
   private readonly map = new Map<string, Map<string, OfflineData>>();
 
+  get collections(): string[] {
+    return Array.from(this.map.keys());
+  }
+
   addData(collection: string, data: OfflineData): void {
     let collectionData = this.map.get(collection);
     if (collectionData == null) {

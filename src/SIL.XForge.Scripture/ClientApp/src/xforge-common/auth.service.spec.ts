@@ -38,7 +38,9 @@ import { LocalSettingsService } from './local-settings.service';
 import { LocationService } from './location.service';
 import { MemoryOfflineStore } from './memory-offline-store';
 import { MemoryRealtimeRemoteStore } from './memory-realtime-remote-store';
-import { OfflineStore } from './offline-store';
+import { createUploadFileData } from './models/file-offline-data';
+import { RealtimeOfflineData } from './models/realtime-offline-data';
+import { OfflineData, OfflineStore } from './offline-store';
 import { OnlineStatusService } from './online-status.service';
 import { SharedbRealtimeRemoteStore } from './sharedb-realtime-remote-store';
 import { provideTestOnlineStatus } from './test-online-status-providers';
@@ -642,6 +644,63 @@ describe('AuthService', () => {
     env.discardTokenExpiryTimer();
   }));
 
+  it('should not warn on log out when there are no unsaved offline changes', fakeAsync(() => {
+    const env = new TestEnvironment({ isOnline: true, isLoggedIn: true });
+    env.addOfflineData('texts', offlineDoc('text01', []));
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedDialogService.confirmWithOptions(anything())).never();
+    verify(mockedWebAuth.logout(anything())).once();
+    env.discardTokenExpiryTimer();
+  }));
+
+  it('should keep the user logged in if they decline to discard unsaved offline changes', fakeAsync(() => {
+    const env = new TestEnvironment({ isOnline: true, isLoggedIn: true });
+    env.addOfflineData('texts', offlineDoc('text01', [{ op: {} }]));
+    when(mockedDialogService.confirmWithOptions(anything())).thenResolve(false);
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedDialogService.confirmWithOptions(anything())).once();
+    verify(mockedWebAuth.logout(anything())).never();
+    verify(mockedLocalSettingsService.clear()).never();
+    expect(env.getOfflineData('texts', 'text01')).toBeDefined();
+    env.discardTokenExpiryTimer();
+  }));
+
+  it('should log out and discard unsaved offline changes if the user confirms', fakeAsync(() => {
+    const env = new TestEnvironment({ isOnline: true, isLoggedIn: true });
+    env.addOfflineData('texts', offlineDoc('text01', [{ op: {} }]));
+    when(mockedDialogService.confirmWithOptions(anything())).thenResolve(true);
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedDialogService.confirmWithOptions(anything())).once();
+    verify(mockedWebAuth.logout(anything())).once();
+    expect(env.getOfflineData('texts', 'text01')).toBeUndefined();
+    env.discardTokenExpiryTimer();
+  }));
+
+  it('should warn on log out when a file recorded offline has not been uploaded', fakeAsync(() => {
+    const env = new TestEnvironment({ isOnline: true, isLoggedIn: true });
+    env.addOfflineData(
+      'audio',
+      createUploadFileData('questions', 'audio01', 'project01', 'question01', new Blob(), 'audio.mp3')
+    );
+    when(mockedDialogService.confirmWithOptions(anything())).thenResolve(false);
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedDialogService.confirmWithOptions(anything())).once();
+    verify(mockedWebAuth.logout(anything())).never();
+    env.discardTokenExpiryTimer();
+  }));
+
   it('should authenticate transparently when joining', fakeAsync(() => {
     const callback = (env: TestEnvironment): void => {
       when(mockedLocationService.pathname).thenReturn('/join/shareKey');
@@ -790,6 +849,7 @@ class TestEnvironment {
     OnlineStatusService
   ) as TestOnlineStatusService;
   readonly testOnlineStatusServiceSpy: TestOnlineStatusService = spy(this.testOnlineStatusService);
+  readonly offlineStore: MemoryOfflineStore = TestBed.inject(OfflineStore) as MemoryOfflineStore;
   private tokenExpiryTimer = 720; // 2 hours
   readonly localSettings = new Map<string, string[] | string | number>();
   private _localeSettingsRemoveChanges = new Subject<StorageEvent>();
@@ -930,6 +990,14 @@ class TestEnvironment {
     this.setLoginRequiredResponse();
   }
 
+  addOfflineData(collection: string, data: OfflineData): void {
+    this.offlineStore.addData(collection, data);
+  }
+
+  getOfflineData(collection: string, id: string): OfflineData | undefined {
+    return this.offlineStore.getData(collection, id);
+  }
+
   resetTokenExpireAt(): void {
     this.localSettings.set(EXPIRES_AT_SETTING, 0);
   }
@@ -983,4 +1051,8 @@ class TestEnvironment {
   triggerLocalSettingsEvent(event: StorageEvent): void {
     this._localeSettingsRemoveChanges.next(event);
   }
+}
+
+function offlineDoc(id: string, pendingOps: any[]): RealtimeOfflineData {
+  return { id, v: 1, data: {}, type: 'rich-text', pendingOps };
 }
