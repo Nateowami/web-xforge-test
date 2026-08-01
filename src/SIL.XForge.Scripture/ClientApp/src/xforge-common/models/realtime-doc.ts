@@ -42,7 +42,11 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     this.updateOfflineDataSub = merge(this.adapter.remoteChanges$, this.adapter.idle$, this.adapter.create$).subscribe(
       async () => {
         if (this.subscribePromise != null) {
-          await this.subscribePromise;
+          // A failed subscribe is reported to whoever called subscribe(). It is awaited here only to order the
+          // offline update after the subscribe attempt, so swallow it: this callback runs on every remote change
+          // and idle event, and re-raising the failure here makes it an unhandled rejection each time, which shows
+          // the user the generic error dialog and files a Bugsnag report.
+          await this.subscribePromise.catch(() => undefined);
         }
         void this.updateOfflineData();
       }
@@ -177,7 +181,9 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
    */
   async dispose(): Promise<void> {
     if (this.subscribePromise != null) {
-      await this.subscribePromise;
+      // Wait for any in-flight subscribe to settle, but do not fail the disposal if it failed (see the note in the
+      // constructor); disposal is often called without handling the result.
+      await this.subscribePromise.catch(() => undefined);
     }
     this.updateOfflineDataSub.unsubscribe();
     this.onDeleteSub.unsubscribe();

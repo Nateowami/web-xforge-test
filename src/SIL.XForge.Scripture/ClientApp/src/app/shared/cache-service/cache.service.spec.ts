@@ -70,6 +70,24 @@ describe('cache service', () => {
       expect(true).toBeTruthy();
     }));
 
+    it('keeps caching the remaining texts when one text doc cannot be read', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      const failingId = new TextDocId('project01', 1, 1, 'target');
+      when(mockedProjectService.getText(deepEqual(failingId))).thenReject(
+        new Error(`403: Permission denied (read), collection: texts, docId: ${failingId}`)
+      );
+
+      // The caching runs on every project activation and nothing handles its result, so a rejection here would
+      // show the user an error dialog (and report to Bugsnag) each time they open the project.
+      await expectAsync(env.service.cache(env.projectDoc)).toBeResolved();
+      env.wait();
+
+      // The failing doc did not stop the rest of the project from being cached
+      verify(mockedProjectService.getText(anything())).times(200 * 100 * 2);
+
+      flush();
+    }));
+
     it('gets the source texts if they are present and the user can access', fakeAsync(async () => {
       const env = new TestEnvironment();
       when(
@@ -105,6 +123,7 @@ class TestEnvironment {
       }
     });
 
+    when(mockedProjectDoc.id).thenReturn('project01');
     when(mockedProjectDoc.data).thenReturn(data);
     when(mockedPermissionService.canAccessTextAsync(anything())).thenResolve(true);
   }

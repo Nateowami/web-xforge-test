@@ -31,19 +31,33 @@ export class CacheService {
             return;
           }
 
-          const textDocId = new TextDocId(project.id, text.bookNum, chapter.number, 'target');
-          if (await this.permissionsService.canAccessTextAsync(textDocId)) {
-            await this.projectService.getText(textDocId);
-          }
+          await this.cacheText(new TextDocId(project.id, text.bookNum, chapter.number, 'target'));
 
           if (text.hasSource && sourceId != null) {
-            const sourceTextDocId = new TextDocId(sourceId, text.bookNum, chapter.number, 'target');
-            if (await this.permissionsService.canAccessTextAsync(sourceTextDocId)) {
-              await this.projectService.getText(sourceTextDocId);
-            }
+            await this.cacheText(new TextDocId(sourceId, text.bookNum, chapter.number, 'target'));
           }
         }
       }
+    }
+  }
+
+  /**
+   * Caches a single text doc, if the user can access it.
+   *
+   * Caching is a best-effort background prefetch, so a failure must not propagate. Caching runs on every project
+   * activation, including on pages that display no Scripture at all, and nothing awaits the result. An error
+   * escaping from here therefore becomes an unhandled rejection, which shows the user the generic error dialog and
+   * files a Bugsnag report every single time they open the project. It also abandons the caching of every
+   * remaining chapter. The most likely failure is the server refusing the read because the user's permissions no
+   * longer match the project snapshot the permission check was made against.
+   */
+  private async cacheText(textDocId: TextDocId): Promise<void> {
+    try {
+      if (await this.permissionsService.canAccessTextAsync(textDocId)) {
+        await this.projectService.getText(textDocId);
+      }
+    } catch (error) {
+      console.warn(`Unable to cache text doc ${textDocId.toString()} for offline use`, error);
     }
   }
 }
