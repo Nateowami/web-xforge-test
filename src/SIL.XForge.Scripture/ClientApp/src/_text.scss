@@ -210,10 +210,14 @@ quill-editor {
     &:before {
       cursor: pointer;
       content: '';
-      width: 1.25rem;
-      height: 1.25rem;
+      // Size the icon relative to the text so that it scales with the project font size and stays
+      // within the line box (a fixed size overflows the line when the font size is small)
+      width: 1.25em;
+      height: 1.25em;
+      box-sizing: border-box;
       display: inline-block;
-      background: var(--icon-file) no-repeat;
+      vertical-align: middle;
+      background: var(--icon-file) no-repeat center / contain;
       margin: 0 0.1em;
       border: solid 1px transparent;
     }
