@@ -260,6 +260,51 @@ describe('ScriptureChooserDialog', () => {
     expect(env.dialogResult).toEqual('close');
   }));
 
+  it('shows end-selection, not chapters, when the project only has one book', fakeAsync(() => {
+    const onlyOneBook: TextInfo[] = [
+      {
+        bookNum: 8,
+        chapters: [
+          { number: 1, lastVerse: 22, isValid: true, permissions: {} },
+          { number: 2, lastVerse: 23, isValid: true, permissions: {} }
+        ],
+        hasSource: false,
+        permissions: {}
+      }
+    ];
+
+    env = new TestEnvironment({
+      textsInProject: onlyOneBook,
+      rangeStart: new VerseRef('RUT', '1', '1')
+    });
+    flush();
+
+    expect(env.component.showing).toEqual('rangeEnd');
+    expect(env.reference).toContain('Ruth 1');
+    // Chapters of the same book must not be offered as the end of the range.
+    expect(env.dialogText).not.toContain('chapter');
+  }));
+
+  it('starts at the chapter chooser for a one book project when not selecting a range end', fakeAsync(() => {
+    const onlyOneBook: TextInfo[] = [
+      {
+        bookNum: 8,
+        chapters: [
+          { number: 1, lastVerse: 22, isValid: true, permissions: {} },
+          { number: 2, lastVerse: 23, isValid: true, permissions: {} }
+        ],
+        hasSource: false,
+        permissions: {}
+      }
+    ];
+
+    env = new TestEnvironment({ textsInProject: onlyOneBook });
+    flush();
+
+    expect(env.component.showing).toEqual('chapters');
+    expect(env.component.selection.book).toEqual('RUT');
+  }));
+
   it('ignores rangeStart if book not in texts', fakeAsync(() => {
     const texts: TextInfo[] = [
       {

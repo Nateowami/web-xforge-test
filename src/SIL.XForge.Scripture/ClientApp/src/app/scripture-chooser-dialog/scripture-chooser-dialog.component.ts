@@ -88,8 +88,9 @@ export class ScriptureChooserDialogComponent implements OnInit {
         }
       }
     }
-    // When there is only one book available then start at the chapters view
-    if (!this.hasMultipleBooks) {
+    // When there is only one book available then start at the chapters view, unless we are already
+    // showing the range end verses for a valid rangeStart (which must stay within its chapter).
+    if (this.showing === 'books' && !this.hasMultipleBooks) {
       this.onClickBook(Object.keys(this.data.booksAndChaptersToShow)[0]);
     }
   }
