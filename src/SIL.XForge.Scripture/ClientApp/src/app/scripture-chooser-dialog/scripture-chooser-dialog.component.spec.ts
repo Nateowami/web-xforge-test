@@ -260,6 +260,51 @@ describe('ScriptureChooserDialog', () => {
     expect(env.dialogResult).toEqual('close');
   }));
 
+  it('only shows verses if providing end-selection, when project has a single book', fakeAsync(() => {
+    const singleBookText: TextInfo[] = [
+      {
+        bookNum: 49,
+        chapters: [{ number: 3, lastVerse: 21, isValid: true, permissions: {} }],
+        hasSource: false,
+        permissions: {}
+      }
+    ];
+    env = new TestEnvironment({
+      textsInProject: singleBookText,
+      inputScriptureReference: new VerseRef('EPH', '3', '17'),
+      rangeStart: new VerseRef('EPH', '3', '15')
+    });
+    flush();
+
+    // Shows the end verse chooser, not the chapter chooser.
+    expect(env.component.showing).toEqual('rangeEnd');
+    expect(env.reference).toContain('Ephesians 3');
+    expect(env.dialogText).not.toContain('chapter');
+    // Should contain verses from starting verse to last verse, inclusive.
+    expect(env.dialogText).not.toContain('14');
+    expect(env.dialogText).toContain('15');
+    expect(env.dialogText).toContain('21');
+
+    env.click(env.verse21);
+    expect(env.dialogResult!.toString()).toEqual('EPH 3:21');
+  }));
+
+  it('shows chapters when project has a single book and no rangeStart', fakeAsync(() => {
+    const singleBookText: TextInfo[] = [
+      {
+        bookNum: 49,
+        chapters: [{ number: 3, lastVerse: 21, isValid: true, permissions: {} }],
+        hasSource: false,
+        permissions: {}
+      }
+    ];
+    env = new TestEnvironment({ textsInProject: singleBookText });
+    flush();
+
+    expect(env.component.showing).toEqual('chapters');
+    expect(env.component.selection.book).toEqual('EPH');
+  }));
+
   it('ignores rangeStart if book not in texts', fakeAsync(() => {
     const texts: TextInfo[] = [
       {
