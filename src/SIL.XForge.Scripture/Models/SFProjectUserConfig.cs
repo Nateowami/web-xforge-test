@@ -28,6 +28,10 @@ public class SFProjectUserConfig : ProjectData
     public List<string> QuestionRefsRead { get; set; } = [];
     public List<string> AnswerRefsRead { get; set; } = [];
     public List<string> CommentRefsRead { get; set; } = [];
+
+    /// <summary>The size the user chose for the Scripture text in community checking, as a multiple of the default.</summary>
+    public double? CheckingFontSize { get; set; }
+
     public List<EditorTabPersistData> EditorTabsOpen { get; set; } = [];
     public LynxInsightUserData? LynxInsightState { get; set; }
     public string? SelectedQuestionRef { get; set; }

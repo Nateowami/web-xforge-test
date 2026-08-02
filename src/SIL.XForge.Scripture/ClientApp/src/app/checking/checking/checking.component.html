@@ -99,7 +99,11 @@
                   <mat-icon class="material-icons-outlined">audio_file</mat-icon>
                 </button>
               }
-              <app-font-size [class.hidden]="hideChapterText" (apply)="applyFontChange($event)"></app-font-size>
+              <app-font-size
+                [class.hidden]="hideChapterText"
+                [fontSize]="scriptureFontSize"
+                (fontSizeChange)="applyFontChange($event)"
+              ></app-font-size>
               @if (canShare) {
                 <app-share-button [defaultRole]="defaultShareRole"></app-share-button>
               }
@@ -127,7 +131,7 @@
                   <app-checking-text
                     #textPanel
                     [id]="textDocId"
-                    [fontSize]="scriptureFontSize"
+                    [fontSize]="scriptureFontSize + 'rem'"
                     [activeVerse]="activeQuestionVerseRef"
                     [questionVerses]="questionVerseRefs"
                     (questionVerseSelected)="verseRefClicked($event)"

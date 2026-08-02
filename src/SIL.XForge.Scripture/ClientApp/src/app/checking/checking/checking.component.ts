@@ -137,7 +137,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
   books: number[] = [];
   chapters: number[] = [];
   isQuestionsOverlayVisible: boolean = false;
-  scriptureFontSize: string = '';
+  /** The Scripture text font size, as a multiple of the default size. */
+  scriptureFontSize: number = 1;
   summary: Summary = {
     read: 0,
     unread: 0,
@@ -573,6 +574,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
               routeProjectId,
               this.userService.currentUserId
             );
+            this.scriptureFontSize = this.projectUserConfigDoc.data?.checkingFontSize ?? 1;
 
             // Subscribe to the projectDoc now that it is defined
             this.projectRemoteChangesSub?.unsubscribe();
@@ -873,8 +875,9 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     this.cleanup();
   }
 
-  applyFontChange(fontSize: string): void {
+  applyFontChange(fontSize: number): void {
     this.scriptureFontSize = fontSize;
+    void this.projectUserConfigDoc?.submitJson0Op(op => op.set(puc => puc.checkingFontSize, fontSize));
   }
 
   async answerAction(answerAction: AnswerAction): Promise<void> {

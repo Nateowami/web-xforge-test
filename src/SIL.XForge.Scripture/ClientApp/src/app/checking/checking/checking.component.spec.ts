@@ -2433,6 +2433,23 @@ describe('CheckingComponent', () => {
       discardPeriodicTasks();
     }));
 
+    it('stores the font size in the project user config', fakeAsync(async () => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      expect(env.component.projectUserConfigDoc!.data!.checkingFontSize).toBeUndefined();
+      await (await env.getIncreaseFontSizeButton()).click();
+      expect(env.component.projectUserConfigDoc!.data!.checkingFontSize).toBe(1.1);
+      await (await env.getDecreaseFontSizeButton()).click();
+      expect(env.component.projectUserConfigDoc!.data!.checkingFontSize).toBe(1);
+      await (await env.getFontSizeMenu()).close();
+      discardPeriodicTasks();
+    }));
+
+    it('uses the font size from the project user config', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER, checkingFontSize: 1.5 });
+      expect(env.quillEditor.style.fontSize).toBe('1.5rem');
+      discardPeriodicTasks();
+    }));
+
     it('can select a question from the text', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER });
       env.getVerse(1, 3).dispatchEvent(new Event('click'));
@@ -2875,6 +2892,7 @@ class TestEnvironment {
     questionScope?: QuestionScope;
     hasConnection?: boolean;
     testProject?: SFProject;
+    checkingFontSize?: number;
   }) {
     const { user, testProject, questionScope = 'book', hasConnection = true } = options;
     const projectBookRoute = 'projectBookRoute' in options ? options.projectBookRoute : 'JHN';
@@ -2925,6 +2943,9 @@ class TestEnvironment {
     this.loader = TestbedHarnessEnvironment.loader(this.fixture);
 
     this.setRouteSnapshot(projectBookRoute, projectChapterRoute?.toString(), questionScope);
+    if (options.checkingFontSize != null) {
+      this.adminProjectUserConfig.checkingFontSize = options.checkingFontSize;
+    }
     this.setupDefaultProjectData(user);
 
     // 'ready$' from SharedbRealtimeQueryAdapter (not the MemoryRealtimeQueryAdapter used in tests)

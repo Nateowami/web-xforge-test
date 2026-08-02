@@ -57,7 +57,7 @@ describe('FontSizeComponent', () => {
   });
 
   it('can decrease font', async () => {
-    component.initial = component.max;
+    component.fontSize = component.max;
     component.ngOnInit();
     const initialFontSize = component.fontSize;
 
@@ -74,7 +74,7 @@ describe('FontSizeComponent', () => {
   });
 
   it('can increase font', async () => {
-    component.initial = component.min;
+    component.fontSize = component.min;
     component.ngOnInit();
     const initialFontSize = component.fontSize;
 
@@ -97,7 +97,7 @@ describe('FontSizeComponent', () => {
     const decreaseFontButton: MatButtonHarness = await getDecreaseButton(menu);
     const increaseFontButton: MatButtonHarness = await getIncreaseButton(menu);
 
-    component.initial = component.min;
+    component.fontSize = component.min;
     component.ngOnInit();
     expect(await decreaseFontButton.isDisabled()).toBeTrue();
 
@@ -108,7 +108,7 @@ describe('FontSizeComponent', () => {
     expect(component.fontSize).toEqual(component.min);
     expect(await decreaseFontButton.isDisabled()).toBeTrue();
 
-    component.initial = component.max;
+    component.fontSize = component.max;
     component.ngOnInit();
     expect(await increaseFontButton.isDisabled()).toBeTrue();
 
@@ -142,7 +142,7 @@ describe('FontSizeComponent', () => {
     const min: number = 0.5;
     component.min = min;
     component.ngOnInit();
-    expect(component.fontSize).toEqual(component.initial);
+    expect(component.fontSize).toEqual(1);
     expect(component.fontSize).toBeGreaterThan(min);
     expect(await decreaseFontButton.isDisabled()).toBeFalse();
   });
@@ -155,10 +155,10 @@ describe('FontSizeComponent', () => {
 
     const max: number = 2;
     component.max = max;
-    component.initial = 1;
+    component.fontSize = 1;
     component.ngOnInit();
     expect(await increaseFontButton.isDisabled()).toBeFalse();
-    for (let i = component.initial; i < max; i += component.step) {
+    for (let i = component.fontSize; i < max; i += component.step) {
       await increaseFontButton.click();
     }
     expect(component.fontSize).toEqual(component.max);
@@ -173,10 +173,10 @@ describe('FontSizeComponent', () => {
 
     const max: number = 5;
     component.max = max;
-    component.initial = 1;
+    component.fontSize = 1;
     component.ngOnInit();
     expect(await increaseFontButton.isDisabled()).toBeFalse();
-    for (let i = component.initial; i < max; i += component.step) {
+    for (let i = component.fontSize; i < max; i += component.step) {
       await increaseFontButton.click();
     }
     expect(component.fontSize).toEqual(component.max);
@@ -191,7 +191,7 @@ describe('FontSizeComponent', () => {
 
     component.min = 1;
     component.max = 1.5;
-    component.initial = 2;
+    component.fontSize = 2;
     component.ngOnInit();
     expect(await increaseFontButton.isDisabled()).toBeTrue();
     expect(component.fontSize).toEqual(component.max);
@@ -205,7 +205,7 @@ describe('FontSizeComponent', () => {
 
     component.min = 2;
     component.max = 3;
-    component.initial = 1;
+    component.fontSize = 1;
     component.ngOnInit();
     expect(await decreaseFontButton.isDisabled()).toBeTrue();
     expect(component.fontSize).toEqual(component.min);
@@ -218,14 +218,14 @@ describe('FontSizeComponent', () => {
     }).toThrow(new RangeError(`min (${component.min}) can not be larger than max (${component.max})`));
   });
 
-  it('should emit "apply" when font size is changed', async () => {
+  it('should emit "fontSizeChange" when font size is changed', async () => {
     component.min = 1;
     component.max = 3;
-    component.initial = 1;
+    component.fontSize = 1;
     component.ngOnInit();
 
-    const spy = jasmine.createSpy('apply');
-    component.apply.subscribe(spy);
+    const spy = jasmine.createSpy('fontSizeChange');
+    component.fontSizeChange.subscribe(spy);
 
     const menu: MatMenuHarness = await getMenu();
     await menu.open();
@@ -233,7 +233,14 @@ describe('FontSizeComponent', () => {
     const increaseFontButton: MatButtonHarness = await getIncreaseButton(menu);
     await increaseFontButton.click();
 
-    expect(component.fontSize).toBeGreaterThan(component.initial);
-    expect(spy).toHaveBeenCalledWith(`${component.fontSize}rem`);
+    expect(component.fontSize).toBeGreaterThan(1);
+    expect(spy).toHaveBeenCalledWith(component.fontSize);
+  });
+
+  it('starts at the font size it is given', async () => {
+    component.fontSize = 1.5;
+    component.ngOnInit();
+    fixture.detectChanges();
+    expect(component.fontSize).toEqual(1.5);
   });
 });

@@ -154,6 +154,9 @@ export class SFProjectUserConfigService extends SFProjectDataService<SFProjectUs
       },
       selectedDraftTargetParatextId: {
         bsonType: 'string'
+      },
+      checkingFontSize: {
+        bsonType: 'number'
       }
     },
     additionalProperties: false

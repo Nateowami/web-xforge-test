@@ -31,4 +31,6 @@ export interface SFProjectUserConfig extends ProjectData {
   editorTabsOpen: EditorTabPersistData[];
   lynxInsightState: LynxInsightUserData;
   selectedDraftTargetParatextId?: string;
+  /** The size the user chose for the Scripture text in community checking, as a multiple of the default size. */
+  checkingFontSize?: number;
 }
