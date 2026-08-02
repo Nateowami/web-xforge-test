@@ -446,6 +446,35 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('treats references that are not in the project as invalid rows', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    // MAT is the only book in the project, and chapter 1 is its only chapter, with 100 verses
+    env.selectFileWithContents([
+      ['Reference', 'Questions'],
+      ['MAT 1:101', 'Verse is beyond the end of the chapter'],
+      ['MAT 2:1', 'Chapter is not in the project'],
+      ['GEN 1:1', 'Book is not in the project'],
+      ['MAT 1:99-101', 'Range extends beyond the end of the chapter'],
+      ['MAT 1:1', 'Question for MAT 1:1']
+    ]);
+
+    expect(env.headerText).toBe('These rows in the CSV file were invalid and will be skipped.');
+    const invalidRows = env.tableRows;
+    expect(invalidRows.length).toBe(4);
+    expect(env.getColumnTwoText(invalidRows[0])).toEqual('MAT 1:101');
+    expect(env.getColumnTwoText(invalidRows[1])).toEqual('MAT 2:1');
+    expect(env.getColumnTwoText(invalidRows[2])).toEqual('GEN 1:1');
+    expect(env.getColumnTwoText(invalidRows[3])).toEqual('MAT 1:99-101');
+
+    env.click(env.continueImportButton);
+
+    expect(env.tableRows.length).toBe(1);
+    expect(env.getRowReference(env.tableRows[0])).toEqual('MAT 1:1');
+
+    env.click(env.backButton);
+  }));
+
   it('allows reference and questions columns to be anywhere and ignores irrelevant columns', fakeAsync(() => {
     // (also, it infers the book from the file name)
     const env = new TestEnvironment({ includeAllBooks: true });
@@ -793,13 +822,16 @@ class TestEnvironment {
 
     const gen: TextInfo = {
       bookNum: 1,
-      chapters: [{ number: 41, lastVerse: 57, isValid: true, permissions: {} }],
+      chapters: [
+        { number: 1, lastVerse: 31, isValid: true, permissions: {} },
+        { number: 41, lastVerse: 57, isValid: true, permissions: {} }
+      ],
       hasSource: false,
       permissions: {}
     };
     const mat: TextInfo = {
       bookNum: 40,
-      chapters: [{ number: 1, lastVerse: 5, isValid: true, permissions: {} }],
+      chapters: [{ number: 1, lastVerse: 100, isValid: true, permissions: {} }],
       hasSource: false,
       permissions: {}
     };

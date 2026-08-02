@@ -42,20 +42,24 @@ export class SFValidators {
         return null;
       }
 
-      let isRangeValid = false;
-      if (verseRef.book in textsByBookId) {
-        const chapters = textsByBookId[verseRef.book].chapters.map(c => c.number);
-        if (chapters.includes(verseRef.chapterNum)) {
-          const chapterIndex = chapters.indexOf(verseRef.chapterNum);
-          const lastVerse = textsByBookId[verseRef.book].chapters[chapterIndex].lastVerse;
-          if (verseRef.verseNum >= 1 && verseRef.verseNum <= lastVerse) {
-            isRangeValid = true;
-          }
-        }
-      }
-
-      return isRangeValid ? null : { verseRange: true };
+      return SFValidators.verseRefInProjectRange(verseRef, textsByBookId) ? null : { verseRange: true };
     };
+  }
+
+  /**
+   * Determines whether every verse of a reference exists in the project, i.e. the book is in the project, and the
+   * chapter and verse numbers are within the range of that book's chapters.
+   */
+  static verseRefInProjectRange(verseRef: VerseRef, textsByBookId: TextsByBookId): boolean {
+    const text = textsByBookId[verseRef.book];
+    if (text == null) {
+      return false;
+    }
+    const verseRefs: VerseRef[] = verseRef.hasMultiple ? verseRef.allVerses(true) : [verseRef];
+    return verseRefs.every(ref => {
+      const chapter = text.chapters.find(c => c.number === ref.chapterNum);
+      return chapter != null && ref.verseNum >= 1 && ref.verseNum <= chapter.lastVerse;
+    });
   }
 
   static selectableProject(canBeBlank: boolean = false): ValidatorFn {

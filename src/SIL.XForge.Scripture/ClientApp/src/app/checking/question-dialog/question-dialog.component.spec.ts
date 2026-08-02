@@ -503,6 +503,76 @@ describe('QuestionDialogComponent', () => {
     expect(env.component.selection!.toString()).toEqual('LUK 1:1');
   }));
 
+  it('shows the error for an existing question whose start reference is outside the verse range', fakeAsync(() => {
+    // questions imported from a spreadsheet are not checked against the project, so can be out of range
+    env = new TestEnvironment({
+      dataId: 'question01',
+      ownerRef: 'user01',
+      projectRef: 'project01',
+      verseRef: fromVerseRef(new VerseRef('MAT 1:30')),
+      answers: [],
+      isArchived: false,
+      dateCreated: '',
+      dateModified: ''
+    });
+    flush();
+    tick(EDITOR_READY_TIMEOUT);
+    env.fixture.detectChanges();
+
+    expect(env.scriptureStartInput.classList).toContain('mat-form-field-invalid');
+    expect(env.scriptureStartValidationMsg.textContent).toContain('Must be inside verse range');
+    env.clickElement(env.saveButton);
+    expect(env.afterCloseCallback).not.toHaveBeenCalled();
+  }));
+
+  it('shows the error for an existing question whose end reference is outside the verse range', fakeAsync(() => {
+    env = new TestEnvironment({
+      dataId: 'question01',
+      ownerRef: 'user01',
+      projectRef: 'project01',
+      verseRef: fromVerseRef(new VerseRef('MAT 1:24-30')),
+      answers: [],
+      isArchived: false,
+      dateCreated: '',
+      dateModified: ''
+    });
+    flush();
+    tick(EDITOR_READY_TIMEOUT);
+    env.fixture.detectChanges();
+
+    expect(env.scriptureStartInput.classList).not.toContain('mat-form-field-invalid');
+    expect(env.scriptureEndInput.classList).toContain('mat-form-field-invalid');
+    expect(env.scriptureEndValidationMsg.textContent).toContain('Must be inside verse range');
+  }));
+
+  it('does not show reference errors when a question is being created', fakeAsync(() => {
+    env = new TestEnvironment();
+    flush();
+    expect(env.component.scriptureStart.touched).toBe(false);
+    expect(env.scriptureStartInput.classList).not.toContain('mat-form-field-invalid');
+    expect(env.scriptureEndInput.classList).not.toContain('mat-form-field-invalid');
+  }));
+
+  it('does not show reference errors for a valid existing question', fakeAsync(() => {
+    env = new TestEnvironment({
+      dataId: 'question01',
+      ownerRef: 'user01',
+      projectRef: 'project01',
+      verseRef: fromVerseRef(new VerseRef('MAT 1:3-4')),
+      answers: [],
+      isArchived: false,
+      dateCreated: '',
+      dateModified: ''
+    });
+    flush();
+    tick(EDITOR_READY_TIMEOUT);
+    env.fixture.detectChanges();
+
+    expect(env.component.scriptureStart.touched).toBe(false);
+    expect(env.scriptureStartInput.classList).not.toContain('mat-form-field-invalid');
+    expect(env.scriptureEndInput.classList).not.toContain('mat-form-field-invalid');
+  }));
+
   it('should handle invalid start reference when end reference exists', fakeAsync(() => {
     env = new TestEnvironment();
     flush();

@@ -733,8 +733,15 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
         const refStartsWithBook: boolean = Canon.allBookIds.includes(reference.slice(0, 3)) && reference[3] === ' ';
         const fullReference: string =
           refStartsWithBook || defaultBookId == null ? reference : defaultBookId + ' ' + reference;
+        const verseRef = new VerseRef(fullReference);
+        // a reference that doesn't exist in the project can't be answered, and can't be corrected later without
+        // deleting the question, so skip it rather than importing it
+        if (!SFValidators.verseRefInProjectRange(verseRef, this.data.textsByBookId)) {
+          invalidRows.push([rowNumber, reference, questionText]);
+          continue;
+        }
         questions.push({
-          verseRef: new VerseRef(fullReference),
+          verseRef,
           text: questionText
         });
       } catch {

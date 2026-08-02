@@ -171,6 +171,12 @@ export class QuestionDialogComponent implements OnInit {
     }
     // set initial enabled/disabled state for scriptureEnd
     this.updateScriptureEndEnabled();
+    // References can come from outside the dialog (e.g. imported from a spreadsheet) and be invalid, which prevents
+    // saving. Show why straight away rather than waiting for the user to interact with the fields.
+    if (this.scriptureStart.value !== '' && this.versesForm.invalid) {
+      this.versesForm.markAllAsTouched();
+      this.versesForm.markAsDirty();
+    }
 
     this.scriptureStart.valueChanges.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(() => {
       if (this.scriptureStart.valid) {
