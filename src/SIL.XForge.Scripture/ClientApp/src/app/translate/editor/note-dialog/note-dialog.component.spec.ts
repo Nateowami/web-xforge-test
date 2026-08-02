@@ -533,6 +533,20 @@ describe('NoteDialogComponent', () => {
     expect(env.dialogResult).toEqual(undefined);
   }));
 
+  it('hides save options trigger when every note in the thread is deleted', fakeAsync(() => {
+    // Reopening a thread whose notes have all been deleted, e.g. a biblical term note thread
+    const noteThread: NoteThread = cloneDeep(TestEnvironment.defaultNoteThread);
+    noteThread.notes[0].deleted = true;
+    env = new TestEnvironment({ noteThread });
+    expect(env.notes.length).toEqual(0);
+    expect(env.component.canResolve).toBe(false);
+    expect(env.saveButton.nativeElement.textContent).toEqual('Save');
+    expect(env.saveOptionsButton).toBeNull();
+    // The comment is still required, so submitting without one does not close the dialog
+    env.submit();
+    expect(env.dialogResult).toEqual(undefined);
+  }));
+
   it('hides save options trigger when tag on note thread is restricted resolve', fakeAsync(() => {
     const noteThread: NoteThread = TestEnvironment.getNoteThread();
     const note: Note = {
