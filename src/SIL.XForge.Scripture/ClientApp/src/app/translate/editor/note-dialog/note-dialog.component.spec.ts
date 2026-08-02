@@ -700,6 +700,26 @@ describe('NoteDialogComponent', () => {
 
     rootElement.style.removeProperty('--project-font');
   }));
+
+  it('closes when the note thread is deleted, e.g. by a sync of a book deleted in Paratext', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread() });
+    expect(env.isDialogOpen).toBe(true);
+
+    env.deleteNoteThreadDoc('dataid01');
+
+    expect(env.isDialogOpen).toBe(false);
+    expect(env.dialogResult).toBeUndefined();
+  }));
+
+  it('closes when the text doc is deleted, e.g. by a sync of a book deleted in Paratext', fakeAsync(() => {
+    env = new TestEnvironment({ verseRef: new VerseRef('MAT 1:1') });
+    expect(env.isDialogOpen).toBe(true);
+
+    env.deleteTextDoc();
+
+    expect(env.isDialogOpen).toBe(false);
+    expect(env.dialogResult).toBeUndefined();
+  }));
 });
 
 interface TestEnvironmentConstructorArgs {
@@ -1105,6 +1125,10 @@ class TestEnvironment {
     return this.overlayContainerElement.query(By.css('#text-menu-button'));
   }
 
+  get isDialogOpen(): boolean {
+    return this.overlayContainerElement.query(By.css('mat-dialog-container')) != null;
+  }
+
   private get overlayContainerElement(): DebugElement {
     return this.fixture.debugElement.parent!.query(By.css('.cdk-overlay-container'));
   }
@@ -1129,6 +1153,19 @@ class TestEnvironment {
   selectResolveOption(): void {
     this.component.saveOption = 'resolve';
     tick();
+    this.fixture.detectChanges();
+  }
+
+  deleteNoteThreadDoc(threadDataId: string): void {
+    void this.getNoteThreadDoc(threadDataId).delete();
+    tick(matDialogCloseDelay);
+    this.fixture.detectChanges();
+  }
+
+  deleteTextDoc(): void {
+    const id: string = new TextDocId(TestEnvironment.PROJECT01, 40, 1).toString();
+    void this.realtimeService.get<TextDoc>(TextDoc.COLLECTION, id).delete();
+    tick(matDialogCloseDelay);
     this.fixture.detectChanges();
   }
 

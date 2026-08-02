@@ -1538,7 +1538,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       const threadDoc: NoteThreadDoc = await this.projectService.getNoteThread(
         getNoteThreadDocId(this.projectId, params.threadDataId)
       );
-      const noteIndex: number = threadDoc.data!.notes.findIndex(n => n.dataId === params.dataId);
+      // The thread can be deleted while the note dialog is open, e.g. by a sync of a book that was
+      // deleted in Paratext. There is nothing left to add the note to.
+      if (threadDoc.data == null) return;
+      const noteIndex: number = threadDoc.data.notes.findIndex(n => n.dataId === params.dataId);
       if (noteIndex >= 0) {
         // updated the existing note
         if (threadDoc.data?.notes[noteIndex].editable === true) {

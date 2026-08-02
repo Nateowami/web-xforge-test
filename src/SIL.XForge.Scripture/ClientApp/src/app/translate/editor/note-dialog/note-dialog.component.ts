@@ -1,6 +1,6 @@
 import { CdkScrollable } from '@angular/cdk/scrolling';
 import { NgClass, NgStyle } from '@angular/common';
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, Inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatButtonToggle, MatButtonToggleGroup } from '@angular/material/button-toggle';
@@ -21,6 +21,7 @@ import { TranslocoModule } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { sortBy } from 'lodash-es';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
+import { merge } from 'rxjs';
 import { Note, REATTACH_SEPARATOR } from 'realtime-server/lib/esm/scriptureforge/models/note';
 import {
   BIBLICAL_TERM_TAG_ICON,
@@ -37,6 +38,7 @@ import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
 import { UserService } from 'xforge-common/user.service';
+import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { BiblicalTermDoc } from '../../../core/models/biblical-term-doc';
 import { defaultNoteThreadIcon, NoteThreadDoc } from '../../../core/models/note-thread-doc';
 import { SFProjectDoc } from '../../../core/models/sf-project-doc';
@@ -124,6 +126,7 @@ export class NoteDialogComponent implements OnInit {
 
   constructor(
     @Inject(MAT_DIALOG_DATA) private readonly data: NoteDialogData,
+    private readonly destroyRef: DestroyRef,
     private readonly dialogRef: MatDialogRef<NoteDialogComponent, NoteDialogResult | undefined>,
     private readonly dialogService: DialogService,
     private readonly i18n: I18nService,
@@ -139,6 +142,7 @@ export class NoteDialogComponent implements OnInit {
       this.threadDoc = await this.projectService.getNoteThread(this.projectId + ':' + this.threadDataId);
       this.textDoc = await this.projectService.getText(this.textDocId);
     }
+    this.closeIfDataDeleted();
 
     if (this.biblicalTermId != null) {
       this.biblicalTermDoc = await this.projectService.getBiblicalTerm(this.projectId + ':' + this.biblicalTermId);
@@ -403,6 +407,19 @@ export class NoteDialogComponent implements OnInit {
       content.noteDataId = this.noteIdBeingEdited;
     }
     this.dialogRef.close(content);
+  }
+
+  /**
+   * Closes the dialog if the docs it is showing are deleted while it is open. A sync run after the
+   * book was deleted in Paratext deletes both the note thread doc and the text doc, and everything
+   * the dialog displays comes from those docs, so it would otherwise be left on screen with an
+   * empty verse reference and no context, and saving would write to a doc that no longer exists.
+   */
+  private closeIfDataDeleted(): void {
+    const docs = [this.threadDoc, this.textDoc].filter(doc => doc != null);
+    merge(...docs.map(doc => doc.delete$))
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.dialogRef.close());
   }
 
   private async updateNotesToDisplayAsync(): Promise<void> {
