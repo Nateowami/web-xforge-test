@@ -493,6 +493,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     return SF_DEFAULT_TRANSLATE_SHARE_ROLE;
   }
 
+  get isAppOnline(): boolean {
+    return this.onlineStatusService.isOnline;
+  }
+
   get showSourceTab(): boolean {
     return (
       (this.hasSource && this.hasSourceViewRight) ||

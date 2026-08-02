@@ -173,11 +173,14 @@ describe('EditorTabMenuService', () => {
     // Wait for observables to settle
     env.onlineStatus.setIsOnline(false);
     const offlineItems = await firstValueFrom(service.getMenuItems());
-    expect(offlineItems.map(i => i.type)).toEqual(['history']);
+    // 'project-resource' is still listed while offline, but disabled
+    expect(offlineItems.map(i => i.type)).toEqual(['history', 'project-resource']);
+    expect(offlineItems.map(i => i.disabled)).toEqual([false, true]);
 
     env.onlineStatus.setIsOnline(true);
     const onlineItems = await firstValueFrom(service.getMenuItems());
     expect(onlineItems.map(i => i.type)).toEqual(['history', 'draft', 'project-resource']);
+    expect(onlineItems.every(i => i.disabled === false)).toBe(true);
   });
 
   describe('canShowHistory', () => {

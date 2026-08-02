@@ -48,7 +48,7 @@
 
   <mat-menu #newTabMenu>
     @for (item of menuItems$ | async; track item.type) {
-      <button mat-menu-item (click)="tabAddRequest.next(item.type)">
+      <button mat-menu-item [disabled]="item.disabled === true" (click)="tabAddRequest.next(item.type)">
         @if (item.icon) {
           <mat-icon>{{ item.icon }}</mat-icon>
         }

@@ -97,7 +97,7 @@ export class EditorTabMenuService implements TabMenuService<EditorTabGroupType> 
               }
               break;
             case 'project-resource':
-              if (!isOnline || !this.canShowResource(projectDoc)) {
+              if (!this.canShowResource(projectDoc)) {
                 continue;
               }
               break;
@@ -109,7 +109,10 @@ export class EditorTabMenuService implements TabMenuService<EditorTabGroupType> 
 
           const uniqueTabAlreadyExists = existingTabs.some(tab => tab.unique && tab.type === tabType);
           if (!uniqueTabAlreadyExists) {
-            items.push(this.createMenuItem(tabType));
+            // Selecting a project or resource requires fetching the list of them, so the item is shown disabled
+            // rather than hidden while offline, keeping the menu consistent with what the user saw when online.
+            const disabled = tabType === 'project-resource' && !isOnline;
+            items.push(this.createMenuItem(tabType).pipe(map(item => ({ ...item, disabled }))));
           }
         }
 

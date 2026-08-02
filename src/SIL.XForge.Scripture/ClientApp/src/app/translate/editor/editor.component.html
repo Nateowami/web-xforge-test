@@ -81,9 +81,15 @@
               }
               @case ("blank-tab") {
                 <div class="blank-tab-container">
-                  <app-notice icon="help_outline" type="info" mode="outline">
-                    {{ t("blank_tab_notice") }}
-                  </app-notice>
+                  @if (isAppOnline) {
+                    <app-notice icon="help_outline" type="info" mode="outline">
+                      {{ t("blank_tab_notice") }}
+                    </app-notice>
+                  } @else {
+                    <app-notice icon="cloud_off" type="warning" mode="outline">
+                      {{ t("blank_tab_notice_offline") }}
+                    </app-notice>
+                  }
                 </div>
               }
               @case ("project-resource") {
