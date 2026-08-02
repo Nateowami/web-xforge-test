@@ -35,6 +35,7 @@ import { toVerseRef, VerseRefData } from 'realtime-server/lib/esm/scriptureforge
 import { asyncScheduler, BehaviorSubject, combineLatest, merge, Observable, of, Subscription } from 'rxjs';
 import { distinctUntilChanged, filter, map, startWith, take, throttleTime } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
+import { DialogService } from 'xforge-common/dialog.service';
 import { DonutChartComponent } from 'xforge-common/donut-chart/donut-chart.component';
 import { I18nService } from 'xforge-common/i18n.service';
 import { Breakpoint, MediaBreakpointService } from 'xforge-common/media-breakpoints/media-breakpoint.service';
@@ -215,6 +216,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     private readonly router: Router,
     private readonly permissions: PermissionsService,
     private readonly questionDialogService: QuestionDialogService,
+    private readonly dialogService: DialogService,
     readonly i18n: I18nService,
     private readonly onlineStatusService: OnlineStatusService,
     private readonly chapterAudioDialogService: ChapterAudioDialogService
@@ -586,6 +588,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                     this.onRemovedFromProject();
                   } else if (!this.permissions.canAccessCommunityChecking(this.projectDoc)) {
                     this.onRemovedFromProject();
+                  } else if (this.book != null && !this.projectDoc.data.texts.some(t => t.bookNum === this.book)) {
+                    this.onBookDeleted();
                   }
                 }
               });
@@ -1558,6 +1562,17 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
       ]);
     }, changeUpdateDelayMs);
     this.changeDetector.markForCheck();
+  }
+
+  // The book being viewed was removed from the project, i.e. it was deleted in Paratext and then
+  // synced. Unbind from the deleted data, tell the user what happened, and take them back to the
+  // checking overview, rather than leaving them on a book that no longer exists.
+  private onBookDeleted(): void {
+    const projectId: string = this.projectDoc!.id;
+    this.onRemovedFromProject();
+    void this.dialogService.message(this.i18n.translate('checking.text_has_been_deleted')).then(() => {
+      void this.router.navigateByUrl(`/projects/${projectId}/checking`, { replaceUrl: true });
+    });
   }
 
   // Unbind this component from the data when a user is removed from the project, otherwise console

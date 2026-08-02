@@ -471,6 +471,29 @@ describe('CheckingComponent', () => {
       env.waitForSliderUpdate();
     }));
 
+    it('responds to the current book being deleted remotely', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+      when(mockedDialogService.message(anything())).thenResolve();
+      const navigateSpy = spyOn(env.router, 'navigateByUrl').and.resolveTo(true);
+      env.selectQuestion(1);
+      expect(env.component.questionDocs.length).toEqual(14);
+
+      // The book was deleted in Paratext, so a sync removes it from the project
+      env.component.projectDoc!.submitJson0Op(op => op.remove(p => p.texts, 0), false);
+      env.waitForSliderUpdate();
+
+      verify(mockedDialogService.message(anything())).once();
+      expect(navigateSpy).toHaveBeenCalledWith('/projects/project01/checking', { replaceUrl: true });
+      expect(env.component.projectDoc).toBeUndefined();
+      expect(env.component.questionDocs.length).toEqual(0);
+      env.waitForSliderUpdate();
+    }));
+
     it('responds to remote community checking disabled when checker', fakeAsync(() => {
       const env = new TestEnvironment({ user: CHECKER_USER });
       env.selectQuestion(1);

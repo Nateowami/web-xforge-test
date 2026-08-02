@@ -203,6 +203,7 @@
     "question_scope_book": "Current book",
     "question_scope_chapter": "Current chapter",
     "questions_range": "Questions range",
+    "text_has_been_deleted": "The book has been deleted or is no longer accessible.",
     "tooltip_questions_filter": "Filter questions",
     "unknown_author": "Unknown author",
     "upload_audio_file": "Upload Audio",
