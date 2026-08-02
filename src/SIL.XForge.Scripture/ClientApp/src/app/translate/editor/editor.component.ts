@@ -112,7 +112,7 @@ import { isString } from '../../../type-utils';
 import { defaultNoteThreadIcon, NoteThreadDoc, NoteThreadIcon } from '../../core/models/note-thread-doc';
 import { SFProjectDoc } from '../../core/models/sf-project-doc';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
-import { SF_DEFAULT_TRANSLATE_SHARE_ROLE } from '../../core/models/sf-project-role-info';
+import { getUserShareableRoles, SF_DEFAULT_TRANSLATE_SHARE_ROLE } from '../../core/models/sf-project-role-info';
 import { SFProjectUserConfigDoc } from '../../core/models/sf-project-user-config-doc';
 import { TextDocId } from '../../core/models/text-doc';
 import { Revision } from '../../core/paratext.service';
@@ -543,12 +543,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   get canShare(): boolean {
     return (
       this.projectDoc?.data != null &&
-      SF_PROJECT_RIGHTS.hasRight(
-        this.projectDoc.data,
-        this.userService.currentUserId,
-        SFProjectDomain.UserInvites,
-        Operation.Create
-      )
+      getUserShareableRoles(this.projectDoc.data, this.userService.currentUserId).length > 0
     );
   }
 
