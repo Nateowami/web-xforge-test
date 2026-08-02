@@ -566,7 +566,6 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
               throw new Error('Project has no texts');
             }
 
-            this.books = this.projectDoc.data.texts.map(t => t.bookNum).sort((a, b) => a - b) ?? [];
             this.initQuestionFilters();
 
             this.projectUserConfigDoc = await this.projectService.getUserConfig(
@@ -586,6 +585,18 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                     this.onRemovedFromProject();
                   } else if (!this.permissions.canAccessCommunityChecking(this.projectDoc)) {
                     this.onRemovedFromProject();
+                  } else {
+                    // Books can be removed from the project by a sync while this page is open
+                    this.updateBooks();
+                    const book: number | undefined = this.book;
+                    if (book != null && !this.bookExists(book) && this.books.length > 0) {
+                      // Show the closest book that still exists, letting its chapter be suggested
+                      const nextBook: number = this.books.find(b => b > book) ?? this.books[this.books.length - 1];
+                      this.navigateBookChapter(this.projectDoc.id, this.activeQuestionScope!, nextBook, undefined, {
+                        replaceUrl: true
+                      });
+                    }
+                    this.changeDetector.markForCheck();
                   }
                 }
               });
@@ -610,10 +621,15 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
           }
 
           this.activeQuestionScope = routeScope;
+          this.updateBooks();
+
+          // A book in the route that the project no longer has (deleted in Paratext, then synced) cannot be
+          // shown, so ignore it and let an available book be suggested instead
+          const bookNum: number | undefined = this.bookExists(routeBookNum) ? routeBookNum : undefined;
 
           // If book/chapter is specified in route, use routed book/chapter even if it contains no questions
-          if (routeBookNum != null && routeChapterNum != null) {
-            this.book = routeBookNum;
+          if (bookNum != null && routeChapterNum != null) {
+            this.book = bookNum;
             this.chapter = routeChapterNum;
             this.routeBookChapter = {
               bookNum: this.book,
@@ -623,7 +639,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
             this.defaultQuestionsQuery = await this.checkingQuestionsService.queryAdjacentQuestions(
               this.projectDoc!.id,
               {
-                bookNum: routeBookNum ?? 1,
+                bookNum: bookNum ?? 1,
                 chapterNum: 1,
                 verseNum: 0
               },
@@ -633,7 +649,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
             this.defaultQuestionsQuerySub = this.defaultQuestionsQuery.ready$
               .pipe(ready => ready, quietTakeUntilDestroyed(this.destroyRef))
               .subscribe(async () => {
-                const suggestedBookChapter: BookChapter = await this.getSuggestedNavBookChapter(routeBookNum);
+                const suggestedBookChapter: BookChapter = await this.getSuggestedNavBookChapter(bookNum);
                 this.navigateBookChapter(
                   routeProjectId,
                   routeScope!,
@@ -657,14 +673,14 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
           if (
             routeProjectId !== prevProjectId ||
             routeScope !== prevScope ||
-            (routeScope !== 'all' && routeBookNum !== prevBookNum) ||
+            (routeScope !== 'all' && bookNum !== prevBookNum) ||
             (routeScope === 'chapter' && (routeChapter == null ? undefined : parseInt(routeChapter)) !== prevChapterNum)
           ) {
             this.cleanup();
             this.questionsQuery = await this.checkingQuestionsService.queryQuestions(
               routeProjectId,
               {
-                bookNum: routeScope === 'all' ? undefined : routeBookNum,
+                bookNum: routeScope === 'all' ? undefined : bookNum,
                 chapterNum: routeScope === 'chapter' ? routeChapterNum : undefined,
                 sort: true,
                 activeOnly: true
@@ -1689,7 +1705,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     let suggestedBookChapter: BookChapter | undefined;
 
     // Suggest book/chapter from last user selected question
-    if (lastSelected?.bookNum != null && lastSelected.chapterNum != null) {
+    if (lastSelected?.bookNum != null && lastSelected.chapterNum != null && this.bookExists(lastSelected.bookNum)) {
       // If route book is provided, don't use stored question from a different book
       if (routeBookNum == null || routeBookNum === lastSelected.bookNum) {
         suggestedBookChapter = lastSelected;
@@ -1701,7 +1717,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
       const firstQuestionVerseRef: VerseRefData | undefined = this.filterQuestions(this.defaultQuestionsQuery!.docs)[0]
         ?.data?.verseRef;
 
-      if (firstQuestionVerseRef != null) {
+      if (firstQuestionVerseRef != null && this.bookExists(firstQuestionVerseRef.bookNum)) {
         // If route book is provided, don't use question from a different book
         if (routeBookNum == null || routeBookNum === firstQuestionVerseRef.bookNum) {
           suggestedBookChapter = {
@@ -1717,8 +1733,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     // or provided route book.
     if (suggestedBookChapter == null) {
       const texts: TextInfo[] = this.projectDoc!.data!.texts;
-      const navBookNum: number = routeBookNum ?? this.books[0];
-      const navChapterNum: number = texts.find(t => t.bookNum === navBookNum)!.chapters[0].number;
+      const navBookNum: number = this.bookExists(routeBookNum) ? routeBookNum! : this.books[0];
+      const navChapterNum: number = texts.find(t => t.bookNum === navBookNum)?.chapters[0].number ?? 1;
 
       suggestedBookChapter = {
         bookNum: navBookNum,
@@ -1727,6 +1743,16 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     }
 
     return suggestedBookChapter;
+  }
+
+  /** Whether the project still has the specified book. Books are removed by a sync when deleted in Paratext. */
+  private bookExists(bookNum: number | undefined): boolean {
+    return bookNum != null && this.projectDoc?.data?.texts.some(t => t.bookNum === bookNum) === true;
+  }
+
+  /** Updates the books available in the book chooser from the project. */
+  private updateBooks(): void {
+    this.books = this.projectDoc?.data?.texts.map(t => t.bookNum).sort((a, b) => a - b) ?? [];
   }
 
   /**

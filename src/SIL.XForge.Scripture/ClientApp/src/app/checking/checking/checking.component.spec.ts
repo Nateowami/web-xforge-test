@@ -235,6 +235,35 @@ describe('CheckingComponent', () => {
       expect(env.router.url).toContain('MAT/1?scope=book');
     }));
 
+    it('reroutes when the book in the route is not in the project', fakeAsync(() => {
+      // A book deleted in Paratext is removed from the project by a sync, but links and bookmarks remain
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'LUK',
+        projectChapterRoute: 1,
+        questionScope: 'book'
+      });
+
+      expect(env.component.books).toEqual([40, 43]);
+      expect(env.router.url).toContain('MAT/1?scope=book');
+    }));
+
+    it('leaves a book that is removed from the project while it is being viewed', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'book'
+      });
+      expect(env.component.books).toEqual([40, 43]);
+
+      env.removeBookFromProject(43);
+
+      expect(env.component.books).toEqual([40]);
+      expect(env.router.url).not.toContain('JHN');
+      env.waitForQuestionTimersToComplete();
+    }));
+
     describe('Prev/Next question buttons', () => {
       it('can navigate using next button', fakeAsync(() => {
         const env = new TestEnvironment({ user: ADMIN_USER });
@@ -3284,6 +3313,14 @@ class TestEnvironment {
     this.setRouteSnapshot(bookId, chapter.toString(), this.queryParams$.value.scope);
     this.params$.next({ projectId: 'project01', bookId, chapter: chapter.toString() });
     tick();
+  }
+
+  /** Simulates a sync removing a book from the project after it was deleted in Paratext. */
+  removeBookFromProject(bookNum: number): void {
+    const index: number = this.component.projectDoc!.data!.texts.findIndex(t => t.bookNum === bookNum);
+    this.component.projectDoc!.submitJson0Op(op => op.remove(p => p.texts, index), false);
+    tick();
+    this.fixture.detectChanges();
   }
 
   setQuestionScope(scope: QuestionScope): void {
