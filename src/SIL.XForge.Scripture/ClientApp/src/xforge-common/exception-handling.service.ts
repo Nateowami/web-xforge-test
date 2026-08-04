@@ -8,6 +8,7 @@ import { MACHINE_API_BASE_URL } from '../app/machine-api/http-client';
 import { environment } from '../environments/environment';
 import { hasObjectProp, hasStringProp } from '../type-utils';
 import { CONSOLE } from './browser-globals';
+import { isNetworkError } from './command.service';
 import { DialogService } from './dialog.service';
 import { ErrorAlertData, ErrorDialogComponent } from './error-dialog/error-dialog.component';
 import { ErrorReportingService } from './error-reporting.service';
@@ -194,17 +195,9 @@ export class ExceptionHandlingService {
       return;
     }
 
-    if (
-      error instanceof HttpErrorResponse &&
-      error.status === 504 &&
-      error.statusText === 'Gateway Timeout' &&
-      error.url != null
-    ) {
-      // ignore 504 errors from ngsw-worker.js to machine-api or command-api (these happen when offline)
-      const url = new URL(error.url);
-      if (url.pathname.startsWith('/' + MACHINE_API_BASE_URL) || url.pathname.startsWith('/' + COMMAND_API_NAMESPACE)) {
-        silently = true;
-      }
+    // ignore 504 errors from ngsw-worker.js to machine-api or command-api (these happen when offline)
+    if (this.isOfflineGatewayTimeout(error)) {
+      silently = true;
     }
 
     if (
@@ -261,6 +254,30 @@ export class ExceptionHandlingService {
       this.console.log(`Error occurred. Reported to Bugsnag with release stage set to ${environment.releaseStage}:`);
       this.console.error(error);
     }
+  }
+
+  /**
+   * Whether the error is a machine-api or command-api request that failed only because the app is offline. The
+   * service worker answers requests it cannot serve from cache with a synthetic 504 Gateway Timeout, so such a
+   * failure says nothing more than "you are offline" and must not be shown as an application error.
+   *
+   * The same offline 504 reaches this method in two shapes: as the raw HttpErrorResponse (machine-api, which uses
+   * HttpClient directly), and wrapped in a CommandError (command-api, whose responses all pass through
+   * CommandService, which converts every failure into a CommandError). CommandError only ever comes from a
+   * command-api call, so no URL check is needed for it.
+   */
+  private isOfflineGatewayTimeout(error: object): boolean {
+    if (isNetworkError(error)) return true;
+    if (
+      !(error instanceof HttpErrorResponse) ||
+      error.status !== 504 ||
+      error.statusText !== 'Gateway Timeout' ||
+      error.url == null
+    ) {
+      return false;
+    }
+    const url = new URL(error.url);
+    return url.pathname.startsWith('/' + MACHINE_API_BASE_URL) || url.pathname.startsWith('/' + COMMAND_API_NAMESPACE);
   }
 
   private sendReport(errorReportingService: ErrorReportingService, error: any, unhandled: boolean): void {

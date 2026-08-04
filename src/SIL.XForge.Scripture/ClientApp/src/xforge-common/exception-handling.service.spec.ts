@@ -10,6 +10,7 @@ import { of } from 'rxjs';
 import { anything, capture, instance, mock, verify, when } from 'ts-mockito';
 import { AuthService } from './auth.service';
 import { CONSOLE } from './browser-globals';
+import { CommandError, CommandErrorCode } from './command.service';
 import { DialogService } from './dialog.service';
 import { ErrorDialogComponent } from './error-dialog/error-dialog.component';
 import { ErrorReportingService } from './error-reporting.service';
@@ -45,7 +46,9 @@ class MockConsole {
         'Original error',
         'Http failure response for (unknown url): 400 Bad Request',
         'Http failure response for http://localhost:5000/command-api/some-end-point: 504 Gateway Timeout',
-        'Http failure response for http://localhost:5000/machine-api/v3/translation/engines/some-end-point: 504 Gateway Timeout'
+        'Http failure response for http://localhost:5000/machine-api/v3/translation/engines/some-end-point: 504 Gateway Timeout',
+        'Error invoking getProjectProgress: Http failure response for http://localhost:5000/command-api/projects: 504 Gateway Timeout',
+        'Error invoking getProjectProgress: The user is not authorized'
       ].includes(val.message) &&
       !val.message?.startsWith('Unknown error')
     ) {
@@ -155,6 +158,29 @@ describe('ExceptionHandlingService', () => {
     expect(env.service['handleAlert']).not.toHaveBeenCalled();
 
     env.handleError(new HttpErrorResponse({ status: 400, statusText: 'Bad Request' }));
+
+    expect(env.service['handleAlert']).toHaveBeenCalled();
+    verify(mockedNoticeService.showError(anything())).never();
+  }));
+
+  it('should silently report offline 504 errors that arrive wrapped in a CommandError', fakeAsync(() => {
+    const env = new TestEnvironment();
+    spyOn<any>(env.service, 'handleAlert');
+
+    // CommandService turns the service worker's offline 504 into a CommandError before it reaches the error handler
+    env.handleError(
+      new CommandError(
+        CommandErrorCode.Other,
+        'Error invoking getProjectProgress: Http failure response for ' +
+          'http://localhost:5000/command-api/projects: 504 Gateway Timeout'
+      )
+    );
+
+    expect(env.service['handleAlert']).not.toHaveBeenCalled();
+
+    env.handleError(
+      new CommandError(CommandErrorCode.Forbidden, 'Error invoking getProjectProgress: The user is not authorized')
+    );
 
     expect(env.service['handleAlert']).toHaveBeenCalled();
     verify(mockedNoticeService.showError(anything())).never();
