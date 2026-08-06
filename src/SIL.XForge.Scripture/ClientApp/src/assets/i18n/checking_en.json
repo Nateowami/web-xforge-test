@@ -430,7 +430,8 @@
     "choose_book": "Choose book",
     "choose_chapter": "Choose chapter",
     "choose_end_verse": "Choose end verse",
-    "choose_verse": "Choose verse"
+    "choose_verse": "Choose verse",
+    "no_verse_markers_in_chapter": "Paratext has no verse markers in this chapter."
   },
   "share": {
     "share": "Share"

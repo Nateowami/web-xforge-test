@@ -71,6 +71,8 @@
               } @else {
                 <button mat-button (click)="onClickVerse(verse)">{{ verse }}</button>
               }
+            } @empty {
+              <div class="error-message">{{ t("no_verse_markers_in_chapter") }}</div>
             }
           </div>
         </div>

@@ -2,6 +2,11 @@
   padding: 1em;
 }
 
+.error-message {
+  color: var(--sf-error-color);
+  padding: 0 1em 1em;
+}
+
 .book-lists {
   display: flex;
   flex-direction: column;

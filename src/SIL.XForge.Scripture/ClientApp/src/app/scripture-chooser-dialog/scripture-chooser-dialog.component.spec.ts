@@ -193,6 +193,32 @@ describe('ScriptureChooserDialog', () => {
     expect(env.dialogText).not.toContain(nonexistentVerseOfRomans11);
   }));
 
+  it('shows a message, rather than nothing, for a chapter with no verse markers', fakeAsync(() => {
+    env = new TestEnvironment({
+      textsInProject: [
+        {
+          bookNum: 45,
+          chapters: [
+            { number: 3, lastVerse: 31, isValid: true, permissions: {} },
+            { number: 4, lastVerse: 0, isValid: true, permissions: {} }
+          ],
+          hasSource: false,
+          permissions: {}
+        }
+      ]
+    });
+    // The dialog starts at the chapter chooser, since the project has only one book
+    env.click(env.buttonWithText('3'));
+    expect(env.verseButtons.length).toEqual(31);
+    expect(env.dialogText).not.toContain('no verse markers');
+
+    env.click(env.backoutButton);
+    env.click(env.buttonWithText('4'));
+    expect(env.component.showing).toEqual('verses');
+    expect(env.verseButtons.length).toEqual(0);
+    expect(env.dialogText).toContain('no verse markers');
+  }));
+
   it('splits input books by OT and NT', () => {
     env = new TestEnvironment();
     expect(env.component.otBooks.includes('EXO')).toBe(true);
@@ -503,6 +529,10 @@ describe('ScriptureChooserDialog', () => {
 
     get reference(): string {
       return this.fixture.debugElement.query(By.css('.reference')).nativeElement.textContent.trim();
+    }
+
+    get verseButtons(): DebugElement[] {
+      return this.fixture.debugElement.queryAll(By.css('#versePane [mat-dialog-content] button'));
     }
 
     get backoutButton(): DebugElement {
