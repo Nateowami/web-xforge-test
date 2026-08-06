@@ -8,6 +8,9 @@
   --sf-community-checking-badge-text-size: 9px;
   --sf-community-checking-badge-container-size: 16px;
   --sf-community-checking-badge-line-height: 16px;
+  // Without horizontal padding a count of 3 or more digits fills the badge edge to edge, and the rounded
+  // corners clip the first and last digit. The padding lets the badge grow into a pill instead.
+  --sf-community-checking-badge-container-padding: 0 4px;
   --sf-community-checking-question-list-hover-background: #{mat.get-theme-color($theme, primary, if($is-dark, 10, 95))};
   --sf-community-checking-question-list-selected-background: #{mat.get-theme-color(
       $theme,
