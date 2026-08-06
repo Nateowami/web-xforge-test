@@ -44,12 +44,11 @@ import { SFProjectService } from '../../core/sf-project.service';
 import { TextDocService } from '../../core/text-doc.service';
 import { LynxInsightEditorObjectsComponent } from '../../translate/editor/lynx/insights/lynx-insight-editor-objects/lynx-insight-editor-objects.component';
 import { MultiCursorViewer } from '../../translate/editor/multi-viewer/multi-viewer.component';
-import { attributeFromMouseEvent } from '../utils';
 import { getBaseVerse, getVerseRefFromSegmentRef, getVerseStrFromSegmentRef, VERSE_REGEX } from '../verse-utils';
 import { QuillFormatRegistryService } from './quill-editor-registration/quill-format-registry.service';
 import { getAttributesAtPosition, getRetainCount } from './quill-util';
 import { Segment } from './segment';
-import { NoteDialogData, TextNoteDialogComponent } from './text-note-dialog/text-note-dialog.component';
+import { NoteDialogData, TextNoteDialogComponent, TextNoteType } from './text-note-dialog/text-note-dialog.component';
 import { EditorRange, TextViewModel } from './text-view-model';
 
 // When a user is active in the editor a timer starts to mark them as inactive for remote presences
@@ -148,7 +147,6 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   private cursorMoveKeyHoldTimeout?: any;
   private cursorMoveKeyHoldDelay: number = 500; // Press and hold ms delay before switching to system cursor
 
-  private clickSubs: Map<string, Subscription[]> = new Map<string, Subscription[]>();
   private _isReadOnly: boolean = true;
   private _editorStyles: any = { fontSize: '1rem' };
   private activePresenceSubscription?: Subscription;
@@ -695,6 +693,11 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     fromEvent(this.window, 'resize')
       .pipe(quietTakeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.setHighlightMarkerPosition());
+    // Listen on the container so that notes are clickable however the contents were set, whether by binding a text
+    // doc or by setting the contents directly, as the history and draft tabs do.
+    fromEvent<MouseEvent>(editor.container, 'click')
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(event => this.onNoteClick(event));
     this.viewModel.editor = editor;
     void this.bindQuill(); // not awaited
     editor.container.addEventListener('beforeinput', (ev: Event) => this.onBeforeinput(ev));
@@ -1248,32 +1251,26 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
     this.loaded.emit(true);
     this.applyEditorStyles();
-    // These refer to footnotes, cross-references, and end notes and not actual notes
-    const elements = this.editor?.container.querySelectorAll('usx-note');
-    if (elements != null) {
-      this.clickSubs.get('notes')?.forEach(s => s.unsubscribe());
-      this.clickSubs.set(
-        'notes',
-        Array.from(elements).map((element: Element) =>
-          fromEvent<MouseEvent>(element, 'click')
-            .pipe(quietTakeUntilDestroyed(this.destroyRef))
-            .subscribe(event => {
-              const noteText = attributeFromMouseEvent(event, 'USX-NOTE', 'title');
-              const noteType = attributeFromMouseEvent(event, 'USX-NOTE', 'data-style');
-              this.dialogService.openMatDialog(TextNoteDialogComponent, {
-                width: '600px',
-                data: {
-                  type: noteType,
-                  text: noteText,
-                  isRightToLeft: this.isRtl
-                } as NoteDialogData
-              });
-            })
-        )
-      );
-    }
 
     this.createLocalCursor();
+  }
+
+  /**
+   * Opens a dialog showing the contents of the note that was clicked, if any. These notes refer to footnotes,
+   * cross-references, and end notes, and not to note threads.
+   */
+  private onNoteClick(event: MouseEvent): void {
+    const target = event.target;
+    const note: Element | null = target instanceof Element ? target.closest('usx-note') : null;
+    if (note == null) {
+      return;
+    }
+    const data: NoteDialogData = {
+      type: note.getAttribute('data-style') as TextNoteType,
+      text: note.getAttribute('title') ?? '',
+      isRightToLeft: this.isRtl
+    };
+    this.dialogService.openMatDialog(TextNoteDialogComponent, { width: '600px', data });
   }
 
   private createLocalCursor(): void {

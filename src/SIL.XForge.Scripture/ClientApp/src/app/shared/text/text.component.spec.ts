@@ -1451,6 +1451,38 @@ describe('TextComponent', () => {
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
   }));
 
+  it('can display footnote dialog when the contents are set directly', fakeAsync(() => {
+    // The history and draft tabs do not bind a text doc, but set the editor contents directly
+    const env = new TestEnvironment();
+    env.waitForEditor();
+
+    env.component.setContents(
+      new Delta([
+        { insert: { chapter: { number: '1', style: 'c' } } },
+        { insert: { verse: { number: '1', style: 'v' } } },
+        { insert: 'quick brown', attributes: { segment: 'verse_1_1' } },
+        {
+          insert: {
+            note: {
+              caller: '+',
+              style: 'f',
+              contents: { ops: [{ insert: 'footnote text' }] }
+            }
+          },
+          attributes: { segment: 'verse_1_1' }
+        }
+      ]),
+      'api'
+    );
+    tick();
+    env.fixture.detectChanges();
+
+    const note = env.quillEditor.querySelector('usx-note[data-style="f"]') as HTMLElement;
+    expect(note).not.toBeNull();
+    note.click();
+    verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).once();
+  }));
+
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
     const env = new TestEnvironment();
     env.id = new TextDocId('project01', 40, 1);
