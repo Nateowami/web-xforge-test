@@ -84,6 +84,22 @@ describe('SettingsComponent', () => {
     ]
   }));
 
+  describe('Sync disabled', () => {
+    it('should explain that sync is disabled for the project', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject({ syncDisabled: true });
+      env.wait();
+      expect(env.syncDisabledMessage).not.toBeNull();
+    }));
+
+    it('should not explain that sync is disabled when it is not', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject();
+      env.wait();
+      expect(env.syncDisabledMessage).toBeNull();
+    }));
+  });
+
   describe('Tasks', () => {
     it('should select Checking and then submit update when clicked', fakeAsync(() => {
       const env = new TestEnvironment();
@@ -847,6 +863,10 @@ class TestEnvironment {
     return this.fixture.debugElement.query(By.css('#based-on-status'));
   }
 
+  get syncDisabledMessage(): HTMLElement {
+    return this.fixture.nativeElement.querySelector('#sync-disabled-message');
+  }
+
   get paratextAccountNotice(): DebugElement {
     return this.fixture.debugElement.query(By.css('#paratext-account-not-connected'));
   }
@@ -1062,6 +1082,9 @@ class TestEnvironment {
     }
     if (data.sync != null) {
       projectData.sync = merge(projectData.sync, data.sync);
+    }
+    if (data.syncDisabled != null) {
+      projectData.syncDisabled = data.syncDisabled;
     }
     if (data.rolePermissions != null) {
       const rolePermissions: { [key: string]: string[] } = {};

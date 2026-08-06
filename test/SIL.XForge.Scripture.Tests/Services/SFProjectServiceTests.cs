@@ -2904,6 +2904,44 @@ public class SFProjectServiceTests
     }
 
     [Test]
+    public async Task UpdateSettingsAsync_ChangeSourceProjectWhenSyncDisabled_SavesSettingAndSyncsTheSourceOnly()
+    {
+        var env = new TestEnvironment();
+        await env
+            .RealtimeService.GetRepository<SFProject>()
+            .UpdateAsync(Project01, u => u.Set(p => p.SyncDisabled, true));
+
+        // A sync of this project is not possible, so the settings update must not fail because of it
+        await env.Service.UpdateSettingsAsync(
+            User01,
+            Project01,
+            new SFProjectSettings { SourceParatextId = "changedId", TranslationSuggestionsEnabled = true }
+        );
+
+        SFProject project = env.GetProject(Project01);
+        Assert.That(project.TranslateConfig.Source.ParatextId, Is.EqualTo("changedId"));
+
+        // The source is synced directly, as the sync of this project which would normally do that cannot be run
+        string sourceId = project.TranslateConfig.Source.ProjectRef;
+        await env.SyncService.Received().SyncAsync(Arg.Is<SyncConfig>(s => s.ProjectId == sourceId));
+        await env.SyncService.DidNotReceive().SyncAsync(Arg.Is<SyncConfig>(s => s.ProjectId == Project01));
+    }
+
+    [Test]
+    public async Task UpdateSettingsAsync_EnableCheckingWhenSyncDisabled_SavesSettingWithoutSyncing()
+    {
+        var env = new TestEnvironment();
+        await env
+            .RealtimeService.GetRepository<SFProject>()
+            .UpdateAsync(Project01, u => u.Set(p => p.SyncDisabled, true));
+
+        await env.Service.UpdateSettingsAsync(User01, Project01, new SFProjectSettings { CheckingEnabled = true });
+
+        Assert.That(env.GetProject(Project01).CheckingConfig.CheckingEnabled, Is.True);
+        await env.SyncService.DidNotReceive().SyncAsync(Arg.Any<SyncConfig>());
+    }
+
+    [Test]
     public async Task UpdateSettingsAsync_SelectSourceProject_NoMachineProjectAndSync()
     {
         var env = new TestEnvironment();

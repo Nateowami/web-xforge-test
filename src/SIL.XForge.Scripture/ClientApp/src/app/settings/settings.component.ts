@@ -33,6 +33,7 @@ import { RouterLinkDirective } from 'xforge-common/router-link.directive';
 import { UserService } from 'xforge-common/user.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { WriteStatusComponent } from 'xforge-common/write-status/write-status.component';
+import { environment } from '../../environments/environment';
 import { ParatextProject } from '../core/models/paratext-project';
 import { SelectableProject } from '../core/models/selectable-project';
 import { SFProjectDoc } from '../core/models/sf-project-doc';
@@ -182,6 +183,17 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
 
   get biblicalTermsMessage(): string | undefined {
     return this.projectDoc?.data?.biblicalTermsConfig.errorMessage;
+  }
+
+  get isSyncDisabled(): boolean {
+    return this.projectDoc?.data?.syncDisabled === true;
+  }
+
+  /** Explains that settings which only take effect on the next sync (e.g. the source text) will not do so yet. */
+  get syncDisabledMessage(): string {
+    return this.i18n.translateAndInsertTags('sync.sync_is_disabled', {
+      email: `<a target="_blank" href="mailto:${environment.issueEmail}">${environment.issueEmail}</a>`
+    });
   }
 
   set isAppOnline(isOnline: boolean) {

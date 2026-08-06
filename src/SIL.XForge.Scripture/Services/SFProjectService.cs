@@ -412,7 +412,9 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
                 conn,
                 curUserId,
                 settings.SourceParatextId,
-                skipSync: true,
+                // The sync of this project below will sync the source too, unless sync is disabled for this
+                // project - in which case the source has to be synced directly or its text will never appear
+                skipSync: !projectDoc.Data.SyncDisabled,
                 updatePermissions: true,
                 ptProjects,
                 resources,
@@ -513,8 +515,12 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
         bool sourceParatextIdSet = settings.SourceParatextId != null || unsetSourceProject;
         bool checkingEnabledSet = settings.CheckingEnabled != null;
         bool biblicalTermsEnabledSet = settings.BiblicalTermsEnabled != null;
-        // check if a sync needs to be run
-        if (suggestionsEnabledSet || sourceParatextIdSet || checkingEnabledSet || biblicalTermsEnabledSet)
+        // check if a sync needs to be run. A sync is not possible if a system administrator has disabled sync for
+        // the project, and asking for one anyway would fail the whole update after the settings have been saved.
+        if (
+            (suggestionsEnabledSet || sourceParatextIdSet || checkingEnabledSet || biblicalTermsEnabledSet)
+            && !projectDoc.Data.SyncDisabled
+        )
         {
             bool trainEngine = false;
             if (suggestionsEnabledSet || sourceParatextIdSet)
@@ -2563,7 +2569,7 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
         // This is usually because this is a drafting or training source
         bool syncNeeded =
             projectCreated || (sourceProject is not null && sourceProject.Sync.LastSyncSuccessful == false);
-        if (syncNeeded && !skipSync)
+        if (syncNeeded && !skipSync && !(sourceProject?.SyncDisabled ?? false))
         {
             // This will also update any references in the target project to the source project
             await _syncService.SyncAsync(new SyncConfig { ProjectId = sourceProjectRef, UserId = curUserId });

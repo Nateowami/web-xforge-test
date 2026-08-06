@@ -4,6 +4,9 @@
     @if (!isAppOnline) {
       <span class="offline-text"> {{ t("connect_network_to_change_settings") }} </span>
     }
+    @if (isSyncDisabled) {
+      <span id="sync-disabled-message" [innerHTML]="syncDisabledMessage"></span>
+    }
     <div>
       <form [formGroup]="form">
         <!-- Translation Settings Card -->
