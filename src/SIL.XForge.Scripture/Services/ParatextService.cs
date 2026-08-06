@@ -951,14 +951,13 @@ public class ParatextService : DisposableBase, IParatextService
                         }
                         else
                         {
-                            // Chapter level
-                            IEnumerable<int> editable = scrText.Permissions.GetEditableChapters(
-                                book,
-                                scrText.Settings.Versification,
-                                userName,
-                                PermissionSet.Merged
-                            );
-                            if (editable?.Contains(chapter) ?? false)
+                            // Chapter level.
+                            // NOTE: Do not use GetEditableChapters() here. When a user has no chapter level
+                            // restrictions for the book, it enumerates the chapters from the versification, so a
+                            // chapter that exists in the book but not in the versification (i.e. one added in
+                            // Paratext beyond the versification's last chapter) would be reported as read only.
+                            // CanEdit() does not have that limitation.
+                            if (scrText.Permissions.CanEdit(book, chapter, userName, PermissionSet.Merged))
                             {
                                 textInfoPermission = TextInfoPermission.Write;
                             }

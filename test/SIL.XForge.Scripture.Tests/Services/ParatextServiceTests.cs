@@ -544,6 +544,75 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task GetPermissionsAsync_ChapterAfterLastChapterInVersification_HasBookLevelPermission()
+    {
+        // Set up environment
+        var env = new TestEnvironment();
+        UserSecret user01Secret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+
+        // Set up mock project
+        var projects = await env.RealtimeService.GetRepository<SFProject>().GetAllAsync();
+        SFProject project = projects.First();
+
+        var ptUsernameMapping = new Dictionary<string, string> { { env.User01, env.Username01 } };
+        ScrText scrText = env.GetScrText(new SFParatextUser(env.Username01), project.ParatextId);
+        // Give User01 permission to edit all of Ruth
+        scrText.Permissions.SetPermission(env.Username01, 8, PermissionSet.Manual, true);
+        env.MockScrTextCollection.FindById(env.Username01, project.ParatextId).Returns(scrText);
+
+        // SUT
+        // Ruth has 4 chapters in the versification, but a 5th chapter can be created in Paratext
+        Dictionary<string, string> permissions = await env.Service.GetPermissionsAsync(
+            user01Secret,
+            project,
+            ptUsernameMapping,
+            8,
+            5
+        );
+
+        // The user can edit the whole book, so they can edit the chapter that is not in the versification
+        Assert.That(permissions.Values, Is.EquivalentTo(new[] { TextInfoPermission.Write }));
+    }
+
+    [Test]
+    public async Task GetPermissionsAsync_ChapterAfterLastChapterInVersification_HasChapterLevelPermission()
+    {
+        // Set up environment
+        var env = new TestEnvironment();
+        UserSecret user01Secret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+
+        // Set up mock project
+        var projects = await env.RealtimeService.GetRepository<SFProject>().GetAllAsync();
+        SFProject project = projects.First();
+
+        var ptUsernameMapping = new Dictionary<string, string> { { env.User01, env.Username01 } };
+        ScrText scrText = env.GetScrText(new SFParatextUser(env.Username01), project.ParatextId);
+        // Give User01 permission to edit Ruth 1 only
+        scrText.Permissions.SetPermission(env.Username01, 8, PermissionSet.Manual, false);
+        scrText.Permissions.SetPermission(
+            env.Username01,
+            8,
+            1,
+            scrText.Settings.Versification,
+            PermissionSet.Manual,
+            true
+        );
+        env.MockScrTextCollection.FindById(env.Username01, project.ParatextId).Returns(scrText);
+
+        // SUT
+        Dictionary<string, string> permissions = await env.Service.GetPermissionsAsync(
+            user01Secret,
+            project,
+            ptUsernameMapping,
+            8,
+            5
+        );
+
+        // A chapter level restriction still applies to a chapter that is not in the versification
+        Assert.That(permissions.Values, Is.EquivalentTo(new[] { TextInfoPermission.Read }));
+    }
+
+    [Test]
     public async Task GetResourcePermissionAsync_UserNoResourcePermission()
     {
         // Set up environment
