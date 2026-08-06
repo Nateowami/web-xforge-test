@@ -58,6 +58,31 @@ export class MemoryRealtimeRemoteStore extends RealtimeRemoteStore {
 }
 
 /**
+ * Creates a stub presence which, like ShareDB, keeps the local presences that have been created on it.
+ */
+function createPresence(): Presence {
+  const presence = {
+    remotePresences: {},
+    localPresences: {} as Record<string, LocalPresence>,
+    subscribe: (_callback?: Callback) => {},
+    unsubscribe: (_callback?: Callback) => {},
+    create: (id?: string) => {
+      const localPresence: LocalPresence = {
+        submit: (_value: any, _callback?: Callback) => {}
+      } as LocalPresence;
+      if (id != null) {
+        presence.localPresences[id] = localPresence;
+      }
+      return localPresence;
+    },
+    destroy: (_callback?: Callback) => {},
+    on: (_event: string, _handler: Function) => {},
+    off: (_event: string, _handler: Function) => {}
+  };
+  return presence as unknown as Presence;
+}
+
+/**
  * This is a memory-based implementation of the real-time document adapter interface. It is useful for unit tests.
  */
 export class MemoryRealtimeDocAdapter implements RealtimeDocAdapter {
@@ -67,30 +92,8 @@ export class MemoryRealtimeDocAdapter implements RealtimeDocAdapter {
   readonly create$ = new Subject<void>();
   readonly delete$ = new Subject<void>();
   readonly idle$ = EMPTY;
-  readonly channelPresence: Presence = {
-    remotePresences: {},
-    subscribe: (_callback?: Callback) => {},
-    unsubscribe: (_callback?: Callback) => {},
-    create: (_id?: string) =>
-      ({
-        submit: (_value: any, _callback?: Callback) => {}
-      }) as LocalPresence,
-    destroy: (_callback?: Callback) => {},
-    on: (_event: string, _handler: Function) => {},
-    off: (_event: string, _handler: Function) => {}
-  } as Presence;
-  readonly docPresence: Presence = {
-    remotePresences: {},
-    subscribe: (_callback?: Callback) => {},
-    unsubscribe: (_callback?: Callback) => {},
-    create: (_id?: string) =>
-      ({
-        submit: (_value: any, _callback?: Callback) => {}
-      }) as LocalPresence,
-    destroy: (_callback?: Callback) => {},
-    on: (_event: string, _handler: Function) => {},
-    off: (_event: string, _handler: Function) => {}
-  } as Presence;
+  readonly channelPresence: Presence = createPresence();
+  readonly docPresence: Presence = createPresence();
   submitSource: boolean = false;
   subscribed: boolean = false;
   version: number = -1;

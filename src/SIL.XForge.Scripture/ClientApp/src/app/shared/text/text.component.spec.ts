@@ -607,6 +607,44 @@ describe('TextComponent', () => {
       expect(cursorRemoveSpy).toHaveBeenCalledTimes(1);
     }));
 
+    it('should announce presence again when coming back online', fakeAsync(() => {
+      const env: TestEnvironment = new TestEnvironment();
+      env.fixture.detectChanges();
+      env.id = new TextDocId('project01', 40, 1);
+      env.waitForEditor();
+
+      env.onlineStatus = false;
+      const presenceChannelSubmit = spyOn<any>(env.localPresenceChannel, 'submit');
+
+      env.onlineStatus = true;
+
+      // Other users only know this user is viewing the chapter if the presence is submitted again
+      expect(presenceChannelSubmit).toHaveBeenCalledTimes(1);
+      const presenceData: PresenceData = presenceChannelSubmit.calls.mostRecent().args[0] as PresenceData;
+      expect(presenceData.viewer.activeInEditor).toBe(false);
+    }));
+
+    it('should re-use the local presence when the chapter changes while offline', fakeAsync(() => {
+      // ShareDB numbers presence submissions, and other clients ignore submissions numbered lower than the last one
+      // they saw. Creating a new local presence would start numbering from zero again.
+      const env: TestEnvironment = new TestEnvironment();
+      env.fixture.detectChanges();
+      env.id = new TextDocId('project01', 40, 1);
+      env.waitForEditor();
+      const localPresenceChannel: LocalPresence<PresenceData> = env.localPresenceChannel;
+      const localPresenceDoc: LocalPresence<QuillRange | null> = env.localPresenceDoc;
+
+      env.onlineStatus = false;
+      env.id = new TextDocId('project01', 40, 2);
+      env.waitForEditor();
+      env.id = new TextDocId('project01', 40, 1);
+      env.waitForEditor();
+      env.onlineStatus = true;
+
+      expect(env.localPresenceChannel).toBe(localPresenceChannel);
+      expect(env.localPresenceDoc).toBe(localPresenceDoc);
+    }));
+
     it('should clear doc presence on blur', fakeAsync(() => {
       const env: TestEnvironment = new TestEnvironment();
       env.fixture.detectChanges();

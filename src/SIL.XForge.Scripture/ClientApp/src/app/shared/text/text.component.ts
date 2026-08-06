@@ -583,8 +583,16 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     this.onlineStatusService.onlineStatus$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(isOnline => {
       this.changeDetector.detectChanges();
 
-      if (!isOnline && this._editor != null) {
-        this.clearCursors(false); // Don't clear the local cursor
+      if (!isOnline) {
+        if (this._editor != null) {
+          this.clearCursors(false); // Don't clear the local cursor
+        }
+      } else {
+        // No presence was submitted while offline, so other users no longer see this user in this chapter. (And if
+        // the user changed chapter while offline, the local presence was replaced by an empty one.) Announce this
+        // user again. ShareDB queues the submission until the connection is back up.
+        void this.submitLocalPresenceChannel(false);
+        void this.submitLocalPresenceDoc(this.editor?.getSelection() ?? null);
       }
     });
 
@@ -1155,7 +1163,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     this.presenceDoc.subscribe(error => {
       if (error) throw error;
     });
-    this.localPresenceDoc = this.presenceDoc.create(this.presenceId);
+    this.localPresenceDoc = this.createLocalPresence(this.presenceDoc);
 
     this.onPresenceDocReceive = (presenceId: string, range: Range | null) => {
       if (range == null || !this.isPresenceActive) {
@@ -1177,7 +1185,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     this.presenceChannel.subscribe(error => {
       if (error) throw error;
     });
-    this.localPresenceChannel = this.presenceChannel.create(this.presenceId);
+    this.localPresenceChannel = this.createLocalPresence(this.presenceChannel);
 
     this.onPresenceChannelReceive = (presenceId: string, presenceData: PresenceData | null) => {
       if (!this.isPresenceActive) {
@@ -1192,6 +1200,16 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     };
     this.presenceChannel.on('receive', this.onPresenceChannelReceive);
     void this.submitLocalPresenceChannel(false);
+  }
+
+  /**
+   * Gets the local presence for this client on the specified presence channel, creating it if it does not exist yet.
+   * Re-using it matters when returning to a chapter: ShareDB numbers each presence submission, and other clients
+   * ignore submissions numbered lower than the last one they saw. A fresh local presence starts numbering at zero
+   * again, so its submissions can be discarded by the other clients that are viewing the chapter.
+   */
+  private createLocalPresence<T>(presence: Presence<T>): LocalPresence<T> {
+    return presence.localPresences[this.presenceId] ?? presence.create(this.presenceId);
   }
 
   private async bindQuill(): Promise<void> {
