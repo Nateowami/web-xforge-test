@@ -45,6 +45,9 @@ import { CheckingQuestionsService } from '../checking-questions.service';
 export interface QuestionChangeActionSource {
   /** True during events due to a questions doc change such as with a filter. */
   isQuestionListChange?: boolean;
+  /** True when the question was re-activated because the route book/chapter changed, rather than because the user
+   * selected a question. */
+  isRouteChange?: boolean;
 }
 export interface QuestionChangedEvent {
   questionDoc: QuestionDoc | undefined;
@@ -187,7 +190,7 @@ export class CheckingQuestionsComponent implements OnInit, OnChanges {
       this.changeDetector.markForCheck();
     } else if (changes.routeBookChapter != null) {
       // If the route book/chapter changes, activate the first question on the new chapter
-      this.activateStoredQuestion();
+      this.activateStoredQuestion({ isRouteChange: true });
     }
   }
 

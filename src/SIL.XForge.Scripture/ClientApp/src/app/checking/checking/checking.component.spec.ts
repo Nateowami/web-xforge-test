@@ -567,6 +567,55 @@ describe('CheckingComponent', () => {
       discardPeriodicTasks();
     }));
 
+    it('only hides the questions overlay when the user selects a question', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'book'
+      });
+      const questionDoc = env.component.questionsList!.activeQuestionDoc!;
+      env.component.setQuestionsOverlayVisibility(true);
+      env.fixture.detectChanges();
+
+      // A question activated because the route book/chapter changed must not close the overlay, as that happens
+      // asynchronously and would close the overlay while the user is using it
+      env.component.questionChanged({ questionDoc, actionSource: { isRouteChange: true } });
+      env.fixture.detectChanges();
+      expect(env.component.isQuestionsOverlayVisible).toBe(true);
+
+      // But selecting a question in the list still closes the overlay to show the answers
+      env.component.questionChanged({ questionDoc, actionSource: undefined });
+      env.fixture.detectChanges();
+      expect(env.component.isQuestionsOverlayVisible).toBe(false);
+      tick();
+      flush();
+      discardPeriodicTasks();
+    }));
+
+    it('closes the question filter menu when the questions overlay is hidden', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'book'
+      });
+      env.component.setQuestionsOverlayVisibility(true);
+      env.fixture.detectChanges();
+      env.component.questionFilterMenuTrigger!.openMenu();
+      env.fixture.detectChanges();
+      expect(env.component.questionFilterMenuTrigger!.menuOpen).toBe(true);
+
+      env.component.setQuestionsOverlayVisibility(false);
+      env.fixture.detectChanges();
+
+      // The menu is rendered outside the overlay, so it would be left stranded over the page
+      expect(env.component.questionFilterMenuTrigger!.menuOpen).toBe(false);
+      tick();
+      flush();
+      discardPeriodicTasks();
+    }));
+
     it('clears active question when route book/chapter changes to chapter without questions', fakeAsync(() => {
       const env = new TestEnvironment({
         user: CHECKER_USER,

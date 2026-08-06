@@ -133,6 +133,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     }
   }
   @ViewChild('questionsPanel') questionsPanel?: ElementRef;
+  @ViewChild('questionFilterMenuTrigger') questionFilterMenuTrigger?: MatMenuTrigger;
 
   books: number[] = [];
   chapters: number[] = [];
@@ -955,6 +956,12 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
 
   setQuestionsOverlayVisibility(visible: boolean): void {
     this.isQuestionsOverlayVisible = visible;
+
+    // The filter menu belongs to the overlay header, but is rendered in a detached overlay, so it would be left
+    // stranded over the page if the overlay is hidden while it is open
+    if (!visible) {
+      this.questionFilterMenuTrigger?.closeMenu();
+    }
   }
 
   async commentAction(commentAction: CommentAction): Promise<void> {
@@ -1038,8 +1045,10 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
       return;
     }
 
-    // Hide the mobile question overlay unless question changed is due to a filter action (list change)
-    if (!actionSource?.isQuestionListChange) {
+    // Hide the mobile question overlay only when the user picked a question, i.e. not when the question changed due to
+    // a filter action (list change) or to the route book/chapter changing (which happens asynchronously after the list
+    // loads or after navigating to a question in another chapter, and would otherwise close the overlay under the user)
+    if (!actionSource?.isQuestionListChange && !actionSource?.isRouteChange) {
       this.setQuestionsOverlayVisibility(false);
     }
 

@@ -39,7 +39,12 @@
             <mat-icon>close</mat-icon>
           </button>
         </div>
-        <button mat-button [matMenuTriggerFor]="questionFilterMenu" class="active-question-scope-button">
+        <button
+          mat-button
+          #questionFilterMenuTrigger="matMenuTrigger"
+          [matMenuTriggerFor]="questionFilterMenu"
+          class="active-question-scope-button"
+        >
           <mat-icon [ngClass]="{ 'material-icons-outlined': !isQuestionFilterApplied }">filter_alt</mat-icon>
           {{ t(questionScopes.get(activeQuestionScope ?? "all")!) }}
           @if (appliedQuestionFilterKey !== "question_filter_none" && appliedQuestionFilterKey !== undefined) {
