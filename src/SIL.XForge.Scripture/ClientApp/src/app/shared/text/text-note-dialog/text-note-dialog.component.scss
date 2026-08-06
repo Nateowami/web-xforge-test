@@ -1,3 +1,10 @@
+// The note content is scripture text, so it uses the project's font, like the editor does
+.mat-mdc-dialog-content {
+  font-family: var(--project-font);
+  // the dialog's fixed line height does not leave room for a larger project font size
+  line-height: normal;
+}
+
 .mat-mdc-dialog-title {
   margin-bottom: 0.25em;
   display: flex;

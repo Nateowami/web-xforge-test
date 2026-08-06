@@ -54,6 +54,21 @@ describe('TextNoteDialogComponent', () => {
     expect(env.title).toBe('text_note_dialog.cross_reference');
     expect(env.text).toBe(text);
   }));
+
+  it('Displays the note text at the project font size', fakeAsync(() => {
+    env = new TestEnvironment({
+      type: TextNoteType.Footnote,
+      text: 'Footnote text',
+      isRightToLeft: false,
+      fontSize: '1.5rem'
+    });
+    expect(env.contentElement.style.fontSize).toBe('1.5rem');
+  }));
+
+  it('Displays the note text at the default size when the project has no font size', fakeAsync(() => {
+    env = new TestEnvironment({ type: TextNoteType.Footnote, text: 'Footnote text', isRightToLeft: false });
+    expect(env.contentElement.style.fontSize).toBe('');
+  }));
 });
 
 class TestEnvironment {
@@ -78,7 +93,11 @@ class TestEnvironment {
   }
 
   get text(): string {
-    return this.overlayContainerElement.query(By.css('mat-dialog-content'))!.nativeElement.textContent.trim();
+    return this.contentElement.textContent.trim();
+  }
+
+  get contentElement(): HTMLElement {
+    return this.overlayContainerElement.query(By.css('mat-dialog-content'))!.nativeElement;
   }
 
   closeDialog(): void {

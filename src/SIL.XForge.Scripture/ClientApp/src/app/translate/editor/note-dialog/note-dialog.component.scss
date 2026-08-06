@@ -37,6 +37,8 @@ h1 {
     border-radius: 4px;
     font-family: var(--project-font);
     font-size: 0.9em;
+    // the dialog's fixed line height does not leave room for a larger project font size
+    line-height: normal;
     flex: 1;
     .segment-text {
       padding-top: 6px;
@@ -113,6 +115,7 @@ h1 {
   }
   .note-content {
     flex-basis: 100%;
+    line-height: normal;
   }
   .edit-actions {
     flex-basis: 0;

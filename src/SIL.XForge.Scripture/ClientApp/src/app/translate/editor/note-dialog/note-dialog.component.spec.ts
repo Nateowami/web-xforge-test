@@ -700,6 +700,20 @@ describe('NoteDialogComponent', () => {
 
     rootElement.style.removeProperty('--project-font');
   }));
+
+  it('displays the scripture text at the project font size', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread(), defaultFontSize: 24 });
+
+    // the scripture context is displayed at the same size as the note content
+    expect(env.textRowElement.nativeElement.style.fontSize).toEqual('2rem');
+    expect(env.noteContent.nativeElement.style.fontSize).toEqual('2rem');
+  }));
+
+  it('displays the scripture text at the default size when the project has no font size', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread() });
+
+    expect(env.textRowElement.nativeElement.style.fontSize).toEqual('');
+  }));
 });
 
 interface TestEnvironmentConstructorArgs {
@@ -713,6 +727,7 @@ interface TestEnvironmentConstructorArgs {
   biblicalTerm?: BiblicalTerm;
   userProfile?: UserProfile;
   userProfileId?: string;
+  defaultFontSize?: number;
 }
 
 class TestEnvironment {
@@ -974,7 +989,8 @@ class TestEnvironment {
     combinedVerseTextDoc,
     biblicalTerm,
     userProfile,
-    userProfileId
+    userProfileId,
+    defaultFontSize
   }: TestEnvironmentConstructorArgs = {}) {
     this.fixture = TestBed.createComponent(ChildViewContainerComponent);
     const textDocId = new TextDocId(TestEnvironment.PROJECT01, 40, 1);
@@ -989,6 +1005,8 @@ class TestEnvironment {
     TestEnvironment.testProject.isRightToLeft = isRightToLeftProject;
     TestEnvironment.testProjectProfile.translateConfig.defaultNoteTagId = noteTagId;
     TestEnvironment.testProject.translateConfig.defaultNoteTagId = noteTagId;
+    TestEnvironment.testProjectProfile.defaultFontSize = defaultFontSize;
+    TestEnvironment.testProject.defaultFontSize = defaultFontSize;
     this.dialogRef = TestBed.inject(MatDialog).open(NoteDialogComponent, { data: configData });
     this.component = this.dialogRef.componentInstance;
 
@@ -1067,6 +1085,10 @@ class TestEnvironment {
 
   get textRowElement(): DebugElement {
     return this.overlayContainerElement.query(By.css('.text-row .text'));
+  }
+
+  get noteContent(): DebugElement {
+    return this.overlayContainerElement.query(By.css('.note-content'));
   }
 
   get segmentText(): DebugElement {

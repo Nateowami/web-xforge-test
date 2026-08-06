@@ -34,7 +34,7 @@ import { SFProjectService } from '../../core/sf-project.service';
 import { getCombinedVerseTextDoc, getEmptyChapterDoc, getPoetryVerseTextDoc, getTextDoc } from '../test-utils';
 import { provideQuillRegistrations } from './quill-editor-registration/quill-providers';
 import { getAttributesAtPosition } from './quill-util';
-import { TextNoteDialogComponent, TextNoteType } from './text-note-dialog/text-note-dialog.component';
+import { NoteDialogData, TextNoteDialogComponent, TextNoteType } from './text-note-dialog/text-note-dialog.component';
 import {
   EDITOR_READY_TIMEOUT,
   PRESENCE_EDITOR_ACTIVE_TIMEOUT,
@@ -1440,7 +1440,12 @@ describe('TextComponent', () => {
         }
       }
     ];
+    let dialogData: NoteDialogData | undefined;
+    when(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thenCall(
+      (_component, config) => (dialogData = config.data)
+    );
     const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.component.fontSize = '1.5rem';
     env.waitForEditor();
 
     [TextNoteType.Footnote, TextNoteType.EndNote, TextNoteType.CrossReference].forEach(noteStyle => {
@@ -1449,6 +1454,8 @@ describe('TextComponent', () => {
       note!.click();
     });
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
+    // the note text is scripture text, so the dialog displays it at the size the editor uses
+    expect(dialogData!.fontSize).toEqual('1.5rem');
   }));
 
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {

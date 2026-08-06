@@ -19,6 +19,8 @@ export interface NoteDialogData {
   type: TextNoteType;
   text: string;
   isRightToLeft: boolean;
+  /** The font size the text is displayed at in the editor, e.g. '1.5rem'. */
+  fontSize?: string;
 }
 
 @Component({
@@ -31,6 +33,10 @@ export class TextNoteDialogComponent {
     @Inject(MAT_DIALOG_DATA) private readonly data: NoteDialogData,
     private readonly translocoService: TranslocoService
   ) {}
+
+  get fontSize(): string | undefined {
+    return this.data.fontSize;
+  }
 
   get direction(): LocaleDirection {
     return this.data.isRightToLeft ? 'rtl' : 'ltr';

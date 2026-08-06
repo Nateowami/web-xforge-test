@@ -1265,7 +1265,9 @@ export class TextComponent implements AfterViewInit, OnDestroy {
                 data: {
                   type: noteType,
                   text: noteText,
-                  isRightToLeft: this.isRtl
+                  isRightToLeft: this.isRtl,
+                  // The note content is scripture text, so display it at the size the editor uses
+                  fontSize: this._editorStyles.fontSize
                 } as NoteDialogData
               });
             })

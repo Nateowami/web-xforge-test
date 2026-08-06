@@ -9,7 +9,7 @@
     </h1>
     <mat-dialog-content class="content-padding" [ngClass]="{ rtl: isRtl, ltr: !isRtl }">
       <div class="text-row">
-        <div class="text">
+        <div class="text" [ngStyle]="{ fontSize }">
           @if (!isNewNote || isBiblicalTermNote) {
             <div class="note-text" [innerHTML]="getNoteContextText()"></div>
           } @else {
@@ -42,7 +42,7 @@
                 <div class="verse-reattached">{{ noteInfo.reattachedVerse }}</div>
               }
               @if (noteInfo.reattachedText != null) {
-                <div class="text" [innerHTML]="noteInfo.reattachedText"></div>
+                <div class="text" [innerHTML]="noteInfo.reattachedText" [ngStyle]="{ fontSize }"></div>
               }
               <div class="note-content-and-actions">
                 <div class="note-content" [innerHTML]="noteInfo.content" [ngStyle]="{ fontSize }"></div>
