@@ -11,6 +11,7 @@ import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
+import { Sync } from 'realtime-server/lib/esm/scriptureforge/models/sync';
 import { getTextDocId } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import { TextInfoPermission } from 'realtime-server/lib/esm/scriptureforge/models/text-info-permission';
 import * as RichText from 'rich-text';
@@ -98,6 +99,57 @@ describe('TranslateOverviewComponent', () => {
       env.expectContainsTextProgress(1, 'Mark', '10 of 20 segments');
       env.expectContainsTextProgress(2, 'Luke', '10 of 20 segments');
       env.expectContainsTextProgress(3, 'John', '10 of 20 segments');
+      expect(env.downloadingBooksNotice).toBeNull();
+      expect(env.downloadFailedNotice).toBeNull();
+
+      discardPeriodicTasks();
+    }));
+
+    it('should say the books are on their way when a project with no books is syncing', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProjectWithoutBooks({ queuedCount: 1 });
+      env.wait();
+
+      expect(env.downloadingBooksNotice).toBeTruthy();
+      expect(env.downloadFailedNotice).toBeNull();
+      expect(env.progressTextList).toBeNull();
+
+      discardPeriodicTasks();
+    }));
+
+    it('should say the books are on their way when a project has never synced', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProjectWithoutBooks({ queuedCount: 0 });
+      env.wait();
+
+      expect(env.downloadingBooksNotice).toBeTruthy();
+      expect(env.downloadFailedNotice).toBeNull();
+
+      discardPeriodicTasks();
+    }));
+
+    it('should report a failure when a project with no books could not sync', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProjectWithoutBooks({ queuedCount: 0, lastSyncSuccessful: false });
+      env.wait();
+
+      expect(env.downloadFailedNotice).toBeTruthy();
+      expect(env.downloadingBooksNotice).toBeNull();
+
+      discardPeriodicTasks();
+    }));
+
+    it('should not explain missing books for a project that has synced successfully', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProjectWithoutBooks({
+        queuedCount: 0,
+        lastSyncSuccessful: true,
+        dateLastSuccessfulSync: '2023-01-01T00:00:00.000Z'
+      });
+      env.wait();
+
+      expect(env.downloadingBooksNotice).toBeNull();
+      expect(env.downloadFailedNotice).toBeNull();
 
       discardPeriodicTasks();
     }));
@@ -340,6 +392,14 @@ class TestEnvironment {
     return this.fixture.debugElement.query(By.css('.engine-card'));
   }
 
+  get downloadingBooksNotice(): HTMLElement {
+    return this.fixture.nativeElement.querySelector('app-notice[icon="sync"]');
+  }
+
+  get downloadFailedNotice(): HTMLElement {
+    return this.fixture.nativeElement.querySelector('app-notice[icon="sync_problem"]');
+  }
+
   set isOnline(value: boolean) {
     this.testOnlineStatusService.setIsOnline(value);
     this.wait();
@@ -369,6 +429,25 @@ class TestEnvironment {
     expect(primaryElem.textContent).toBe(primary);
     const secondaryElem: Element = item.querySelectorAll('.mat-mdc-list-item-line')[0];
     expect(secondaryElem.textContent).toBe(secondary);
+  }
+
+  /**
+   * Replaces the project with one that has no books, as a project - or a DBL resource that was just selected as a
+   * source text - has until its first sync with Paratext finishes.
+   */
+  setupProjectWithoutBooks(sync: Sync): void {
+    when(mockedProgressService.getProgress(anything(), anything())).thenResolve(new ProjectProgress([]));
+    const project: SFProjectProfile = createTestProjectProfile({
+      translateConfig: { translationSuggestionsEnabled: false },
+      userRoles: { user01: SFProjectRole.ParatextTranslator },
+      texts: []
+    });
+    // Assigned rather than passed to the factory, which deep merges and so cannot clear the default sync dates
+    project.sync = sync;
+    this.realtimeService.addSnapshot<SFProjectProfile>(SFProjectProfileDoc.COLLECTION, {
+      id: 'project01',
+      data: project
+    });
   }
 
   setupProjectData(projectConfig: TestProjectConfiguration = {}): void {

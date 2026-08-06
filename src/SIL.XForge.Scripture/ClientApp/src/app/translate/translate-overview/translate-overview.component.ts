@@ -148,6 +148,32 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
     return (this.projectProgress?.translatedVerseSegments ?? 0) >= 10;
   }
 
+  /**
+   * Whether the books are still on their way from Paratext. A project - most commonly a DBL resource that was just
+   * selected as a source text - becomes visible as soon as it is created, but its books only arrive once the first
+   * sync finishes, so without this the overview looks like an empty, broken page.
+   */
+  get isDownloadingBooks(): boolean {
+    const sync = this.projectDoc?.data?.sync;
+    if (!this.hasNoBooks || sync == null) {
+      return false;
+    }
+    return sync.queuedCount > 0 || (sync.dateLastSuccessfulSync == null && sync.lastSyncSuccessful !== false);
+  }
+
+  /** Whether the project has no books because it has never managed to sync with Paratext. */
+  get downloadingBooksFailed(): boolean {
+    const sync = this.projectDoc?.data?.sync;
+    if (!this.hasNoBooks || sync == null) {
+      return false;
+    }
+    return sync.queuedCount === 0 && sync.dateLastSuccessfulSync == null && sync.lastSyncSuccessful === false;
+  }
+
+  private get hasNoBooks(): boolean {
+    return this.projectDoc?.data != null && this.projectDoc.data.texts.length === 0;
+  }
+
   ngOnInit(): void {
     this.activatedRoute.params
       .pipe(

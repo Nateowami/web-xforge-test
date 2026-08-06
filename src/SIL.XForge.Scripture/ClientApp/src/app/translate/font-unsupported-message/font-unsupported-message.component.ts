@@ -27,7 +27,12 @@ export class FontUnsupportedMessageComponent {
   suggestedRemedy = this.i18n.interpolate(this.suggestedRemedyI18nKey);
 
   get showUnsupportedFontWarning(): boolean {
-    return !this.fontService.isFontFullySupported(this.selectedFont ?? '');
+    // A project that has not synced yet has no font of its own; a supported font is used for it, so there is nothing
+    // to warn about (and the warning would name a blank font).
+    if (this.selectedFont == null || this.selectedFont === '') {
+      return false;
+    }
+    return !this.fontService.isFontFullySupported(this.selectedFont);
   }
 
   get showGraphiteWarning(): boolean {

@@ -982,6 +982,8 @@
     "training": "Training"
   },
   "translate_overview": {
+    "books_are_downloading": "The books are still being downloaded from Paratext. They will appear here when the download finishes.",
+    "books_could_not_be_downloaded": "The books could not be downloaded from Paratext. Please try again later.",
     "cannot_train_suggestion_engine": "Translation suggestions are unavailable. Please select a source project that shares books in common with this project to get translation suggestions.",
     "not_enough_verses_translated": "Translation suggestions are unavailable. Please ensure that there are at least 10 matching verses translated in the source and target projects.",
     "progress": "Progress",

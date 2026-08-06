@@ -27,7 +27,13 @@
           </mat-card-title>
         </mat-card-header>
         <mat-divider></mat-divider>
-        @if (projectProgress != null) {
+        @if (isDownloadingBooks) {
+          <app-notice type="info" icon="sync" class="books-card-notice">{{ t("books_are_downloading") }}</app-notice>
+        } @else if (downloadingBooksFailed) {
+          <app-notice type="warning" icon="sync_problem" class="books-card-notice">{{
+            t("books_could_not_be_downloaded")
+          }}</app-notice>
+        } @else if (projectProgress != null) {
           <mat-list role="list">
             @for (bookProgress of projectProgress.books; track bookProgress.bookId) {
               <mat-list-item role="listitem" [appRouterLink]="['./', bookProgress.bookId]">
