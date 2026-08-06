@@ -116,6 +116,21 @@ describe('AudioRecorderDialogComponent', () => {
     verify(mockedDialog.openMatDialog(SupportedBrowsersDialogComponent, anything())).once();
   });
 
+  it('shows the reference and the text being recorded', () => {
+    const env = new TestEnvironment(true, false, {
+      reference: 'Ruth 1:1-2',
+      textToRecord: 'What happened during the famine?'
+    });
+    expect(env.textToRecord).not.toBeNull();
+    expect(env.textToRecord.textContent).toContain('Ruth 1:1-2');
+    expect(env.textToRecord.textContent).toContain('What happened during the famine?');
+  });
+
+  it('shows nothing to read when no reference or text is given', () => {
+    const env = new TestEnvironment();
+    expect(env.textToRecord).toBeNull();
+  });
+
   it('return recorded audio on save', async () => {
     const env = new TestEnvironment();
     env.clickButton(env.recordButton);
@@ -157,10 +172,10 @@ class TestEnvironment {
 
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
 
-  constructor(saveRequired: boolean = true, countdown: boolean = false) {
+  constructor(saveRequired: boolean = true, countdown: boolean = false, data: Partial<AudioRecorderDialogData> = {}) {
     this.fixture = TestBed.createComponent(ChildViewContainerComponent);
     this.dialogRef = TestBed.inject(MatDialog).open(AudioRecorderDialogComponent, {
-      data: { countdown, requireSave: saveRequired } as AudioRecorderDialogData
+      data: { countdown, requireSave: saveRequired, ...data } as AudioRecorderDialogData
     });
     this.component = this.dialogRef.componentInstance;
 
@@ -197,6 +212,10 @@ class TestEnvironment {
 
   get tryAgainButton(): HTMLElement {
     return this.overlayContainerElement.querySelector('.remove-audio-file') as HTMLElement;
+  }
+
+  get textToRecord(): HTMLElement {
+    return this.overlayContainerElement.querySelector('.text-to-record') as HTMLElement;
   }
 
   get recordingIndicator(): HTMLElement {

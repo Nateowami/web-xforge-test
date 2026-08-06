@@ -41,6 +41,10 @@ export interface AudioRecorderDialogData {
   countdown?: boolean;
   requireSave?: boolean;
   audio?: AudioAttachment;
+  /** Scripture reference shown above the recorder, for context. */
+  reference?: string;
+  /** Text shown above the recorder so it can be read aloud while recording. */
+  textToRecord?: string;
 }
 
 export interface AudioRecorderDialogResult {
@@ -77,6 +81,8 @@ export class AudioRecorderDialogComponent implements ControlValueAccessor, OnIni
   showCountdown: boolean;
   countdownTimer: number = 0;
   mediaDevicesUnsupported: boolean = false;
+  reference?: string;
+  textToRecord?: string;
 
   protected _requireSave: boolean;
 
@@ -104,6 +110,8 @@ export class AudioRecorderDialogComponent implements ControlValueAccessor, OnIni
   ) {
     this.showCountdown = data?.countdown ?? false;
     this._requireSave = data?.requireSave ?? false;
+    this.reference = data?.reference;
+    this.textToRecord = data?.textToRecord;
     if (data?.audio != null) {
       this.audio = data.audio;
     }

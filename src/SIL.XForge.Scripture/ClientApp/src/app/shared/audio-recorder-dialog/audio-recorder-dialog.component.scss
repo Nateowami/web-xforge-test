@@ -1,6 +1,23 @@
 @use 'sass:color';
 @use 'src/variables';
 
+// The text being recorded, so it can be read aloud without closing the dialog
+.text-to-record {
+  max-width: 320px;
+  max-height: 9em;
+  overflow-y: auto;
+  margin-bottom: 0.5em;
+
+  .reference {
+    font-size: 0.85em;
+    color: var(--sf-audio-recorder-text);
+  }
+
+  .text {
+    white-space: pre-wrap;
+  }
+}
+
 .container {
   display: flex;
   align-items: center;

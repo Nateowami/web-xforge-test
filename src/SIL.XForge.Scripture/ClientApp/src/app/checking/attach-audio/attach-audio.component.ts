@@ -33,6 +33,8 @@ export class AttachAudioComponent {
   @ViewChild(SingleButtonAudioPlayerComponent) audioPlayer?: SingleButtonAudioPlayerComponent;
   @Input() textAndAudio?: TextAndAudioComponent;
   @Input() isUploadEnabled: boolean = false;
+  /** Scripture reference shown in the recorder dialog, for context. */
+  @Input() reference?: string;
 
   protected uploadAudioFile: File = {} as File;
 
@@ -46,7 +48,12 @@ export class AttachAudioComponent {
   }
 
   async startRecording(): Promise<void> {
-    const config: AudioRecorderDialogData = { countdown: true };
+    // Show the reference and text in the recorder dialog, since it covers the text being recorded
+    const config: AudioRecorderDialogData = {
+      countdown: true,
+      reference: this.reference,
+      textToRecord: this.textAndAudio?.text?.value || undefined
+    };
     const recorderDialogRef: MatDialogRef<AudioRecorderDialogComponent, AudioRecorderDialogResult> =
       this.dialogService.openMatDialog<
         AudioRecorderDialogComponent,

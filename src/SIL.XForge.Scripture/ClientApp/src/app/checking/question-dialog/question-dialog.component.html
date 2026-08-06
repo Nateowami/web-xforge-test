@@ -48,7 +48,11 @@
       <div>
         <app-text-and-audio #input [input]="question" [textLabel]="t('question')"></app-text-and-audio>
         <div class="attachments">
-          <app-attach-audio [textAndAudio]="input" [isUploadEnabled]="true"></app-attach-audio>
+          <app-attach-audio
+            [textAndAudio]="input"
+            [isUploadEnabled]="true"
+            [reference]="selectionLabel"
+          ></app-attach-audio>
         </div>
       </div>
     </mat-dialog-content>

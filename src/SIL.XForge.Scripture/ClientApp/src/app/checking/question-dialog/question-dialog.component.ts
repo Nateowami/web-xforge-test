@@ -126,6 +126,11 @@ export class QuestionDialogComponent implements OnInit {
     return this._selection;
   }
 
+  /** The selected reference, localized, or undefined if no valid reference is selected. */
+  get selectionLabel(): string | undefined {
+    return this._selection == null ? undefined : this.i18n.localizeReference(this._selection);
+  }
+
   get scriptureInputErrorMessages(): { startError: string; endError: string } {
     let start: string = this.i18n.translateStatic('question_dialog.required_with_asterisk');
     if (this.scriptureStart.hasError('verseFormat')) {

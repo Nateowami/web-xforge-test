@@ -1,14 +1,18 @@
 import { DebugElement } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { FormControl } from '@angular/forms';
 import { MatDialogRef } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
 import { ngfModule } from 'angular-file';
 import { of } from 'rxjs';
-import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { anything, deepEqual, instance, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { configureTestingModule, getAudioBlob, getTestTranslocoModule } from 'xforge-common/test-utils';
-import { AudioRecorderDialogComponent } from '../../shared/audio-recorder-dialog/audio-recorder-dialog.component';
+import {
+  AudioRecorderDialogComponent,
+  AudioRecorderDialogData
+} from '../../shared/audio-recorder-dialog/audio-recorder-dialog.component';
 import { provideQuillRegistrations } from '../../shared/text/quill-editor-registration/quill-providers';
 import { TextAndAudioComponent } from '../text-and-audio/text-and-audio.component';
 import { AttachAudioComponent, InvalidFileItem } from './attach-audio.component';
@@ -41,6 +45,24 @@ describe('AttachAudioComponent', () => {
     env.fixture.detectChanges();
     verify(mockDialogService.openMatDialog(AudioRecorderDialogComponent, anything())).once();
     verify(env.mockTextAndAudio.setAudioAttachment(anything())).once();
+  }));
+
+  it('tells the recorder dialog what is being recorded', fakeAsync(() => {
+    when(env.mockTextAndAudio.input).thenReturn({});
+    when(env.mockTextAndAudio.text).thenReturn(new FormControl('What happened during the famine?'));
+    env.component.reference = 'Ruth 1:1-2';
+    env.fixture.detectChanges();
+
+    env.recordIcon.nativeElement.click();
+    tick();
+
+    const data: AudioRecorderDialogData = {
+      countdown: true,
+      reference: 'Ruth 1:1-2',
+      textToRecord: 'What happened during the famine?'
+    };
+    verify(mockDialogService.openMatDialog(AudioRecorderDialogComponent, deepEqual({ data }))).once();
+    expect().nothing();
   }));
 
   it('does not save when no audio recorded', fakeAsync(() => {
