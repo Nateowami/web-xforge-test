@@ -1,7 +1,14 @@
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { CommandError, CommandErrorCode, CommandService, JsonRpcError, JsonRpcResponse } from './command.service';
+import {
+  CommandError,
+  CommandErrorCode,
+  CommandService,
+  isNetworkError,
+  JsonRpcError,
+  JsonRpcResponse
+} from './command.service';
 import { configureTestingModule } from './test-utils';
 
 describe('CommandService', () => {
@@ -177,6 +184,35 @@ describe('CommandService', () => {
     const errorResponse = new ProgressEvent('Network problem');
     request.error(errorResponse);
     tick();
+    env.httpMock.verify();
+  }));
+
+  it('identifies errors from a failed connection as network errors', fakeAsync(() => {
+    // Requests that never make it to the server (the browser is offline, the connection drops, or the service worker
+    // answers with a gateway timeout) are not application errors, and should not be reported as such.
+    const env = new TestEnvironment();
+
+    for (const status of [0, 504]) {
+      let error: unknown;
+      env.service.onlineInvoke<string>('place1', 'someMethod').catch((errorInfo: unknown) => (error = errorInfo));
+      tick();
+      env.httpMock
+        .expectOne({ url: 'command-api/place1', method: 'POST' })
+        .flush('', { status, statusText: 'Gateway Timeout' });
+      tick();
+
+      expect(isNetworkError(error)).toBe(true, `status ${status} should be a network error`);
+    }
+
+    let serverError: unknown;
+    env.service.onlineInvoke<string>('place1', 'someMethod').catch((errorInfo: unknown) => (serverError = errorInfo));
+    tick();
+    env.httpMock
+      .expectOne({ url: 'command-api/place1', method: 'POST' })
+      .flush('', { status: 500, statusText: 'Internal Server Error' });
+    tick();
+
+    expect(isNetworkError(serverError)).toBe(false);
     env.httpMock.verify();
   }));
 

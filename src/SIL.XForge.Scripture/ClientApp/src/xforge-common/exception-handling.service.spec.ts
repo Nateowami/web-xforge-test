@@ -10,6 +10,7 @@ import { of } from 'rxjs';
 import { anything, capture, instance, mock, verify, when } from 'ts-mockito';
 import { AuthService } from './auth.service';
 import { CONSOLE } from './browser-globals';
+import { CommandError, CommandErrorCode } from './command.service';
 import { DialogService } from './dialog.service';
 import { ErrorDialogComponent } from './error-dialog/error-dialog.component';
 import { ErrorReportingService } from './error-reporting.service';
@@ -45,7 +46,10 @@ class MockConsole {
         'Original error',
         'Http failure response for (unknown url): 400 Bad Request',
         'Http failure response for http://localhost:5000/command-api/some-end-point: 504 Gateway Timeout',
-        'Http failure response for http://localhost:5000/machine-api/v3/translation/engines/some-end-point: 504 Gateway Timeout'
+        'Http failure response for http://localhost:5000/machine-api/v3/translation/engines/some-end-point: 504 Gateway Timeout',
+        'Error invoking createAudioTimingData: Http failure response for ' +
+          'https://scriptureforge.org/command-api/projects: 504 Gateway Timeout',
+        'Error invoking someMethod: something went wrong'
       ].includes(val.message) &&
       !val.message?.startsWith('Unknown error')
     ) {
@@ -158,6 +162,30 @@ describe('ExceptionHandlingService', () => {
 
     expect(env.service['handleAlert']).toHaveBeenCalled();
     verify(mockedNoticeService.showError(anything())).never();
+  }));
+
+  it('should show a notice, rather than an error dialog, for JSON-RPC network failures', fakeAsync(() => {
+    const env = new TestEnvironment();
+    spyOn<any>(env.service, 'handleAlert');
+
+    // CommandService wraps the underlying HttpErrorResponse, so this is not caught by the check for a 504 response
+    env.handleError(
+      new CommandError(
+        CommandErrorCode.Other,
+        'Error invoking createAudioTimingData: Http failure response for ' +
+          'https://scriptureforge.org/command-api/projects: 504 Gateway Timeout',
+        undefined,
+        true
+      )
+    );
+
+    expect(env.service['handleAlert']).not.toHaveBeenCalled();
+    verify(mockedNoticeService.showError(anything())).once();
+
+    env.handleError(new CommandError(CommandErrorCode.Other, 'Error invoking someMethod: something went wrong'));
+
+    expect(env.service['handleAlert']).toHaveBeenCalled();
+    verify(mockedNoticeService.showError(anything())).once();
   }));
 
   describe('Bugsnag', () => {

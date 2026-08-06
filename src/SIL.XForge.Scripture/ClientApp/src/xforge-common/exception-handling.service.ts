@@ -8,6 +8,7 @@ import { MACHINE_API_BASE_URL } from '../app/machine-api/http-client';
 import { environment } from '../environments/environment';
 import { hasObjectProp, hasStringProp } from '../type-utils';
 import { CONSOLE } from './browser-globals';
+import { isNetworkError } from './command.service';
 import { DialogService } from './dialog.service';
 import { ErrorAlertData, ErrorDialogComponent } from './error-dialog/error-dialog.component';
 import { ErrorReportingService } from './error-reporting.service';
@@ -187,6 +188,15 @@ export class ExceptionHandlingService {
         noticeService.showError(this.i18n.translateStatic('exception_handling_service.network_request_failed'))
       );
       return;
+    }
+
+    // A JSON-RPC command that never reached the server is not an application error. CommandService wraps the
+    // underlying HttpErrorResponse in a CommandError, so the check below for a 504 does not catch these.
+    if (isNetworkError(error)) {
+      ngZone.run(() =>
+        noticeService.showError(this.i18n.translateStatic('exception_handling_service.network_request_failed'))
+      );
+      silently = true;
     }
 
     if (error instanceof DOMException && (error.name === 'QuotaExceededError' || error.name === 'DataError')) {

@@ -61,7 +61,8 @@ function isJsonRpcSuccess(value: unknown): value is JsonRpcSuccess<unknown> {
 
 export function isNetworkError(error: any): boolean {
   return (
-    error instanceof CommandError && hasStringProp(error, 'message') && error.message.includes('504 Gateway Timeout')
+    error instanceof CommandError &&
+    (error.isNetworkFailure || (hasStringProp(error, 'message') && error.message.includes('504 Gateway Timeout')))
   );
 }
 
@@ -69,7 +70,13 @@ export class CommandError extends Error {
   constructor(
     public readonly code: CommandErrorCode,
     message: string,
-    public readonly data?: unknown
+    public readonly data?: unknown,
+    /**
+     * Whether the request failed before the server could answer it, rather than because the server returned an error.
+     * This happens when the browser is offline, the connection drops mid-request, or the service worker answers with a
+     * gateway timeout.
+     */
+    public readonly isNetworkFailure: boolean = false
   ) {
     super(message);
     // this restores the prototype chain, so that the class can properly inherit from the built-in Error class
@@ -130,15 +137,20 @@ export class CommandService {
       let code: CommandErrorCode = CommandErrorCode.Other;
       let moreInformation: string;
       let data: unknown;
+      let isNetworkFailure = false;
       if (hasObjectProp(error, 'error') && error.error instanceof ErrorEvent) {
         const errorEvent: ErrorEvent = error.error;
         moreInformation = `${errorEvent.type}: ${errorEvent.message}`;
+        isNetworkFailure = true;
       } else if (error instanceof HttpErrorResponse) {
         // Only set code to HTTP status code if it is a CommandErrorCode.
         if (Object.values(CommandErrorCode).includes(error.status)) {
           code = error.status as CommandErrorCode;
         }
         moreInformation = error.message;
+        // Status 0 means the request never completed (offline, or the connection dropped), and the service worker
+        // answers with a gateway timeout when it cannot reach the server.
+        isNetworkFailure = error.status === 0 || error.status === 504;
       } else if (error instanceof Error) {
         moreInformation = error.message;
       } else if (
@@ -155,7 +167,7 @@ export class CommandService {
         moreInformation = `Unexpected error type: ${error}`;
       }
       const message = `Error invoking ${method}: ${moreInformation}`;
-      throw new CommandError(code, message, data);
+      throw new CommandError(code, message, data, isNetworkFailure);
     }
   }
 }
