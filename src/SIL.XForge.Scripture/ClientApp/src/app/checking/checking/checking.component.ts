@@ -35,6 +35,7 @@ import { toVerseRef, VerseRefData } from 'realtime-server/lib/esm/scriptureforge
 import { asyncScheduler, BehaviorSubject, combineLatest, merge, Observable, of, Subscription } from 'rxjs';
 import { distinctUntilChanged, filter, map, startWith, take, throttleTime } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
+import { DialogService } from 'xforge-common/dialog.service';
 import { DonutChartComponent } from 'xforge-common/donut-chart/donut-chart.component';
 import { I18nService } from 'xforge-common/i18n.service';
 import { Breakpoint, MediaBreakpointService } from 'xforge-common/media-breakpoints/media-breakpoint.service';
@@ -186,6 +187,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
   private prevQuestionOutOfScope?: RealtimeQuery<QuestionDoc>;
 
   private _book?: number;
+  private isBookDeletedAlertShown: boolean = false;
   private _isDrawerPermanent: boolean = true;
   private _chapter?: number;
   private questionsQuery?: RealtimeQuery<QuestionDoc>;
@@ -217,7 +219,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     private readonly questionDialogService: QuestionDialogService,
     readonly i18n: I18nService,
     private readonly onlineStatusService: OnlineStatusService,
-    private readonly chapterAudioDialogService: ChapterAudioDialogService
+    private readonly chapterAudioDialogService: ChapterAudioDialogService,
+    private readonly dialogService: DialogService
   ) {
     super(noticeService, 'CheckingComponent');
   }
@@ -586,6 +589,13 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                     this.onRemovedFromProject();
                   } else if (!this.permissions.canAccessCommunityChecking(this.projectDoc)) {
                     this.onRemovedFromProject();
+                  } else {
+                    // The books in the project can change while the page is open, e.g. a book was deleted in Paratext
+                    // and the project was synchronized
+                    this.books = this.projectDoc.data.texts.map(t => t.bookNum).sort((a, b) => a - b);
+                    if (this.book != null && !this.bookExistsInProject(this.book)) {
+                      this.onBookDeleted();
+                    }
                   }
                 }
               });
@@ -610,6 +620,13 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
           }
 
           this.activeQuestionScope = routeScope;
+
+          // The routed book may no longer be part of the project, e.g. it was deleted in Paratext and the project was
+          // synchronized. Alert the user rather than showing an empty book, as the editor does.
+          if (routeBookNum != null && !this.bookExistsInProject(routeBookNum)) {
+            this.onBookDeleted();
+            return;
+          }
 
           // If book/chapter is specified in route, use routed book/chapter even if it contains no questions
           if (routeBookNum != null && routeChapterNum != null) {
@@ -1560,6 +1577,32 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     this.changeDetector.markForCheck();
   }
 
+  private bookExistsInProject(bookNum: number): boolean {
+    return this.projectDoc?.data?.texts.some(t => t.bookNum === bookNum) === true;
+  }
+
+  /**
+   * Notifies the user that the book they are viewing is no longer in the project, and then sends them back to the
+   * checking route without a book, which resolves to a book that does still exist.
+   */
+  private onBookDeleted(): void {
+    if (this.projectDoc == null || this.isBookDeletedAlertShown) {
+      return;
+    }
+
+    this.isBookDeletedAlertShown = true;
+    const projectId: string = this.projectDoc.id;
+    // The message is the same one the editor shows when the text being edited is deleted
+    void this.dialogService.message('editor.text_has_been_deleted').then(() => {
+      this.isBookDeletedAlertShown = false;
+      void this.router.navigate(['projects', projectId, 'checking'], {
+        replaceUrl: true,
+        queryParams: { scope: this.activeQuestionScope },
+        queryParamsHandling: 'merge'
+      });
+    });
+  }
+
   // Unbind this component from the data when a user is removed from the project, otherwise console
   // errors appear before the app can navigate to the start component
   private onRemovedFromProject(): void {
@@ -1688,8 +1731,12 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
         : undefined;
     let suggestedBookChapter: BookChapter | undefined;
 
-    // Suggest book/chapter from last user selected question
-    if (lastSelected?.bookNum != null && lastSelected.chapterNum != null) {
+    // Suggest book/chapter from last user selected question, as long as the book is still in the project
+    if (
+      lastSelected?.bookNum != null &&
+      lastSelected.chapterNum != null &&
+      this.bookExistsInProject(lastSelected.bookNum)
+    ) {
       // If route book is provided, don't use stored question from a different book
       if (routeBookNum == null || routeBookNum === lastSelected.bookNum) {
         suggestedBookChapter = lastSelected;

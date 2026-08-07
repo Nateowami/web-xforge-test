@@ -141,6 +141,7 @@ class MockComponent {}
 const ROUTES: Route[] = [
   { path: 'projects/:projectId/checking/:bookId/:chapter', component: MockComponent },
   { path: 'projects/:projectId/checking/:bookId', component: MockComponent },
+  { path: 'projects/:projectId/checking', component: MockComponent },
   { path: 'projects/:projectId/translate/:bookId', component: MockComponent },
   { path: 'projects/:projectId', component: MockComponent }
 ];
@@ -233,6 +234,57 @@ describe('CheckingComponent', () => {
       });
 
       expect(env.router.url).toContain('MAT/1?scope=book');
+    }));
+
+    it('alerts the user when the routed book is not in the project', fakeAsync(() => {
+      when(mockedDialogService.message(anything())).thenResolve();
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'GEN',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+
+      verify(mockedDialogService.message('editor.text_has_been_deleted')).once();
+      expect(env.router.url).toContain('/projects/project01/checking?scope=chapter');
+      flush();
+      discardPeriodicTasks();
+    }));
+
+    it('alerts the user when the routed book is not in the project and no chapter is provided', fakeAsync(() => {
+      when(mockedDialogService.message(anything())).thenResolve();
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'GEN',
+        projectChapterRoute: undefined,
+        questionScope: 'book'
+      });
+
+      verify(mockedDialogService.message('editor.text_has_been_deleted')).once();
+      expect(env.router.url).toContain('/projects/project01/checking?scope=book');
+      flush();
+      discardPeriodicTasks();
+    }));
+
+    it('alerts the user when the book being viewed is deleted remotely', fakeAsync(() => {
+      when(mockedDialogService.message(anything())).thenResolve();
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+      env.selectQuestion(1);
+      verify(mockedDialogService.message(anything())).never();
+
+      // Simulate a sync that removes the book from the project, as happens when it is deleted in Paratext
+      env.deleteBookRemotely('JHN');
+
+      verify(mockedDialogService.message('editor.text_has_been_deleted')).once();
+      expect(env.component.books).toEqual([40]);
+      expect(env.router.url).toContain('/projects/project01/checking?scope=chapter');
+      flush();
+      discardPeriodicTasks();
     }));
 
     describe('Prev/Next question buttons', () => {
@@ -3452,6 +3504,16 @@ class TestEnvironment {
   segmentHasQuestion(chapter: number, verse: number): boolean {
     const segment = this.getVerse(chapter, verse.toString());
     return segment != null && segment.classList.contains('question-segment');
+  }
+
+  /** Removes a book from the project as a sync does when the book was deleted in Paratext. */
+  deleteBookRemotely(bookId: string): void {
+    const bookNum: number = Canon.bookIdToNumber(bookId);
+    const textIndex: number = this.component.projectDoc!.data!.texts.findIndex(t => t.bookNum === bookNum);
+    this.ngZone.run(() => {
+      this.component.projectDoc!.submitJson0Op(op => op.remove(p => p.texts, textIndex), false);
+    });
+    this.waitForSliderUpdate();
   }
 
   setCheckingEnabled(isEnabled: boolean = true): void {
