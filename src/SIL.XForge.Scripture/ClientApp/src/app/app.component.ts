@@ -251,6 +251,15 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
     return this.authService.loggedInState$.pipe(map(state => state.loggedIn));
   }
 
+  /**
+   * Hides the app while the browser is on its way to the Auth0 login page, so that the user isn't shown a flash of the
+   * Scripture Forge interface, and any data cached from their last session, before the login page appears.
+   */
+  @HostBinding('class.logging-in')
+  get isLoggingIn(): boolean {
+    return this.authService.isLoggingIn;
+  }
+
   get isAppLoading(): boolean {
     return this.noticeService.isAppLoading;
   }

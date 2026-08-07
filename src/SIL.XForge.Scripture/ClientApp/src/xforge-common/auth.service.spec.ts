@@ -588,6 +588,49 @@ describe('AuthService', () => {
     env.discardTokenExpiryTimer();
   }));
 
+  it('should go straight to auth0 when the login page is requested', fakeAsync(() => {
+    const callback = (): void => {
+      when(mockedLocationService.pathname).thenReturn('/login');
+      when(mockedLocationService.search).thenReturn('');
+    };
+    const env = new TestEnvironment({ isOnline: true, callback });
+
+    // The app must not be told anything about the login state, so that it doesn't show any of its interface, or
+    // check the session with auth0, while the browser is on its way to the login page
+    expect(env.service.isLoggingIn).toBe(true);
+    verify(mockedWebAuth.getTokenSilently(anything())).never();
+    verify(mockedWebAuth.loginWithRedirect(anything())).once();
+    const authOptions: RedirectLoginOptions | undefined = capture<RedirectLoginOptions | undefined>(
+      mockedWebAuth.loginWithRedirect
+    ).last()[0];
+    expect(authOptions?.appState).toEqual(JSON.stringify({ returnUrl: '' }));
+    expect(authOptions?.authorizationParams!.mode).toBeUndefined();
+  }));
+
+  it('should pass sign up and locale on to auth0 when the login page is requested', fakeAsync(() => {
+    const callback = (): void => {
+      when(mockedLocationService.pathname).thenReturn('/login');
+      when(mockedLocationService.search).thenReturn('?sign-up=true&locale=es');
+    };
+    new TestEnvironment({ isOnline: true, callback });
+
+    verify(mockedWebAuth.loginWithRedirect(anything())).once();
+    const authOptions: RedirectLoginOptions | undefined = capture<RedirectLoginOptions | undefined>(
+      mockedWebAuth.loginWithRedirect
+    ).last()[0];
+    expect(authOptions?.authorizationParams!.mode).toEqual('signUp');
+    expect(authOptions?.authorizationParams!.login_hint).toEqual('es');
+  }));
+
+  it('should not report that it is logging in until the user is sent to auth0', fakeAsync(() => {
+    const env = new TestEnvironment({ isOnline: true, isLoggedIn: true });
+    expect(env.service.isLoggingIn).toBe(false);
+
+    env.service.logIn({ returnUrl: 'test-returnUrl' });
+    expect(env.service.isLoggingIn).toBe(true);
+    env.discardTokenExpiryTimer();
+  }));
+
   it('should try online login if local settings are available but have expired', fakeAsync(() => {
     const callback = (env: TestEnvironment): void => {
       env.setLocalLoginData({ expiresAt: 0 });

@@ -86,6 +86,7 @@ export class AuthService {
   );
   private refreshSubscription?: Subscription;
   private renewTokenPromise?: Promise<void>;
+  private _isLoggingIn: boolean = false;
   private checkSessionPromise?: Promise<GetTokenSilentlyVerboseResponse | null>;
   private readonly auth0: Auth0Client = this.auth0Service.init({
     clientId: environment.authClientId,
@@ -154,6 +155,14 @@ export class AuthService {
 
   get idToken(): string | undefined {
     return this.localSettings.get(ID_TOKEN_SETTING);
+  }
+
+  /**
+   * Whether the browser is on its way to the Auth0 login page. The app should not render anything while this is true,
+   * as the page it is rendering into is about to be replaced.
+   */
+  get isLoggingIn(): boolean {
+    return this._isLoggingIn;
   }
 
   /** When the token expires (Unix epoch), in milliseconds */
@@ -235,6 +244,8 @@ export class AuthService {
   }
 
   async logIn({ returnUrl, signUp, locale }: LoginParams = { returnUrl: '' }): Promise<void> {
+    // Set synchronously so that the app knows not to render anything before the browser leaves for Auth0
+    this._isLoggingIn = true;
     const state: AuthState = { returnUrl };
     const language: string = getAspCultureCookieLanguage(this.cookieService.get(ASP_CULTURE_COOKIE_NAME));
     const ui_locales: string = language;
@@ -262,7 +273,12 @@ export class AuthService {
       appState: JSON.stringify(state)
     };
     this.unscheduleRenewal();
-    await this.auth0.loginWithRedirect(authOptions);
+    try {
+      await this.auth0.loginWithRedirect(authOptions);
+    } catch (error) {
+      this._isLoggingIn = false;
+      throw error;
+    }
   }
 
   async logOut(): Promise<void> {
@@ -371,9 +387,17 @@ export class AuthService {
 
   private async tryLogIn(): Promise<LoginResult> {
     try {
-      // If logging in then send them straight to auth0
+      // If logging in then send them straight to auth0, rather than routing to a page that will only bounce the user
+      // to auth0 once the app has finished loading
       if (this.isLoginUrl) {
-        return { loggedIn: false, newlyLoggedIn: false, anonymousUser: false };
+        const queryParams = new URLSearchParams(this.locationService.search ?? '');
+        await this.logIn({
+          returnUrl: '',
+          signUp: queryParams.get('sign-up') === 'true',
+          locale: queryParams.get('locale') ?? undefined
+        });
+        // Never resolve, so that no route is activated and no app content is shown while the browser is leaving
+        return new Promise<never>(() => {});
       }
       // If we have no valid auth0 data then we have to validate online first
       if (
