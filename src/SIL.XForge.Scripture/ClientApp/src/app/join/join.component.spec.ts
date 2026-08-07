@@ -198,6 +198,28 @@ describe('JoinComponent', () => {
       expect().nothing();
     }));
 
+    it('does not redirect to home until an unknown error has been dismissed', fakeAsync(() => {
+      let dismissError!: () => void;
+      const errorDismissed = new Promise<void>(resolve => (dismissError = resolve));
+      const callback = (_: TestEnvironment): void => {
+        when(mockedAnonymousService.checkShareKey(anything())).thenReject(
+          new CommandError(CommandErrorCode.NotFound, 'unknown')
+        );
+        // The app's error handler shows a dialog and only resolves when the user dismisses it
+        when(mockedErrorHandler.handleError(anything())).thenCall(() => errorDismissed);
+      };
+      new TestEnvironment({ callback });
+
+      verify(mockedErrorHandler.handleError(anything())).once();
+      verify(mockedLocationService.go(anything())).never();
+
+      dismissError();
+      tick();
+
+      verify(mockedLocationService.go('/')).once();
+      expect().nothing();
+    }));
+
     it('disables form fields when joining', fakeAsync(() => {
       const env = new TestEnvironment();
 

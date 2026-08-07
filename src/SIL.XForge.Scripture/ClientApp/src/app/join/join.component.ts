@@ -211,7 +211,17 @@ export class JoinComponent extends DataLoadingComponent {
     } else if (error instanceof CommandError) {
       knownErrorCode = this.getKnownErrorCode(error.message);
     }
-    knownErrorCode == null ? this.errorHandler.handleError(error) : await this.showJoinError(knownErrorCode);
+    if (knownErrorCode != null) {
+      await this.showJoinError(knownErrorCode);
+      return;
+    }
+    // ErrorHandler.handleError is declared to return void, but the app's handler reports the error and shows a dialog,
+    // returning a promise that resolves once the user dismisses it. Wait for that so callers don't navigate away
+    // before the user has read the message.
+    const handled: unknown = this.errorHandler.handleError(error);
+    if (handled instanceof Promise) {
+      await handled;
+    }
   }
 
   private getKnownErrorCode(code: any): ObjectPaths<typeof en.join> | undefined {
