@@ -176,10 +176,18 @@ export class CheckingQuestionsComponent implements OnInit, OnChanges {
     // when 'activateStoredQuestion' is called, such as 'routeBookChapter'.
     const questionDocs: Readonly<QuestionDoc[] | undefined> = changes.questionDocs?.currentValue;
     if (questionDocs != null) {
-      if (questionDocs.length > 0) {
-        this.activateStoredQuestion({ isQuestionListChange: true });
-      } else {
-        this.activeQuestionDoc = undefined;
+      // If the list changed but the route did not, an active question belonging to a different
+      // book/chapter than the route is one that was just activated (such as a question the user added
+      // for another book) and is awaiting navigation to its own book/chapter. Leave it active so it is
+      // not replaced by a question from the book/chapter that is being navigated away from.
+      const isAwaitingNavigation: boolean = changes.routeBookChapter == null && this.isActiveQuestionOutsideRoute;
+
+      if (!isAwaitingNavigation) {
+        if (questionDocs.length > 0) {
+          this.activateStoredQuestion({ isQuestionListChange: true });
+        } else {
+          this.activeQuestionDoc = undefined;
+        }
       }
 
       this.haveQuestionsLoaded = true;
@@ -250,6 +258,14 @@ export class CheckingQuestionsComponent implements OnInit, OnChanges {
   protected activateFirstUnansweredQuestion(): void {
     if (!this.hasUnansweredQuestion || this._firstUnansweredQuestion == null) return;
     this.activateQuestion(this._firstUnansweredQuestion.docs[0], { isQuestionListChange: false }, true);
+  }
+
+  /** Whether the active question belongs to a book/chapter other than the one in the route. */
+  private get isActiveQuestionOutsideRoute(): boolean {
+    const verseRef: VerseRefData | undefined = this.activeQuestionDoc?.data?.verseRef;
+    return (
+      verseRef != null && this.routeBookChapter != null && !bookChapterMatchesVerseRef(this.routeBookChapter, verseRef)
+    );
   }
 
   private get canAddAnswer(): boolean {

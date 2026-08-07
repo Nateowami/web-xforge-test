@@ -913,6 +913,35 @@ describe('CheckingComponent', () => {
       expect(env.location.path()).toEqual('/projects/project01/checking/JHN/1?scope=book');
     }));
 
+    it('activates the question just added for another book, not the first question of that book', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).toBe('q1Id');
+      const dateNow = new Date();
+      // Matthew 1 already has a question (q16Id), which comes before the new question
+      const newQuestion: Question = {
+        dataId: 'q17Id',
+        ownerRef: ADMIN_USER.id,
+        projectRef: 'project01',
+        text: 'Question added for Matthew while viewing John.',
+        answers: [],
+        verseRef: { bookNum: 40, chapterNum: 1, verseNum: 10, verse: '10' },
+        isArchived: false,
+        dateCreated: dateNow.toJSON(),
+        dateModified: dateNow.toJSON()
+      };
+      env.insertQuestion(newQuestion);
+      when(mockedQuestionDialogService.questionDialog(anything())).thenResolve(env.getQuestionDoc('q17Id'));
+
+      env.clickButton(env.addQuestionButton);
+      // Simulate the route change to the new question's book that the component requests
+      env.setBookChapter('MAT', 1);
+      env.waitForSliderUpdate();
+      env.fixture.detectChanges();
+
+      expect(env.component.questionsList!.activeQuestionDoc?.data?.dataId).toBe('q17Id');
+      env.waitForQuestionTimersToComplete();
+    }));
+
     it('admin can see appropriate filter options', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER });
       expect(env.component.questionFilters.has(QuestionFilter.None)).withContext('All').toEqual(true);
