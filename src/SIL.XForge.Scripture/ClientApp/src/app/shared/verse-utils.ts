@@ -6,6 +6,9 @@ import { attributeFromMouseEvent } from './utils';
 const VERSE_FROM_SEGMENT_REF_REGEX = /verse_\d+_(\d+[\u200f]?[a-z]?[,-]?\d*[a-z]?[^\/]?)/;
 // Regular expression for the verse segment ref of scripture content
 export const VERSE_REGEX = /verse_[0-9]+_[0-9]+/;
+// A well formed verse: a verse number with an optional segment letter, or a list/range of such
+// verses joined by ',' or '-'. e.g. 5, 5a, 5-7, 5,7, 5b-7a
+const VERSE_STR_REGEX = /^\d+[ab]?([,-]\d+[ab]?)*$/i;
 export const RIGHT_TO_LEFT_MARK = '\u200f';
 export const LEFT_TO_RIGHT_EMBEDDING = '\u202A';
 export const POP_DIRECTIONAL_FORMATTING = '\u202C';
@@ -39,6 +42,18 @@ export function getVerseStrFromSegmentRef(segmentRef: string): string | undefine
 
 export function verseSlug(verse: VerseRef): string {
   return 'verse_' + verse.chapterNum + '_' + (verse.verse == null ? verse.verseNum : verse.verse);
+}
+
+/**
+ * Determines whether a parsed verse reference is one we can work with. VerseRef only requires the
+ * verse to start with a digit, so it parses (and reports as valid) references such as 'MAT 1:3=5',
+ * keeping everything after the digits as part of the verse. Callers that accept a reference typed
+ * or supplied by a user need this check as well.
+ * @param verseRef The verse reference, normally the result of parsing a string.
+ * @returns Whether the reference is valid and its verse is well formed.
+ */
+export function isVerseRefValid(verseRef: VerseRef | undefined): boolean {
+  return verseRef != null && verseRef.valid && VERSE_STR_REGEX.test(verseRef.verse ?? '');
 }
 
 /**

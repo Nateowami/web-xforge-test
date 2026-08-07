@@ -60,6 +60,7 @@ import {
   ScriptureChooserDialogData
 } from '../../scripture-chooser-dialog/scripture-chooser-dialog.component';
 import { SFValidators } from '../../shared/sfvalidators';
+import { isVerseRefValid } from '../../shared/verse-utils';
 import { CheckingQuestionsService } from '../checking/checking-questions.service';
 import {
   EditedQuestion,
@@ -733,8 +734,13 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
         const refStartsWithBook: boolean = Canon.allBookIds.includes(reference.slice(0, 3)) && reference[3] === ' ';
         const fullReference: string =
           refStartsWithBook || defaultBookId == null ? reference : defaultBookId + ' ' + reference;
+        const verseRef = new VerseRef(fullReference);
+        if (!isVerseRefValid(verseRef)) {
+          invalidRows.push([rowNumber, reference, questionText]);
+          continue;
+        }
         questions.push({
-          verseRef: new VerseRef(fullReference),
+          verseRef,
           text: questionText
         });
       } catch {

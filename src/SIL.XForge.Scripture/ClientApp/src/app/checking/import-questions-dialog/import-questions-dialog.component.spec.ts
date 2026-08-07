@@ -446,6 +446,32 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('treats references with unexpected characters in the verse as invalid rows', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    env.selectFileWithContents([
+      ['Reference', 'Questions'],
+      ['MAT 1:1=2', 'Question with = in the reference'],
+      ['MAT 1:2_3', 'Question with _ in the reference'],
+      ['MAT 1:3*4', 'Question with * in the reference'],
+      ['MAT 1:4-5', 'Question for MAT 1:4-5']
+    ]);
+
+    expect(env.headerText).toBe('These rows in the CSV file were invalid and will be skipped.');
+    const invalidRows = env.tableRows;
+    expect(invalidRows.length).toBe(3);
+    expect(env.getColumnTwoText(invalidRows[0])).toEqual('MAT 1:1=2');
+    expect(env.getColumnTwoText(invalidRows[1])).toEqual('MAT 1:2_3');
+    expect(env.getColumnTwoText(invalidRows[2])).toEqual('MAT 1:3*4');
+
+    env.click(env.continueImportButton);
+
+    expect(env.tableRows.length).toBe(1);
+    expect(env.getRowReference(env.tableRows[0])).toEqual('MAT 1:4-5');
+
+    env.click(env.backButton);
+  }));
+
   it('allows reference and questions columns to be anywhere and ignores irrelevant columns', fakeAsync(() => {
     // (also, it infers the book from the file name)
     const env = new TestEnvironment({ includeAllBooks: true });

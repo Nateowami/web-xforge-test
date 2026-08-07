@@ -11,6 +11,7 @@ import { ErrorStateMatcher } from '@angular/material/core';
 import { VerseRef } from '@sillsdev/scripture';
 import { SelectableProject } from '../core/models/selectable-project';
 import { TextsByBookId } from '../core/models/texts-by-book-id';
+import { isVerseRefValid } from './verse-utils';
 
 export class SFValidators {
   static verseStr(textsByBookId?: TextsByBookId): ValidatorFn {
@@ -20,21 +21,8 @@ export class SFValidators {
       }
 
       const { verseRef } = VerseRef.tryParse(control.value);
-      if (!verseRef.valid || verseRef.hasMultiple) {
-        return { verseFormat: true };
-      }
-      // basic test that the verse contains only the allowed characters
-      const ALLOWED_CHARS_REGEXP = /^\d{1,}[0-9abAB,-]{0,}$/;
-      // any valid letter followed by anything other than a comma or dash is not valid
-      const LETTER_COMMA_DASH_REGEXP = /[abAB][^,-]/;
-      // any non-digit character following a comma or dash is disallowed
-      const COMMA_DASH_DIGIT_REGEXP = /[,-]\D/;
-      const versePart = (control.value as string).split(':')[1];
-      if (
-        !ALLOWED_CHARS_REGEXP.test(versePart) ||
-        LETTER_COMMA_DASH_REGEXP.test(versePart) ||
-        COMMA_DASH_DIGIT_REGEXP.test(verseRef.verse)
-      ) {
+      // VerseRef accepts anything that follows the verse number, so the verse has to be checked too
+      if (!isVerseRefValid(verseRef) || verseRef.hasMultiple) {
         return { verseFormat: true };
       }
 
