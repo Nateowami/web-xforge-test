@@ -651,6 +651,37 @@ describe('CheckingOverviewComponent', () => {
     expect(env.component.questionCount(41, 1)).toEqual(0);
   }));
 
+  it('should list a question for a chapter that is not in the project text', fakeAsync(() => {
+    // Matthew only has chapters 1 and 3 in this project, but importing questions in bulk only checks the book, so a
+    // question can refer to a chapter that is not in the project text
+    const env = new TestEnvironment(false);
+    env.addQuestion({
+      dataId: 'qMissingChapter',
+      projectRef: 'project01',
+      ownerRef: env.adminUser.id,
+      text: 'In a chapter that is not in the project',
+      verseRef: {
+        bookNum: 40,
+        chapterNum: 2,
+        verseNum: 1
+      },
+      answers: [],
+      isArchived: false,
+      dateCreated: '',
+      dateModified: ''
+    });
+    env.waitForQuestions();
+
+    expect(env.component.questionCount(40, 2)).toEqual(1);
+    expect(env.textRows.length).toEqual(1);
+    env.clickExpanderAtRow(0);
+    expect(env.textRows.length).toEqual(2);
+    expect(env.getChapterHeadingByRow(1).nativeElement.textContent).toContain('Matthew 2');
+    env.clickExpanderAtRow(1);
+    expect(env.textRows.length).toEqual(3);
+    expect(env.textRows[2].nativeElement.textContent).toContain('In a chapter that is not in the project');
+  }));
+
   it('should display question reference range if present', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setCurrentUser(env.adminUser);

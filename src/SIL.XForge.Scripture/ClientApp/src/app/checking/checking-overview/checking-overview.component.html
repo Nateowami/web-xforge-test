@@ -82,7 +82,7 @@
             </mat-expansion-panel-header>
             <ng-template matExpansionPanelContent>
               <mat-selection-list>
-                @for (chapter of text.chapters; track chapter.number) {
+                @for (chapter of getChapters(text); track chapter.number) {
                   @if (questionCount(text.bookNum, chapter.number) > 0 || chapter.hasAudio) {
                     <mat-expansion-panel
                       [disabled]="!questionCount(text.bookNum, chapter.number)"
@@ -291,7 +291,7 @@
               </mat-panel-title>
             </mat-expansion-panel-header>
             <ng-template matExpansionPanelContent>
-              @for (chapter of text.chapters; track chapter.number) {
+              @for (chapter of getChapters(text); track chapter.number) {
                 @if (questionCount(text.bookNum, chapter.number, true) > 0) {
                   <mat-expansion-panel [togglePosition]="'before'" class="mat-elevation-z0">
                     <mat-expansion-panel-header>

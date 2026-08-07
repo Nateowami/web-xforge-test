@@ -83,6 +83,11 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
   questionsLoaded: boolean = false;
 
   private questionDocs = new Map<string, QuestionDoc[]>();
+  /**
+   * The chapters to list for each book. This is the book's own chapters, plus any chapter that only exists because a
+   * question refers to it (see addQuestionDoc).
+   */
+  private chaptersByBookNum = new Map<number, Chapter[]>();
   private textsByBookId?: TextsByBookId;
   private projectDoc?: SFProjectProfileDoc;
   private dataChangesSub?: Subscription;
@@ -306,9 +311,17 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
       .sort((a, b) => a.data!.verseRef.verseNum - b.data!.verseRef.verseNum);
   }
 
+  /**
+   * The chapters of the book that should be listed, which may include chapters that are not in the project text but
+   * that questions refer to.
+   */
+  getChapters(text: TextInfo): Chapter[] {
+    return this.chaptersByBookNum.get(text.bookNum) ?? text.chapters;
+  }
+
   bookQuestionCount(text: TextInfo, fromArchive = false): number {
     let count: number = 0;
-    for (const chapter of text.chapters) {
+    for (const chapter of this.getChapters(text)) {
       const questionCount = this.questionCount(text.bookNum, chapter.number, fromArchive);
       count += questionCount;
     }
@@ -339,7 +352,7 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
 
   bookAnswerCount(text: TextInfo): number {
     let count: number = 0;
-    for (const chapter of text.chapters) {
+    for (const chapter of this.getChapters(text)) {
       const answerCount = this.chapterAnswerCount(text.bookNum, chapter.number);
       count += answerCount;
     }
@@ -371,7 +384,7 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
 
   async setArchiveStatusForQuestionsInBook(text: TextInfo, archive: boolean): Promise<void> {
     if (await this.confirmArchiveQuestions(archive, this.i18n.localizeBook(text.bookNum))) {
-      for (const chapter of text.chapters) {
+      for (const chapter of this.getChapters(text)) {
         for (const questionDoc of this.getQuestionDocs(this.getTextDocIdType(text.bookNum, chapter.number), !archive)) {
           if (questionDoc.data!.isArchived !== archive) this.setQuestionArchiveStatus(questionDoc, archive);
         }
@@ -425,7 +438,7 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
     let read: number = 0;
     let answered: number = 0;
     if (this.projectId != null) {
-      for (const chapter of text.chapters) {
+      for (const chapter of this.getChapters(text)) {
         const id = new TextDocId(this.projectId, text.bookNum, chapter.number);
         for (const questionDoc of this.getQuestionDocs(id)) {
           if (CheckingUtils.hasUserAnswered(questionDoc.data, this.userService.currentUserId)) {
@@ -525,6 +538,7 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
     }
 
     this.questionDocs.clear();
+    this.chaptersByBookNum.clear();
     this.textsByBookId = {};
     this.texts = [];
     for (const text of this.projectDoc.data.texts.slice().sort((a, b) => a.bookNum - b.bookNum)) {
@@ -534,6 +548,7 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
       }
       this.textsByBookId[Canon.bookNumberToId(text.bookNum)] = text;
       this.texts.push(text);
+      this.chaptersByBookNum.set(text.bookNum, text.chapters.slice());
       for (const chapter of text.chapters) {
         const textId = new TextDocId(this.projectDoc.id, text.bookNum, chapter.number);
         this.questionDocs.set(textId.toString(), []);
@@ -551,15 +566,25 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
     if (this.projectDoc == null || questionDoc.data == null) {
       return;
     }
-    const textId = new TextDocId(
-      this.projectDoc.id,
-      questionDoc.data.verseRef.bookNum,
-      questionDoc.data.verseRef.chapterNum
-    );
-    const textQuestionDocs = this.questionDocs.get(textId.toString());
-    if (textQuestionDocs != null) {
-      textQuestionDocs.push(questionDoc);
+    const bookNum = questionDoc.data.verseRef.bookNum;
+    const chapterNum = questionDoc.data.verseRef.chapterNum;
+    const chapters = this.chaptersByBookNum.get(bookNum);
+    // ignore questions for books that are not in the project
+    if (chapters == null) {
+      return;
     }
+    const textId = new TextDocId(this.projectDoc.id, bookNum, chapterNum);
+    let textQuestionDocs = this.questionDocs.get(textId.toString());
+    if (textQuestionDocs == null) {
+      // The question refers to a chapter that is not in the project text, which can happen when questions are imported
+      // in bulk (the import only checks that the book is in the project). List the chapter anyway, otherwise the
+      // question is invisible here even though it is counted in the project stats and shown to community checkers.
+      textQuestionDocs = [];
+      this.questionDocs.set(textId.toString(), textQuestionDocs);
+      chapters.push({ number: chapterNum, lastVerse: 0, isValid: true, permissions: {} });
+      chapters.sort((a, b) => a.number - b.number);
+    }
+    textQuestionDocs.push(questionDoc);
   }
 
   /**
