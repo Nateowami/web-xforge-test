@@ -2,6 +2,7 @@ import { Component, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { TranslocoService } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
+import { cloneDeep } from 'lodash-es';
 import { QuillService } from 'ngx-quill';
 import Quill, { Delta, EmitterSource, Range as QuillRange } from 'quill';
 import QuillCursors from 'quill-cursors';
@@ -31,6 +32,7 @@ import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextDoc, TextDocId } from '../../core/models/text-doc';
 import { SFProjectService } from '../../core/sf-project.service';
+import { TextDocService } from '../../core/text-doc.service';
 import { getCombinedVerseTextDoc, getEmptyChapterDoc, getPoetryVerseTextDoc, getTextDoc } from '../test-utils';
 import { provideQuillRegistrations } from './quill-editor-registration/quill-providers';
 import { getAttributesAtPosition } from './quill-util';
@@ -432,6 +434,36 @@ describe('TextComponent', () => {
     env.triggerUndo();
     const rangePostUndo: QuillRange | undefined = env.component.getSegmentRange('s_3');
     expect(rangePostUndo).toBeTruthy();
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
+  it('keeps the current segment when the system overwrites the text doc', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = env.matTextDocId;
+    env.waitForEditor();
+    env.component.highlightSegment = true;
+
+    const range: QuillRange = env.component.getSegmentRange('verse_1_3')!;
+    env.component.editor!.setSelection(range.index + 1, 'user');
+    tick();
+    env.fixture.detectChanges();
+    expect(env.component.segmentRef).withContext('setup').toEqual('verse_1_3');
+    expect(env.isSegmentHighlighted(1, 3)).withContext('setup').toBe(true);
+
+    // SUT: the system overwrites the chapter, e.g. when a generated draft is added to the project. This reloads the
+    // editor, which would otherwise reset the selection to the start of the document.
+    const textDoc: TextDoc = env.realtimeService.get<TextDoc>(TextDoc.COLLECTION, env.matTextDocId.toString());
+    const newOps: RichText.DeltaOperation[] = cloneDeep(textDoc.data!.ops!);
+    newOps.find(op => op.attributes?.segment === 'verse_1_1')!.insert = 'Draft text for verse 1.';
+    void TestBed.inject(TextDocService).overwrite(env.matTextDocId, new Delta(newOps), 'Draft');
+    tick();
+    env.waitForEditor();
+
+    expect(env.component.segmentRef).toEqual('verse_1_3');
+    expect(env.isSegmentHighlighted(1, 3)).toBe(true);
+    expect(env.isSegmentHighlighted(1, 1)).toBe(false);
 
     TestEnvironment.waitForPresenceTimer();
   }));

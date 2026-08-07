@@ -1240,9 +1240,19 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     });
 
     // Local system changes are big - usually complete rewrites of the document via TextDocService.overwrite()
-    // As these are user initiated, it is OK to complete reload the editor, as the user will not be in the editor
+    // (e.g. adding a draft to the chapter, or restoring a revision). Reloading the editor resets the selection to
+    // the start of the document, so remember the segment the user is on and restore it once the new content has
+    // loaded, the same way the initial segment is restored when the text is first loaded.
     this.localSystemChangesSub?.unsubscribe();
     this.localSystemChangesSub = this.textDocService.getLocalSystemChanges$(this._id).subscribe(() => {
+      const segmentRef: string | undefined = this._segment?.ref;
+      if (segmentRef != null) {
+        this._segment = undefined;
+        this.initialTextFetched = false;
+        this.initialSegmentRef = segmentRef;
+        this.initialSegmentChecksum = undefined;
+        this.initialSegmentFocus = true;
+      }
       void this.bindQuill();
     });
 
