@@ -195,6 +195,51 @@ describe('ConnectProjectComponent', () => {
     verify(mockedRouter.navigate(deepEqual(['/projects', 'project01']))).once();
   }));
 
+  it('should not connect when the typed source text is not a project or resource', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupDefaultProjectData();
+    env.waitForProjectsResponse();
+
+    env.setSourceProjectText('Not A Real Project');
+    expect(env.sourceProjectSelectError).toBeNull();
+
+    env.clickElement(env.submitButton);
+
+    expect(env.component.state).toEqual('input');
+    expect(env.sourceProjectSelectError.nativeElement.textContent).toContain('select a valid project or resource');
+    verify(mockedSFProjectService.onlineCreate(anything())).never();
+
+    // The user can correct the source text and connect
+    env.selectSourceProject('pt04');
+    env.clickElement(env.submitButton);
+
+    expect(env.component.state).toEqual('connecting');
+    verify(
+      mockedSFProjectService.onlineCreate(
+        deepEqual({ paratextId: 'pt01', checkingEnabled: true, sourceParatextId: 'pt04' })
+      )
+    ).once();
+  }));
+
+  it('should connect when the source text field is disabled because there are no other PT projects', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupProjectsResources([], []);
+    env.waitForProjectsResponse();
+    expect(env.component.sourceProjectSelect?.isDisabled).toBe(true);
+
+    env.clickElement(env.submitButton);
+    tick();
+
+    expect(env.component.state).toEqual('connecting');
+    verify(
+      mockedSFProjectService.onlineCreate(
+        deepEqual({ paratextId: 'pt01', checkingEnabled: true, sourceParatextId: null })
+      )
+    ).once();
+    env.setQueuedCount();
+    env.emitSyncComplete();
+  }));
+
   it('handles already connected error', fakeAsync(() => {
     // Another user might have _just_ connected this PT project. We could respond by joining this user to the
     // now-connected project. But the user may have made Translation or Checking selections on the Connect Project page
@@ -454,12 +499,26 @@ class TestEnvironment {
     return { projects, resources };
   }
 
+  get sourceProjectSelectError(): DebugElement {
+    return this.fixture.debugElement.query(By.css('app-project-select mat-error'));
+  }
+
   get resourceLoadingErrorMessage(): DebugElement {
     return this.fixture.debugElement.query(By.css('app-project-select + mat-error'));
   }
 
   selectSourceProject(projectId: string): void {
     this.sourceProjectSelectComponent.value = projectId;
+    this.fixture.detectChanges();
+    tick();
+    this.fixture.detectChanges();
+  }
+
+  /** Type text into the source text field, as a user does when they don't pick from the list. */
+  setSourceProjectText(text: string): void {
+    const input = this.inputElement(this.sourceProjectSelect);
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
     this.fixture.detectChanges();
     tick();
     this.fixture.detectChanges();

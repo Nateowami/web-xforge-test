@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, DestroyRef, ErrorHandler, OnInit } from '@angular/core';
+import { Component, DestroyRef, ErrorHandler, OnInit, ViewChild } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
 import { MatCard, MatCardContent, MatCardSubtitle, MatCardTitle } from '@angular/material/card';
@@ -59,6 +59,8 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
       checking: new FormControl(true)
     })
   });
+  @ViewChild(ProjectSelectComponent) sourceProjectSelect?: ProjectSelectComponent;
+
   resources?: SelectableProject[];
   showResourcesLoadingFailedMessage = false;
   state: 'connecting' | 'input' | 'offline' = 'input';
@@ -146,6 +148,14 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
   }
 
   async submit(): Promise<void> {
+    // The source text field accepts typed text, but only a project or resource chosen from its list is a valid value.
+    // Text that matches nothing arrives here as no selection at all, so refuse to connect and show the field's
+    // validation message rather than silently creating the project without the source text the user asked for.
+    const sourceControl = this.sourceProjectSelect?.paratextIdControl;
+    if (sourceControl?.invalid === true) {
+      sourceControl.markAsTouched();
+      return;
+    }
     if (!this.connectProjectForm.valid || this.projectsFromParatext == null) {
       return;
     }
