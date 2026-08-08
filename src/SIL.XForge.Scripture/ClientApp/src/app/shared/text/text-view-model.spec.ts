@@ -1,6 +1,6 @@
 import { TestBed } from '@angular/core/testing';
 import Quill, { Delta, Range } from 'quill';
-import { instance, mock, when } from 'ts-mockito';
+import { instance, mock, verify, when } from 'ts-mockito';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { TextViewModel } from './text-view-model';
 
@@ -98,6 +98,45 @@ describe('TextViewModel', () => {
 
       // Length should be increased by 1 to account for note embed
       expect(result).toEqual({ index: 0, length: 13 });
+    });
+  });
+
+  describe('dataRangesToEditorRanges', () => {
+    it('should return the same ranges as converting each one individually', () => {
+      const env = new TestEnvironment();
+      env.setupContentWithMultipleEmbeds();
+
+      const dataRanges: Range[] = [
+        { index: 0, length: 11 },
+        { index: 5, length: 0 },
+        { index: 7, length: 4 }
+      ];
+      const result: Range[] = env.textViewModel.dataRangesToEditorRanges(dataRanges);
+
+      expect(result).toEqual(dataRanges.map(range => env.textViewModel.dataRangeToEditorRange(range)));
+    });
+
+    // A chapter can hold thousands of insights, and reading the editor contents is O(document),
+    // so converting them one at a time locks up the page (SF-3522).
+    it('should read the editor contents only once for the whole batch', () => {
+      const env = new TestEnvironment();
+      env.setupBasicContent();
+
+      env.textViewModel.dataRangesToEditorRanges([
+        { index: 0, length: 5 },
+        { index: 6, length: 5 },
+        { index: 1, length: 2 }
+      ]);
+
+      verify(mockQuill.getContents()).once();
+    });
+
+    it('should not read the editor contents when there are no ranges', () => {
+      const env = new TestEnvironment();
+      env.setupBasicContent();
+
+      expect(env.textViewModel.dataRangesToEditorRanges([])).toEqual([]);
+      verify(mockQuill.getContents()).never();
     });
   });
 

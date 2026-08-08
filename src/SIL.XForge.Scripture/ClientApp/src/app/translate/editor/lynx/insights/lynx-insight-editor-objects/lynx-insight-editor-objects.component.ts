@@ -114,10 +114,7 @@ export class LynxInsightEditorObjectsComponent implements OnChanges, OnInit, OnD
       .pipe(quietTakeUntilDestroyed(this.destroyRef), observeOn(asapScheduler))
       .subscribe(([range, insights]) => {
         if (this.insightsEnabled) {
-          this.handleSelectionChange(
-            range,
-            insights.map(insight => this.adjustInsightRange(insight))
-          );
+          this.handleSelectionChange(range, this.adjustInsightRanges(insights));
         }
       });
 
@@ -171,10 +168,7 @@ export class LynxInsightEditorObjectsComponent implements OnChanges, OnInit, OnD
                     chapterInsightsRendered$.next(false);
 
                     return from(
-                      this.insightRenderService.render(
-                        insights.map(insight => this.adjustInsightRange(insight)),
-                        this.editor!
-                      )
+                      this.insightRenderService.render(this.adjustInsightRanges(insights), this.editor!)
                     ).pipe(tap(() => chapterInsightsRendered$.next(true)));
                   })
                 ),
@@ -182,12 +176,7 @@ export class LynxInsightEditorObjectsComponent implements OnChanges, OnInit, OnD
                   debounceTime(this.numberEmbedsChangedDebounceTime),
                   withLatestFrom(this.insightState.filteredChapterInsights$),
                   switchMap(([_, insights]) => {
-                    return from(
-                      this.insightRenderService.render(
-                        insights.map(insight => this.adjustInsightRange(insight)),
-                        this.editor!
-                      )
-                    );
+                    return from(this.insightRenderService.render(this.adjustInsightRanges(insights), this.editor!));
                   })
                 ),
                 // Ensure insights are rendered before responding to display state changes,
@@ -328,17 +317,20 @@ export class LynxInsightEditorObjectsComponent implements OnChanges, OnInit, OnD
   }
 
   /**
-   * Translate dataRange to editorRange (adjust for note embeds)
+   * Translate dataRanges to editorRanges (adjust for note embeds).
+   * Converted as a batch, as a chapter can hold thousands of insights and converting them one at a
+   * time re-reads the whole editor document for each one.
    */
-  private adjustInsightRange(insight: LynxInsight): LynxInsight {
+  private adjustInsightRanges(insights: LynxInsight[]): LynxInsight[] {
     if (this.lynxTextModelConverter == null) {
-      return insight;
+      return insights;
     }
 
-    return {
-      ...insight,
-      range: this.lynxTextModelConverter.dataRangeToEditorRange(insight.range)
-    };
+    const editorRanges: LynxInsightRange[] = this.lynxTextModelConverter.dataRangesToEditorRanges(
+      insights.map(insight => insight.range)
+    );
+
+    return insights.map((insight, index) => ({ ...insight, range: editorRanges[index] }));
   }
 }
 

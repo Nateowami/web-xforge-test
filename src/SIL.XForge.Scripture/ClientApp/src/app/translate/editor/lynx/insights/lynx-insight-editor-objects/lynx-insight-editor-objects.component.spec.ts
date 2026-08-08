@@ -533,6 +533,7 @@ class TestEnvironment {
 
     // Setup text model converter to return ranges as-is (prevents null range issues)
     when(mockTextModelConverter.dataRangeToEditorRange(anything())).thenCall((range: LynxInsightRange) => range);
+    when(mockTextModelConverter.dataRangesToEditorRanges(anything())).thenCall((ranges: LynxInsightRange[]) => ranges);
 
     this.fixture = TestBed.createComponent(HostComponent);
     this.hostComponent = this.fixture.componentInstance;

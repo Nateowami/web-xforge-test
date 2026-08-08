@@ -29,6 +29,15 @@ export interface LynxTextModelConverter {
    */
   dataRangeToEditorRange(dataRange: Range): Range;
   /**
+   * Translates several ranges from the data model to the editor in a single pass.
+   * Prefer this over calling `dataRangeToEditorRange` in a loop: each individual call has to read
+   * the whole editor document, which makes converting a chapter's worth of insight ranges (there
+   * can be thousands) quadratic and locks up the page.
+   * @param dataRanges The ranges (index, length) in the data model.
+   * @returns The corresponding ranges in the editor model, in the same order.
+   */
+  dataRangesToEditorRanges(dataRanges: Range[]): Range[];
+  /**
    * Translates the data model delta to the editor model delta.
    * Useful when embeds that are present only in the editor model may affect
    * update ops from Lynx.

@@ -505,9 +505,22 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
   }
 
   dataRangeToEditorRange(dataRange: Range): Range {
-    const editor: Quill = this.checkEditor();
-    const editorDelta: Delta = editor.getContents();
+    return this.convertDataRangeToEditorRange(dataRange, this.checkEditor().getContents());
+  }
 
+  dataRangesToEditorRanges(dataRanges: Range[]): Range[] {
+    if (dataRanges.length === 0) {
+      return [];
+    }
+
+    // Read the editor contents once for the whole batch: 'getContents' rebuilds a delta of the
+    // entire chapter, so doing it per range is quadratic in the number of ranges.
+    const editorDelta: Delta = this.checkEditor().getContents();
+
+    return dataRanges.map(dataRange => this.convertDataRangeToEditorRange(dataRange, editorDelta));
+  }
+
+  private convertDataRangeToEditorRange(dataRange: Range, editorDelta: Delta): Range {
     if (editorDelta.ops == null || dataRange.length < 0) {
       return dataRange; // Return original as fallback
     }
