@@ -1080,6 +1080,63 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task GetNoteThreadChanges_NoteAtStartOfVerseIsAnchoredToItsSelection()
+    {
+        // A note on the first word of a verse has a start position of 0, which does not mean that it applies to
+        // the whole verse. It is anchored to its selected text, and moves with it when the verse text changes.
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        const string selectedText = "Text selected";
+        const string threadId = "thread1";
+        env.AddTextDoc(40, 1);
+
+        var comment = new Paratext.Data.ProjectComments.Comment(associatedPtUser)
+        {
+            Thread = threadId,
+            VerseRefStr = "MAT 1:1",
+            SelectedText = selectedText,
+            ContextBefore = "",
+            ContextAfter = env.ContextAfter,
+            StartPosition = 0,
+            Date = "2019-12-31T08:00:00.0000000+00:00",
+            Status = NoteStatus.Todo,
+            Type = NoteType.Normal,
+            ConflictType = NoteConflictType.None,
+            AssignedUser = CommentThread.unassignedUser,
+        };
+        env.AddParatextComment(comment);
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        IEnumerable<IDocument<NoteThread>> noteThreadDocs = await TestEnvironment.GetNoteThreadDocsAsync(conn, []);
+        Dictionary<string, ParatextUserProfile> ptProjectUsers = new Dictionary<string, ParatextUserProfile>
+        {
+            {
+                env.Username01,
+                new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 }
+            },
+        };
+
+        // The verse now begins with text that was added before the note's selected text
+        const string addedText = "Text added before. ";
+        Dictionary<int, ChapterDelta> chapterDeltas = env.GetChapterDeltasByBook(1, addedText, selectedText, false);
+
+        IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+            userSecret,
+            ptProjectId,
+            40,
+            noteThreadDocs,
+            chapterDeltas,
+            ptProjectUsers
+        );
+
+        NoteThreadChange change = changes.Single(c => c.ThreadId == threadId);
+        TextAnchor expected = new TextAnchor { Start = addedText.Length, Length = selectedText.Length };
+        Assert.That(change.Position, Is.EqualTo(expected));
+    }
+
+    [Test]
     public async Task GetNoteThreadChanges_NotePositionDefaulted()
     {
         var env = new TestEnvironment();

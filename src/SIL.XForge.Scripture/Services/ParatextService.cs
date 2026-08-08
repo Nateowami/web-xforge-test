@@ -3724,7 +3724,14 @@ public class ParatextService : DisposableBase, IParatextService
             contextAfter = comment.ReattachedLocation.ContextAfter;
         }
 
-        if (!chapterDeltas.TryGetValue(verseRef.ChapterNum, out ChapterDelta chapterDelta) || startPos == 0)
+        // A note that is not anchored to a selection within the verse - one created on an empty verse, or one
+        // that applies to the whole verse - is recorded by Paratext as starting at position 0 with no context
+        // on either side of the selection. Such a note gets an empty text anchor. A start position of 0 on its
+        // own does not mean the note is unanchored: it is also where a note on the first word of a verse
+        // starts, and those are anchored to their selected text the same way any other note is.
+        bool appliesToWholeVerse =
+            startPos == 0 && string.IsNullOrEmpty(contextBefore) && string.IsNullOrEmpty(contextAfter);
+        if (!chapterDeltas.TryGetValue(verseRef.ChapterNum, out ChapterDelta chapterDelta) || appliesToWholeVerse)
             return new TextAnchor();
 
         string verseText = GetVerseText(chapterDelta.Delta, verseRef);
