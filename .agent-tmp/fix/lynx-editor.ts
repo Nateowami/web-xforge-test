@@ -1,0 +1,62 @@
+import Quill, { Delta, Op, Range } from 'quill';
+import { Observable } from 'rxjs';
+
+export type LynxableEditor = Quill; // Add future editor as union type
+export type LynxCountToOffsetFunc = (offset: number) => number;
+
+export interface LynxEditor {
+  getEditor(): LynxableEditor;
+  insertText(index: number, text: string, formats: any, source: any): void;
+  deleteText(index: number, length: number, source: any): void;
+  getLength(): number;
+  formatText(index: number, length: number, formats: any, source: any): void;
+  setContents(delta: any, source: any): void;
+  setSelection(index: number, length: number, source: any): void;
+  getScrollingContainer(): Element;
+  getBounds(index: number, length: number): any;
+  updateContents(delta: Delta | Op[], source: any): void;
+  focus(): void;
+  getRoot(): HTMLElement;
+}
+
+export interface LynxTextModelConverter {
+  /**
+   * Translates a range from the data model to the editor.
+   * Useful when embeds that are present only in the editor model may affect
+   * the insight ranges determined from the data model.
+   * @param dataRange The range (index, length) in the data model.
+   * @returns The corresponding range in the editor model, or the original range as a fallback.
+   */
+  dataRangeToEditorRange(dataRange: Range): Range;
+  /**
+   * Translates several ranges from the data model to the editor in a single pass.
+   * Prefer this over calling `dataRangeToEditorRange` in a loop: each individual call has to read
+   * the whole editor document, which makes converting a chapter's worth of insight ranges (there
+   * can be thousands) quadratic and locks up the page.
+   * @param dataRanges The ranges (index, length) in the data model.
+   * @returns The corresponding ranges in the editor model, in the same order.
+   */
+  dataRangesToEditorRanges(dataRanges: Range[]): Range[];
+  /**
+   * Translates the data model delta to the editor model delta.
+   * Useful when embeds that are present only in the editor model may affect
+   * update ops from Lynx.
+   * @param dataDelta The data model delta.
+   * @returns The corresponding editor model delta.
+   */
+  dataDeltaToEditorDelta(dataDelta: Delta): Delta;
+
+  /**
+   * Gets a function that takes an offset in the data model and returns
+   * the number of embeds preceding that offset in the editor model.
+   * Useful when embeds that are present only in the editor model may affect position offsets from Lynx.
+   */
+  getEmbedCountsToOffsetFunc(): LynxCountToOffsetFunc;
+
+  /**
+   * Observable that emits when the number of embedded elements changes.
+   * This is useful for detecting when note embeds are added/removed (including remotely),
+   * which affect the mapping between data model positions and editor positions.
+   */
+  readonly numberEmbedsChanged$: Observable<void>;
+}

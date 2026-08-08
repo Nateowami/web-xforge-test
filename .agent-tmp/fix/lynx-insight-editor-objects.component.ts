@@ -1,0 +1,342 @@
+import {
+  Component,
+  DestroyRef,
+  DOCUMENT,
+  Inject,
+  Input,
+  OnChanges,
+  OnDestroy,
+  OnInit,
+  SimpleChanges
+} from '@angular/core';
+import { isEqual } from 'lodash-es';
+import { Delta } from 'quill';
+import {
+  asapScheduler,
+  BehaviorSubject,
+  combineLatest,
+  EMPTY,
+  filter,
+  from,
+  fromEvent,
+  merge,
+  switchMap,
+  tap
+} from 'rxjs';
+import { debounceTime, distinctUntilChanged, map, observeOn, scan, withLatestFrom } from 'rxjs/operators';
+import { ActivatedBookChapterService } from 'xforge-common/activated-book-chapter.service';
+import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
+import { EditorReadyService } from '../base-services/editor-ready.service';
+import { InsightRenderService } from '../base-services/insight-render.service';
+import { LynxableEditor, LynxTextModelConverter } from '../lynx-editor';
+import { LynxInsight, LynxInsightDisplayState, LynxInsightRange } from '../lynx-insight';
+import { LynxInsightActionPromptComponent } from '../lynx-insight-action-prompt/lynx-insight-action-prompt.component';
+import { LynxInsightOverlayService } from '../lynx-insight-overlay.service';
+import { LynxInsightScrollPositionIndicatorComponent } from '../lynx-insight-scroll-position-indicator/lynx-insight-scroll-position-indicator.component';
+import { LynxInsightStateService } from '../lynx-insight-state.service';
+import { LynxInsightStatusIndicatorComponent } from '../lynx-insight-status-indicator/lynx-insight-status-indicator.component';
+import { LynxWorkspaceService } from '../lynx-workspace.service';
+import { LynxInsightBlot } from '../quill-services/blots/lynx-insight-blot';
+
+@Component({
+  selector: 'app-lynx-insight-editor-objects',
+  templateUrl: './lynx-insight-editor-objects.component.html',
+  imports: [
+    LynxInsightStatusIndicatorComponent,
+    LynxInsightScrollPositionIndicatorComponent,
+    LynxInsightActionPromptComponent
+  ]
+})
+export class LynxInsightEditorObjectsComponent implements OnChanges, OnInit, OnDestroy {
+  @Input() editor?: LynxableEditor;
+  @Input() lynxTextModelConverter?: LynxTextModelConverter;
+  @Input() autoCorrectionsEnabled: boolean = false;
+  @Input() insightsEnabled: boolean = false;
+
+  readonly numberEmbedsChangedDebounceTime = 100;
+
+  readonly insightSelector = `.${LynxInsightBlot.superClassName}`;
+  private readonly dataIdProp = LynxInsightBlot.idDatasetPropName;
+
+  private isEditorMouseDown = false;
+  private insightsEnabled$ = new BehaviorSubject<boolean>(this.insightsEnabled);
+
+  constructor(
+    private readonly destroyRef: DestroyRef,
+    private readonly insightState: LynxInsightStateService,
+    private readonly insightRenderService: InsightRenderService,
+    private readonly editorReadyService: EditorReadyService,
+    private readonly overlayService: LynxInsightOverlayService,
+    private readonly lynxWorkspaceService: LynxWorkspaceService,
+    private readonly activatedBookChapterService: ActivatedBookChapterService,
+    @Inject(DOCUMENT) private readonly document: Document
+  ) {}
+
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes.insightsEnabled) {
+      this.insightsEnabled$.next(this.insightsEnabled);
+    }
+  }
+
+  ngOnInit(): void {
+    if (this.editor == null || this.lynxTextModelConverter == null) {
+      return;
+    }
+
+    fromEvent(this.editor.root, 'mousedown')
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.isEditorMouseDown = true;
+      });
+
+    // Catch mouseup event even if mouse is released outside the editor
+    fromEvent(this.document, 'mouseup')
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.isEditorMouseDown = false;
+      });
+
+    fromEvent(this.editor, 'text-change')
+      .pipe(
+        filter(([_delta, _oldContents, source]) => source === 'user'),
+        quietTakeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(([delta]) => {
+        if (this.autoCorrectionsEnabled) {
+          void this.handleTextChange(delta);
+        }
+      });
+
+    combineLatest([
+      fromEvent(this.editor, 'selection-change').pipe(map(([range]) => range)),
+      this.insightState.filteredChapterInsights$
+    ])
+      .pipe(quietTakeUntilDestroyed(this.destroyRef), observeOn(asapScheduler))
+      .subscribe(([range, insights]) => {
+        if (this.insightsEnabled) {
+          this.handleSelectionChange(range, this.adjustInsightRanges(insights));
+        }
+      });
+
+    combineLatest([fromEvent(this.editor.root, 'mouseover'), this.insightState.filteredChapterInsights$])
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(([event]) => {
+        if (this.insightsEnabled) {
+          this.handleMouseOver(event.target as HTMLElement);
+        }
+      });
+
+    this.activatedBookChapterService.activatedBookChapter$
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        // Clear display state when changing chapters.
+        // This happens before active insights are assigned from the problems panel.
+        this.insightState.clearDisplayState();
+      });
+
+    this.editorReadyService
+      .listenEditorReadyState(this.editor)
+      .pipe(
+        switchMap(ready => {
+          if (!ready) {
+            return EMPTY;
+          }
+
+          // Close all action overlays, including those for insights from other books/chapters
+          this.overlayService.close();
+
+          const chapterInsightsRendered$ = new BehaviorSubject<boolean>(false);
+
+          // When editor is ready, subscribe to insights and display state
+          return this.insightsEnabled$.pipe(
+            distinctUntilChanged(),
+            switchMap(show => {
+              if (!show) {
+                // Clear any existing blots and overlays when insights are disabled
+                this.insightRenderService.removeAllInsightFormatting(this.editor!);
+                this.overlayService.close();
+                this.insightState.clearDisplayState();
+                return EMPTY;
+              }
+
+              return merge(
+                // Render blots when insights change OR when note embeds are added/removed.
+                // Only reset chapterInsightsRendered$ when insights change (not embeds)
+                // to avoid clearing insight overlay.
+                this.insightState.filteredChapterInsights$.pipe(
+                  switchMap(insights => {
+                    chapterInsightsRendered$.next(false);
+
+                    return from(
+                      this.insightRenderService.render(this.adjustInsightRanges(insights), this.editor!)
+                    ).pipe(tap(() => chapterInsightsRendered$.next(true)));
+                  })
+                ),
+                (this.lynxTextModelConverter?.numberEmbedsChanged$ ?? EMPTY).pipe(
+                  debounceTime(this.numberEmbedsChangedDebounceTime),
+                  withLatestFrom(this.insightState.filteredChapterInsights$),
+                  switchMap(([_, insights]) => {
+                    return from(this.insightRenderService.render(this.adjustInsightRanges(insights), this.editor!));
+                  })
+                ),
+                // Ensure insights are rendered before responding to display state changes,
+                // as overlay needs to anchor to insight elements in the editor.
+                chapterInsightsRendered$.pipe(
+                  switchMap(areInsightsRendered => {
+                    if (!areInsightsRendered) {
+                      return EMPTY;
+                    }
+
+                    // Check display state to render action overlay or cursor active state
+                    return this.insightState.displayState$.pipe(
+                      scan(
+                        (prev, curr) => {
+                          // For first emission, always render
+                          const activeInsightsChanged = !prev || !isEqual(prev.activeInsightIds, curr.activeInsightIds);
+                          const actionOverlayActiveChanged =
+                            !prev || prev.actionOverlayActive !== curr.actionOverlayActive;
+                          const cursorActiveInsightIdsChanged =
+                            !prev || !isEqual(prev.cursorActiveInsightIds, curr.cursorActiveInsightIds);
+
+                          if (activeInsightsChanged || actionOverlayActiveChanged) {
+                            const activeInsights = curr.activeInsightIds
+                              .map(id => this.insightState.getInsight(id))
+                              .filter(i => i != null);
+
+                            this.insightRenderService.renderActionOverlay(
+                              activeInsights,
+                              this.editor!,
+                              this.lynxTextModelConverter!,
+                              !!curr.actionOverlayActive
+                            );
+                          }
+
+                          if (cursorActiveInsightIdsChanged) {
+                            this.insightRenderService.renderCursorActiveState(
+                              curr.cursorActiveInsightIds,
+                              this.editor!
+                            );
+                          }
+
+                          return curr;
+                        },
+                        null as LynxInsightDisplayState | null
+                      )
+                    );
+                  })
+                )
+              );
+            })
+          );
+        }),
+        quietTakeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe();
+  }
+
+  ngOnDestroy(): void {
+    if (this.editor != null) {
+      this.insightRenderService.removeAllInsightFormatting(this.editor);
+    }
+  }
+
+  private handleSelectionChange(selection: LynxInsightRange | undefined, insights: LynxInsight[]): void {
+    // Null selection happens when changing chapters,
+    // which could be due to lynx panel nav, so don't update display state.
+    if (selection == null || this.overlayService.isOpen) {
+      return;
+    }
+
+    const ids = insights
+      .filter(insight => selection?.length === 0 && overlaps(insight.range, selection))
+      .map(insight => insight.id);
+
+    const displayStateChanges: Partial<LynxInsightDisplayState> = {
+      activeInsightIds: ids,
+      promptActive: ids.length > 0,
+      actionOverlayActive: false
+    };
+
+    this.insightState.updateDisplayState(displayStateChanges);
+  }
+
+  private handleMouseOver(target: HTMLElement): void {
+    // During a drag operation, do not update hover states for insights to prevent DOM changes
+    // from interrupting Quill's selection process.
+    if (this.isEditorMouseDown) {
+      return;
+    }
+
+    // Clear any 'hover-insight' classes if the target is not an insight element
+    if (!target.matches('.' + LynxInsightBlot.superClassName)) {
+      this.insightState.updateDisplayState({ cursorActiveInsightIds: [] });
+      return;
+    }
+
+    const ids: string[] = this.getInsightIds(target);
+
+    // Set 'hover-insight' class on the affected insight elements (clear others)
+    this.insightState.updateDisplayState({ cursorActiveInsightIds: ids });
+  }
+
+  /**
+   * Get all insight ids from the element and its parents that match the lynx insight selector.
+   */
+  private getInsightIds(el: HTMLElement): string[] {
+    const ids: string[] = [];
+
+    if (el.matches(this.insightSelector)) {
+      let currentEl: HTMLElement | null | undefined = el;
+
+      while (currentEl != null) {
+        const id: string | undefined = currentEl.dataset[this.dataIdProp];
+
+        if (id != null) {
+          ids.push(...id.split(','));
+        }
+
+        currentEl = currentEl.parentElement?.closest(this.insightSelector);
+      }
+    }
+
+    return ids;
+  }
+
+  private async handleTextChange(delta: Delta): Promise<void> {
+    if (this.editor == null || this.lynxTextModelConverter == null) {
+      return;
+    }
+
+    const edits: Delta[] = await this.lynxWorkspaceService.getOnTypeEdits(
+      delta,
+      this.lynxTextModelConverter.getEmbedCountsToOffsetFunc()
+    );
+    for (const edit of edits) {
+      this.editor.updateContents(this.lynxTextModelConverter.dataDeltaToEditorDelta(edit), 'user');
+    }
+  }
+
+  /**
+   * Translate dataRanges to editorRanges (adjust for note embeds).
+   * Converted as a batch, as a chapter can hold thousands of insights and converting them one at a
+   * time re-reads the whole editor document for each one.
+   */
+  private adjustInsightRanges(insights: LynxInsight[]): LynxInsight[] {
+    if (this.lynxTextModelConverter == null) {
+      return insights;
+    }
+
+    const editorRanges: LynxInsightRange[] = this.lynxTextModelConverter.dataRangesToEditorRanges(
+      insights.map(insight => insight.range)
+    );
+
+    return insights.map((insight, index) => ({ ...insight, range: editorRanges[index] }));
+  }
+}
+
+/**
+ * Check if two ranges overlap or are adjacent.
+ */
+function overlaps(x: LynxInsightRange, y: LynxInsightRange): boolean {
+  return x.index <= y.index + y.length && y.index <= x.index + x.length;
+}
