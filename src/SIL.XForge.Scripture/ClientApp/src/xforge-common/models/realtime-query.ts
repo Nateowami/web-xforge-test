@@ -1,9 +1,14 @@
 import arrayDiff, { InsertDiff, MoveDiff, RemoveDiff } from 'arraydiff';
 import { BehaviorSubject, Observable, Subject, Subscription } from 'rxjs';
 import { takeUntil } from 'rxjs/operators';
+import { OfflineData } from '../offline-store';
+import { performQuery, QueryParameters } from '../query-parameters';
 import { RealtimeQueryAdapter } from '../realtime-remote-store';
 import { RealtimeService } from '../realtime.service';
 import { RealtimeDoc } from './realtime-doc';
+
+/** The parameters that page and sort the results, rather than determine which docs match the query. */
+const PIPELINE_PARAMETERS = ['$sort', '$skip', '$limit', '$count'];
 
 /**
  * This class represents a real-time query. If the query has been subscribed to, then the "remoteChanges$" observable
@@ -21,6 +26,7 @@ export class RealtimeQuery<T extends RealtimeDoc = RealtimeDoc> {
   private readonly docSubscriptions = new Map<string, Subscription>();
   private readonly _remoteDocChanges$ = new Subject<any>();
   private readonly _docs$ = new BehaviorSubject<T[]>([]);
+  private _criteria?: QueryParameters;
 
   constructor(
     private readonly realtimeService: RealtimeService,
@@ -133,13 +139,49 @@ export class RealtimeQuery<T extends RealtimeDoc = RealtimeDoc> {
     let docIds: string[] | undefined;
     let count: number;
     if (results instanceof Array) {
-      docIds = results.map(s => s.id);
+      docIds = this.matchLoadedDocs(results).map(s => s.id);
       count = docIds.length;
     } else {
       count = results;
     }
     await this.onChange(false, docIds, count, unpagedCount);
     return docIds;
+  }
+
+  /**
+   * Re-checks the query criteria against the data of any result that is loaded in memory.
+   *
+   * The offline store is updated asynchronously when a remote change arrives, so its snapshots can lag behind the docs
+   * in memory. Without this check, a local update (see localUpdate(), which runs whenever any doc in the collection is
+   * changed locally) can re-add a doc that a remote change has already removed from the results, and it stays in the
+   * results until the query is re-subscribed. For example, a question archived by an administrator re-appears in
+   * another user's checking question list as soon as that user posts an answer or a comment.
+   */
+  private matchLoadedDocs(results: OfflineData[]): OfflineData[] {
+    const snapshots = results.map(snapshot => {
+      if (!this.realtimeService.isSet(this.collection, snapshot.id)) {
+        return snapshot;
+      }
+      const doc = this.realtimeService.get(this.collection, snapshot.id);
+      return doc.isLoaded && doc.data != null ? { ...snapshot, data: doc.data } : snapshot;
+    });
+    // Only the criteria are applied, so that the order and paging of the offline store results are preserved
+    const matched = performQuery<OfflineData>(this.criteria, snapshots).results;
+    return matched instanceof Array ? matched : results;
+  }
+
+  private get criteria(): QueryParameters {
+    if (this._criteria == null) {
+      const parameters = this.adapter.parameters as Record<string, any>;
+      const criteria: Record<string, any> = {};
+      for (const key of Object.keys(parameters)) {
+        if (!PIPELINE_PARAMETERS.includes(key)) {
+          criteria[key] = parameters[key];
+        }
+      }
+      this._criteria = criteria as QueryParameters;
+    }
+    return this._criteria;
   }
 
   private async onReady(): Promise<void> {
