@@ -34,6 +34,7 @@ import {
 import { createTestProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config-test-data';
 import { TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { getTextDocId, TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
+import { Chapter, TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { fromVerseRef, VerseRefData } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import * as RichText from 'rich-text';
 import { BehaviorSubject, firstValueFrom, of, Subject } from 'rxjs';
@@ -197,6 +198,34 @@ describe('CheckingComponent', () => {
       const env = new TestEnvironment({ user: ADMIN_USER });
       env.waitForSliderUpdate();
       expect(env.component.books).toEqual([40, 43]);
+      discardPeriodicTasks();
+    }));
+
+    it('should display books and chapters added by a sync without reloading', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      env.waitForSliderUpdate();
+      expect(env.component.books).toEqual([40, 43]);
+      expect(env.component.chapters).toEqual([1, 2]);
+
+      // A sync adds a book to the project, and a chapter to the book being viewed (JHN)
+      env.component.projectDoc!.submitJson0Op(op => {
+        op.add<TextInfo>(p => p.texts, {
+          bookNum: 42,
+          hasSource: false,
+          chapters: [{ number: 1, lastVerse: 80, isValid: true, permissions: {} }],
+          permissions: {}
+        });
+        op.add<Chapter>(p => p.texts[0].chapters, {
+          number: 3,
+          lastVerse: 36,
+          isValid: true,
+          permissions: {}
+        });
+      }, false);
+      env.waitForSliderUpdate();
+
+      expect(env.component.books).toEqual([40, 42, 43]);
+      expect(env.component.chapters).toEqual([1, 2, 3]);
       discardPeriodicTasks();
     }));
 

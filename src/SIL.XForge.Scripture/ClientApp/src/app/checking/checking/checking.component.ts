@@ -566,7 +566,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
               throw new Error('Project has no texts');
             }
 
-            this.books = this.projectDoc.data.texts.map(t => t.bookNum).sort((a, b) => a - b) ?? [];
+            this.updateBooksAndChapters();
             this.initQuestionFilters();
 
             this.projectUserConfigDoc = await this.projectService.getUserConfig(
@@ -586,6 +586,9 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                     this.onRemovedFromProject();
                   } else if (!this.permissions.canAccessCommunityChecking(this.projectDoc)) {
                     this.onRemovedFromProject();
+                  } else {
+                    // A sync can add or remove books and chapters while this page is open
+                    this.updateBooksAndChapters();
                   }
                 }
               });
@@ -1279,6 +1282,28 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     }
 
     return adjacentQuestionInScope;
+  }
+
+  /**
+   * Updates the book and chapter lists shown in the navigation from the project doc. The project's
+   * texts can change while this component is open (a Paratext sync can add or remove books and
+   * chapters), so this is called both on load and whenever the project doc changes remotely.
+   */
+  private updateBooksAndChapters(): void {
+    const texts: readonly TextInfo[] | undefined = this.projectDoc?.data?.texts;
+    if (texts == null) {
+      return;
+    }
+
+    const books: number[] = texts.map(t => t.bookNum).sort((a, b) => a - b);
+    this.text = texts.find(t => t.bookNum === this.book);
+    const chapters: number[] = this.text == null ? [] : this.text.chapters.map(c => c.number);
+
+    if (books.join() !== this.books.join() || chapters.join() !== this.chapters.join()) {
+      this.books = books;
+      this.chapters = chapters;
+      this.changeDetector.markForCheck();
+    }
   }
 
   private updateQuestionRefs(): void {
