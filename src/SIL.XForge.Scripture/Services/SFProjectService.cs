@@ -2233,7 +2233,7 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
     }
 
     /// <summary>
-    /// Calculates project progress by aggregating verse segment data from the MongoDB texts collection.
+    /// Calculates project progress by aggregating verse data from the MongoDB texts collection.
     /// This method uses a MongoDB aggregation pipeline to efficiently compute progress at the database level.
     /// </summary>
     /// <param name="curUserId">The current user identifier.</param>
@@ -2258,30 +2258,59 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
             }
         );
 
-        // Filters for ops that are verse segments (i.e., attributes.segment starts with "verse_")
-        BsonDocument verseSegmentOpsFilterExpression = new BsonDocument
-        {
-            { "input", "$ops" },
-            { "as", "segment" },
-            { "cond", isVerseSegmentIdExpression },
-        };
-        // Same as above filter, except that insert.blank must also be true in order to match a segment
-        BsonDocument blankVerseSegmentOpsFilterExpression = new BsonDocument
-        {
-            { "input", "$ops" },
-            { "as", "segment" },
-            {
-                "cond",
-                new BsonDocument(
-                    "$and",
-                    new BsonArray
-                    {
-                        isVerseSegmentIdExpression,
-                        new BsonDocument("$eq", new BsonArray { "$$segment.insert.blank", true }),
-                    }
-                )
-            },
-        };
+        // A verse can be split over several segments: a verse whose text continues into another paragraph has a
+        // segment per paragraph ("verse_1_4", "verse_1_4/p_1", ...). Counting the segments rather than the verses
+        // both inflates the total and, because the segment that a paragraph break creates before the next verse
+        // number is empty, counts fully translated verses as untranslated. So reduce each segment id to the verse
+        // it belongs to (the part before the first "/") and count distinct verses instead.
+        BsonDocument verseOfSegmentExpression = new BsonDocument(
+            "$arrayElemAt",
+            new BsonArray { new BsonDocument("$split", new BsonArray { "$$segment.attributes.segment", "/" }), 0 }
+        );
+
+        // The distinct verses that the ops matching the given condition belong to
+        BsonDocument DistinctVersesExpression(BsonDocument segmentCondition) =>
+            new BsonDocument(
+                "$setUnion",
+                new BsonArray
+                {
+                    new BsonDocument(
+                        "$map",
+                        new BsonDocument
+                        {
+                            {
+                                "input",
+                                new BsonDocument(
+                                    "$filter",
+                                    new BsonDocument
+                                    {
+                                        { "input", "$ops" },
+                                        { "as", "segment" },
+                                        { "cond", segmentCondition },
+                                    }
+                                )
+                            },
+                            { "as", "segment" },
+                            { "in", verseOfSegmentExpression },
+                        }
+                    ),
+                }
+            );
+
+        // The verses that have at least one segment in the document
+        BsonDocument versesExpression = DistinctVersesExpression(isVerseSegmentIdExpression);
+
+        // The verses with at least one segment that is not blank, i.e. the verses that have been translated
+        BsonDocument translatedVersesExpression = DistinctVersesExpression(
+            new BsonDocument(
+                "$and",
+                new BsonArray
+                {
+                    isVerseSegmentIdExpression,
+                    new BsonDocument("$ne", new BsonArray { "$$segment.insert.blank", true }),
+                }
+            )
+        );
 
         List<BsonDocument> results = await _database
             .GetCollection<BsonDocument>("texts")
@@ -2296,8 +2325,8 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
             )
             // Project:
             // - Extract the book ID from the document ID
-            // - Count the number of verse segments
-            // - Count the number of blank verse segments
+            // - Count the number of verses
+            // - Count the number of verses that are entirely blank
             .Project(
                 new BsonDocument
                 {
@@ -2309,17 +2338,20 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
                             new BsonArray { new BsonDocument("$split", new BsonArray { "$_id", ":" }), 1 }
                         )
                     },
-                    {
-                        "verseSegments",
-                        new BsonDocument("$size", new BsonDocument("$filter", verseSegmentOpsFilterExpression))
-                    },
+                    { "verseSegments", new BsonDocument("$size", versesExpression) },
                     {
                         "blankVerseSegments",
-                        new BsonDocument("$size", new BsonDocument("$filter", blankVerseSegmentOpsFilterExpression))
+                        new BsonDocument(
+                            "$size",
+                            new BsonDocument(
+                                "$setDifference",
+                                new BsonArray { versesExpression, translatedVersesExpression }
+                            )
+                        )
                     },
                 }
             )
-            // Group progress by book and count the total verse segments and blank verse segments for each book
+            // Group progress by book and count the total verses and blank verses for each book
             .Group(
                 new BsonDocument
                 {

@@ -231,10 +231,13 @@ export interface BookProgress {
   /** The book identifier (e.g. "GEN", "MAT"). */
   bookId: string;
 
-  /** The total number of verse segments in this book. */
+  /**
+   * The total number of verses in this book. A verse split over several segments (e.g. because its text continues
+   * into another paragraph) is counted once.
+   */
   verseSegments: number;
 
-  /** The number of blank verse segments in this book. */
+  /** The number of untranslated verses in this book, i.e. verses whose every segment is blank. */
   blankVerseSegments: number;
 }
 

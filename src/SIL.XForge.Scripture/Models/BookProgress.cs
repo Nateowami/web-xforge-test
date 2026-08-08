@@ -11,12 +11,13 @@ public class BookProgress
     public string BookId { get; set; } = string.Empty;
 
     /// <summary>
-    /// The total number of verse segments in this book.
+    /// The total number of verses in this book. A verse split over several segments (e.g. because its text
+    /// continues into another paragraph) is counted once.
     /// </summary>
     public int VerseSegments { get; set; }
 
     /// <summary>
-    /// The number of blank verse segments in this book.
+    /// The number of untranslated verses in this book, i.e. verses whose every segment is blank.
     /// </summary>
     public int BlankVerseSegments { get; set; }
 
@@ -35,12 +36,12 @@ public class ChapterProgress
     public int ChapterNumber { get; set; }
 
     /// <summary>
-    /// The total number of verse segments in this chapter.
+    /// The total number of verses in this chapter. See <see cref="BookProgress.VerseSegments"/>.
     /// </summary>
     public int VerseSegments { get; set; }
 
     /// <summary>
-    /// The number of blank verse segments in this chapter.
+    /// The number of untranslated verses in this chapter. See <see cref="BookProgress.BlankVerseSegments"/>.
     /// </summary>
     public int BlankVerseSegments { get; set; }
 }
