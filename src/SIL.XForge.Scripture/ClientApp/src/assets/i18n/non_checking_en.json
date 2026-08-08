@@ -672,6 +672,7 @@
     "import_questions": "Import Questions",
     "import": "Import",
     "invalid_csv_rows_will_be_skipped": "These rows in the CSV file were invalid and will be skipped.",
+    "invalid_file_type": "\"{{ fileName }}\" is not a file type that can be imported. Please choose a file of one of these types: {{ fileTypes }}.",
     "invalid_spreadsheet": "The file is missing text in the {{ boldStart }}Reference{{ boldEnd }} or {{ boldStart }}Question{{ boldEnd }} columns. Please check and update the file.",
     "learn_more": "Learn more",
     "loading": "Loading...",

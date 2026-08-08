@@ -421,6 +421,27 @@ describe('ImportQuestionsDialogComponent', () => {
     expect(env.component.errorState).toBe('invalid_spreadsheet');
   }));
 
+  it('warns the user when the selected file is not a supported file type', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    env.selectFileThroughFilePicker('questions.txt', 'text/plain');
+
+    expect(env.component.errorState).toBe('invalid_file_type');
+    expect(env.bodyText).toContain('questions.txt');
+    expect(env.bodyText).toContain('.csv');
+    // the user can go back and choose a different file
+    expect(env.backButton).not.toBeNull();
+  }));
+
+  it('does not warn about the file type when a supported file is selected', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    env.selectFileThroughFilePicker('questions.csv', 'text/csv');
+
+    expect(env.component.errorState).toBeUndefined();
+    expect(env.component.questionSource).toBe('csv_file');
+  }));
+
   it('it informs the user about invalid rows in the CSV file and skips them', fakeAsync(() => {
     const env = new TestEnvironment();
 
@@ -967,6 +988,28 @@ class TestEnvironment {
     this.component.dialogScroll();
     this.fixture.detectChanges();
     tick();
+  }
+
+  /**
+   * Simulates picking a file in the OS file dialog, so the ngfSelect directive decides for itself whether the file is
+   * acceptable. selectFileWithContents bypasses the directive by calling the component directly.
+   */
+  selectFileThroughFilePicker(filename: string, type: string): void {
+    when(mockedCsvService.parse(anything())).thenResolve([
+      ['Reference', 'Question'],
+      ['GEN 41:39', 'A question']
+    ]);
+    // clicking the button is what makes the directive create its hidden file input
+    this.importFromCsvFile.click();
+    tick();
+    const fileInput = this.importFromCsvFile.querySelector('input[type=file]') as HTMLInputElement;
+    // the directive reads the files off of the event when the input element has none (as is the case here)
+    const changeEvent = new Event('change');
+    changeEvent['__files_'] = [new File(['file contents'], filename, { type })];
+    fileInput.dispatchEvent(changeEvent);
+    tick();
+    this.fixture.detectChanges();
+    flush();
   }
 
   selectFileWithContents(contents: string[][] | undefined, filename = 'filename.csv'): void {

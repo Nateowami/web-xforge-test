@@ -90,6 +90,7 @@ interface DialogListItem {
 type DialogErrorState =
   | 'update_transcelerator'
   | 'file_import_errors'
+  | 'invalid_file_type'
   | 'invalid_spreadsheet'
   | 'missing_header_row'
   | 'offline_conversion'
@@ -166,6 +167,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
   toImportCount: number = 0;
   importCanceled: boolean = false;
   fileExtensions: string = '.csv,.tsv';
+  rejectedFileName: string = '';
 
   showParatextTagSelector = false;
   paratextTagOptions: ParatextNoteTag[] = [];
@@ -319,6 +321,10 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
 
   get isOnline(): boolean {
     return this.onlineStatusService.isOnline;
+  }
+
+  get fileExtensionsForDisplay(): string {
+    return this.i18n.enumerateList(this.fileExtensions.split(','));
   }
 
   ngOnDestroy(): void {
@@ -671,6 +677,19 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     }
 
     return parseResult.verseRef;
+  }
+
+  /**
+   * angular-file discards files that don't match the accept list without emitting fileChange, so without handling the
+   * files it rejected the user gets no feedback at all after picking, say, a .txt file.
+   */
+  filesRejected(rejectedFiles: { file: File; type: string }[] | undefined): void {
+    if (rejectedFiles == null || rejectedFiles.length === 0) {
+      return;
+    }
+    this.rejectedFileName = rejectedFiles[0].file.name;
+    this.questionSource = 'csv_file';
+    this.errorState = 'invalid_file_type';
   }
 
   async fileSelected(file: File): Promise<void> {

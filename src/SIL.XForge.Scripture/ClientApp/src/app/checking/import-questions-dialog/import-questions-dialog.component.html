@@ -91,6 +91,7 @@
                     ngfSelect
                     [accept]="fileExtensions"
                     (fileChange)="fileSelected($event)"
+                    (lastInvalidsChange)="filesRejected($event)"
                   >
                     {{ t("import_from_csv_file") }}
                   </button>
@@ -194,6 +195,10 @@
 
         @case ("offline_conversion") {
           <div>{{ t("cannot_convert_offline") }}</div>
+        }
+
+        @case ("invalid_file_type") {
+          <div>{{ t("invalid_file_type", { fileName: rejectedFileName, fileTypes: fileExtensionsForDisplay }) }}</div>
         }
 
         @case ("invalid_spreadsheet") {
@@ -321,7 +326,7 @@
           {{ t("next") }}
         </button>
       }
-      @if (status === "filter_questions" || status === "file_import_errors") {
+      @if (status === "filter_questions" || status === "file_import_errors" || status === "invalid_file_type") {
         <button mat-button (click)="reset()">
           {{ t("back") }}
         </button>
