@@ -10,6 +10,7 @@ import { of } from 'rxjs';
 import { anything, capture, instance, mock, verify, when } from 'ts-mockito';
 import { AuthService } from './auth.service';
 import { CONSOLE } from './browser-globals';
+import { CommandError, CommandErrorCode } from './command.service';
 import { DialogService } from './dialog.service';
 import { ErrorDialogComponent } from './error-dialog/error-dialog.component';
 import { ErrorReportingService } from './error-reporting.service';
@@ -45,7 +46,10 @@ class MockConsole {
         'Original error',
         'Http failure response for (unknown url): 400 Bad Request',
         'Http failure response for http://localhost:5000/command-api/some-end-point: 504 Gateway Timeout',
-        'Http failure response for http://localhost:5000/machine-api/v3/translation/engines/some-end-point: 504 Gateway Timeout'
+        'Http failure response for http://localhost:5000/machine-api/v3/translation/engines/some-end-point: 504 Gateway Timeout',
+        'Http failure response for http://localhost:5000/paratext-api/username: 504 Gateway Timeout',
+        'Error invoking getProjectRole: Http failure response for http://localhost:5000/command-api/projects: 504 Gateway Timeout',
+        "Failed to complete negotiation with the server: Error: Gateway Timeout: Status code '504'"
       ].includes(val.message) &&
       !val.message?.startsWith('Unknown error')
     ) {
@@ -133,7 +137,7 @@ describe('ExceptionHandlingService', () => {
     expect().nothing();
   }));
 
-  it('should silently report 504 errors from machine-api or command-api', fakeAsync(() => {
+  it('should silently report 504 errors, which mean the app is offline', fakeAsync(() => {
     const env = new TestEnvironment();
     spyOn<any>(env.service, 'handleAlert');
 
@@ -150,6 +154,25 @@ describe('ExceptionHandlingService', () => {
         statusText: 'Gateway Timeout',
         url: 'http://localhost:5000/command-api/some-end-point'
       })
+    );
+    env.handleError(
+      new HttpErrorResponse({
+        status: 504,
+        statusText: 'Gateway Timeout',
+        url: 'http://localhost:5000/paratext-api/username'
+      })
+    );
+    // a 504 that a caller wrapped in its own error, so it is no longer an HttpErrorResponse
+    env.handleError(
+      new CommandError(
+        CommandErrorCode.Other,
+        'Error invoking getProjectRole: Http failure response for ' +
+          'http://localhost:5000/command-api/projects: 504 Gateway Timeout'
+      )
+    );
+    // the error SignalR reports when it cannot connect to a notification hub
+    env.handleError(
+      new Error("Failed to complete negotiation with the server: Error: Gateway Timeout: Status code '504'")
     );
 
     expect(env.service['handleAlert']).not.toHaveBeenCalled();

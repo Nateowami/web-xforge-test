@@ -4,7 +4,6 @@ import Bugsnag, { Breadcrumb, BrowserConfig } from '@bugsnag/js';
 import { firstValueFrom } from 'rxjs';
 import { I18nService } from 'xforge-common/i18n.service';
 import versionData from '../../../version.json';
-import { MACHINE_API_BASE_URL } from '../app/machine-api/http-client';
 import { environment } from '../environments/environment';
 import { hasObjectProp, hasStringProp } from '../type-utils';
 import { CONSOLE } from './browser-globals';
@@ -14,13 +13,27 @@ import { ErrorReportingService } from './error-reporting.service';
 import { FeatureFlagService } from './feature-flags/feature-flag.service';
 import { NoticeService } from './notice.service';
 import { PwaService } from './pwa.service';
-import { COMMAND_API_NAMESPACE } from './url-constants';
 import { objectId } from './utils';
 
 export interface BreadcrumbSelector {
   element: string;
   selector: string;
   useParent?: boolean;
+}
+
+/**
+ * Requests that fail because the browser has no working connection are answered by
+ * ngsw-worker.js with 504 Gateway Timeout, so a 504 means "we are offline", not "the server is
+ * broken". Such a failure reaches the error handler in more than one shape, because the code that
+ * made the request may have wrapped it: as the HttpErrorResponse itself, as a CommandError from
+ * CommandService.onlineInvoke ("... : 504 Gateway Timeout"), or as a SignalR connection error
+ * ("Failed to complete negotiation with the server: Error: Gateway Timeout: Status code '504'").
+ */
+export function isOfflineGatewayTimeout(error: unknown): boolean {
+  if (error instanceof HttpErrorResponse) {
+    return error.status === 504 && error.statusText === 'Gateway Timeout';
+  }
+  return hasStringProp(error, 'message') && /504 Gateway Timeout|Status code '504'/.test(error.message);
 }
 
 export class AppError extends Error {
@@ -194,17 +207,9 @@ export class ExceptionHandlingService {
       return;
     }
 
-    if (
-      error instanceof HttpErrorResponse &&
-      error.status === 504 &&
-      error.statusText === 'Gateway Timeout' &&
-      error.url != null
-    ) {
-      // ignore 504 errors from ngsw-worker.js to machine-api or command-api (these happen when offline)
-      const url = new URL(error.url);
-      if (url.pathname.startsWith('/' + MACHINE_API_BASE_URL) || url.pathname.startsWith('/' + COMMAND_API_NAMESPACE)) {
-        silently = true;
-      }
+    // Don't alert the user about requests that only failed because there is no connection
+    if (isOfflineGatewayTimeout(error)) {
+      silently = true;
     }
 
     if (
