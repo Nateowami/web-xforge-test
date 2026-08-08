@@ -3382,6 +3382,29 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('keeps insert note fab hidden after closing a note dialog on a heading', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      // a note on the header/title of a book is anchored to verse 0, and shows on the first heading segment
+      env.addParatextNoteThread(7, 'LUK 1:0', 'for chapter', { start: 6, length: 11 }, ['user01']);
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      env.clickSegmentRef('s_1');
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
+
+      // view the note on the heading and close the dialog
+      env.getNoteThreadIconElement('s_1', 'dataid07')!.click();
+      env.wait();
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+      instance(mockedMatDialog).closeAll();
+      env.wait();
+
+      // the fab must not appear, since a note cannot be added to a heading
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
+      env.dispose();
+    }));
+
     it('does not allow selecting section headings', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();

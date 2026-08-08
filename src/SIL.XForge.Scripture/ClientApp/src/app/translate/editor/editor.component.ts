@@ -1709,7 +1709,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       data: noteDialogData
     });
 
-    const currentVerseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
+    // Save to the verse the dialog was opened for, falling back to the selected verse for existing threads
+    const currentVerseRef: VerseRef | undefined = verseRef ?? this.commenterSelectedVerseRef;
     this.setNoteFabVisibility('hidden');
     const result: NoteDialogResult | undefined = await lastValueFrom(dialogRef.afterClosed());
 
@@ -1725,7 +1726,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       }
       this.toggleNoteThreadVerseRefs$.next();
     }
-    if (this.isInsertNoteFabEnabled) {
+    // Only restore the FAB if a verse is selected. Notes can only be added to a verse, so the FAB must stay
+    // hidden when the selection is on a heading or title segment, e.g. after viewing a note on the header.
+    if (this.commenterSelectedVerseRef != null && this.isInsertNoteFabEnabled) {
       this.setNoteFabVisibility('visible');
       this.positionInsertNoteFab();
     }
