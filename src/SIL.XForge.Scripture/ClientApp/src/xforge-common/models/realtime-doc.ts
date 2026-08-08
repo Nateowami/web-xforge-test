@@ -139,7 +139,10 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
   }
 
   async create(data: T, type?: string): Promise<void> {
-    void this.adapter.create(data, type).then(() => this.updateOfflineData(true));
+    void this.adapter
+      .create(data, type)
+      .then(() => this.updateOfflineData(true))
+      .catch(err => this.discardRejectedCreate(err));
     this.loadOfflineDataPromise = Promise.resolve();
     await this.updateOfflineData(true);
     await this.realtimeService.onLocalDocUpdate(this);
@@ -251,7 +254,10 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     const offlineData = await this.realtimeService.offlineStore.get<RealtimeOfflineData>(this.collection, this.id);
     if (offlineData != null) {
       if (offlineData.v == null) {
-        void this.adapter.create(offlineData.data, offlineData.type).then(() => this.updateOfflineData(true));
+        void this.adapter
+          .create(offlineData.data, offlineData.type)
+          .then(() => this.updateOfflineData(true))
+          .catch(err => this.discardRejectedCreate(err));
       } else {
         await this.adapter.ingestSnapshot(offlineData);
         this.offlineSnapshotVersion = this.adapter.version;
@@ -276,5 +282,19 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
       void this.onDelete();
       this.localDelete$.next();
     }
+  }
+
+  /**
+   * Discards the local copy of a doc that the server refused to create, e.g. because the user lost the right to
+   * create it between opening the editor and saving. The snapshot written to offline storage when the create was
+   * first submitted is not removed by ShareDB's rollback, so without this the doc stays visible to the user (but to
+   * nobody else) forever, and every later op on it fails. The error is rethrown so that the user is still told that
+   * their change was not saved.
+   */
+  private async discardRejectedCreate(err: unknown): Promise<never> {
+    await this.onDelete();
+    this.localDelete$.next();
+    await this.realtimeService.onLocalDocUpdate(this);
+    throw err;
   }
 }

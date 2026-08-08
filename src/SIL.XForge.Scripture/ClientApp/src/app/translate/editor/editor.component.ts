@@ -77,6 +77,7 @@ import {
 } from 'rxjs';
 import {
   debounceTime,
+  distinctUntilChanged,
   filter,
   first,
   map,
@@ -2110,7 +2111,14 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       this.toggleNoteThreadVerseRefs$,
       this.noteThreadQuery.ready$.pipe(filter(isReady => isReady)),
       this.noteThreadQuery.remoteChanges$,
-      this.noteThreadQuery.remoteDocChanges$
+      this.noteThreadQuery.remoteDocChanges$,
+      // A thread can also leave the results locally, e.g. when the server rejects a thread this user just created.
+      // Only react when the set of threads changes, so that editing text (which updates thread positions) does not
+      // re-embed every note.
+      this.noteThreadQuery.localChanges$.pipe(
+        map(() => this.currentChapterNoteThreadDocs().map(doc => doc.id)),
+        distinctUntilChanged((a, b) => a.length === b.length && a.every((id, i) => id === b[i]))
+      )
     )
       .pipe(quietTakeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
