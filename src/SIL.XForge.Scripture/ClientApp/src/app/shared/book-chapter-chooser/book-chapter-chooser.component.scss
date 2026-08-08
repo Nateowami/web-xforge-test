@@ -3,6 +3,19 @@
 :host {
   display: flex;
   align-items: center;
+  // Let the host shrink when the toolbar it sits in runs out of room, so that a long book name
+  // truncates instead of pushing the rest of the toolbar out of view
+  min-width: 0;
+}
+
+// The book name is the only part that may be truncated; everything else keeps its size
+#book-select {
+  min-width: 0;
+}
+
+#chapter-select,
+button {
+  flex-shrink: 0;
 }
 
 // Unfortunately there doesn't appear to be a good way to style a mat-select

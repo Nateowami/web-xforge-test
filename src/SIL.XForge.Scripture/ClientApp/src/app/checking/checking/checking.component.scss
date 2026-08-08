@@ -29,6 +29,10 @@ header {
   flex-wrap: nowrap;
   flex: 1;
   height: 100%;
+  // Without this the container is sized by the widest thing it contains (the book/chapter chooser
+  // in the text panel header) instead of by the available width, and everything after it is pushed
+  // off screen
+  min-width: 0;
 }
 
 #questions-panel {
@@ -171,6 +175,7 @@ header {
       display: flex;
       justify-content: space-between;
       flex: 1;
+      min-width: 0;
 
       > div {
         display: flex;
@@ -200,8 +205,15 @@ header {
           }
         }
 
+        // A long localized book name shrinks (and ellipsizes) rather than pushing the action icons
+        // out of the header
+        &.book-chapter {
+          min-width: 0;
+        }
+
         &.action-icons {
           justify-content: flex-end;
+          flex-shrink: 0;
         }
       }
     }
