@@ -824,6 +824,15 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           this.projectDoc.data.translateConfig.draftConfig?.draftedScriptureRange
         );
         this.books = Array.from(new Set([...projectTexts, ...draftedBooks])).sort((a, b) => a - b);
+
+        // The route can specify a book that is not a book of the Bible, or that the project does not have. There is
+        // nothing to edit in that case, so show the translate overview instead of an editor without a book.
+        if (!this.books.includes(bookNum)) {
+          this.loadingFinished();
+          void this.router.navigate(['projects', projectId, 'translate'], { replaceUrl: true });
+          return;
+        }
+
         this.text = this.projectDoc.data.texts.find(t => t.bookNum === bookNum);
 
         const allChapters: number = Math.max(

@@ -246,6 +246,24 @@ describe('EditorComponent', () => {
     env.dispose();
   }));
 
+  it('navigates to the translate overview when the route book is not in the project', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.wait();
+
+    // a book id that is not a book of the Bible
+    env.setRouteParams({ projectId: 'project01', bookId: 'blah' });
+    env.wait();
+    expect(env.location.path()).toEqual('/projects/project01/translate');
+
+    // a book of the Bible that the project does not have
+    env.routeWithParams({ projectId: 'project01', bookId: 'MAT' });
+    env.wait();
+    env.setRouteParams({ projectId: 'project01', bookId: 'GEN' });
+    env.wait();
+    expect(env.location.path()).toEqual('/projects/project01/translate');
+    env.dispose();
+  }));
+
   it('response to remote text deletion', fakeAsync(() => {
     const env = new TestEnvironment();
     flush();
@@ -5438,6 +5456,15 @@ class TestEnvironment {
       this.router.navigateByUrl(`/projects/${params.projectId}/translate/${params.bookId}/${params.chapter ?? ''}`);
     });
 
+    this.fixture.detectChanges();
+  }
+
+  /**
+   * Updates the route params without navigating, for when the component is expected to navigate itself. Navigating
+   * here as well would leave the two navigations racing each other.
+   */
+  setRouteParams(params: Params): void {
+    this.ngZone.run(() => this.params$.next(params));
     this.fixture.detectChanges();
   }
 
