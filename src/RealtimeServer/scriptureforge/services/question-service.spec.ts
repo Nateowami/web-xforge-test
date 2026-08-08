@@ -5,7 +5,15 @@ import { User, USERS_COLLECTION } from '../../common/models/user';
 import { createTestUser } from '../../common/models/user-test-data';
 import { RealtimeServer } from '../../common/realtime-server';
 import { SchemaVersionRepository } from '../../common/schema-version-repository';
-import { allowAll, clientConnect, createDoc, flushPromises, submitJson0Op } from '../../common/utils/test-utils';
+import { docSubmitJson0Op } from '../../common/utils/sharedb-utils';
+import {
+  allowAll,
+  clientConnect,
+  createDoc,
+  fetchDoc,
+  flushPromises,
+  submitJson0Op
+} from '../../common/utils/test-utils';
 import { getQuestionDocId, Question, QUESTIONS_COLLECTION } from '../models/question';
 import { SF_PROJECTS_COLLECTION, SFProject } from '../models/sf-project';
 import { SFProjectRole } from '../models/sf-project-role';
@@ -17,6 +25,10 @@ import {
 } from '../models/sf-project-user-config';
 import { createTestProjectUserConfig } from '../models/sf-project-user-config-test-data';
 import { QuestionService } from './question-service';
+
+// user ids of users that like answers; the likes schema requires hexadecimal user ids
+const LIKER1 = 'aaaaaaaaaaaaaaaaaaaaaa01';
+const LIKER2 = 'bbbbbbbbbbbbbbbbbbbbbb02';
 
 describe('QuestionService', () => {
   it('removes read refs when answer deleted', async () => {
@@ -62,6 +74,35 @@ describe('QuestionService', () => {
     expect(checkerProjectUserConfig.answerRefsRead).toContain('answer01');
     expect(checkerProjectUserConfig.commentRefsRead).not.toContain('comment01');
   });
+
+  it('removes duplicate like when the same user likes an answer from two clients', async () => {
+    const env = new TestEnvironment();
+    await env.createData();
+
+    // both clients see the answer without any likes, as they would if they had been offline
+    const doc1 = await fetchDoc(clientConnect(env.server, LIKER1), QUESTIONS_COLLECTION, env.questionDocId);
+    const doc2 = await fetchDoc(clientConnect(env.server, LIKER1), QUESTIONS_COLLECTION, env.questionDocId);
+
+    await docSubmitJson0Op<Question>(doc1, ops => ops.insert(q => q.answers[0].likes, 0, { ownerRef: LIKER1 }));
+    await docSubmitJson0Op<Question>(doc2, ops => ops.insert(q => q.answers[0].likes, 0, { ownerRef: LIKER1 }));
+    await flushPromises();
+
+    expect(env.getQuestion().answers[0].likes).toEqual([{ ownerRef: LIKER1 }]);
+  });
+
+  it('keeps likes from different users', async () => {
+    const env = new TestEnvironment();
+    await env.createData();
+
+    const doc1 = await fetchDoc(clientConnect(env.server, LIKER1), QUESTIONS_COLLECTION, env.questionDocId);
+    const doc2 = await fetchDoc(clientConnect(env.server, LIKER2), QUESTIONS_COLLECTION, env.questionDocId);
+
+    await docSubmitJson0Op<Question>(doc1, ops => ops.insert(q => q.answers[0].likes, 0, { ownerRef: LIKER1 }));
+    await docSubmitJson0Op<Question>(doc2, ops => ops.insert(q => q.answers[0].likes, 0, { ownerRef: LIKER2 }));
+    await flushPromises();
+
+    expect(env.getQuestion().answers[0].likes).toEqual([{ ownerRef: LIKER2 }, { ownerRef: LIKER1 }]);
+  });
 });
 
 class TestEnvironment {
@@ -86,6 +127,14 @@ class TestEnvironment {
     allowAll(this.server, USERS_COLLECTION);
     allowAll(this.server, SF_PROJECTS_COLLECTION);
     allowAll(this.server, SF_PROJECT_USER_CONFIGS_COLLECTION);
+  }
+
+  get questionDocId(): string {
+    return getQuestionDocId('project01', 'question01');
+  }
+
+  getQuestion(): Question {
+    return this.db.docs[QUESTIONS_COLLECTION][this.questionDocId].data as Question;
   }
 
   async createData(): Promise<void> {
@@ -127,7 +176,9 @@ class TestEnvironment {
       createTestProject({
         userRoles: {
           projectAdmin: SFProjectRole.ParatextAdministrator,
-          checker: SFProjectRole.CommunityChecker
+          checker: SFProjectRole.CommunityChecker,
+          [LIKER1]: SFProjectRole.CommunityChecker,
+          [LIKER2]: SFProjectRole.CommunityChecker
         },
         paratextUsers: [{ sfUserId: 'projectAdmin', username: 'ptprojectAdmin', opaqueUserId: 'opaqueprojectAdmin' }]
       })

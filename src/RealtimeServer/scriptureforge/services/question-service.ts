@@ -3,7 +3,7 @@ import { OwnedData } from '../../common/models/owned-data';
 import { ValidationSchema } from '../../common/models/validation-schema';
 import { ProjectDomainConfig } from '../../common/services/project-data-service';
 import { ANY_INDEX } from '../../common/utils/obj-path';
-import { createFetchQuery, docSubmitJson0Op } from '../../common/utils/sharedb-utils';
+import { createFetchQuery, docFetch, docSubmitJson0Op } from '../../common/utils/sharedb-utils';
 import { Answer } from '../models/answer';
 import { Comment } from '../models/comment';
 import { Question, QUESTION_INDEX_PATHS, QUESTIONS_COLLECTION } from '../models/question';
@@ -241,6 +241,17 @@ export class QuestionService extends SFProjectDataService<Question> {
     ];
   }
 
+  protected async onInsert(
+    _userId: string,
+    docId: string,
+    projectDomain: SFProjectDomain,
+    _entity: OwnedData
+  ): Promise<void> {
+    if (projectDomain === SFProjectDomain.Likes) {
+      await this.removeDuplicateLikes(docId);
+    }
+  }
+
   protected async onDelete(
     userId: string,
     docId: string,
@@ -250,6 +261,37 @@ export class QuestionService extends SFProjectDataService<Question> {
     if (projectDomain === SFProjectDomain.Answers || projectDomain === SFProjectDomain.AnswerComments) {
       await this.removeEntityReadRefs(userId, docId, projectDomain, entity);
     }
+  }
+
+  /**
+   * Removes any like that duplicates an earlier like by the same user. A user can end up with more
+   * than one like on an answer when they like it from two clients that are both offline: JSON0 has
+   * no set semantics, so merging the queued inserts keeps both of them. The likes are removed here
+   * instead of rejecting the op, so that the user is not shown an error for something they cannot
+   * do anything about, and so that every client converges on one like per user.
+   */
+  private async removeDuplicateLikes(docId: string): Promise<void> {
+    const conn = this.server!.connect();
+    const doc = conn.get(this.collection, docId);
+    await docFetch(doc);
+    const question = doc.data as Question | undefined;
+    if (question == null) {
+      return;
+    }
+    await docSubmitJson0Op<Question>(doc, ops => {
+      for (let answerIndex = 0; answerIndex < question.answers.length; answerIndex++) {
+        const likes = question.answers[answerIndex].likes;
+        if (likes == null) {
+          continue;
+        }
+        // iterate backwards so that the index of each remaining like is unaffected by the removals
+        for (let i = likes.length - 1; i > 0; i--) {
+          if (likes.findIndex(like => like.ownerRef === likes[i].ownerRef) < i) {
+            ops.remove(q => q.answers[answerIndex].likes, i);
+          }
+        }
+      }
+    });
   }
 
   private async removeEntityReadRefs(
