@@ -27,11 +27,12 @@ export class DialogService {
     config?: MatDialogConfig<D>,
     disableClose: boolean = false
   ): MatDialogRef<T, R> {
-    const defaults: MatDialogConfig = { direction: this.i18n.direction, autoFocus: false };
+    // disableClose is a default that the component's own defaults and config can override
+    const defaults: MatDialogConfig = { direction: this.i18n.direction, autoFocus: false, disableClose };
     const dialogDefaults: MatDialogConfig = hasObjectProp(component, 'defaultMatDialogConfig')
       ? component.defaultMatDialogConfig
       : {};
-    return this.matDialog.open(component, { ...defaults, ...dialogDefaults, ...(config ?? {}), disableClose });
+    return this.matDialog.open(component, { ...defaults, ...dialogDefaults, ...(config ?? {}) });
   }
 
   openGenericDialog<T>(options: GenericDialogOptions<T>, disableClose: boolean = false): GenericDialogRef<T> {
