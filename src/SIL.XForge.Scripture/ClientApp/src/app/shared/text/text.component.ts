@@ -698,7 +698,34 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     this.viewModel.editor = editor;
     void this.bindQuill(); // not awaited
     editor.container.addEventListener('beforeinput', (ev: Event) => this.onBeforeinput(ev));
+    this.subscribeBlankSegmentTouch(editor);
     this.editorCreated.emit();
+  }
+
+  /**
+   * An empty verse contains nothing but the blank embed, so tapping it puts the browser's caret inside that embed and
+   * Quill then replaces the native selection with the equivalent position of its own. On a touch device that mid-tap
+   * selection replacement leaves the browser without a caret it placed itself, so it does not open the on-screen
+   * keyboard, and the verse can only be typed in after tapping it a second time. Once the selection has settled (on
+   * click), focus the editor again so that the keyboard is requested for the settled selection.
+   */
+  private subscribeBlankSegmentTouch(editor: Quill): void {
+    let isTouch: boolean = false;
+    fromEvent<PointerEvent>(editor.root, 'pointerdown')
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(event => (isTouch = event.pointerType === 'touch'));
+    fromEvent<MouseEvent>(editor.root, 'click')
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        const isBlankSegmentTap: boolean = isTouch && this._segment?.text === '';
+        isTouch = false;
+        if (!isBlankSegmentTap || this.readOnlyEnabled || this.document.activeElement !== editor.root) {
+          return;
+        }
+        editor.root.blur();
+        // Quill restores the selection that it had when focus was lost
+        editor.focus();
+      });
   }
 
   focus(): void {

@@ -436,6 +436,52 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  it('re-focuses the editor when an empty segment is tapped', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 43, 1);
+    env.waitForEditor();
+    env.selectSegment('verse_1_1');
+    expect(env.component.segment!.text).toEqual('');
+
+    // SUT
+    const focusEvents: string[] = env.tapEditor('touch');
+
+    // the editor was given focus again, and the selection is still in the tapped segment
+    expect(focusEvents).toEqual(['focusout', 'focusin']);
+    expect(env.component.segmentRef).toEqual('verse_1_1');
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
+  it('does not re-focus the editor when an empty segment is clicked with a mouse', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 43, 1);
+    env.waitForEditor();
+    env.selectSegment('verse_1_1');
+    expect(env.component.segment!.text).toEqual('');
+
+    // SUT
+    expect(env.tapEditor('mouse')).toEqual([]);
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
+  it('does not re-focus the editor when a segment with text is tapped', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    env.selectSegment('verse_1_1');
+    expect(env.component.segment!.text).not.toEqual('');
+
+    // SUT
+    expect(env.tapEditor('touch')).toEqual([]);
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('keeps verse selection after user undoes edits', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();
@@ -1955,6 +2001,37 @@ class TestEnvironment {
       segment != null &&
       (segment.classList.contains('question-segment') || segment.classList.contains('note-thread-segment'))
     );
+  }
+
+  /** Puts the cursor in the specified segment, as clicking in it would. */
+  selectSegment(segmentRef: string): void {
+    const range: QuillRange = this.component.getSegmentRange(segmentRef)!;
+    this.component.editor!.setSelection(range.index + range.length, 'user');
+    tick();
+    this.fixture.detectChanges();
+  }
+
+  /**
+   * Simulates a click in the focused editor made with the specified pointer type, and returns the focus events that
+   * the click caused.
+   */
+  tapEditor(pointerType: 'touch' | 'mouse'): string[] {
+    const editorRoot: HTMLElement = this.component.editor!.root;
+    editorRoot.focus();
+    expect(document.activeElement).toBe(editorRoot);
+    const focusEvents: string[] = [];
+    const listener = (event: Event): void => {
+      focusEvents.push(event.type);
+    };
+    editorRoot.addEventListener('focusout', listener);
+    editorRoot.addEventListener('focusin', listener);
+    editorRoot.dispatchEvent(new PointerEvent('pointerdown', { pointerType }));
+    editorRoot.dispatchEvent(new MouseEvent('click'));
+    tick();
+    this.fixture.detectChanges();
+    editorRoot.removeEventListener('focusout', listener);
+    editorRoot.removeEventListener('focusin', listener);
+    return focusEvents;
   }
 
   insertText(index: number, text: string): void {
