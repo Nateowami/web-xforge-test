@@ -1,6 +1,6 @@
 import { CdkScrollable } from '@angular/cdk/scrolling';
 import { NgClass, NgStyle } from '@angular/common';
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, Inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatButtonToggle, MatButtonToggleGroup } from '@angular/material/button-toggle';
@@ -20,6 +20,7 @@ import { MatTooltip } from '@angular/material/tooltip';
 import { TranslocoModule } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { sortBy } from 'lodash-es';
+import { merge } from 'rxjs';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { Note, REATTACH_SEPARATOR } from 'realtime-server/lib/esm/scriptureforge/models/note';
 import {
@@ -37,6 +38,7 @@ import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
 import { UserService } from 'xforge-common/user.service';
+import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { BiblicalTermDoc } from '../../../core/models/biblical-term-doc';
 import { defaultNoteThreadIcon, NoteThreadDoc } from '../../../core/models/note-thread-doc';
 import { SFProjectDoc } from '../../../core/models/sf-project-doc';
@@ -121,10 +123,12 @@ export class NoteDialogComponent implements OnInit {
   private paratextProjectUsers?: ParatextUserProfile[];
   private noteIdBeingEdited?: string;
   private userRole?: string;
+  private closedOnRemoteDelete: boolean = false;
 
   constructor(
     @Inject(MAT_DIALOG_DATA) private readonly data: NoteDialogData,
     private readonly dialogRef: MatDialogRef<NoteDialogComponent, NoteDialogResult | undefined>,
+    private readonly destroyRef: DestroyRef,
     private readonly dialogService: DialogService,
     private readonly i18n: I18nService,
     private readonly projectService: SFProjectService,
@@ -138,6 +142,10 @@ export class NoteDialogComponent implements OnInit {
     } else {
       this.threadDoc = await this.projectService.getNoteThread(this.projectId + ':' + this.threadDataId);
       this.textDoc = await this.projectService.getText(this.textDocId);
+      // Keep the dialog in step with the thread, which another user can change or delete while it is open
+      merge(this.threadDoc.remoteChanges$, this.threadDoc.delete$)
+        .pipe(quietTakeUntilDestroyed(this.destroyRef))
+        .subscribe(() => void this.threadChangedRemotelyAsync());
     }
 
     if (this.biblicalTermId != null) {
@@ -405,10 +413,36 @@ export class NoteDialogComponent implements OnInit {
     this.dialogRef.close(content);
   }
 
+  /**
+   * Refreshes the dialog after another user changed the thread. If nothing is left to show, i.e. the other user
+   * deleted the note(s) or the whole thread, the dialog closes rather than letting the user comment on notes that
+   * no longer exist.
+   */
+  private async threadChangedRemotelyAsync(): Promise<void> {
+    if (this.closedOnRemoteDelete) return;
+    const noteBeingEdited: Note | undefined = this.threadDoc?.data?.notes.find(
+      n => n.dataId === this.noteIdBeingEdited && !n.deleted
+    );
+    // The note being edited was deleted, so any content the user has typed becomes a new note
+    if (this.noteIdBeingEdited != null && noteBeingEdited == null) this.noteIdBeingEdited = undefined;
+
+    await this.updateNotesToDisplayAsync();
+    // Keep hiding the note being edited, as it is shown in the comment box instead
+    if (this.noteIdBeingEdited != null) {
+      this.notesToDisplay = this.notesToDisplay.filter(n => n.note.dataId !== this.noteIdBeingEdited);
+    }
+
+    if (this.notesToDisplay.length === 0) {
+      this.closedOnRemoteDelete = true;
+      this.dialogRef.close();
+      await this.dialogService.message('note_dialog.note_deleted_by_other_user');
+    }
+  }
+
   private async updateNotesToDisplayAsync(): Promise<void> {
-    if (this.threadDoc?.data == null) return;
+    if (this.threadDataId == null) return;
     const sortedNotes: Note[] = sortBy(
-      this.threadDoc.data.notes.filter(n => !n.deleted),
+      (this.threadDoc?.data?.notes ?? []).filter(n => !n.deleted),
       n => new Date(n.dateCreated)
     );
     this.notesToDisplay = [];

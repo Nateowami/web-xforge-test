@@ -750,6 +750,7 @@
     "delete": "Delete",
     "edit": "Edit",
     "hide_changes": "Hide changes",
+    "note_deleted_by_other_user": "This comment was deleted by another user.",
     "note_reattached": "Note reattached",
     "paratext_user": "Assigned to a Paratext user",
     "permanently_delete_note": "Permanently delete this comment?",

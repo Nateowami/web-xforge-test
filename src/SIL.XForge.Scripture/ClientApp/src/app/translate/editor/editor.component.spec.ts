@@ -3111,6 +3111,27 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('does not error when saving to a thread that was deleted while the dialog was open', fakeAsync(async () => {
+      const projectId: string = 'project01';
+      const threadDataId: string = 'dataid04';
+      const env = new TestEnvironment();
+      const dialogMessage = spyOn((env.component as any).dialogService, 'message').and.stub();
+      const noteThread: NoteThreadDoc = env.getNoteThreadDoc(projectId, threadDataId);
+      env.setProjectUserConfig();
+      env.wait();
+      env.getNoteThreadIconElement('verse_1_3', threadDataId)!.click();
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+
+      // the thread is deleted, e.g. by another user or a sync, before the dialog result is handled
+      await noteThread.delete();
+      env.mockNoteDialogRef.close({ noteContent: 'content in the thread' });
+      env.wait();
+
+      expect(noteThread.data).toBeUndefined();
+      expect(dialogMessage).toHaveBeenCalledTimes(1);
+      env.dispose();
+    }));
+
     it('allows resolving a note', fakeAsync(() => {
       const projectId: string = 'project01';
       const threadDataId: string = 'dataid01';

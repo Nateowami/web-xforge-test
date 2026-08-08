@@ -485,6 +485,30 @@ describe('NoteDialogComponent', () => {
     expect(env.dialogResult).toEqual({ deleted: true });
   }));
 
+  it('stops showing a note that another user deleted', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread() });
+    expect(env.notes.length).toEqual(4);
+    env.deleteNoteRemotely('dataid01', 'note05');
+    expect(env.notes.length).toEqual(3);
+    expect(env.dialogContentArea).not.toBeNull();
+  }));
+
+  it('closes the dialog when another user deletes the last note', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.defaultNoteThread });
+    expect(env.notes.length).toEqual(1);
+    env.deleteNoteRemotely('dataid01', 'note01');
+    expect(env.dialogContentArea).toBeNull();
+    verify(mockedDialogService.message(anything())).once();
+  }));
+
+  it('closes the dialog when another user deletes the thread', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.defaultNoteThread });
+    expect(env.notes.length).toEqual(1);
+    env.deleteThreadRemotely('dataid01');
+    expect(env.dialogContentArea).toBeNull();
+    verify(mockedDialogService.message(anything())).once();
+  }));
+
   it('resolves a thread', fakeAsync(() => {
     env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread() });
     env.selectResolveOption();
@@ -1129,6 +1153,22 @@ class TestEnvironment {
   selectResolveOption(): void {
     this.component.saveOption = 'resolve';
     tick();
+    this.fixture.detectChanges();
+  }
+
+  /** Simulates another user deleting a note in the thread. */
+  deleteNoteRemotely(threadDataId: string, noteDataId: string): void {
+    const threadDoc: NoteThreadDoc = this.getNoteThreadDoc(threadDataId);
+    const index: number = threadDoc.data!.notes.findIndex(n => n.dataId === noteDataId);
+    threadDoc.submitJson0Op(op => op.set(nt => nt.notes[index].deleted, true), false);
+    flush();
+    this.fixture.detectChanges();
+  }
+
+  /** Simulates the thread doc being deleted, e.g. by a sync, while the dialog is open. */
+  deleteThreadRemotely(threadDataId: string): void {
+    this.getNoteThreadDoc(threadDataId).delete();
+    flush();
     this.fixture.detectChanges();
   }
 
