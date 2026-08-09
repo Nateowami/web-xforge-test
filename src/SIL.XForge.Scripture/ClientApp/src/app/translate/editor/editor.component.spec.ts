@@ -4143,6 +4143,38 @@ describe('EditorComponent', () => {
         discardPeriodicTasks();
       }));
 
+      it('should update the source tab when an admin changes the source project', fakeAsync(async () => {
+        const env = new TestEnvironment();
+        env.setupProject({ shortName: 'SRC2', name: 'source two' }, 'project03');
+        when(mockedSFProjectService.getProfile('project03')).thenCall(() => env.getProjectDoc('project03'));
+        env.wait();
+
+        const sourceTab = (): EditorTabInfo => env.component.tabState.getTabGroup('source')!.tabs[0];
+        expect(sourceTab().type).toEqual('project-source');
+        expect(sourceTab().projectId).toEqual('project02');
+        expect(await firstValueFrom(sourceTab().headerText$)).toEqual('SRC');
+
+        // An admin selects a different source project, which arrives as a single remote change
+        env.getProjectDoc('project01').submitJson0Op(
+          op =>
+            op.set(p => p.translateConfig.source!, {
+              paratextId: 'source02',
+              projectRef: 'project03',
+              name: 'source two',
+              shortName: 'SRC2',
+              writingSystem: { tag: 'qaa' }
+            }),
+          false
+        );
+        env.wait();
+
+        expect(sourceTab().projectId).toEqual('project03');
+        expect(sourceTab().tooltip).toEqual('source two');
+        expect(await firstValueFrom(sourceTab().headerText$)).toEqual('SRC2');
+        expect(env.component.sourceProjectDoc?.id).toEqual('project03');
+        env.dispose();
+      }));
+
       it('should add target tab', fakeAsync(() => {
         const env = new TestEnvironment();
         const projectDoc = env.getProjectDoc('project01');
