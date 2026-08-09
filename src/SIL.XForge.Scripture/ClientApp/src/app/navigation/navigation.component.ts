@@ -21,6 +21,7 @@ import { ResumeCheckingService } from '../checking/checking/resume-checking.serv
 import { ResumeTranslateService } from '../checking/checking/resume-translate.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { roleCanAccessCommunityChecking, roleCanAccessTranslate } from '../core/models/sf-project-role-info';
+import { SFProjectService } from '../core/sf-project.service';
 import { NmtDraftAuthGuard, SettingsAuthGuard, SyncAuthGuard, UsersAuthGuard } from '../shared/project-router.guard';
 
 @Component({
@@ -71,6 +72,7 @@ export class NavigationComponent {
     private readonly resumeTranslateService: ResumeTranslateService,
     private readonly router: Router,
     private readonly activatedProjectService: ActivatedProjectService,
+    private readonly projectService: SFProjectService,
     readonly featureFlags: FeatureFlagService
   ) {}
 
@@ -87,7 +89,12 @@ export class NavigationComponent {
   }
 
   get syncInProgress(): boolean {
-    return this.selectedProjectDoc?.data != null && this.selectedProjectDoc.data.sync.queuedCount > 0;
+    if (this.selectedProjectDoc?.data != null && this.selectedProjectDoc.data.sync.queuedCount > 0) {
+      return true;
+    }
+    // Spin as soon as the user asks for a sync, rather than waiting for the server to queue it and the resulting
+    // project doc change to arrive, which can take several seconds.
+    return this.selectedProjectId != null && this.projectService.isSyncRequestPending(this.selectedProjectId);
   }
 
   get selectedProjectId(): string | undefined {

@@ -50,6 +50,9 @@ import { TranslateMetrics } from './models/translate-metrics';
 export class SFProjectService extends ProjectService<SFProject, SFProjectDoc> {
   protected readonly collection = SFProjectDoc.COLLECTION;
 
+  /** Ids of projects for which a sync has been requested, but the request has not yet come back. */
+  private readonly pendingSyncRequests = new Set<string>();
+
   constructor(
     realtimeService: RealtimeService,
     commandService: CommandService,
@@ -235,8 +238,23 @@ export class SFProjectService extends ProjectService<SFProject, SFProjectDoc> {
     return this.realtimeService.subscribeQuery(NoteThreadDoc.COLLECTION, parameters, destroyRef);
   }
 
-  onlineSync(id: string): Promise<void> {
-    return this.onlineInvoke('sync', { projectId: id });
+  /**
+   * Whether a sync requested for this project is still being set up on the server. The server increments the
+   * project's `sync.queuedCount` before responding, so the project doc only starts reporting the sync once the
+   * request has come back. UI that indicates syncing should treat this as syncing too, otherwise it appears to
+   * ignore the user until the round-trip completes.
+   */
+  isSyncRequestPending(projectId: string): boolean {
+    return this.pendingSyncRequests.has(projectId);
+  }
+
+  async onlineSync(id: string): Promise<void> {
+    this.pendingSyncRequests.add(id);
+    try {
+      await this.onlineInvoke('sync', { projectId: id });
+    } finally {
+      this.pendingSyncRequests.delete(id);
+    }
   }
 
   onlineCancelSync(id: string): Promise<void> {

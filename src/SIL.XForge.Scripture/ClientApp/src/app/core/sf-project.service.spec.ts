@@ -180,6 +180,33 @@ describe('SFProjectService', () => {
     }));
   });
 
+  describe('onlineSync', () => {
+    it('reports the sync request as pending until the command comes back', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      let completeCommand: () => void = () => {};
+      when(mockedCommandService.onlineInvoke(anything(), 'sync', anything())).thenReturn(
+        new Promise<undefined>(resolve => (completeCommand = () => resolve(undefined)))
+      );
+
+      expect(env.service.isSyncRequestPending('project01')).toBe(false);
+      const syncPromise = env.service.onlineSync('project01');
+      expect(env.service.isSyncRequestPending('project01')).toBe(true);
+      expect(env.service.isSyncRequestPending('project02')).toBe(false);
+
+      completeCommand();
+      await syncPromise;
+      expect(env.service.isSyncRequestPending('project01')).toBe(false);
+    }));
+
+    it('stops reporting the sync request as pending when the command fails', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      when(mockedCommandService.onlineInvoke(anything(), 'sync', anything())).thenReject(new Error('Forbidden'));
+
+      await expectAsync(env.service.onlineSync('project01')).toBeRejected();
+      expect(env.service.isSyncRequestPending('project01')).toBe(false);
+    }));
+  });
+
   describe('onlineSetQualityEstimationConfig', () => {
     it('should invoke the command service', fakeAsync(async () => {
       const env = new TestEnvironment();

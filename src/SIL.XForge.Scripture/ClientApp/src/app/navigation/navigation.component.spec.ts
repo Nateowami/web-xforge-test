@@ -2,6 +2,7 @@ import { DebugElement } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
+import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { BehaviorSubject, of, Subject } from 'rxjs';
 import { anything, mock, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
@@ -15,6 +16,7 @@ import { UserService } from 'xforge-common/user.service';
 import { ResumeCheckingService } from '../checking/checking/resume-checking.service';
 import { ResumeTranslateService } from '../checking/checking/resume-translate.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
+import { SFProjectService } from '../core/sf-project.service';
 import { NmtDraftAuthGuard, SettingsAuthGuard, SyncAuthGuard, UsersAuthGuard } from '../shared/project-router.guard';
 import { NavigationComponent } from './navigation.component';
 
@@ -31,6 +33,7 @@ describe('NavigationComponent', () => {
   const mockedActivatedRoute = mock(ActivatedRoute);
   const mockedI18nService = mock(I18nService);
   const mockedFeatureFlagService = mock(FeatureFlagService);
+  const mockedProjectService = mock(SFProjectService);
 
   configureTestingModule(() => ({
     imports: [NavigationComponent, getTestTranslocoModule()],
@@ -48,7 +51,8 @@ describe('NavigationComponent', () => {
       { provide: Router, useMock: mockedRouter },
       { provide: ActivatedRoute, useMock: mockedActivatedRoute },
       { provide: I18nService, useMock: mockedI18nService },
-      { provide: FeatureFlagService, useMock: mockedFeatureFlagService }
+      { provide: FeatureFlagService, useMock: mockedFeatureFlagService },
+      { provide: SFProjectService, useMock: mockedProjectService }
     ]
   }));
 
@@ -76,6 +80,7 @@ describe('NavigationComponent', () => {
       when(mockedResumeCheckingService.resumeLink$).thenReturn(of([]));
       when(mockedResumeTranslateService.resumeLink$).thenReturn(of([]));
       when(mockedFeatureFlagService.stillness).thenReturn(createTestFeatureFlag(false));
+      when(mockedProjectService.isSyncRequestPending(anything())).thenReturn(false);
 
       this.fixture = TestBed.createComponent(NavigationComponent);
       this.component = this.fixture.componentInstance;
@@ -84,6 +89,18 @@ describe('NavigationComponent', () => {
 
     get adminPagesList(): DebugElement | null {
       return this.fixture.debugElement.query(By.css('#admin-pages-menu-list'));
+    }
+
+    get syncIconSpinning(): boolean {
+      const icon: DebugElement | null = this.fixture.debugElement.query(By.css('#sync-icon'));
+      return icon != null && icon.nativeElement.classList.contains('sync-in-progress');
+    }
+
+    projectDocWithQueuedCount(queuedCount: number): SFProjectProfileDoc {
+      return {
+        id: 'project01',
+        data: createTestProjectProfile({ sync: { queuedCount } })
+      } as SFProjectProfileDoc;
     }
 
     emitProjectChange(projectDoc: SFProjectProfileDoc | undefined): void {
@@ -154,6 +171,30 @@ describe('NavigationComponent', () => {
     env.emitProjectChange(projectDoc);
     expect(env.adminPagesList).toBeNull();
 
+    flush();
+  }));
+
+  it('spins the sync icon while the project doc reports a queued sync', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.canSync$.next(true);
+    env.emitProjectChange(env.projectDocWithQueuedCount(1));
+
+    expect(env.syncIconSpinning).toBe(true);
+    flush();
+  }));
+
+  it('spins the sync icon as soon as a sync is requested, before the project doc reports it', fakeAsync(() => {
+    // The server increments queuedCount before responding to the sync request, so the project doc does not report
+    // the sync until the round-trip finishes, which can take several seconds.
+    const env = new TestEnvironment();
+    env.canSync$.next(true);
+    env.emitProjectChange(env.projectDocWithQueuedCount(0));
+    expect(env.syncIconSpinning).toBe(false);
+
+    when(mockedProjectService.isSyncRequestPending(anything())).thenReturn(true);
+    env.fixture.detectChanges();
+
+    expect(env.syncIconSpinning).toBe(true);
     flush();
   }));
 
