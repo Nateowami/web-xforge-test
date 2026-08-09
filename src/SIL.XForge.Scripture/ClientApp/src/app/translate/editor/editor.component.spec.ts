@@ -59,6 +59,7 @@ import {
 } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
 import { TextAnchor } from 'realtime-server/lib/esm/scriptureforge/models/text-anchor';
 import { TextType } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
+import { Chapter } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { TextInfoPermission } from 'realtime-server/lib/esm/scriptureforge/models/text-info-permission';
 import { fromVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import * as RichText from 'rich-text';
@@ -255,11 +256,59 @@ describe('EditorComponent', () => {
     const dialogMessage = spyOn((env.component as any).dialogService, 'message').and.callThrough();
     env.setupDialogRef();
 
+    // A book is removed from the project before its text docs are deleted
+    env.removeBookFromProject('project02', 40);
     const textDocId = new TextDocId('project02', 40, 1, 'target');
     env.deleteText(textDocId.toString());
     expect(dialogMessage).toHaveBeenCalledTimes(1);
     tick();
     expect(env.location.path()).toEqual('/projects/project02/translate');
+    env.dispose();
+  }));
+
+  it('navigates to the translate overview if url book is not in the project', fakeAsync(() => {
+    const env = new TestEnvironment();
+    flush();
+    const spyRouterNavigate = spyOn(env.router, 'navigateByUrl');
+
+    env.routeWithParams({ projectId: 'project01', bookId: 'GEN', chapter: '2' });
+    env.wait();
+
+    expect(spyRouterNavigate).toHaveBeenCalledWith('/projects/project01/translate', jasmine.any(Object));
+    discardPeriodicTasks();
+  }));
+
+  it('navigates to an existing chapter if the url chapter is not in the project', fakeAsync(() => {
+    const env = new TestEnvironment();
+    flush();
+    const spyRouterNavigate = spyOn(env.router, 'navigateByUrl');
+
+    // Mark has only chapter 1
+    env.routeWithParams({ projectId: 'project01', bookId: 'MRK', chapter: '3' });
+    env.wait();
+
+    expect(spyRouterNavigate).toHaveBeenCalledWith('/projects/project01/translate/MRK/1', jasmine.any(Object));
+    discardPeriodicTasks();
+  }));
+
+  it('navigates to the translate overview if the chapter being viewed is removed from the project', fakeAsync(() => {
+    const env = new TestEnvironment();
+    flush();
+    env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '3' });
+    env.wait();
+    expect(env.location.path()).toEqual('/projects/project01/translate/LUK/3');
+
+    const dialogMessage = spyOn((env.component as any).dialogService, 'message').and.callThrough();
+    env.setupDialogRef();
+
+    // The chapter is deleted in Paratext and synced: the chapter text doc is deleted, then the project is updated
+    env.deleteText(new TextDocId('project01', 42, 3, 'target').toString());
+    env.removeChapterFromProject('project01', 42, 3);
+
+    // The book still exists, so the user is not told that it was deleted
+    expect(dialogMessage).not.toHaveBeenCalled();
+    tick();
+    expect(env.location.path()).toEqual('/projects/project01/translate');
     env.dispose();
   }));
 
@@ -5146,6 +5195,25 @@ class TestEnvironment {
     this.ngZone.run(() => {
       const textDoc = this.realtimeService.get(TextDoc.COLLECTION, textId);
       textDoc.delete();
+    });
+    this.wait();
+  }
+
+  removeBookFromProject(projectId: string, bookNum: number): void {
+    const projectDoc: SFProjectProfileDoc = this.getProjectDoc(projectId);
+    const textIndex: number = projectDoc.data!.texts.findIndex(t => t.bookNum === bookNum);
+    this.ngZone.run(() => {
+      projectDoc.submitJson0Op(op => op.remove(p => p.texts, textIndex), false);
+    });
+    this.wait();
+  }
+
+  removeChapterFromProject(projectId: string, bookNum: number, chapterNum: number): void {
+    const projectDoc: SFProjectProfileDoc = this.getProjectDoc(projectId);
+    const textIndex: number = projectDoc.data!.texts.findIndex(t => t.bookNum === bookNum);
+    const chapters: Chapter[] = projectDoc.data!.texts[textIndex].chapters.filter(c => c.number !== chapterNum);
+    this.ngZone.run(() => {
+      projectDoc.submitJson0Op(op => op.set(p => p.texts[textIndex].chapters, chapters), false);
     });
     this.wait();
   }

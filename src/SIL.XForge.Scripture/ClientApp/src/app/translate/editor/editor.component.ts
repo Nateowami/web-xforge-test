@@ -53,6 +53,7 @@ import {
   NoteType
 } from 'realtime-server/lib/esm/scriptureforge/models/note-thread';
 import { ParatextUserProfile } from 'realtime-server/lib/esm/scriptureforge/models/paratext-user-profile';
+import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { isParatextRole, SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { TextAnchor } from 'realtime-server/lib/esm/scriptureforge/models/text-anchor';
@@ -751,6 +752,19 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         switchMap(doc => this.initEditorTabs(doc))
       )
       .subscribe();
+
+    // The book or chapter being edited can be removed from the project while it is open, e.g. it was deleted in
+    // Paratext and synced. Leave the editor rather than show an editor for scripture that no longer exists.
+    this.activatedProject.changes$
+      .pipe(quietTakeUntilDestroyed(this.destroyRef), filterNullish())
+      .subscribe(projectDoc => {
+        if (projectDoc.data == null || this.bookNum == null || this.chapter == null) {
+          return;
+        }
+        if (!this.availableChapters(projectDoc.data, this.bookNum).includes(this.chapter)) {
+          this.navigateToTranslateOverview(projectDoc.id);
+        }
+      });
   }
 
   ngAfterViewInit(): void {
@@ -825,12 +839,13 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         );
         this.books = Array.from(new Set([...projectTexts, ...draftedBooks])).sort((a, b) => a - b);
         this.text = this.projectDoc.data.texts.find(t => t.bookNum === bookNum);
+        this.chapters = this.availableChapters(this.projectDoc.data, bookNum);
 
-        const allChapters: number = Math.max(
-          this.text?.chapters[this.text.chapters.length - 1]?.number ?? 1,
-          expectedBookChapters(Canon.bookNumberToId(bookNum))
-        );
-        this.chapters = Array.from({ length: allChapters }, (_, i) => i + 1);
+        // The book is not in the project and has no draft, so there is nothing to show for it
+        if (this.chapters.length === 0) {
+          this.navigateToTranslateOverview(projectId);
+          return;
+        }
 
         this.updateVerseNumber();
 
@@ -1845,6 +1860,11 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     }
 
     this.onTargetDeleteSub = textDoc.delete$.subscribe(() => {
+      // A chapter is deleted from the project when it is removed in Paratext, without the book being deleted. The
+      // project doc change redirects to the translate overview in that case, and this message would be misleading.
+      if (this.projectDoc?.data?.texts.some(t => t.bookNum === targetId.bookNum) === true) {
+        return;
+      }
       void this.dialogService.message(this.i18n.translate('editor.text_has_been_deleted')).then(() => {
         void this.router.navigateByUrl('/projects/' + this.projectDoc!.id + '/translate', { replaceUrl: true });
       });
@@ -2122,6 +2142,27 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       });
   }
 
+  /**
+   * The chapters of a book that the editor can show: the chapters the project has for the book, plus, if a draft has
+   * been generated for the book, every chapter the book can have (a draft may exist for a chapter, or a whole book,
+   * that the project does not have yet). An empty array means the book is not available in the project at all.
+   */
+  private availableChapters(project: SFProjectProfile, bookNum: number): number[] {
+    const textChapters: number[] = project.texts.find(t => t.bookNum === bookNum)?.chapters.map(c => c.number) ?? [];
+    const isDrafted: boolean = booksFromScriptureRange(
+      project.translateConfig.draftConfig?.draftedScriptureRange
+    ).includes(bookNum);
+    const draftChapters: number[] = isDrafted
+      ? Array.from({ length: expectedBookChapters(Canon.bookNumberToId(bookNum)) }, (_, i) => i + 1)
+      : [];
+    return Array.from(new Set([...textChapters, ...draftChapters])).sort((a, b) => a - b);
+  }
+
+  private navigateToTranslateOverview(projectId: string): void {
+    this.loadingFinished();
+    void this.router.navigateByUrl(`/projects/${projectId}/translate`, { replaceUrl: true });
+  }
+
   private async loadProjectUserConfig(bookNum: number, chapterFromUrl?: number): Promise<void> {
     let chapter: number =
       chapterFromUrl ?? this.projectDoc?.data?.texts.find(t => t.bookNum === bookNum)?.chapters[0].number ?? 1;
@@ -2138,9 +2179,13 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       }
     }
 
+    // The chapter is not in the project, so show the first chapter that is
     if (!this.chapters.includes(chapter)) {
       this.loadingFinished();
-      this.chapter = this.chapters[0] ?? 1;
+      void this.router.navigateByUrl(
+        `/projects/${this.projectId}/translate/${Canon.bookNumberToId(bookNum)}/${this.chapters[0]}`,
+        { replaceUrl: true }
+      );
       return;
     }
     this.toggleNoteThreadVerses(false);
