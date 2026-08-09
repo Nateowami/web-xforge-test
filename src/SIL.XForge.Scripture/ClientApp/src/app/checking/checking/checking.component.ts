@@ -590,6 +590,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                 }
               });
 
+            // This subscription lives as long as the project doc does, so it is not torn down by cleanup()
             this.hideTextSub?.unsubscribe();
             this.hideTextSub = this.projectDoc.changes$
               .pipe(
@@ -599,7 +600,14 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                 quietTakeUntilDestroyed(this.destroyRef)
               )
               .subscribe(() => {
-                if (this.hideChapterText) this.showScriptureAudioPlayer = true;
+                if (this.hideChapterText) {
+                  this.showScriptureAudioPlayer = true;
+                } else if (!this.isAudioPlaying()) {
+                  // The audio player was only showing because the Scripture text was hidden. Close it now that the
+                  // text is shown again, otherwise the answer panel stays hidden and the active question cannot be
+                  // seen.
+                  this.hideChapterAudio();
+                }
                 this.calculateScriptureSliderPosition();
               });
 
@@ -1798,7 +1806,6 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     this.questionsRemoteChangesSub?.unsubscribe();
     this.questionsQuery?.dispose();
     this.textAudioQuery?.dispose();
-    this.hideTextSub?.unsubscribe();
     this.textAudioSub?.unsubscribe();
     this.defaultQuestionsQuery?.dispose();
     this.defaultQuestionsQuerySub?.unsubscribe();

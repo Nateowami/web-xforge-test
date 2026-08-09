@@ -2569,6 +2569,30 @@ describe('CheckingComponent', () => {
       flush();
       discardPeriodicTasks();
     }));
+
+    it('shows the active question again when the setting is turned off', fakeAsync(() => {
+      const testProject: SFProject = TestEnvironment.generateTestProject();
+      testProject.checkingConfig.hideCommunityCheckingText = true;
+      const env = new TestEnvironment({ user: CHECKER_USER, testProject });
+      env.selectQuestion(1);
+      // While the text is hidden the Scripture audio player is shown in its place
+      expect(env.component.showScriptureAudioPlayer).withContext('setup').toBe(true);
+
+      env.setHideScriptureText(false);
+      env.waitForSliderUpdate();
+
+      expect(env.component.hideChapterText).toBe(false);
+      // The audio player was only showing because the text was hidden. If it stays open, the answer panel is not
+      // visible and the active question cannot be seen.
+      expect(env.component.showScriptureAudioPlayer)
+        .withContext('Scripture audio player should close when the text is shown again')
+        .toBe(false);
+      expect(env.chapterAudio).withContext('Scripture audio player should no longer be rendered').toBeUndefined();
+      expect(env.answerPanel).withContext('answer panel with the active question').not.toBeNull();
+
+      flush();
+      discardPeriodicTasks();
+    }));
   });
 
   describe('Chapter Audio', () => {
