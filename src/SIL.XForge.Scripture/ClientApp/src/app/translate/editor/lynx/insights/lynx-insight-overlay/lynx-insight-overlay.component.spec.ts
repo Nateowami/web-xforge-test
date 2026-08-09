@@ -1,7 +1,7 @@
-import { Component, ViewChild } from '@angular/core';
+import { Component, DebugElement, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { anything, instance, mock, resetCalls, verify, when } from 'ts-mockito';
 import { I18nService } from 'xforge-common/i18n.service';
 import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
 import { TextDocId } from '../../../../../core/models/text-doc';
@@ -82,28 +82,79 @@ describe('LynxInsightOverlayComponent', () => {
     const menuTrigger = env.fixture.debugElement.query(By.css('.action-menu-trigger'));
     expect(menuTrigger.nativeElement.getAttribute('dir')).toBe('ltr');
   }));
+
+  it('should not show back button when there is only one insight', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    expect(env.component.focusedInsight).not.toBeUndefined();
+    expect(env.backButton).toBeNull();
+  }));
+
+  it('should show back button after selecting an insight from the multi-insight list', fakeAsync(() => {
+    const env = new TestEnvironment({ insightCount: 2 });
+
+    // List is shown until an insight is selected
+    expect(env.component.focusedInsight).toBeUndefined();
+    expect(env.insightListItems.length).toBe(2);
+    expect(env.backButton).toBeNull();
+
+    env.selectInsightFromList(0);
+
+    expect(env.component.focusedInsight?.id).toBe('test-insight-1');
+    expect(env.backButton).not.toBeNull();
+  }));
+
+  it('should return to the multi-insight list when back button is clicked', fakeAsync(() => {
+    const env = new TestEnvironment({ insightCount: 2 });
+    env.selectInsightFromList(0);
+    expect(env.component.primaryAction).not.toBeUndefined();
+
+    env.clickBackButton();
+
+    expect(env.component.focusedInsight).toBeUndefined();
+    expect(env.component.primaryAction).toBeUndefined();
+    expect(env.component.menuActions).toEqual([]);
+    expect(env.insightListItems.length).toBe(2);
+
+    // Editor attention is restored to all insights in the list
+    expect(env.hoveredInsights).toEqual([null]);
+  }));
+
+  it('should not apply the primary action shortcut after returning to the list', fakeAsync(() => {
+    const env = new TestEnvironment({ insightCount: 2 });
+    env.selectInsightFromList(0);
+    env.clickBackButton();
+
+    resetCalls(mockLynxEditor);
+    env.component.handleKeyDown(new KeyboardEvent('keydown', { altKey: true, shiftKey: true, key: 'Enter' }));
+
+    verify(mockLynxEditor.updateContents(anything(), 'user')).never();
+    expect().nothing();
+  }));
 });
 
 class TestEnvironment {
   fixture: ComponentFixture<HostComponent>;
   hostComponent: HostComponent;
   component: LynxInsightOverlayComponent;
+  hoveredInsights: (LynxInsight | null)[] = [];
 
-  constructor() {
+  constructor(options: { insightCount?: number } = {}) {
     // Setup the test environment
     this.fixture = TestBed.createComponent(HostComponent);
     this.hostComponent = this.fixture.componentInstance;
-    this.setupEditor();
+    this.setupEditor(options.insightCount ?? 1);
     this.component = this.hostComponent.component;
+    this.component.insightHover.subscribe(insight => this.hoveredInsights.push(insight));
   }
 
-  private setupEditor(): void {
+  private setupEditor(insightCount: number): void {
     const editor = instance(mockLynxEditor);
     const textModelConverter = instance(mockTextModelConverter);
 
-    const insight = this.createTestInsight();
-    const primaryAction = this.createTestAction(insight, true);
-    const secondaryAction = this.createTestAction(insight, false);
+    const insights: LynxInsight[] = Array.from({ length: insightCount }, (_, i) =>
+      this.createTestInsight({ id: `test-insight-${i + 1}`, description: `Test insight description ${i + 1}` })
+    );
 
     // Set up mocks for the editor root element
     const mockRoot = document.createElement('div');
@@ -111,11 +162,35 @@ class TestEnvironment {
     when(mockLynxEditor.focus()).thenReturn();
     when(mockLynxEditor.updateContents(anything(), anything())).thenReturn();
     when(mockTextModelConverter.dataDeltaToEditorDelta(anything())).thenCall(delta => delta);
-    when(mockLynxWorkspaceService.getActions(anything())).thenResolve([primaryAction, secondaryAction]);
+    when(mockLynxWorkspaceService.getActions(anything())).thenCall((insight: LynxInsight) =>
+      Promise.resolve([this.createTestAction(insight, true), this.createTestAction(insight, false)])
+    );
 
-    this.hostComponent.insights = [insight];
+    this.hostComponent.insights = insights;
     this.hostComponent.editor = editor;
     this.hostComponent.textModelConverter = textModelConverter;
+    this.fixture.detectChanges();
+    flush();
+    this.fixture.detectChanges();
+  }
+
+  get insightListItems(): DebugElement[] {
+    return this.fixture.debugElement.queryAll(By.css('.main-section.list .insight-item'));
+  }
+
+  get backButton(): DebugElement | null {
+    return this.fixture.debugElement.query(By.css('.back-icon'));
+  }
+
+  selectInsightFromList(index: number): void {
+    this.insightListItems[index].triggerEventHandler('click');
+    this.fixture.detectChanges();
+    flush();
+    this.fixture.detectChanges();
+  }
+
+  clickBackButton(): void {
+    this.backButton!.triggerEventHandler('click');
     this.fixture.detectChanges();
     flush();
     this.fixture.detectChanges();

@@ -254,7 +254,8 @@ class TestEnvironment {
     const componentInstance = {
       insightDismiss: new Subject(),
       insightHover: new Subject(),
-      insightFocus: new Subject()
+      insightFocus: new Subject(),
+      insightUnfocus: new Subject()
     };
 
     const overlayElement = document.createElement('div');

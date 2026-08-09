@@ -61,12 +61,24 @@ export class LynxInsightOverlayComponent implements OnInit {
   /** Emits when overlay goes to single insight mode. */
   @Output() insightFocus = new EventEmitter<LynxInsight>();
 
+  /** Emits when overlay returns to the multi-insight list. */
+  @Output() insightUnfocus = new EventEmitter<void>();
+
   /** Emits hovered insight when overlay displays multi-insight selection list. Emits `null` when hover ceases. */
   @Output() insightHover = new EventEmitter<LynxInsight | null>();
 
   focusedInsight?: LynxInsight;
   menuActions: LynxInsightAction[] = [];
   primaryAction?: LynxInsightAction;
+
+  /** Whether the focused insight was selected from a list of insights that the user can navigate back to. */
+  get canReturnToList(): boolean {
+    return this.insights.length > 1;
+  }
+
+  get backIcon(): string {
+    return this.i18n.direction === 'rtl' ? 'arrow_forward' : 'arrow_back';
+  }
 
   constructor(
     private readonly destroyRef: DestroyRef,
@@ -121,6 +133,22 @@ export class LynxInsightOverlayComponent implements OnInit {
     this.insightFocus.emit(insight);
   }
 
+  /** Return to the multi-insight list from the details of the insight selected from it. */
+  returnToList(): void {
+    if (!this.canReturnToList) {
+      return;
+    }
+
+    this.focusedInsight = undefined;
+    this.primaryAction = undefined;
+    this.menuActions = [];
+    this.showMoreInfo = false;
+
+    // Restore editor attention to all insights in the list
+    this.highlightInsight(null);
+    this.insightUnfocus.emit();
+  }
+
   /**
    * Highlight the specified insight.  Brings lower severity insights to the front.  `null` means hover ceased.
    */
@@ -162,16 +190,23 @@ export class LynxInsightOverlayComponent implements OnInit {
     }
 
     void this.lynxWorkspaceService.getActions(insight).then(actions => {
+      // Ignore actions that arrive after the user navigated away from this insight
+      if (this.focusedInsight !== insight) {
+        return;
+      }
+
       const menuActions: LynxInsightAction[] = [];
+      let primaryAction: LynxInsightAction | undefined;
 
       for (const action of actions) {
         if (action.isPrimary) {
-          this.primaryAction = action;
+          primaryAction = action;
         } else {
           menuActions.push(action);
         }
       }
 
+      this.primaryAction = primaryAction;
       this.menuActions = menuActions;
     });
   }

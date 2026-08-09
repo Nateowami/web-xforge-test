@@ -717,6 +717,7 @@
   "lynx_insights_overlay": {
     "multi_insight_header_select_for_details": "Select for details",
     "tooltip_actions": "Actions",
+    "tooltip_back_to_list": "Back to list",
     "tooltip_dismiss": "Dismiss",
     "tooltip_more_info": "More info"
   },

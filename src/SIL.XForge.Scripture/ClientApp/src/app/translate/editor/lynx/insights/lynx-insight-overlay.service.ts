@@ -1,7 +1,7 @@
 import { Overlay, OverlayConfig, OverlayRef, PositionStrategy, ScrollStrategy } from '@angular/cdk/overlay';
 import { ComponentPortal } from '@angular/cdk/portal';
 import { Injectable } from '@angular/core';
-import { asyncScheduler, observeOn, Subject, take, takeUntil } from 'rxjs';
+import { asyncScheduler, merge, observeOn, Subject, take, takeUntil } from 'rxjs';
 import { I18nService } from 'xforge-common/i18n.service';
 import { LynxEditor, LynxTextModelConverter } from './lynx-editor';
 import { LynxInsight } from './lynx-insight';
@@ -95,8 +95,9 @@ export class LynxInsightOverlayService {
       .pipe(takeUntil(overlayRef.closed$))
       .subscribe(insight => this.openRef?.hoverMultiInsight$.next(insight));
 
-    // Update overlay position when insight is focused (as in choosing from multi-insight)
-    componentRef.instance.insightFocus
+    // Update overlay position when insight is focused (as in choosing from multi-insight),
+    // or when returning to the multi-insight list
+    merge(componentRef.instance.insightFocus, componentRef.instance.insightUnfocus)
       .pipe(
         takeUntil(overlayRef.closed$),
         observeOn(asyncScheduler) // Delay to wait for DOM render (like setTimeout)

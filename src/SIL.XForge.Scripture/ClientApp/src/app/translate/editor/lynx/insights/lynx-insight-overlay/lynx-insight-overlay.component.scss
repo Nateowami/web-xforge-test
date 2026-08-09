@@ -134,6 +134,16 @@ h1 {
   font-weight: 400;
   line-height: normal;
 
+  .back-icon {
+    color: $secondaryTextColor;
+    font-size: 1.2em;
+    align-self: center;
+
+    &:hover {
+      color: $secondaryTextHoverColor;
+    }
+  }
+
   .more-info-icon {
     margin-inline-start: auto;
     color: $secondaryTextColor;

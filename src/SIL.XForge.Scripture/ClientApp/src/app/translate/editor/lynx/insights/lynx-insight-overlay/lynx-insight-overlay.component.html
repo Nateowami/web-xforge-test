@@ -2,6 +2,21 @@
   @if (focusedInsight != null) {
     <div class="main-section focused" [ngClass]="focusedInsight.type">
       <h1>
+        @if (canReturnToList) {
+          <mat-icon
+            [matTooltip]="t('tooltip_back_to_list')"
+            [attr.aria-label]="t('tooltip_back_to_list')"
+            class="back-icon"
+            role="button"
+            tabindex="0"
+            aria-hidden="false"
+            (click)="returnToList()"
+            (keydown.enter)="returnToList()"
+            (keydown.space)="returnToList()"
+            >{{ backIcon }}</mat-icon
+          >
+        }
+
         <span class="description">{{ focusedInsight.description }}</span>
 
         @if (focusedInsight.moreInfo != null) {
