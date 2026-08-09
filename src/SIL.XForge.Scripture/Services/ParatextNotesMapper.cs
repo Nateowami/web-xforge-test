@@ -39,10 +39,16 @@ public class ParatextNotesMapper(
     private string? _currentParatextUsername;
     private HashSet<string> _ptProjectUsersWhoCanWriteNotes = [];
 
+    /// <summary>
+    /// The Paratext usernames of comment owners, mapped by SF user id. Null if they have no PT account.
+    /// </summary>
+    private readonly Dictionary<string, string?> _ownerParatextUsernames = [];
+
     public void Init(UserSecret currentUserSecret, IReadOnlyList<ParatextProjectUser> users)
     {
         _currentUserSecret = currentUserSecret;
         _currentParatextUsername = paratextService.GetParatextUsername(currentUserSecret);
+        _ownerParatextUsernames.Clear();
         HashSet<string> ptRolesCanWriteNote =
         [
             SFProjectRole.Administrator,
@@ -216,12 +222,12 @@ public class ParatextNotesMapper(
         bool setCheckingTag = false
     )
     {
-        (string syncUserId, string user, bool canWritePtNotes) = await GetSyncUserAsync(
+        (string syncUserId, string user, bool attributedToOwner) = await GetSyncUserAsync(
             comment.SyncUserRef,
             comment.OwnerRef,
             ptProjectUsers
         );
-        XElement commentElem = ExtractCommentElem(comment, prefixContent, user, canWritePtNotes, tagId);
+        XElement commentElem = ExtractCommentElem(comment, prefixContent, user, attributedToOwner, tagId);
         var threadId = (string)threadElem.Attribute("id");
         if (threadId == null)
             return syncUserId;
@@ -266,14 +272,15 @@ public class ParatextNotesMapper(
         Comment comment,
         IReadOnlyCollection<object> prefixContent,
         string user,
-        bool canWritePtNotes,
+        bool attributedToOwner,
         int tagId
     )
     {
         var commentElem = new XElement("comment");
         commentElem.Add(new XAttribute("user", user));
-        // if the user is not a Paratext user on the project, then set external user id
-        if (!canWritePtNotes)
+        // if the comment is attributed to a Paratext user other than its owner, then record the owner as the
+        // external user id, so that the user who actually wrote it is not lost
+        if (!attributedToOwner)
             commentElem.Add(new XAttribute("extUser", comment.OwnerRef));
         commentElem.Add(new XAttribute("date", FormatCommentDate(comment.DateCreated)));
         var contentElem = new XElement("content");
@@ -325,22 +332,20 @@ public class ParatextNotesMapper(
     /// <summary>
     /// Gets the Paratext user for a comment from the specified sync user id and owner id.
     /// </summary>
-    private async Task<(string SyncUserId, string ParatextUsername, bool CanWritePtNoteOnProject)> GetSyncUserAsync(
+    /// <returns>
+    /// The sync user id and PT username the comment will be attributed to, and whether that PT user is the
+    /// comment's owner.
+    /// </returns>
+    private async Task<(string SyncUserId, string ParatextUsername, bool AttributedToOwner)> GetSyncUserAsync(
         string? syncUserRef,
         string ownerRef,
         Dictionary<string, ParatextUserProfile> ptProjectUsers
     )
     {
-        // if the owner is a PT user who can write notes, then get the PT username
-        string paratextUsername = null;
-        if (_ptProjectUsersWhoCanWriteNotes.Contains(ownerRef))
-        {
-            Attempt<UserSecret> attempt = await userSecrets.TryGetAsync(ownerRef);
-            if (attempt.TryResult(out UserSecret userSecret))
-                paratextUsername = paratextService.GetParatextUsername(userSecret);
-        }
+        string? ownerParatextUsername = await GetOwnerParatextUsernameAsync(ownerRef);
 
-        bool canWritePtNoteOnProject = paratextUsername != null;
+        // only attribute a new comment to the owner if they are a PT user who can write notes on the project
+        string paratextUsername = _ptProjectUsersWhoCanWriteNotes.Contains(ownerRef) ? ownerParatextUsername : null;
 
         ParatextUserProfile ptProjectUser =
             syncUserRef == null ? null : ptProjectUsers.Values.SingleOrDefault(s => s.OpaqueUserId == syncUserRef);
@@ -352,7 +357,25 @@ public class ParatextNotesMapper(
             paratextUsername ??= _currentParatextUsername;
             ptProjectUser = FindOrCreateParatextUser(paratextUsername!, ptProjectUsers);
         }
-        return (ptProjectUser.OpaqueUserId, ptProjectUser.Username, canWritePtNoteOnProject);
+
+        // The comment is attributed to its owner only if the PT user it is written as is the owner's PT user. This
+        // is determined from the PT user actually used, and not from the owner's current role on the project, as a
+        // comment keeps the PT user it was first synced with even if the owner's role changes later on.
+        bool attributedToOwner = ownerParatextUsername != null && ptProjectUser.Username == ownerParatextUsername;
+        return (ptProjectUser.OpaqueUserId, ptProjectUser.Username, attributedToOwner);
+    }
+
+    /// <summary> Gets the Paratext username of a comment owner, or null if they do not have a PT account. </summary>
+    private async Task<string?> GetOwnerParatextUsernameAsync(string ownerRef)
+    {
+        if (_ownerParatextUsernames.TryGetValue(ownerRef, out string? paratextUsername))
+            return paratextUsername;
+
+        Attempt<UserSecret> attempt = await userSecrets.TryGetAsync(ownerRef);
+        if (attempt.TryResult(out UserSecret userSecret))
+            paratextUsername = paratextService.GetParatextUsername(userSecret);
+        _ownerParatextUsernames.Add(ownerRef, paratextUsername);
+        return paratextUsername;
     }
 
     private static bool IsCommentNewOrChanged(

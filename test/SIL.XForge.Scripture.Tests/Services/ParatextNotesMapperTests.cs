@@ -559,6 +559,174 @@ public class ParatextNotesMapperTests
     }
 
     [Test]
+    public async Task GetNotesChangelistAsync_OwnerGainedParatextRole_KeepsExtUser()
+    {
+        var env = new TestEnvironment();
+        env.SetParatextProjectRoles(true);
+        env.InitMapper(true, true);
+        // Comment 1 was synced while user 3 had no role on the PT project, so it is attributed to PT User 1
+        env.AddData(null, null, "syncUser01", null);
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        const string oldNotesText = @"<notes version=""1.1""></notes>";
+        Dictionary<string, ParatextUserProfile> ptProjectUsers = env.PtProjectUsers.ToDictionary(u => u.Username);
+        XElement notesElem = await env.Mapper.GetNotesChangelistAsync(
+            XElement.Parse(oldNotesText),
+            await TestEnvironment.GetQuestionDocsAsync(conn),
+            ptProjectUsers,
+            TestEnvironment.UserRoles,
+            CheckingAnswerExport.All,
+            TestEnvironment.CheckingNoteTagId
+        );
+
+        // User 3 now has a role on the PT project, but comment 1 continues to be attributed to PT User 1. As it is
+        // not attributed to its owner, the extUser attribute must still record that user 3 wrote it.
+        const string expectedNotesText =
+            @"
+                    <notes version=""1.1"">
+                        <thread id=""ANSWER_answer01"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user02"" date=""2019-01-01T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p>[User 02 - xForge]</p>
+                                    <p>Test answer 1.</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                            <comment user=""PT User 1"" extUser=""user03"" date=""2019-01-01T09:00:00.0000000+00:00"">
+                                <content>Test comment 1.</content>
+                            </comment>
+                        </thread>
+                        <thread id=""ANSWER_answer02"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user04"" date=""2019-01-02T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p><span style=""italic"">This is some scripture. (MAT 1:2-3)</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 2.</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                            <comment user=""PT User 1"" extUser=""user02"" date=""2019-01-02T09:00:00.0000000+00:00"">
+                                <content>
+                                    <p>[User 02 - xForge]</p>
+                                    <p>Test comment 2.</p>
+                                </content>
+                            </comment>
+                        </thread>
+                        <thread id=""ANSWER_answer04"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user04"" date=""2019-01-04T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 4 is marked for export</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                        </thread>
+                        <thread id=""ANSWER_answer05"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user04"" date=""2019-01-05T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 5 is resolved</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                        </thread>
+                    </notes>";
+        Assert.That(XNode.DeepEquals(notesElem, XElement.Parse(expectedNotesText)), Is.True);
+    }
+
+    [Test]
+    public async Task GetNotesChangelistAsync_OwnerLostParatextRole_DoesNotAddExtUser()
+    {
+        var env = new TestEnvironment();
+        env.SetParatextProjectRoles(false);
+        env.InitMapper(true, false);
+        // Comment 1 was synced while user 3 had a role on the PT project, so it is attributed to PT User 3
+        env.AddData(null, null, "syncUser03", null);
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        const string oldNotesText = @"<notes version=""1.1""></notes>";
+        Dictionary<string, ParatextUserProfile> ptProjectUsers = env.PtProjectUsers.ToDictionary(u => u.Username);
+        XElement notesElem = await env.Mapper.GetNotesChangelistAsync(
+            XElement.Parse(oldNotesText),
+            await TestEnvironment.GetQuestionDocsAsync(conn),
+            ptProjectUsers,
+            TestEnvironment.UserRoles,
+            CheckingAnswerExport.All,
+            TestEnvironment.CheckingNoteTagId
+        );
+
+        // User 3 no longer has a role on the PT project, but comment 1 is still attributed to their own PT user,
+        // so no extUser attribute is written, and the note continues to match the one already in Paratext.
+        const string expectedNotesText =
+            @"
+                    <notes version=""1.1"">
+                        <thread id=""ANSWER_answer01"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user02"" date=""2019-01-01T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p>[User 02 - xForge]</p>
+                                    <p>Test answer 1.</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                            <comment user=""PT User 3"" date=""2019-01-01T09:00:00.0000000+00:00"">
+                                <content>Test comment 1.</content>
+                            </comment>
+                        </thread>
+                        <thread id=""ANSWER_answer02"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user04"" date=""2019-01-02T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p><span style=""italic"">This is some scripture. (MAT 1:2-3)</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 2.</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                            <comment user=""PT User 1"" extUser=""user02"" date=""2019-01-02T09:00:00.0000000+00:00"">
+                                <content>
+                                    <p>[User 02 - xForge]</p>
+                                    <p>Test comment 2.</p>
+                                </content>
+                            </comment>
+                        </thread>
+                        <thread id=""ANSWER_answer04"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user04"" date=""2019-01-04T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 4 is marked for export</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                        </thread>
+                        <thread id=""ANSWER_answer05"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user04"" date=""2019-01-05T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 5 is resolved</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                        </thread>
+                    </notes>";
+        Assert.That(XNode.DeepEquals(notesElem, XElement.Parse(expectedNotesText)), Is.True);
+    }
+
+    [Test]
     public async Task GetNotesChangelistAsync_DeleteNotes()
     {
         var env = new TestEnvironment();
