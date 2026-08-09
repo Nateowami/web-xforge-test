@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { DebugElement, ErrorHandler } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
@@ -97,6 +98,30 @@ describe('JoinComponent', () => {
     verify(mockedSFProjectService.onlineJoinWithShareKey(anything())).never();
     verify(mockedDialogService.message(anything())).once();
     verify(mockedRouter.navigateByUrl('/projects', anything())).once();
+    expect().nothing();
+  }));
+
+  it('only reports the offline message when the connection drops while joining', fakeAsync(() => {
+    let failJoin: (error: unknown) => void = () => {};
+    const callback = (_: TestEnvironment): void => {
+      when(mockedSFProjectService.onlineJoinWithShareKey(anything())).thenReturn(
+        new Promise((_resolve, reject) => (failJoin = reject))
+      );
+    };
+    const env = new TestEnvironment({ callback, isLoggedIn: true });
+
+    // The connection goes away while the join request is in flight, then the request fails
+    env.onlineStatus = false;
+    failJoin(
+      new CommandError(
+        CommandErrorCode.Other,
+        'Error invoking joinWithShareKey: Http failure response for command-api/projects: 0 Unknown Error'
+      )
+    );
+    tick();
+
+    verify(mockedDialogService.message('join.please_connect_to_use_link')).once();
+    verify(mockedErrorHandler.handleError(anything())).never();
     expect().nothing();
   }));
 
@@ -217,6 +242,21 @@ describe('JoinComponent', () => {
       env.fixture.detectChanges();
       verify(mockedDialogService.message(anything(), anything())).once();
       expect(env.submitButton.nativeElement.disabled).toBeFalse();
+    }));
+
+    it('asks the user to connect when the join request cannot reach the server', fakeAsync(() => {
+      const env = new TestEnvironment();
+      when(mockedAnonymousService.generateAccount(anything(), anything(), anything())).thenReject(
+        new HttpErrorResponse({ status: 0, statusText: 'Unknown Error' })
+      );
+
+      env.displayName = 'Test Name';
+      env.click(env.submitButton);
+      tick();
+
+      verify(mockedDialogService.message('join.please_connect_to_use_link')).once();
+      verify(mockedErrorHandler.handleError(anything())).never();
+      expect().nothing();
     }));
 
     it('disable and enable form when online state changes', fakeAsync(() => {

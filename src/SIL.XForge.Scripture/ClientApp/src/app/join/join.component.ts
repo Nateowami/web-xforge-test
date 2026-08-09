@@ -11,7 +11,7 @@ import { combineLatest } from 'rxjs';
 import { distinctUntilChanged, filter, map } from 'rxjs/operators';
 import { AnonymousService } from 'xforge-common/anonymous.service';
 import { AuthService } from 'xforge-common/auth.service';
-import { CommandError } from 'xforge-common/command.service';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
@@ -205,6 +205,14 @@ export class JoinComponent extends DataLoadingComponent {
   }
 
   private async handleJoiningError(error: any): Promise<void> {
+    if (this.isConnectionError(error)) {
+      // The request never reached the server, so the connection is at fault rather than the link. If the app has
+      // already noticed that it is offline the user has been told, and telling them again would only repeat it.
+      if (this.isOnline) {
+        await this.showJoinError('please_connect_to_use_link');
+      }
+      return;
+    }
     let knownErrorCode: ObjectPaths<typeof en.join> | undefined;
     if (error instanceof HttpErrorResponse) {
       knownErrorCode = this.getKnownErrorCode(error.error);
@@ -212,6 +220,20 @@ export class JoinComponent extends DataLoadingComponent {
       knownErrorCode = this.getKnownErrorCode(error.message);
     }
     knownErrorCode == null ? this.errorHandler.handleError(error) : await this.showJoinError(knownErrorCode);
+  }
+
+  /** Whether the request failed before the server responded to it, i.e. the connection is unavailable. */
+  private isConnectionError(error: any): boolean {
+    if (error instanceof HttpErrorResponse) {
+      // A request that never completed has no status; the service worker answers with 504 when offline
+      return error.status === 0 || error.status === 504;
+    }
+    // CommandService discards the failed response, keeping only its message
+    return (
+      error instanceof CommandError &&
+      error.code === CommandErrorCode.Other &&
+      (error.message.includes('0 Unknown Error') || error.message.includes('504 Gateway Timeout'))
+    );
   }
 
   private getKnownErrorCode(code: any): ObjectPaths<typeof en.join> | undefined {
