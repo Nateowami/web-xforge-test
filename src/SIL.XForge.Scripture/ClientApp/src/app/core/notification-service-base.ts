@@ -85,8 +85,14 @@ export abstract class NotificationServiceBase {
     try {
       await this.connection.invoke('subscribeToProject', projectId);
     } catch (err: any) {
-      // Suppress errors caused by connection closing
+      // Suppress errors caused by connection closing. An invocation that is still in flight when the connection drops
+      // (e.g. the app goes offline) is rejected with whatever closed the connection, which for a connection the app
+      // stops hearing from is SignalR's own "Server timeout elapsed without receiving a message from the server."
+      // Rather than matching on every such message, treat any failure where the connection is no longer usable as a
+      // lost connection: subscribing is not something the user asked for, so it must not raise an error dialog.
       if (
+        this.connection.state !== HubConnectionState.Connected ||
+        !this.appOnline ||
         err.message === "Cannot send data if the connection is not in the 'Connected' State." ||
         err.message?.includes('Invocation canceled due to the underlying connection being closed')
       ) {

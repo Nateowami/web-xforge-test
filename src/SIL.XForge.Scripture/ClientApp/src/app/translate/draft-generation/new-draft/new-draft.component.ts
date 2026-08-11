@@ -15,6 +15,7 @@ import { TrainingData } from 'realtime-server/lib/esm/scriptureforge/models/trai
 import { ProjectScriptureRange } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
 import { filter, firstValueFrom, take } from 'rxjs';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
+import { isNetworkError } from 'xforge-common/command.service';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
@@ -92,6 +93,9 @@ export class NewDraftComponent {
   logicHandler: NewDraftLogicHandler;
 
   page: (typeof PAGES_BY_ORDER)[number]['page'] | 'loading' | 'pending_updates' | 'abort' = 'loading';
+
+  /** Whether the abort screen is being shown because the server could not be reached (see abortIfOffline). */
+  offlineAbort = false;
 
   pendingProjects: { projectId: string; name: string }[] = [];
 
@@ -206,8 +210,8 @@ export class NewDraftComponent {
   }
 
   /**
-   * Anticipated failures (no_access, config_changed, project_syncing) show a blocking abort screen.
-   * Unanticipated failures go to the app-wide error handler and navigate back so the user isn't stranded.
+   * Anticipated failures (no_access, config_changed, project_syncing, and losing the connection) show a blocking abort
+   * screen. Unanticipated failures go to the app-wide error handler and navigate back so the user isn't stranded.
    */
   private handleAbort(): void {
     const mode = this.logicHandler.abortMode;
@@ -215,8 +219,24 @@ export class NewDraftComponent {
       this.page = 'abort';
       return;
     }
+    if (this.abortIfOffline(this.logicHandler.initError)) return;
     this.errorHandler.handleError(this.logicHandler.initError);
     this.goBack();
+  }
+
+  /**
+   * Shows the offline abort screen if the wizard failed because the server could not be reached, and reports whether
+   * it did. The wizard's book and chapter data can only come from the server, so going offline while loading it is an
+   * expected condition rather than an application error, and must not raise the app-wide error dialog. The failure
+   * looks different depending on how quickly the app notices the connection is gone: it may already know it is
+   * offline, or the request may simply have failed (when the service worker answers for the unreachable server, with
+   * a 504).
+   */
+  private abortIfOffline(error: unknown): boolean {
+    if (this.onlineStatusService.isOnline && !isNetworkError(error)) return false;
+    this.offlineAbort = true;
+    this.page = 'abort';
+    return true;
   }
 
   get abortMode(): NewDraftAbortMode {
@@ -326,8 +346,10 @@ export class NewDraftComponent {
       this.page = 'preface';
       this.armSyncWatcher();
     } catch (error) {
-      // Mirror init-failure handling: route to the app-wide error handler and navigate back rather than stranding the
-      // user on the spinner with stale data.
+      // Mirror init-failure handling: an unreachable server shows the offline abort screen, while anything else is
+      // routed to the app-wide error handler and navigates back rather than stranding the user on the spinner with
+      // stale data.
+      if (this.abortIfOffline(error)) return;
       this.errorHandler.handleError(error);
       this.goBack();
     }

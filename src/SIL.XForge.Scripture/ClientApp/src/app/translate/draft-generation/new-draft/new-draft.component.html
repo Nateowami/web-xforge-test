@@ -2,7 +2,9 @@
   @if (page === "abort") {
     <div class="abort-screen">
       <mat-icon class="abort-icon" color="primary">info</mat-icon>
-      @if (abortMode === "config_changed") {
+      @if (offlineAbort) {
+        <p>{{ t("offline_message") }}</p>
+      } @else if (abortMode === "config_changed") {
         <p>{{ t("abort.config_changed") }}</p>
       } @else if (abortMode === "project_syncing") {
         <p>{{ t("abort.project_syncing") }}</p>

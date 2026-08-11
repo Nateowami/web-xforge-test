@@ -8,6 +8,7 @@ import { TrainingData } from 'realtime-server/lib/esm/scriptureforge/models/trai
 import { BehaviorSubject, filter, firstValueFrom, Observable, of, Subject } from 'rxjs';
 import { anything, capture, deepEqual, instance, mock, reset, resetCalls, verify, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { createTestFeatureFlag, FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
 import { DialogService } from 'xforge-common/dialog.service';
@@ -862,6 +863,33 @@ describe('NewDraftComponent', () => {
       verify(mockedRouter.navigate(deepEqual(['/projects', 'testProjectId', 'draft-generation']))).once();
       expect(env.component.page).not.toEqual('abort');
     }));
+
+    it('shows the offline abort screen, with no error dialog, when initialization fails while offline', fakeAsync(() => {
+      const env = new TestEnvironment(testState, { offline: true, progressError: true });
+      tick();
+
+      expect(env.component.page).toEqual('abort');
+      expect(env.component.offlineAbort).toBe(true);
+      verify(mockedErrorHandler.handleError(anything())).never();
+      verify(mockedRouter.navigate(anything())).never();
+    }));
+
+    it('treats a request that could not reach the server as offline', fakeAsync(() => {
+      // What the app sees when the browser is offline but has not noticed yet: the service worker answers the
+      // unreachable server with 504 Gateway Timeout.
+      const env = new TestEnvironment(testState, {
+        progressError: true,
+        progressErrorToThrow: new CommandError(
+          CommandErrorCode.Other,
+          'Error invoking getProjectProgress: Http failure response for /command-api/projects: 504 Gateway Timeout'
+        )
+      });
+      tick();
+
+      expect(env.component.page).toEqual('abort');
+      expect(env.component.offlineAbort).toBe(true);
+      verify(mockedErrorHandler.handleError(anything())).never();
+    }));
   });
 
   describe('onPendingUpdatesComplete', () => {
@@ -907,6 +935,22 @@ describe('NewDraftComponent', () => {
       verify(mockedErrorHandler.handleError(anything())).once();
       verify(mockedRouter.navigate(deepEqual(['/projects', 'testProjectId', 'draft-generation']))).once();
       expect().nothing();
+    }));
+
+    it('shows the offline abort screen, with no error dialog, when the reload fails while offline', fakeAsync(() => {
+      // The reported case: the user syncs from the pre-step, then goes offline before the wizard re-reads progress.
+      const env = new TestEnvironment(testState);
+      tick();
+      when(mockedProgressService.getChaptersWithContent('draft-source-1-id')).thenReject(new Error('reload failed'));
+      env.onlineStatusService.setIsOnline(false);
+
+      void env.component.onPendingUpdatesComplete(['draft-source-1-id']);
+      tick();
+
+      expect(env.component.page).toEqual('abort');
+      expect(env.component.offlineAbort).toBe(true);
+      verify(mockedErrorHandler.handleError(anything())).never();
+      verify(mockedRouter.navigate(anything())).never();
     }));
   });
 
@@ -1188,6 +1232,8 @@ class TestEnvironment {
       offline?: boolean;
       noAccessSources?: boolean;
       progressError?: boolean;
+      /** The error the progress fetch rejects with when progressError is set (default: a generic error). */
+      progressErrorToThrow?: Error;
       /** When true, both languages are treated as NLLB languages so that training is optional. */
       trainingOptional?: boolean;
       /** Overrides the training-data stream so a test can emit changes over time (e.g. a file being removed). */
@@ -1281,7 +1327,9 @@ class TestEnvironment {
     }
 
     if (options.progressError) {
-      when(mockedProgressService.getChaptersWithContent(projectId)).thenReject(new Error('progress failed'));
+      when(mockedProgressService.getChaptersWithContent(projectId)).thenReject(
+        options.progressErrorToThrow ?? new Error('progress failed')
+      );
     } else {
       when(mockedProgressService.getChaptersWithContent(projectId)).thenResolve(
         new VerboseScriptureRange(state.targetProjectBooksChapters)
