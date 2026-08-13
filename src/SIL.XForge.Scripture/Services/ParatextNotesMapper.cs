@@ -67,6 +67,7 @@ public class ParatextNotesMapper(
         Dictionary<string, string> checkerUsernames = [];
         var version = (string)oldNotesElem.Attribute("version") ?? "1.1";
         Dictionary<string, XElement> oldCommentElems = GetOldCommentElements(oldNotesElem, ptProjectUsers);
+        Dictionary<string, string> oldThreadVerseRefs = GetOldThreadVerseRefs(oldNotesElem);
         List<XElement> commentsToDelete = [];
 
         var notesElem = new XElement("notes", new XAttribute("version", version));
@@ -85,12 +86,17 @@ public class ParatextNotesMapper(
                         continue;
                     }
                     string threadId = $"ANSWER_{answer.DataId}";
+                    string verseRef = question.VerseRef.ToString();
+                    // If the question has been moved to a different verse, the comments already in Paratext
+                    // have to be sent again, otherwise the note stays at the verse it was first exported to.
+                    bool verseRefChanged =
+                        oldThreadVerseRefs.TryGetValue(threadId, out string? oldVerseRef) && oldVerseRef != verseRef;
                     var threadElem = new XElement(
                         "thread",
                         new XAttribute("id", threadId),
                         new XElement(
                             "selection",
-                            new XAttribute("verseRef", question.VerseRef.ToString()),
+                            new XAttribute("verseRef", verseRef),
                             new XAttribute("startPos", 0),
                             new XAttribute("selectedText", "")
                         )
@@ -127,7 +133,8 @@ public class ParatextNotesMapper(
                         answer.Deleted,
                         answerPrefixContents,
                         checkingNoteTagId,
-                        true
+                        true,
+                        verseRefChanged
                     );
                     if (answer.SyncUserRef == null)
                         answerSyncUserIds.Add((j, answerSyncUserId));
@@ -151,7 +158,8 @@ public class ParatextNotesMapper(
                             comment,
                             ptProjectUsers,
                             answer.Deleted || comment.Deleted,
-                            commentPrefixContents
+                            commentPrefixContents,
+                            forceUpdate: verseRefChanged
                         );
                         if (comment.SyncUserRef == null)
                             commentSyncUserIds.Add((j, k, commentSyncUserId));
@@ -204,6 +212,22 @@ public class ParatextNotesMapper(
         return oldCommentElems;
     }
 
+    /// <summary>
+    /// Gets the verse reference each Community Checking answer thread is currently anchored to in Paratext.
+    /// </summary>
+    private static Dictionary<string, string> GetOldThreadVerseRefs(XContainer ptNotesElement)
+    {
+        var oldThreadVerseRefs = new Dictionary<string, string>();
+        foreach (XElement threadElem in ptNotesElement.Elements("thread"))
+        {
+            var threadId = (string)threadElem.Attribute("id");
+            var verseRef = (string)threadElem.Element("selection")?.Attribute("verseRef");
+            if (threadId?.StartsWith("ANSWER_") == true && verseRef != null)
+                oldThreadVerseRefs[threadId] = verseRef;
+        }
+        return oldThreadVerseRefs;
+    }
+
     private async Task<string> UpdateThreadElemAsync(
         Dictionary<string, XElement> oldCommentElems,
         ICollection<XElement> commentsToDelete,
@@ -213,7 +237,8 @@ public class ParatextNotesMapper(
         bool isDeleted,
         IReadOnlyCollection<object>? prefixContent = null,
         int tagId = NoteTag.notSetId,
-        bool setCheckingTag = false
+        bool setCheckingTag = false,
+        bool forceUpdate = false
     )
     {
         (string syncUserId, string user, bool canWritePtNotes) = await GetSyncUserAsync(
@@ -231,7 +256,7 @@ public class ParatextNotesMapper(
         if (isDeleted)
             AddDeletedComment(oldCommentElems, key, commentsToDelete);
         else
-            AddCommentIfChanged(oldCommentElems, key, commentElem, threadElem, setCheckingTag);
+            AddCommentIfChanged(oldCommentElems, key, commentElem, threadElem, setCheckingTag, forceUpdate);
         return syncUserId;
     }
 
@@ -240,10 +265,11 @@ public class ParatextNotesMapper(
         string commentKey,
         XElement commentElem,
         XElement threadElem,
-        bool setCheckingTag
+        bool setCheckingTag,
+        bool forceUpdate
     )
     {
-        if (IsCommentNewOrChanged(oldCommentElems, commentKey, commentElem, setCheckingTag))
+        if (forceUpdate || IsCommentNewOrChanged(oldCommentElems, commentKey, commentElem, setCheckingTag))
             threadElem.Add(commentElem);
 
         oldCommentElems.Remove(commentKey);

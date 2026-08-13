@@ -3056,6 +3056,9 @@ public class ParatextService : DisposableBase, IParatextService
                 {
                     existingComment.ExternalUser = comment.ExternalUser;
                     existingComment.Contents = comment.Contents;
+                    // Move the comment if it is now anchored to a different verse. Paratext locates a note
+                    // thread at its first comment, so a thread only moves if its comments are updated.
+                    existingComment.VerseRefStr = comment.VerseRefStr;
                     existingComment.VersionNumber += 1;
                     existingComment.Deleted = false;
                     existingComment.TagsAdded = comment.TagsAdded;
