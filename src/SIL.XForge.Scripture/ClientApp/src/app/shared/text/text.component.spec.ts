@@ -1451,6 +1451,44 @@ describe('TextComponent', () => {
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
   }));
 
+  it('can display footnote dialog after a deleted footnote is restored', fakeAsync(() => {
+    const chapterNum = 2;
+    const segmentRef: string = `verse_${chapterNum}_1`;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'quick brown', attributes: { segment: segmentRef } },
+      {
+        insert: {
+          note: {
+            caller: '+',
+            style: 'f',
+            contents: { ops: [{ insert: 'footnote text' }] }
+          }
+        },
+        attributes: { segment: segmentRef }
+      },
+      { insert: ' fox', attributes: { segment: segmentRef } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+
+    const editor: Quill = env.component.editor!;
+    const noteIndex: number = editor.getIndex(editor.scroll.find(env.quillEditor.querySelector('usx-note')!)!);
+    // delete the footnote as a user editing the text would, then undo the deletion
+    editor.deleteText(noteIndex, 1, 'user');
+    env.fixture.detectChanges();
+    expect(env.quillEditor.querySelector('usx-note')).toBeNull();
+    editor.history.undo();
+    env.fixture.detectChanges();
+
+    const note = env.quillEditor.querySelector('usx-note') as HTMLElement;
+    expect(note).not.toBeNull();
+    note.click();
+    verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).once();
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
     const env = new TestEnvironment();
     env.id = new TextDocId('project01', 40, 1);
