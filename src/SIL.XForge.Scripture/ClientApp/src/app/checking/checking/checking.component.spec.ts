@@ -1547,6 +1547,26 @@ describe('CheckingComponent', () => {
       flush();
     }));
 
+    it('does not highlight answers already read when the stored question is restored on load', fakeAsync(() => {
+      // The question the user was last on is activated as soon as the page loads, before the user has had a chance
+      // to read anything, so answers already read on a previous visit must not be highlighted (SF-3264).
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectUserConfig: { selectedQuestionRef: 'project01:q9Id', questionRefsRead: ['q9Id'] }
+      });
+      // Render the highlight status determined while the question was being activated
+      env.waitForSliderUpdate();
+      expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).withContext('setup problem').toBe('q9Id');
+      expect(env.answers.length).withContext('setup problem').toBe(3);
+      expect(env.getAnswerText(1)).withContext('setup problem').toBe('Answer 1 on question');
+
+      // 'a1Id', the answer of another user, is already in the user's answerRefsRead
+      expect(env.getAnswer(0).classes['attention']).toBeUndefined();
+      expect(env.getAnswer(1).classes['attention']).toBeUndefined();
+      expect(env.getAnswer(2).classes['attention']).toBeUndefined();
+      flush();
+    }));
+
     it('does not highlight upon sync', fakeAsync(() => {
       const env = new TestEnvironment({ user: CHECKER_USER });
       env.selectQuestion(9);
@@ -2867,6 +2887,7 @@ class TestEnvironment {
   });
 
   private readonly testProject: SFProject = TestEnvironment.generateTestProject();
+  private readonly projectUserConfigOverrides?: Partial<SFProjectUserConfig>;
 
   constructor(options: {
     user: UserInfo;
@@ -2875,8 +2896,11 @@ class TestEnvironment {
     questionScope?: QuestionScope;
     hasConnection?: boolean;
     testProject?: SFProject;
+    /** Values to apply over the default project user config of the specified user. */
+    projectUserConfig?: Partial<SFProjectUserConfig>;
   }) {
     const { user, testProject, questionScope = 'book', hasConnection = true } = options;
+    this.projectUserConfigOverrides = options.projectUserConfig;
     const projectBookRoute = 'projectBookRoute' in options ? options.projectBookRoute : 'JHN';
     const projectChapterRoute = 'projectChapterRoute' in options ? options.projectChapterRoute : 1;
 
@@ -3651,6 +3675,18 @@ class TestEnvironment {
     when(mockedProjectService.isProjectAdmin(anything(), anything())).thenResolve(
       user.role === SFProjectRole.ParatextAdministrator
     );
+
+    if (this.projectUserConfigOverrides != null) {
+      const userConfigs: { [userId: string]: SFProjectUserConfig } = {
+        [ADMIN_USER.id]: this.adminProjectUserConfig,
+        [CHECKER_USER.id]: this.checkerProjectUserConfig,
+        [CLEAN_CHECKER_USER.id]: this.cleanCheckerProjectUserConfig,
+        [OBSERVER_USER.id]: this.observerProjectUserConfig,
+        [TRANSLATOR_USER.id]: this.translatorProjectUserConfig,
+        [CONSULTANT_USER.id]: this.consultantProjectUserConfig
+      };
+      Object.assign(userConfigs[user.id], this.projectUserConfigOverrides);
+    }
 
     this.realtimeService.addSnapshots<SFProjectUserConfig>(SFProjectUserConfigDoc.COLLECTION, [
       {
