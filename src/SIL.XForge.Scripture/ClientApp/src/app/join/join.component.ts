@@ -62,6 +62,13 @@ export class JoinComponent extends DataLoadingComponent {
   name: FormControl<string | null> = new FormControl<string | null>('');
   status: 'input' | 'joining' | 'unavailable' = 'unavailable';
   private joiningResponse?: AnonymousShareKeyResponse;
+  /**
+   * Whether the share key has been submitted to the server. Once it has, the result of that request is what the user
+   * needs to be told about, so a connection dropping out in the meantime must not raise its own message.
+   */
+  private joinStarted = false;
+  /** Whether the user has already been told they cannot join and is being sent away from this page. */
+  private leavingPage = false;
 
   constructor(
     private readonly anonymousService: AnonymousService,
@@ -92,10 +99,14 @@ export class JoinComponent extends DataLoadingComponent {
       distinctUntilChanged()
     );
     checkLinkSharing$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(joining => {
+      if (this.leavingPage) {
+        return;
+      }
       // Set locale only if not logged in
       if (this.authService.currentUserId == null) {
         this.i18nService.setLocale(joining.locale);
       }
+      this.joinStarted = true;
       void this.initialize(joining.shareKey);
     });
     this.onlineStatusService.onlineStatus$
@@ -188,10 +199,19 @@ export class JoinComponent extends DataLoadingComponent {
   }
 
   private async updateOfflineJoiningStatus(): Promise<void> {
-    if (this.onlineStatusService.isOnline && this.status === 'unavailable') {
-      this.name.enable();
-      this.status = 'input';
-    } else if (!this.onlineStatusService.isOnline && (await this.authService.isLoggedIn)) {
+    if (this.leavingPage) {
+      return;
+    }
+    if (this.onlineStatusService.isOnline) {
+      if (this.status === 'unavailable') {
+        this.name.enable();
+        this.status = 'input';
+      }
+    } else if (!this.joinStarted && (await this.authService.isLoggedIn)) {
+      if (this.leavingPage) {
+        return;
+      }
+      this.leavingPage = true;
       await this.dialogService.message('join.please_connect_to_use_link');
       void this.router.navigateByUrl('/projects', { replaceUrl: true });
     } else {

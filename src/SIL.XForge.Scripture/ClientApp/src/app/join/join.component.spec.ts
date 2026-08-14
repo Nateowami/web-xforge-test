@@ -91,6 +91,41 @@ describe('JoinComponent', () => {
     expect().nothing();
   }));
 
+  it('does not show offline error when the connection drops while joining', fakeAsync(() => {
+    // The share key request never settles, so the connection drops out mid-join
+    const callback = (_: TestEnvironment): void => {
+      when(mockedSFProjectService.onlineJoinWithShareKey(anything())).thenReturn(new Promise(() => {}));
+    };
+    const env = new TestEnvironment({ callback, isLoggedIn: true, isOnline: true });
+
+    env.onlineStatus = false;
+
+    verify(mockedSFProjectService.onlineJoinWithShareKey(anything())).once();
+    verify(mockedDialogService.message(anything())).never();
+    verify(mockedRouter.navigateByUrl('/projects', anything())).never();
+    expect().nothing();
+  }));
+
+  it('shows only the join error when the connection drops and recovers while joining', fakeAsync(() => {
+    let rejectJoin: (reason: any) => void = () => {};
+    const callback = (_: TestEnvironment): void => {
+      when(mockedSFProjectService.onlineJoinWithShareKey(anything())).thenReturn(
+        new Promise((_resolve, reject) => (rejectJoin = reject))
+      );
+    };
+    const env = new TestEnvironment({ callback, isLoggedIn: true, isOnline: true });
+
+    env.onlineStatus = false;
+    env.onlineStatus = true;
+    rejectJoin(new CommandError(CommandErrorCode.NotFound, 'project_link_is_invalid'));
+    tick();
+
+    verify(mockedDialogService.message('join.project_link_is_invalid')).once();
+    verify(mockedDialogService.message(anything())).once();
+    verify(mockedRouter.navigateByUrl('/projects', anything())).once();
+    expect().nothing();
+  }));
+
   it('check sharing link skipped offline', fakeAsync(() => {
     when(mockedDialogService.message(anything())).thenResolve();
     new TestEnvironment({ isOnline: false, isLoggedIn: true });
