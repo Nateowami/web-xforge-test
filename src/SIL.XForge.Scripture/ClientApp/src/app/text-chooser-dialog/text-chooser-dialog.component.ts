@@ -64,6 +64,8 @@ export interface TextSelection {
   ]
 })
 export class TextChooserDialogComponent {
+  private static readonly wordSegmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
+
   @ViewChild(TextComponent, { read: ElementRef }) scriptureText?: ElementRef;
   selectedText?: string;
   showError = false;
@@ -309,43 +311,20 @@ export class TextChooserDialogComponent {
     // If there was no white space to be trimmed, and more than zero characters were selected in the segment, then the
     // selection should be expanded to the nearest word boundary.
     if (startTrimLength === 0 && startText !== '') {
-      // [\s\S] matches ANY character including \n, unlike .
-      // Find the last word boundary before (or at) the start of the selection.
-      // This works because * is greedy, causing [\s\S]* to match the entire string, then backtrack to find a match for
-      // the rest of the regex.
-      // \b only works for finding word boundaries in Roman scripts, so rather than using that, we look for:
-      // zero width space (\u200B), which is not counted as a whitespace character, OR any whitespace character (\s), OR
-      // the start of the string, OR (for good measure) a word boundary (\b) FOLLOWED BY any character. That
-      // "any character" is in a lookahead, so it doesn't count to the length of the match. The length of the match will
-      // be the index of the last word to start before (or at) the point where the selection starts. So if the segment
-      // is "here be dragons" and the selection starts at index 6 (between "b" and "e") it will match "here " with a
-      // lookahead at "b", and we will expand the selection to "be dragons". Alternatively, if the index is at 5, it
-      // doesn't need to be expanded, but in order for the regex to find the word boundary where the word "be" starts,
-      // the letter "b" needs to be included in the search string. So the search string always contains one character
-      // past the start of the selection: startNodeText.substring(0, startOffset + 1)
-      // Because of the lookahead at the end of the regex, that character will never end up in the matched string.
-      // Finally we have to subtract startOffset from the result, because startTrimLength is relative to the start of
-      // the selection, not the start of the segment. This will result in a negative value for startTrimLength, meaning
-      // add to the start, rather than trim.
-      startTrimLength =
-        /[\s\S]*(?:\u200B|\b|\s|^)(?=[\s\S])/.exec(startNodeText.substring(0, startOffset + 1))![0].length -
-        startOffset;
+      // Move the start of the selection back to the start of the word it is in. So if the segment is "here be dragons"
+      // and the selection starts at index 6 (between "b" and "e") we expand the selection to "be dragons".
+      // startTrimLength is relative to the start of the selection, not the start of the segment, so this is a negative
+      // value, meaning add to the start rather than trim.
+      startTrimLength = this.wordStart(startNodeText, startOffset) - startOffset;
     }
     // Trim any whitespace from the right side of the selection
     let endTrimLength = endText.length - endText.trimEnd().length;
     // If there was no whitespace to trim, and more than zero characters were selected in the segment, then the
     // selection should be expanded to the first word boundary after the end of the selection.
     if (endTrimLength === 0 && endText !== '') {
-      // In the regex above, we wanted to find the last word boundary in a string, so we matched from the beginning of
-      // the string to the last word boundary, and used the length of the match to get the index. Here we want to find
-      // the first word boundary after the end of the selection, so we can use String.search(regex).
-      // To find a word boundary we look for any character, followed by a zero width space, OR whitespace, OR a word
-      // boundary, OR the end of the string. As before, we have to include an extra character so that it's possible to
-      // detect a word boundary right at the end of the selection. Hence the substring we search is
-      // endNodeText.substring(endOffset - 1)
-      // This yields the number of chars to expand beyond the end of the selection, which is made negative to create
-      // a negative trim length.
-      endTrimLength = -endNodeText.substring(endOffset - 1).search(/[\s\S](?:\u200B|\b|\s|$)/);
+      // Move the end of the selection forward to the end of the word the last selected character is in. As above, this
+      // yields a negative trim length, meaning add to the end rather than trim.
+      endTrimLength = endOffset - this.wordEnd(endNodeText, endOffset);
     }
 
     // Set result to the complete text of all segments in the selection. This is the first segment, plus any segments
@@ -421,6 +400,40 @@ export class TextChooserDialogComponent {
       lastVerseNum,
       result
     };
+  }
+
+  /**
+   * The index at which the word containing (or starting at) the specified index starts. A regex word boundary (\b)
+   * only finds boundaries in scripts that use the Roman alphabet, and scripts such as Japanese, Chinese and Thai don't
+   * separate words with spaces, so the word boundaries are found with Intl.Segmenter, which knows how to break those
+   * scripts into words. Zero width space is also treated as a boundary, because some scripts use it to mark word
+   * breaks.
+   */
+  private wordStart(text: string, index: number): number {
+    let start = index;
+    for (const { segment, index: segmentStart } of TextChooserDialogComponent.wordSegmenter.segment(text)) {
+      if (segmentStart <= index && index < segmentStart + segment.length) {
+        start = segmentStart;
+        break;
+      }
+    }
+    const zeroWidthSpace = index > 0 ? text.lastIndexOf('\u200B', index - 1) : -1;
+    return Math.max(start, zeroWidthSpace + 1);
+  }
+
+  /**
+   * The index at which the word containing the character before the specified index ends. See {@link wordStart}.
+   */
+  private wordEnd(text: string, index: number): number {
+    let end = index;
+    for (const { segment, index: segmentStart } of TextChooserDialogComponent.wordSegmenter.segment(text)) {
+      if (segmentStart <= index - 1 && index - 1 < segmentStart + segment.length) {
+        end = segmentStart + segment.length;
+        break;
+      }
+    }
+    const zeroWidthSpace = text.indexOf('\u200B', index);
+    return zeroWidthSpace === -1 ? end : Math.min(end, zeroWidthSpace);
   }
 
   private getVerseFromElement(element: Element): number {

@@ -150,6 +150,15 @@ describe('TextChooserDialogComponent', () => {
     env.closeDialog();
   }));
 
+  it('can handle scripts that do not separate words with spaces', fakeAsync(async () => {
+    // Japanese text has no spaces or word boundaries a regex can find, so the selection used to be expanded to the
+    // entire verse (SF-3517)
+    const env = new TestEnvironment({ start: 6, end: 8 }, 'verse_1_11', 'verse_1_11');
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('…が世… (Matthew 1:11)');
+    env.closeDialog();
+  }));
+
   it('indicates when not all segments of the end verse were selected', fakeAsync(async () => {
     const env = new TestEnvironment({ start: 3, end: TestEnvironment.segmentLen(4) }, 'verse_1_3', 'verse_1_4');
     env.fireSelectionChange();
@@ -569,6 +578,8 @@ class TestEnvironment {
     delta.insert({ blank: true }, { segment: 'verse_1_9' });
     delta.insert({ verse: { number: '10', style: 'v' } });
     delta.insert('verse ten', { segment: 'verse_1_10' });
+    delta.insert({ verse: { number: '11', style: 'v' } });
+    delta.insert('さばきつかさが世を治めていたころ、その地にききんがあった。', { segment: 'verse_1_11' });
     return delta;
   }
 
