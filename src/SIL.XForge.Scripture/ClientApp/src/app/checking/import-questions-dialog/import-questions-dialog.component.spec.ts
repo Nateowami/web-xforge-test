@@ -446,6 +446,46 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('does not import CSV rows for a chapter that is not in the project', fakeAsync(() => {
+    // the project only has MAT 1
+    const env = new TestEnvironment();
+
+    env.selectFileWithContents([
+      ['Reference', 'Questions'],
+      ['MAT 1:1', 'Question for MAT 1:1'],
+      ['MAT 2:1', 'Question for MAT 2:1']
+    ]);
+
+    expect(env.headerText).toBe('These rows in the CSV file were invalid and will be skipped.');
+    const invalidRows = env.tableRows;
+    expect(invalidRows.length).toBe(1);
+    expect(env.getColumnTwoText(invalidRows[0])).toEqual('MAT 2:1');
+
+    env.click(env.continueImportButton);
+
+    expect(env.tableRows.length).toBe(1);
+    expect(env.getRowReference(env.tableRows[0])).toEqual('MAT 1:1');
+    env.clickSelectAll();
+    env.click(env.importSelectedQuestionsButton);
+
+    verify(mockedQuestionsService.createQuestion('project01', anything(), undefined, undefined)).once();
+    expect(capture(mockedQuestionsService.createQuestion).last()[1].verseRef.chapterNum).toBe(1);
+  }));
+
+  it('does not offer questions from other sources for a chapter that is not in the project', fakeAsync(() => {
+    const env = new TestEnvironment({
+      transceleratorQuestions: [
+        { book: 'MAT', startChapter: '1', startVerse: '1', text: 'Question for MAT 1:1', id: '1' },
+        { book: 'MAT', startChapter: '2', startVerse: '1', text: 'Question for MAT 2:1', id: '2' }
+      ]
+    });
+    env.click(env.importFromTransceleratorButton);
+
+    expect(env.tableRows.length).toBe(1);
+    expect(env.getRowReference(env.tableRows[0])).toBe('MAT 1:1');
+    env.click(env.backButton);
+  }));
+
   it('allows reference and questions columns to be anywhere and ignores irrelevant columns', fakeAsync(() => {
     // (also, it infers the book from the file name)
     const env = new TestEnvironment({ includeAllBooks: true });
@@ -793,7 +833,7 @@ class TestEnvironment {
 
     const gen: TextInfo = {
       bookNum: 1,
-      chapters: [{ number: 41, lastVerse: 57, isValid: true, permissions: {} }],
+      chapters: Array.from(Array(50), (_, i) => ({ number: i + 1, lastVerse: 57, isValid: true, permissions: {} })),
       hasSource: false,
       permissions: {}
     };

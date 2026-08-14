@@ -36,6 +36,7 @@ import { TranslocoModule, TranslocoService } from '@ngneat/transloco';
 import { Canon, VerseRef } from '@sillsdev/scripture';
 import { ngfModule } from 'angular-file';
 import { Question } from 'realtime-server/lib/esm/scriptureforge/models/question';
+import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { fromVerseRef, toVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { Subject } from 'rxjs';
 import { CsvService } from 'xforge-common/csv-service.service';
@@ -341,7 +342,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
 
     questions.sort((a, b) => a.verseRef.BBBCCCVVV - b.verseRef.BBBCCCVVV);
 
-    for (const question of questions.filter(q => this.data.textsByBookId[q.verseRef.book] != null)) {
+    for (const question of questions.filter(q => this.isReferenceInProject(q.verseRef))) {
       // Questions imported from Transcelerator are considered duplicates if the ID and verse ref is the same. The
       // version in SF should be updated if the text is different from the version being imported. Transcelerator does
       // not allow changing the reference for a question, as of 2021-03-09
@@ -733,8 +734,16 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
         const refStartsWithBook: boolean = Canon.allBookIds.includes(reference.slice(0, 3)) && reference[3] === ' ';
         const fullReference: string =
           refStartsWithBook || defaultBookId == null ? reference : defaultBookId + ' ' + reference;
+        const verseRef = new VerseRef(fullReference);
+        // References to books that aren't in the project are ignored without comment, but a reference to a chapter
+        // that isn't in one of the project's books is reported, rather than silently dropped, because the question
+        // cannot be imported
+        if (this.data.textsByBookId[verseRef.book] != null && !this.isReferenceInProject(verseRef)) {
+          invalidRows.push([rowNumber, reference, questionText]);
+          continue;
+        }
         questions.push({
-          verseRef: new VerseRef(fullReference),
+          verseRef,
           text: questionText
         });
       } catch {
@@ -749,6 +758,15 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     await this.setUpQuestionList(questions, false);
     this.questionSource = 'csv_file';
     this.loading = false;
+  }
+
+  /**
+   * Whether the reference points to a book and chapter that are part of this project. Questions on a chapter that is
+   * not in the project cannot be viewed, edited, or archived anywhere in the app, so they must not be imported.
+   */
+  private isReferenceInProject(verseRef: VerseRef): boolean {
+    const text: TextInfo | undefined = this.data.textsByBookId[verseRef.book];
+    return text != null && text.chapters.some(chapter => chapter.number === verseRef.chapterNum);
   }
 
   // TODO should consider verse ranges, rather than just starting verse
