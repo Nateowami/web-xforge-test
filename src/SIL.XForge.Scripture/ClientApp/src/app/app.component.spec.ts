@@ -2,6 +2,7 @@ import { BreakpointObserver } from '@angular/cdk/layout';
 import { Location } from '@angular/common';
 import { Component, DebugElement, NgZone } from '@angular/core';
 import { ComponentFixture, discardPeriodicTasks, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { MatIcon } from '@angular/material/icon';
 import { MatMenu } from '@angular/material/menu';
 import { MatTooltip } from '@angular/material/tooltip';
@@ -240,6 +241,27 @@ describe('AppComponent', () => {
     expect(env.component['isExpanded']).toBe(false);
     expect(env.menuDrawer).not.toBeNull();
     expect(env.hamburgerMenuButton).not.toBeNull();
+
+    discardPeriodicTasks();
+    flush();
+  }));
+
+  it('dismisses an open bottom sheet when the drawer is opened', fakeAsync(() => {
+    // A bottom sheet is rendered above the drawer, so it would otherwise obscure the items at the bottom of the
+    // drawer, such as Sync with Paratext. See SF-2814.
+    const env = new TestEnvironment();
+    env.breakpointObserver.emitObserveValue(false);
+    env.navigateFully(['/projects', 'project01']);
+
+    const bottomSheetRef = TestBed.inject(MatBottomSheet).open(MockComponent);
+    let dismissed = false;
+    bottomSheetRef.afterDismissed().subscribe(() => (dismissed = true));
+    env.wait();
+    expect(dismissed).toBe(false);
+
+    env.click(env.hamburgerMenuButton);
+    expect(env.isDrawerVisible).toBe(true);
+    expect(dismissed).toBe(true);
 
     discardPeriodicTasks();
     flush();

@@ -3,6 +3,7 @@ import { BreakpointObserver, BreakpointState } from '@angular/cdk/layout';
 import { CdkScrollable } from '@angular/cdk/scrolling';
 import { AsyncPipe, DOCUMENT } from '@angular/common';
 import { Component, DestroyRef, HostBinding, Inject, OnDestroy, OnInit } from '@angular/core';
+import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { MatButton, MatIconAnchor, MatIconButton } from '@angular/material/button';
 import { MatDivider } from '@angular/material/divider';
 import { MatIcon } from '@angular/material/icon';
@@ -130,6 +131,7 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
     private readonly locationService: LocationService,
     private readonly breakpointObserver: BreakpointObserver,
     private readonly breakpointService: MediaBreakpointService,
+    private readonly bottomSheet: MatBottomSheet,
     private readonly cookieService: CookieService,
     readonly noticeService: NoticeService,
     readonly i18n: I18nService,
@@ -469,10 +471,17 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
 
   openDrawer(): void {
     this.isExpanded = true;
+    // Bottom sheets are rendered in the CDK overlay container, which is stacked above the drawer, so an open bottom
+    // sheet (such as the editor's add comment sheet) would obscure the bottom of the drawer on small screens.
+    this.bottomSheet.dismiss();
   }
 
   toggleDrawer(): void {
-    this.isExpanded = !this.isExpanded;
+    if (this.isExpanded) {
+      this.collapseDrawer();
+    } else {
+      this.openDrawer();
+    }
   }
 
   drawerCollapsed(): void {
