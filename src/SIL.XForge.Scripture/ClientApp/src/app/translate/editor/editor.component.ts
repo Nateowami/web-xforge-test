@@ -316,6 +316,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   private readonly translationSuggester: TranslationSuggester = new PhraseTranslationSuggester(0.2);
   private insertSuggestionEnd: number = -1;
   private bottomSheetRef?: MatBottomSheetRef;
+  /** Dialogs opened by this component that are still open, with the subscription to their close event. */
+  private readonly openDialogs = new Map<MatDialogRef<any, any>, Subscription>();
+  private isDestroyed: boolean = false;
   private currentUserDoc?: UserDoc;
   projectDoc?: SFProjectProfileDoc;
   private projectUserConfigDoc?: SFProjectUserConfigDoc;
@@ -940,12 +943,20 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   ngOnDestroy(): void {
+    this.isDestroyed = true;
     this.projectUserConfigChangesSub?.unsubscribe();
     this.trainingSub?.unsubscribe();
     this.projectDataChangesSub?.unsubscribe();
     this.initializeLynxStateSub?.unsubscribe();
     this.metricsSession?.dispose();
     this.onTargetDeleteSub?.unsubscribe();
+    // Close any dialogs opened from the editor. Otherwise, when the editor navigates away on its own (such as when
+    // the book being edited is deleted), the dialog is left open over whichever page is shown next.
+    for (const [dialogRef, subscription] of Array.from(this.openDialogs)) {
+      subscription.unsubscribe();
+      dialogRef.close();
+    }
+    this.openDialogs.clear();
     this.bottomSheet?.dismiss();
     this.resizeObserver?.disconnect();
     this.noteThreadQuery?.dispose();
@@ -1712,6 +1723,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     const currentVerseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
     this.setNoteFabVisibility('hidden');
     const result: NoteDialogResult | undefined = await lastValueFrom(dialogRef.afterClosed());
+    if (this.isDestroyed) {
+      // the dialog was closed because this component was destroyed
+      return;
+    }
 
     if (result != null) {
       if (result.noteContent != null || result.status != null) {
@@ -2169,17 +2184,20 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     const selection: Range | null | undefined = this.target?.editor?.getSelection();
     const targetScrollTop: number | undefined = this.targetScrollContainer?.scrollTop;
     const dialogRef: MatDialogRef<T, R> = this.dialogService.openMatDialog(component, dialogConfig);
-
-    if (selection == null || !this.canEdit) {
-      return dialogRef;
-    }
+    const selectionToRestore: Range | undefined = selection != null && this.canEdit ? selection : undefined;
 
     const subscription: Subscription = dialogRef.afterClosed().subscribe(() => {
-      if (this.target?.editor != null && this.dialogService.openDialogCount === 0) {
+      this.openDialogs.delete(dialogRef);
+      if (
+        !this.isDestroyed &&
+        selectionToRestore != null &&
+        this.target?.editor != null &&
+        this.dialogService.openDialogCount === 0
+      ) {
         const currentSelection: Range | null | undefined = this.target.editor.getSelection();
 
-        if (currentSelection?.index !== selection.index) {
-          this.target.editor.setSelection(selection.index, 0, 'user');
+        if (currentSelection?.index !== selectionToRestore.index) {
+          this.target.editor.setSelection(selectionToRestore.index, 0, 'user');
 
           if (this.targetScrollContainer != null && targetScrollTop != null) {
             this.targetScrollContainer.scrollTop = targetScrollTop;
@@ -2188,6 +2206,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       }
       subscription.unsubscribe();
     });
+    // Track the dialog so that it can be closed if this component is destroyed while the dialog is still open
+    this.openDialogs.set(dialogRef, subscription);
 
     return dialogRef;
   }

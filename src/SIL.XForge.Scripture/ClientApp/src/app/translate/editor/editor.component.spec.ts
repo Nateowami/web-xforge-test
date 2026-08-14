@@ -3213,6 +3213,23 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('closes dialogs opened from the editor when the editor is destroyed', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+      const noteIcon: HTMLElement = env.getNoteThreadIconElement('verse_1_3', 'dataid02')!;
+      noteIcon.click();
+      env.wait();
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+
+      let dialogClosed = false;
+      env.mockNoteDialogRef.onClose = () => (dialogClosed = true);
+      // the editor navigates away on its own when the book being edited is deleted, which destroys the component
+      env.component.ngOnDestroy();
+      env.wait();
+      expect(dialogClosed).toBe(true);
+    }));
+
     it('commenters can click to select verse', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
