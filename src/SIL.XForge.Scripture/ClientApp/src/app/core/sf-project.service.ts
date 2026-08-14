@@ -141,6 +141,16 @@ export class SFProjectService extends ProjectService<SFProject, SFProjectDoc> {
     return this.realtimeService.subscribe(SFProjectUserConfigDoc.COLLECTION, getSFProjectUserConfigDocId(id, userId));
   }
 
+  /**
+   * Determines whether the user's config for the specified project is in the local database, and is therefore
+   * available while offline. Subscribing to a doc that is not in the local database does not resolve until the
+   * connection to the server is restored, so this can be used to avoid waiting on a doc that cannot arrive.
+   */
+  async hasUserConfigOfflineData(id: string, userId: string): Promise<boolean> {
+    const docId = getSFProjectUserConfigDocId(id, userId);
+    return (await this.realtimeService.offlineStore.get(SFProjectUserConfigDoc.COLLECTION, docId)) != null;
+  }
+
   async isProjectAdmin(projectId: string, userId: string): Promise<boolean> {
     const projectDoc = await this.getProfile(projectId);
     return (

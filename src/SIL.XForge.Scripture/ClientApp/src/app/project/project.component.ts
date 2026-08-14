@@ -7,6 +7,7 @@ import { lastValueFrom, Observable } from 'rxjs';
 import { distinctUntilChanged, filter, first, map } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { NoticeService } from 'xforge-common/notice.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { UserService } from 'xforge-common/user.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { environment } from '../../environments/environment';
@@ -28,6 +29,7 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
     private readonly userService: UserService,
     private readonly permissions: PermissionsService,
     private readonly resumeCheckingService: ResumeCheckingService,
+    private readonly onlineStatusService: OnlineStatusService,
     noticeService: NoticeService,
     private destroyRef: DestroyRef
   ) {
@@ -72,19 +74,27 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
     this.loadingStarted();
 
     try {
+      // While offline, subscribing to a doc that is not in the local database does not resolve until the connection is
+      // restored. That is the case for the user config of a project that has not been opened on this device before, so
+      // don't wait on it, and instead navigate using only what is known.
+      const isUserConfigAvailable: boolean =
+        this.onlineStatusService.isOnline ||
+        (await this.projectService.hasUserConfigOfflineData(projectId, this.userService.currentUserId));
       const [projectUserConfigDoc, projectDoc] = await Promise.all([
-        this.projectService.getUserConfig(projectId, this.userService.currentUserId),
+        isUserConfigAvailable
+          ? this.projectService.getUserConfig(projectId, this.userService.currentUserId)
+          : undefined,
         this.projectService.getProfile(projectId)
       ]);
 
-      const projectUserConfig = projectUserConfigDoc.data;
+      const projectUserConfig = projectUserConfigDoc?.data;
       const project = projectDoc.data;
 
-      if (project == null || projectUserConfig == null) {
+      if (project == null) {
         return;
       }
 
-      const selectedTask = projectUserConfig.selectedTask;
+      const selectedTask = projectUserConfig?.selectedTask;
       const isTranslateAccessible = this.permissions.canAccessTranslate(projectDoc);
       const isCheckingAccessible = this.permissions.canAccessCommunityChecking(projectDoc);
 
@@ -96,7 +106,13 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
       const task =
         tasks.find(t => t.task === selectedTask && t.accessible)?.task ?? tasks.find(t => t.accessible)?.task;
 
-      if (task === 'translate') {
+      if (projectUserConfig == null) {
+        if (task != null) {
+          // Without the user config the last location within the project is unknown, so go to the task's overview page,
+          // which reports what is available offline.
+          void this.router.navigate(['projects', projectId, task], { replaceUrl: true });
+        }
+      } else if (task === 'translate') {
         this.navigateToTranslate(projectId, project, projectUserConfig);
       } else if (task === 'checking') {
         await this.navigateToChecking(projectId);

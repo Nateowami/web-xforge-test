@@ -1,5 +1,3 @@
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { ActivatedRoute, ActivatedRouteSnapshot, Router } from '@angular/router';
 import { TranslocoService } from '@ngneat/transloco';
@@ -17,6 +15,9 @@ import { of } from 'rxjs';
 import { anything, deepEqual, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { UserDoc } from 'xforge-common/models/user-doc';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
+import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
@@ -37,15 +38,15 @@ const mockedDialogService = mock(DialogService);
 describe('ProjectComponent', () => {
   configureTestingModule(() => ({
     providers: [
+      provideTestOnlineStatus(),
       provideTestRealtime(SF_TYPE_REGISTRY),
+      { provide: OnlineStatusService, useClass: TestOnlineStatusService },
       { provide: UserService, useMock: mockedUserService },
       { provide: ActivatedRoute, useMock: mockedActivatedRoute },
       { provide: Router, useMock: mockedRouter },
       { provide: TranslocoService, useMock: mockedTranslocoService },
       { provide: ResumeCheckingService, useMock: mockResumeCheckingService },
-      { provide: DialogService, useMock: mockedDialogService },
-      provideHttpClient(withInterceptorsFromDi()),
-      provideHttpClientTesting()
+      { provide: DialogService, useMock: mockedDialogService }
     ]
   }));
 
@@ -142,6 +143,35 @@ describe('ProjectComponent', () => {
     expect().nothing();
   }));
 
+  it('navigate to overview when offline and the user config is not stored locally', fakeAsync(() => {
+    // The user config of a project that has not been opened on this device is not available offline, and subscribing
+    // to it will not resolve until the connection is restored.
+    const env = new TestEnvironment();
+    env.setProjectData({ selectedTask: 'translate', selectedBooknum: 41, memberProjectIdSuffixes: [1] });
+    env.onlineStatusService.setIsOnline(false);
+    env.fixture.detectChanges();
+    tick();
+
+    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate']), anything())).once();
+    expect().nothing();
+  }));
+
+  it('navigate to last text when offline and the user config is stored locally', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectData({
+      selectedTask: 'translate',
+      selectedBooknum: 41,
+      memberProjectIdSuffixes: [1],
+      isStoredOffline: true
+    });
+    env.onlineStatusService.setIsOnline(false);
+    env.fixture.detectChanges();
+    tick();
+
+    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate', 'MRK']), anything())).once();
+    expect().nothing();
+  }));
+
   it('do not navigate when project does not exist', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();
@@ -184,6 +214,9 @@ class TestEnvironment {
   readonly component: ProjectComponent;
   readonly fixture: ComponentFixture<ProjectComponent>;
   readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
+  readonly onlineStatusService: TestOnlineStatusService = TestBed.inject(
+    OnlineStatusService
+  ) as TestOnlineStatusService;
 
   constructor(enableSharing = false) {
     when(mockedActivatedRoute.params).thenReturn(of({ projectId: 'project1' }));
@@ -215,6 +248,8 @@ class TestEnvironment {
       role?: SFProjectRole;
       checkingEnabled?: boolean;
       memberProjectIdSuffixes?: number[];
+      /** Whether the docs are in the local database, and so available while offline. */
+      isStoredOffline?: boolean;
     } = {}
   ): void {
     if (args.projectIdSuffix != null) {
@@ -223,16 +258,20 @@ class TestEnvironment {
     const memberProjectIdSuffixes: number[] = args.memberProjectIdSuffixes ?? [];
     for (const projectIdSuffix of memberProjectIdSuffixes) {
       const projectId = `project${projectIdSuffix}`;
-      this.realtimeService.addSnapshot<SFProjectUserConfig>(SFProjectUserConfigDoc.COLLECTION, {
-        id: getSFProjectUserConfigDocId(projectId, 'user01'),
-        data: createTestProjectUserConfig({
-          projectRef: projectId,
-          ownerRef: 'user01',
-          selectedTask: args.selectedTask,
-          selectedBookNum: args.selectedTask == null ? undefined : args.selectedBooknum,
-          isTargetTextRight: true
-        })
-      });
+      this.realtimeService.addSnapshot<SFProjectUserConfig>(
+        SFProjectUserConfigDoc.COLLECTION,
+        {
+          id: getSFProjectUserConfigDocId(projectId, 'user01'),
+          data: createTestProjectUserConfig({
+            projectRef: projectId,
+            ownerRef: 'user01',
+            selectedTask: args.selectedTask,
+            selectedBookNum: args.selectedTask == null ? undefined : args.selectedBooknum,
+            isTargetTextRight: true
+          })
+        },
+        args.isStoredOffline
+      );
 
       this.realtimeService.addSnapshot<SFProjectProfile>(SFProjectProfileDoc.COLLECTION, {
         id: projectId,
