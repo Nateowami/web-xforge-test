@@ -1578,6 +1578,21 @@ describe('CheckingComponent', () => {
       flush();
     }));
 
+    it('does not highlight already read answers when the question is restored on page load', fakeAsync(() => {
+      // The answers panel gets the question before it gets the project user config, so the answers the
+      // user has read have to be recorded when the config arrives, or they all appear to be unread.
+      const env = new TestEnvironment({ user: CHECKER_USER, checkerSelectedQuestionRef: 'project01:q9Id' });
+      tick();
+      env.fixture.detectChanges();
+      expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).withContext('setup problem').toBe('q9Id');
+      const otherAnswerIndex = 1;
+      expect(env.getAnswerText(otherAnswerIndex)).withContext('setup problem').toBe('Answer 1 on question');
+      expect(env.getAnswer(otherAnswerIndex).classes['attention'])
+        .withContext('have already read this answer')
+        .toBeUndefined();
+      flush();
+    }));
+
     it('only my answer is highlighted after I add an answer', fakeAsync(() => {
       const env = new TestEnvironment({ user: CHECKER_USER });
       env.selectQuestion(7);
@@ -2875,6 +2890,8 @@ class TestEnvironment {
     questionScope?: QuestionScope;
     hasConnection?: boolean;
     testProject?: SFProject;
+    /** Question that CHECKER_USER was last looking at, and so is restored when the page is loaded. */
+    checkerSelectedQuestionRef?: string;
   }) {
     const { user, testProject, questionScope = 'book', hasConnection = true } = options;
     const projectBookRoute = 'projectBookRoute' in options ? options.projectBookRoute : 'JHN';
@@ -2893,6 +2910,10 @@ class TestEnvironment {
 
     if (testProject != null) {
       this.testProject = testProject;
+    }
+
+    if (options.checkerSelectedQuestionRef != null) {
+      this.checkerProjectUserConfig.selectedQuestionRef = options.checkerSelectedQuestionRef;
     }
 
     when(mockedUserService.editDisplayName(true)).thenResolve();
