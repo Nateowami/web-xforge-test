@@ -9,7 +9,7 @@
       ></app-avatar>
     </div>
   }
-  @if (viewers.length > maxAvatars) {
+  @if (hasOverflowMenu) {
     <div class="app-avatar-container">
       <button
         mat-mini-fab

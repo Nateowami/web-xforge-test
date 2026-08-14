@@ -1,5 +1,5 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { Component, DestroyRef, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { Component, DestroyRef, EventEmitter, Input, OnChanges, OnInit, Output } from '@angular/core';
 import { MatMiniFabButton } from '@angular/material/button';
 import { MatIcon } from '@angular/material/icon';
 import { MatMenu, MatMenuItem, MatMenuTrigger } from '@angular/material/menu';
@@ -22,7 +22,7 @@ export interface MultiCursorViewer extends UserProfile {
   styleUrls: ['./multi-viewer.component.scss'],
   imports: [MatTooltip, AvatarComponent, MatMiniFabButton, MatMenuTrigger, MatIcon, MatMenu, MatMenuItem]
 })
-export class MultiViewerComponent implements OnInit {
+export class MultiViewerComponent implements OnChanges, OnInit {
   @Input() viewers: MultiCursorViewer[] = [];
   @Output() viewerClick: EventEmitter<MultiCursorViewer> = new EventEmitter<MultiCursorViewer>();
   maxAvatars: number = 3;
@@ -34,14 +34,23 @@ export class MultiViewerComponent implements OnInit {
     private destroyRef: DestroyRef
   ) {}
 
+  /** Whether there are more viewers than can be shown as avatars, so the overflow menu is needed. */
+  get hasOverflowMenu(): boolean {
+    return this.viewers.length > this.maxAvatars;
+  }
+
   get avatarViewers(): MultiCursorViewer[] {
     if (this.isMenuOpen) return [];
 
-    return this.viewers.length > this.maxAvatars ? slice(this.viewers, 0, this.maxAvatars - 1) : this.viewers;
+    return this.hasOverflowMenu ? slice(this.viewers, 0, this.maxAvatars - 1) : this.viewers;
   }
 
   get otherViewersLabel(): string {
     return translate('multi_viewer.other_viewers', { count: this.viewers.length });
+  }
+
+  ngOnChanges(): void {
+    this.closeMenuIfNotShown();
   }
 
   ngOnInit(): void {
@@ -53,6 +62,7 @@ export class MultiViewerComponent implements OnInit {
       .subscribe(([bigger, xs]) => {
         // initialize to 3, but if > SM then set to 6, else if <= XS then set to 1
         this.maxAvatars = bigger.matches ? 6 : xs.matches ? 1 : 3;
+        this.closeMenuIfNotShown();
       });
   }
 
@@ -66,5 +76,16 @@ export class MultiViewerComponent implements OnInit {
 
   clickAvatar(viewer: MultiCursorViewer): void {
     this.viewerClick.emit(viewer);
+  }
+
+  /**
+   * The menu and the button that opens it are removed as soon as all the viewers fit as avatars, which happens when
+   * the window is made wider or a viewer leaves. Material does not emit `closed` for a menu that is destroyed while
+   * open, so the flag has to be reset here or the avatars stay hidden with no way to bring them back.
+   */
+  private closeMenuIfNotShown(): void {
+    if (!this.hasOverflowMenu) {
+      this.isMenuOpen = false;
+    }
   }
 }
