@@ -1,9 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.Options;
 using Newtonsoft.Json;
 using SIL.XForge.Configuration;
+using SIL.XForge.Models;
 
 namespace SIL.XForge.Scripture.Services;
 
@@ -21,6 +24,8 @@ public class RazorPageSettings(
     IOptions<SiteOptions> siteOptions
 ) : IRazorPageSettings
 {
+    private const string HelpsUrl = "https://help.scriptureforge.org";
+
     public PublicAuthOptions GetAuthOptions() =>
         new PublicAuthOptions
         {
@@ -41,6 +46,19 @@ public class RazorPageSettings(
             },
             Formatting.Indented
         );
+
+    public string GetHelpsUrl()
+    {
+        // The request culture may be a variant of a supported culture (i.e. en-US for en), so match on all of its tags
+        string? uiCulture = httpContextAccessor
+            .HttpContext?.Features.Get<IRequestCultureFeature>()
+            ?.RequestCulture.UICulture.Name;
+        InterfaceLanguage? language = SharedResource.Cultures.Values.FirstOrDefault(c => c.Tags.Contains(uiCulture));
+
+        // Languages without a translated help site (and English) use the help site root
+        string helps = language?.Helps ?? string.Empty;
+        return helps == string.Empty ? HelpsUrl : $"{HelpsUrl}/{helps}";
+    }
 
     public string GetProductVersion() => Product.Version;
 

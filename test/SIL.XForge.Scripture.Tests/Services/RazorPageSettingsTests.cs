@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.Extensions.Options;
 using NSubstitute;
 using NUnit.Framework;
@@ -68,6 +69,35 @@ public class RazorPageSettingsTests
         // SUT
         string actual = env.Service.GetBugsnagConfig();
         Assert.AreEqual(expected, actual);
+    }
+
+    [TestCase("fr", "https://help.scriptureforge.org/fr")]
+    [TestCase("fr-FR", "https://help.scriptureforge.org/fr")]
+    [TestCase("pt-BR", "https://help.scriptureforge.org/pt-BR")]
+    [TestCase("en", "https://help.scriptureforge.org")]
+    [TestCase("en-GB", "https://help.scriptureforge.org")]
+    // A language without a translated help site
+    [TestCase("ro", "https://help.scriptureforge.org")]
+    // A language the site does not support
+    [TestCase("ja", "https://help.scriptureforge.org")]
+    public void GetHelpsUrl_Success(string culture, string expected)
+    {
+        var env = new TestEnvironment();
+        env.SetRequestCulture(culture);
+
+        // SUT
+        string actual = env.Service.GetHelpsUrl();
+        Assert.AreEqual(expected, actual);
+    }
+
+    [Test]
+    public void GetHelpsUrl_NoRequestCulture()
+    {
+        var env = new TestEnvironment();
+
+        // SUT
+        string actual = env.Service.GetHelpsUrl();
+        Assert.AreEqual("https://help.scriptureforge.org", actual);
     }
 
     [Test]
@@ -151,6 +181,11 @@ public class RazorPageSettingsTests
             HttpContextAccessor.HttpContext = new DefaultHttpContext();
             Service = new RazorPageSettings(AuthOptions, BugsnagOptions, HttpContextAccessor, SiteOptions);
         }
+
+        public void SetRequestCulture(string culture) =>
+            HttpContextAccessor.HttpContext!.Features.Set<IRequestCultureFeature>(
+                new RequestCultureFeature(new RequestCulture(culture), provider: null)
+            );
 
         public IOptions<AuthOptions> AuthOptions { get; } = Substitute.For<IOptions<AuthOptions>>();
         public IOptions<BugsnagOptions> BugsnagOptions { get; } = Substitute.For<IOptions<BugsnagOptions>>();

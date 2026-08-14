@@ -22,6 +22,15 @@ public interface IRazorPageSettings
     string GetBugsnagConfig();
 
     /// <summary>
+    /// Gets the URL of the help site for the language the page is being displayed in.
+    /// </summary>
+    /// <returns>
+    /// The help site URL. This will be the root of the help site if the interface language does not have a
+    /// translated help site.
+    /// </returns>
+    string GetHelpsUrl();
+
+    /// <summary>
     /// Gets the product version number as a string.
     /// </summary>
     /// <returns>The version number.</returns>

@@ -1,19 +1,9 @@
-@using Microsoft.AspNetCore.Builder
-@using Microsoft.AspNetCore.Localization
-@using Microsoft.Extensions.Options
-@using SIL.XForge.Models
 @using SIL.XForge.Scripture.Services
 @inject IRazorPageSettings Settings
 @inject IHtmlLocalizer<SharedResource> SharedLocalizer
-@inject IOptions<RequestLocalizationOptions> LocOptions
 
 @{
-    #nullable disable warnings
-    var requestCulture = Context.Features.Get<IRequestCultureFeature>();
-    InterfaceLanguage? locale = LocOptions.Value.SupportedUICultures?.Where(c =>
-    SharedResource.Cultures[c.IetfLanguageTag].Tags.Contains(requestCulture.RequestCulture.UICulture.Name)
-    ).Select(c => SharedResource.Cultures[c.IetfLanguageTag]).First();
-    string helps = "https://help.scriptureforge.org/" + (locale?.Helps ?? string.Empty);
+    string helps = Settings.GetHelpsUrl();
 }
 
 <footer>
@@ -30,7 +20,7 @@
                     <ul class="links">
                         <li><a href="/terms">@SharedLocalizer[SharedResource.Keys.Terms]</a></li>
                         <li><a href="/privacy">@SharedLocalizer[SharedResource.Keys.Privacy]</a></li>
-                        <li><a href="https://help.scriptureforge.org">@SharedLocalizer[SharedResource.Keys.LearnMore]</a></li>
+                        <li><a href="@helps">@SharedLocalizer[SharedResource.Keys.LearnMore]</a></li>
                         <li><a href="@helps" target="_blank">@SharedLocalizer[SharedResource.Keys.Help]</a></li>
                         <li><a href="https://community.scripture.software.sil.org/c/scripture-forge/19"
                                 target="_blank">@SharedLocalizer[SharedResource.Keys.CommunitySupport]</a></li>

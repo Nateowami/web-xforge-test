@@ -107,7 +107,7 @@
                 <div class="statement-buttons flex justify-content-center">
                     @if (Settings.UseScriptureForgeBranding())
                     {
-                        <a href="https://help.scriptureforge.org"
+                        <a href="@Settings.GetHelpsUrl()"
                            class="mdl-button mdl-button--raised mdl-button--colored button-lg">@SharedLocalizer[SharedResource.Keys.LearnMore]</a>
                     }
                     <a class="mdl-button mdl-button--raised mdl-button--accent button-lg"
