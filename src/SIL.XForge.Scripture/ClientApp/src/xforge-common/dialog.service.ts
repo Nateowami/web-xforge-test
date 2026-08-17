@@ -2,7 +2,9 @@ import { OverlayRef } from '@angular/cdk/overlay';
 import { ComponentType } from '@angular/cdk/portal';
 import { Injectable } from '@angular/core';
 import { MatDialog, MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
+import { NavigationStart, Router } from '@angular/router';
 import { lastValueFrom, Observable } from 'rxjs';
+import { filter } from 'rxjs/operators';
 import { hasObjectProp } from '../type-utils';
 import {
   GenericDialogComponent,
@@ -11,14 +13,32 @@ import {
 } from './generic-dialog/generic-dialog.component';
 import { I18nKey, I18nService } from './i18n.service';
 
+/** The part of a URL that identifies the page, i.e. without the query string or fragment. */
+function pagePath(url: string): string {
+  return url.split(/[?#]/)[0];
+}
+
 @Injectable({
   providedIn: 'root'
 })
 export class DialogService {
   constructor(
     private readonly i18n: I18nService,
-    private readonly matDialog: MatDialog
-  ) {}
+    private readonly matDialog: MatDialog,
+    private readonly router: Router
+  ) {
+    // A dialog belongs to the page that opened it, but the app can navigate away on its own (e.g. when the user is
+    // removed from the project they are viewing). Close any open dialogs so they aren't left stranded over a page they
+    // have nothing to do with. Navigations that only change the query string or fragment stay on the same page, so
+    // they leave dialogs alone.
+    this.router.events
+      .pipe(filter((event): event is NavigationStart => event instanceof NavigationStart))
+      .subscribe(event => {
+        if (pagePath(event.url) !== pagePath(this.router.url)) {
+          this.matDialog.closeAll();
+        }
+      });
+  }
 
   diagnosticOverlay: OverlayRef | undefined;
 

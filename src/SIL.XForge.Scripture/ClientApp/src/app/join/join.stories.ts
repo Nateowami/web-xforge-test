@@ -25,6 +25,9 @@ const mockedOnlineStatusService = mock(OnlineStatusService);
 const mockedRouter = mock(Router);
 const mockedSFProjectService = mock(SFProjectService);
 
+// DialogService closes open dialogs when the router navigates
+when(mockedRouter.events).thenReturn(of());
+
 enum ShareKeys {
   Expired = 'expired',
   InvalidRole = 'invalid_role',

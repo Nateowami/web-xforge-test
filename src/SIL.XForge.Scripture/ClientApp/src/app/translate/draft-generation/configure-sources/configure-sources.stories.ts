@@ -34,6 +34,9 @@ const mockedTrainingDataService = mock(TrainingDataService);
 const mockedUserService = mock(UserService);
 const mockedFileService = mock(FileService);
 
+// DialogService closes open dialogs when the router navigates
+when(mockedRouter.events).thenReturn(of());
+
 const blankProjectDoc = { id: 'project1', data: createTestProjectProfile() } as SFProjectProfileDoc;
 
 const projectDocWithExistingSources = {
