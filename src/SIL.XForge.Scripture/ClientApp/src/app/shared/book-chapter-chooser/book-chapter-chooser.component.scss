@@ -3,6 +3,9 @@
 :host {
   display: flex;
   align-items: center;
+  // Book names can be long (e.g. "Sirach (Ecclesiasticus)"). Allow the chooser to shrink so it
+  // doesn't force the toolbar it sits in to be wider than the screen.
+  min-width: 0;
 }
 
 // Unfortunately there doesn't appear to be a good way to style a mat-select
@@ -15,6 +18,16 @@
     padding-left: 12px;
     padding-right: 12px;
   }
+}
+
+// When space is tight the book name is truncated (mat-select already ellipsizes its value) rather
+// than pushing the chapter number and the buttons beside it off screen.
+#book-select {
+  min-width: 0;
+}
+
+#chapter-select {
+  flex: none;
 }
 
 ::ng-deep .mat-mdc-select-panel {

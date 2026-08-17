@@ -82,6 +82,19 @@ Mobile.globals = {
   viewport: { value: 'mobile1' }
 };
 
+// A long book name has to be truncated rather than push the chapter number, and the buttons next
+// to it, off the screen
+export const LongBookNameMobile = Template.bind({});
+LongBookNameMobile.args = {
+  ...defaultArgs,
+  books: [71], // Sirach (Ecclesiasticus)
+  book: 71,
+  chapters: arrayOfIntsFromOne(51)
+};
+LongBookNameMobile.globals = {
+  viewport: { value: 'mobile1' }
+};
+
 export const SelectBook = Template.bind({});
 SelectBook.args = { ...defaultArgs };
 SelectBook.play = async ({ canvasElement }) => {
