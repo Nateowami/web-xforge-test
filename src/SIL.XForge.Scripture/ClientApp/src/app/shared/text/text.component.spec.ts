@@ -1473,6 +1473,32 @@ describe('TextComponent', () => {
     expect(segments.length).withContext('should be no matching segments when book does not match').toBe(0);
   }));
 
+  it('matches a combined verse segment for a verse in the middle of the combined range', fakeAsync(() => {
+    const chapterNum = 2;
+    const combinedSegmentRef: string = `verse_${chapterNum}_3-5`;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { verse: { number: '2', style: 'v' } } },
+      { insert: 'verse two', attributes: { segment: `verse_${chapterNum}_2` } },
+      { insert: { verse: { number: '3-5', style: 'v' } } },
+      { insert: 'verses three through five', attributes: { segment: combinedSegmentRef } },
+      { insert: { verse: { number: '6', style: 'v' } } },
+      { insert: 'verse six', attributes: { segment: `verse_${chapterNum}_6` } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+
+    // every verse of the combined range matches the combined segment, including verse 4 in the middle of it
+    for (const verseNum of [3, 4, 5]) {
+      expect(env.component.getVerseSegments(new VerseRef(40, chapterNum, verseNum)))
+        .withContext(`MAT ${chapterNum}:${verseNum}`)
+        .toEqual([combinedSegmentRef]);
+    }
+    // verses outside the combined range still do not match it
+    expect(env.component.getVerseSegments(new VerseRef(40, chapterNum, 2))).toEqual([`verse_${chapterNum}_2`]);
+    expect(env.component.getVerseSegments(new VerseRef(40, chapterNum, 6))).toEqual([`verse_${chapterNum}_6`]);
+  }));
+
   it('does not execute the logic in bindQuill if the object has been disposed', fakeAsync(() => {
     const env: TestEnvironment = new TestEnvironment();
     const mockedQuill = new MockQuill('quill-editor');

@@ -394,9 +394,11 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
         matchStartNum = Number.parseInt(verseParts[0]);
         matchLastNum = Number.parseInt(verseParts[verseParts.length - 1]);
       }
-      const matchStartsWithin: boolean = matchStartNum >= startVerseNum && matchStartNum <= lastVerseNum;
-      const matchEndsWithin: boolean = matchLastNum >= startVerseNum && matchLastNum <= lastVerseNum;
-      if (matchStartsWithin || matchEndsWithin) {
+      // The segment is in the reference if the two verse ranges overlap at all. Testing for overlap (rather than
+      // only for an end point of the segment falling within the reference) is what allows a reference to a verse
+      // in the middle of a combined verse to match, e.g. MRK 1:4 matching the segment verse_1_3-5.
+      const rangesOverlap: boolean = matchStartNum <= lastVerseNum && matchLastNum >= startVerseNum;
+      if (rangesOverlap) {
         segmentsInVerseRef.push(segment);
       }
     }

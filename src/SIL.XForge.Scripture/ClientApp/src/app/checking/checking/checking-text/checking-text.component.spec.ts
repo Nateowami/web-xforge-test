@@ -1,6 +1,7 @@
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { VerseRef } from '@sillsdev/scripture';
 import { QuillService } from 'ngx-quill';
+import { Delta } from 'quill';
 import { User } from 'realtime-server/lib/esm/common/models/user';
 import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
@@ -135,6 +136,19 @@ describe('CheckingTextComponent', () => {
     expect(env.getSegmentElement('s_2')!.classList).not.toContain('question-segment');
   }));
 
+  it('highlights combined verse for a question on a verse in the middle of the range', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.component.id = new TextDocId('project01', 41, 2);
+    const middleOfCombinedRange = new VerseRef('MRK', '2', '4');
+    env.component.questionVerses = [middleOfCombinedRange];
+    env.component.activeVerse = middleOfCombinedRange;
+    env.wait();
+    expect(env.segmentHasQuestion(2, '3-5')).toBe(true);
+    expect(env.isSegmentHighlighted('verse_2_3-5')).toBe(true);
+    expect(env.segmentHasQuestion(2, 2)).toBe(false);
+    expect(env.segmentHasQuestion(2, 6)).toBe(false);
+  }));
+
   it('highlights all segments of active verse', fakeAsync(() => {
     const env = new TestEnvironment();
     env.component.id = new TextDocId('project01', 41, 1);
@@ -197,6 +211,7 @@ class TestEnvironment {
     this.addTextDoc(new TextDocId('project01', 40, 1, 'target'));
     this.addTextDoc(new TextDocId('project01', 40, 2, 'target'));
     this.addCombinedVerseTextDoc(new TextDocId('project01', 41, 1, 'target'));
+    this.addThreeVerseCombinedTextDoc(new TextDocId('project01', 41, 2, 'target'));
     this.setupProject();
     this.realtimeService.addSnapshot<User>(UserDoc.COLLECTION, {
       id: 'user01',
@@ -274,6 +289,25 @@ class TestEnvironment {
     });
   }
 
+  /** A chapter where three verses are combined into one segment, i.e. verse_c_3-5. */
+  private addThreeVerseCombinedTextDoc(id: TextDocId): void {
+    const delta = new Delta();
+    delta.insert({ chapter: { number: id.chapterNum.toString(), style: 'c' } });
+    delta.insert({ blank: true }, { segment: 'p_1' });
+    delta.insert({ verse: { number: '2', style: 'v' } });
+    delta.insert(`chapter ${id.chapterNum}, verse 2.`, { segment: `verse_${id.chapterNum}_2` });
+    delta.insert({ verse: { number: '3-5', style: 'v' } });
+    delta.insert(`chapter ${id.chapterNum}, verses 3-5.`, { segment: `verse_${id.chapterNum}_3-5` });
+    delta.insert({ verse: { number: '6', style: 'v' } });
+    delta.insert(`chapter ${id.chapterNum}, verse 6.`, { segment: `verse_${id.chapterNum}_6` });
+    delta.insert('\n', { para: { style: 'p' } });
+    this.realtimeService.addSnapshot(TextDoc.COLLECTION, {
+      id: id.toString(),
+      type: RichText.type.name,
+      data: delta
+    });
+  }
+
   private setupProject(): void {
     this.realtimeService.addSnapshot<SFProjectProfile>(SFProjectProfileDoc.COLLECTION, {
       id: 'project01',
@@ -290,7 +324,10 @@ class TestEnvironment {
           },
           {
             bookNum: 41,
-            chapters: [{ number: 1, lastVerse: 3, isValid: true, permissions: {} }],
+            chapters: [
+              { number: 1, lastVerse: 3, isValid: true, permissions: {} },
+              { number: 2, lastVerse: 6, isValid: true, permissions: {} }
+            ],
             hasSource: true,
             permissions: {}
           }
