@@ -19,6 +19,7 @@ import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/mode
 import { of } from 'rxjs';
 import { anything, capture, deepEqual, instance, mock, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { createTestFeatureFlag, FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -187,6 +188,46 @@ describe('SettingsComponent', () => {
       expect(env.basedOnSelectErrorMessage.textContent).toContain('error fetching the Digital Bible Library resources');
       expect(env.basedOnSelectComponent.isDisabled).toBe(false);
       expect(env.inputElement(env.biblicalTermsCheckbox).disabled).toBe(false);
+    }));
+
+    it('retries loading the settings when a request fails because of the connection', fakeAsync(() => {
+      const env = new TestEnvironment(true, true);
+      env.setupProject();
+      let attempts = 0;
+      when(mockedSFProjectService.onlineIsSourceProject('project01')).thenCall(() => {
+        attempts++;
+        return attempts === 1 ? Promise.reject(TestEnvironment.gatewayTimeout()) : Promise.resolve(true);
+      });
+      env.wait();
+      expect(env.component.mainSettingsLoaded).toBe(false);
+
+      tick(3000);
+      env.wait();
+      expect(attempts).toBe(2);
+      expect(env.component.mainSettingsLoaded).toBe(true);
+      expect(env.component.form.disabled).toBe(false);
+      expect(env.sourceProjectMessage).not.toBeNull();
+      verify(mockedNoticeService.showError(anything())).never();
+    }));
+
+    it('shows an error and stops loading when the settings cannot be loaded', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject();
+      when(mockedSFProjectService.onlineIsSourceProject('project01')).thenCall(() =>
+        Promise.reject(TestEnvironment.gatewayTimeout())
+      );
+      env.wait();
+      tick(3000);
+      env.wait();
+      tick(3000);
+      env.wait();
+
+      expect(env.component.isLoadingData).toBe(false);
+      expect(env.component.mainSettingsLoaded).toBe(false);
+      expect(env.deleteProjectButton.disabled).toBe(true);
+      verify(mockedNoticeService.showError(anything())).once();
+      // the form was never populated from the project, so its default values must not be saved
+      verify(mockedSFProjectService.onlineUpdateSettings(anything(), anything())).never();
     }));
 
     describe('Translation Suggestions options', () => {
@@ -972,6 +1013,14 @@ class TestEnvironment {
 
   get viewersShareStatus(): DebugElement {
     return this.fixture.debugElement.query(By.css('#viewers-share-status'));
+  }
+
+  /** The error a command gets when the service worker cannot reach the server, i.e. there is no connection. */
+  static gatewayTimeout(): CommandError {
+    return new CommandError(
+      CommandErrorCode.Other,
+      'Error invoking isSourceProject: Http failure response for /command-api/projects: 504 Gateway Timeout'
+    );
   }
 
   makeProjectHaveTextAudio(): void {

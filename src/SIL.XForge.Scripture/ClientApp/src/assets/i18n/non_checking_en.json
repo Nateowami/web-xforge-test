@@ -843,6 +843,7 @@
     "error_fetching_projects_resources": "There was an error fetching projects and resources. You can't change what the project is based on.",
     "error_fetching_projects": "There was an error fetching projects. You will only be able to select resources from Digital Bible Library.",
     "error_fetching_resources": "There was an error fetching the Digital Bible Library resources. You will only be able to select projects.",
+    "error_loading_settings": "The project settings could not be loaded. Please check your internet connection.",
     "export_all": "All answers",
     "export_checking_answers": "Set which answers will be exported as comments when syncing with Paratext.",
     "export_marked_for_export": "Answers flagged for review",

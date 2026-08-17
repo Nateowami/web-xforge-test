@@ -20,6 +20,7 @@ import { combineLatest, firstValueFrom } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { AuthService } from 'xforge-common/auth.service';
+import { isNetworkError } from 'xforge-common/command.service';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ExternalUrlService } from 'xforge-common/external-url.service';
@@ -121,6 +122,9 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
   mainSettingsLoaded = false;
 
   private static readonly projectSettingValueUnset = 'unset';
+  /** How many times to try loading the settings before giving up, when the connection is at fault. */
+  private static readonly loadAttempts = 3;
+  private static readonly loadRetryMs = 3000;
   private paratextUsername: string | undefined;
   private projectDoc?: SFProjectDoc;
   /** Elements in this component and their states. */
@@ -210,68 +214,103 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
       .pipe(quietTakeUntilDestroyed(this.destroyRef))
       .subscribe(async ([isOnline, projectId]) => {
         this.isAppOnline = isOnline;
-        if (isOnline && this.projects == null) {
-          this.loading = true;
-
-          const mainSettingsPromise = Promise.all([
-            this.projectService
-              .onlineIsSourceProject(projectId)
-              .then(isActiveSourceProject => (this.isActiveSourceProject = isActiveSourceProject)),
-            firstValueFrom(this.paratextService.getParatextUsername()).then((username: string | undefined) => {
-              if (username != null) this.paratextUsername = username;
-            }),
-            this.projectService.get(projectId).then(projectDoc => (this.projectDoc = projectDoc))
-          ]).then(() => {
-            if (this.projectDoc != null) {
-              this.updateSettingsInfo();
-              this.updateNonSelectableProjects();
-              this.projectDoc.remoteChanges$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(() => {
-                this.updateNonSelectableProjects();
-                this.setIndividualControlDisabledStates();
-              });
-              this.mainSettingsLoaded = true;
-              this.updateFormEnabled();
-            }
-          });
-
-          let paratextTokensExpired = false;
-          const projectsAndResourcesPromise = Promise.all([
-            this.paratextService
-              .getProjects()
-              .then(projects => {
-                this.projectLoadingFailed = false;
-                this.projects = projects;
-                this.updateNonSelectableProjects();
-              })
-              .catch((error: any) => {
-                this.projectLoadingFailed = true;
-                if (error instanceof HttpErrorResponse && error.status === 401) {
-                  paratextTokensExpired = true;
-                }
-              }),
-            this.paratextService
-              .getResources()
-              .then(resources => {
-                this.resourceLoadingFailed = false;
-                this.resources = resources;
-                this.updateNonSelectableProjects();
-              })
-              .catch((error: any) => {
-                this.resourceLoadingFailed = true;
-                if (error instanceof HttpErrorResponse && error.status === 401) {
-                  paratextTokensExpired = true;
-                }
-              })
-          ]);
-
-          await Promise.all([mainSettingsPromise, projectsAndResourcesPromise]);
-          this.loading = false;
-
-          if (paratextTokensExpired) this.authService.requestParatextCredentialUpdate();
-
-          this.updateFormEnabled();
+        if (isOnline && (this.projects == null || !this.mainSettingsLoaded)) {
+          await this.loadSettings(projectId);
         }
       });
+  }
+
+  /**
+   * Loads the settings, retrying when a request fails because the connection is not usable yet. Requests sent just as
+   * the app comes back online can still fail (while there is no connection the service worker responds to API requests
+   * with 504 Gateway Timeout), and that must not leave the page stuck loading with settings that were never read.
+   */
+  private async loadSettings(projectId: string): Promise<void> {
+    this.loading = true;
+    try {
+      for (let attempt = 1; ; attempt++) {
+        try {
+          await this.loadSettingsOnce(projectId);
+          return;
+        } catch (error) {
+          if (!this.isConnectionError(error)) {
+            throw error;
+          }
+          if (attempt >= SettingsComponent.loadAttempts || !this.isAppOnline) {
+            this.noticeService.showError(this.i18n.translateStatic('settings.error_loading_settings'));
+            return;
+          }
+          await new Promise(resolve => setTimeout(resolve, SettingsComponent.loadRetryMs));
+        }
+      }
+    } finally {
+      this.loading = false;
+      this.updateFormEnabled();
+    }
+  }
+
+  /** Whether the error is the app failing to reach the server, rather than the server reporting a problem. */
+  private isConnectionError(error: unknown): boolean {
+    return (
+      isNetworkError(error) || (error instanceof HttpErrorResponse && (error.status === 504 || error.status === 0))
+    );
+  }
+
+  private async loadSettingsOnce(projectId: string): Promise<void> {
+    const mainSettingsPromise = Promise.all([
+      this.projectService
+        .onlineIsSourceProject(projectId)
+        .then(isActiveSourceProject => (this.isActiveSourceProject = isActiveSourceProject)),
+      firstValueFrom(this.paratextService.getParatextUsername()).then((username: string | undefined) => {
+        if (username != null) this.paratextUsername = username;
+      }),
+      this.projectService.get(projectId).then(projectDoc => (this.projectDoc = projectDoc))
+    ]).then(() => {
+      if (this.projectDoc != null) {
+        this.updateSettingsInfo();
+        this.updateNonSelectableProjects();
+        this.projectDoc.remoteChanges$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(() => {
+          this.updateNonSelectableProjects();
+          this.setIndividualControlDisabledStates();
+        });
+        this.mainSettingsLoaded = true;
+        this.updateFormEnabled();
+      }
+    });
+
+    let paratextTokensExpired = false;
+    const projectsAndResourcesPromise = Promise.all([
+      this.paratextService
+        .getProjects()
+        .then(projects => {
+          this.projectLoadingFailed = false;
+          this.projects = projects;
+          this.updateNonSelectableProjects();
+        })
+        .catch((error: any) => {
+          this.projectLoadingFailed = true;
+          if (error instanceof HttpErrorResponse && error.status === 401) {
+            paratextTokensExpired = true;
+          }
+        }),
+      this.paratextService
+        .getResources()
+        .then(resources => {
+          this.resourceLoadingFailed = false;
+          this.resources = resources;
+          this.updateNonSelectableProjects();
+        })
+        .catch((error: any) => {
+          this.resourceLoadingFailed = true;
+          if (error instanceof HttpErrorResponse && error.status === 401) {
+            paratextTokensExpired = true;
+          }
+        })
+    ]);
+
+    await Promise.all([mainSettingsPromise, projectsAndResourcesPromise]);
+
+    if (paratextTokensExpired) this.authService.requestParatextCredentialUpdate();
   }
 
   openDeleteProjectDialog(): void {
@@ -312,7 +351,9 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
   }
 
   private onFormValueChanges(newValue: SFProjectSettings): void {
-    if (this.projectDoc == null || this.projectDoc.data == null) {
+    // Enabling or disabling the form emits a value change too. Until the project's settings have been read into the
+    // form those values are only the control defaults, and saving them would overwrite the project's settings.
+    if (this.projectDoc?.data == null || !this.mainSettingsLoaded) {
       return;
     }
     // Set status and include values for changed form items
