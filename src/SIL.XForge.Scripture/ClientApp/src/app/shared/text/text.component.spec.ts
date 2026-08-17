@@ -567,6 +567,37 @@ describe('TextComponent', () => {
     }
   }));
 
+  it('does not adjust a selection spanning segments when read only', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.hostComponent.isReadOnly = true;
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+
+    const firstRange: QuillRange = env.component.getSegmentRange('verse_1_1')!;
+    const lastRange: QuillRange = env.component.getSegmentRange('verse_1_3')!;
+
+    // Set segment as current segment
+    env.component.editor!.setSelection(firstRange.index, 0, 'user');
+    tick();
+    expect(env.component.segmentRef).toEqual('verse_1_1');
+
+    // Select from the first segment through a later segment, as a user can by dragging or triple clicking
+    const spanningRange: QuillRange = {
+      index: firstRange.index,
+      length: lastRange.index + lastRange.length - firstRange.index
+    };
+    env.component.editor!.setSelection(spanningRange, 'user');
+    tick();
+    env.fixture.detectChanges();
+
+    const result: QuillRange = env.component.editor!.getSelection()!;
+    expect(result.index).withContext('selection start should be unchanged').toEqual(spanningRange.index);
+    expect(result.length).withContext('selection should not be shrunk to one segment').toEqual(spanningRange.length);
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   describe('MultiCursor Presence', () => {
     it('should update presence if the user moves the cursor', fakeAsync(() => {
       const env: TestEnvironment = new TestEnvironment();

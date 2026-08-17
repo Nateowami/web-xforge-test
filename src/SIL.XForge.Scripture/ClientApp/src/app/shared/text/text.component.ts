@@ -1902,7 +1902,10 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   /** Given a selection, return a possibly modified selection that is a valid for editing the current segment.
    * For example, a selection over a segment boundary is sometimes not valid. */
   conformToValidSelectionForCurrentSegment(sel: Range): Range | null {
-    if (this._editor == null || this._segment == null) {
+    // Selections are only restricted so that an edit cannot span segments. Nothing can be edited in a read-only
+    // editor, so restricting the selection there only gets in the user's way, such as by shrinking a selection that
+    // covers more than one verse back to a single verse when the user releases the mouse.
+    if (this._editor == null || this._segment == null || this._isReadOnly) {
       return null;
     }
     let newSel: Range | undefined;
