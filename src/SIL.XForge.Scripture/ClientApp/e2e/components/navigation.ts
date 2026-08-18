@@ -1,14 +1,14 @@
 import { Locator, Page } from 'npm:playwright';
 
 const locatorStrings = {
-  translate_overview: `a[href$="/translate"]`,
-  edit_review: `a[href*="/translate/"]`,
-  generate_draft: `a[href$="/draft-generation"]`,
-  manage_questions: `a[href$="/checking"]`,
-  questions_answers: `a[href*="/checking/"]`,
-  sync: `a[href$="/sync"]`,
-  users: `a[href$="/users"]`,
-  settings: `a[href$="/settings"]`
+  translate_overview: `#translate-overview-link`,
+  edit_review: `#edit-review-link`,
+  generate_draft: `#generate-draft-link`,
+  manage_questions: `#checking-overview-link`,
+  questions_answers: `#questions-answers-link`,
+  sync: `#sync-link`,
+  users: `#users-link`,
+  settings: `#settings-link`
 };
 
 export function navLocator(page: Page, menuItem: keyof typeof locatorStrings): Locator {

@@ -4,16 +4,26 @@
       <mat-list-item disableRipple class="navigation-header">
         {{ t("translate") }}
       </mat-list-item>
-      <a mat-list-item [appRouterLink]="getProjectLink('translate')">
+      <a mat-list-item id="translate-overview-link" [appRouterLink]="getProjectLink('translate')">
         <mat-icon>apps</mat-icon>
         {{ t("overview") }}
       </a>
-      <a mat-list-item [appRouterLink]="(translateLink$ | async) || ['']" [class.active]="draftReviewActive">
+      <a
+        mat-list-item
+        id="edit-review-link"
+        [appRouterLink]="(translateLink$ | async) || ['']"
+        [class.active]="draftReviewActive"
+      >
         <mat-icon>edit_note</mat-icon>
         {{ t("edit_review") }}
       </a>
       @if (canGenerateDraft$ | async) {
-        <a mat-list-item [appRouterLink]="draftGenerationLink" [class.active]="draftGenerationActive">
+        <a
+          mat-list-item
+          id="generate-draft-link"
+          [appRouterLink]="draftGenerationLink"
+          [class.active]="draftGenerationActive"
+        >
           <mat-icon class="mirror-rtl">auto_awesome</mat-icon>
           {{ t("generate_draft") }}
         </a>
@@ -24,17 +34,22 @@
         {{ t("community_checking") }}
       </mat-list-item>
       @if (canManageQuestions) {
-        <a mat-list-item [appRouterLink]="getProjectLink('checking')">
+        <a mat-list-item id="checking-overview-link" [appRouterLink]="getProjectLink('checking')">
           <mat-icon class="mirror-rtl">list</mat-icon>
           {{ t("manage_questions") }}
         </a>
       } @else {
-        <a mat-list-item [appRouterLink]="getProjectLink('checking')">
+        <a mat-list-item id="checking-overview-link" [appRouterLink]="getProjectLink('checking')">
           <mat-icon class="mirror-rtl">bar_chart</mat-icon>
           {{ t("my_progress") }}
         </a>
       }
-      <a mat-list-item [appRouterLink]="(answerQuestionsLink$ | async) ?? ['']" [class.active]="answerQuestionsActive">
+      <a
+        mat-list-item
+        id="questions-answers-link"
+        [appRouterLink]="(answerQuestionsLink$ | async) ?? ['']"
+        [class.active]="answerQuestionsActive"
+      >
         <mat-icon class="mirror-rtl">question_answer</mat-icon>
         {{ t("questions_answers") }}
       </a>
@@ -47,7 +62,7 @@
       (click)="clickWithinNavList($event)"
     >
       @if (canSync$ | async) {
-        <a mat-list-item [appRouterLink]="getProjectLink('sync')">
+        <a mat-list-item id="sync-link" [appRouterLink]="getProjectLink('sync')">
           <mat-icon
             aria-hidden="false"
             matBadge="error"
@@ -60,13 +75,13 @@
         </a>
       }
       @if (canSeeUsers$ | async) {
-        <a mat-list-item [appRouterLink]="getProjectLink('users')">
+        <a mat-list-item id="users-link" [appRouterLink]="getProjectLink('users')">
           <mat-icon class="mirror-rtl">people</mat-icon>
           {{ t("users") }}
         </a>
       }
       @if (canSeeSettings$ | async) {
-        <a mat-list-item [appRouterLink]="getProjectLink('settings')">
+        <a mat-list-item id="settings-link" [appRouterLink]="getProjectLink('settings')">
           <mat-icon>settings</mat-icon>
           {{ t("settings") }}
         </a>
