@@ -125,8 +125,12 @@ mat-button-toggle-group {
   border: 0;
 }
 
-.save-options {
-  background-color: var(--mat-button-filled-container-color);
+// These toggles act as buttons, not as a selection. Angular Material marks a toggle as checked as
+// soon as it is clicked, which would otherwise repaint it in the (pale) selected-state color and
+// make it look disabled, so pin the filled-button appearance for every state.
+.save-options,
+.save-options.mat-button-toggle-checked {
+  background-color: var(--mat-button-filled-container-color) !important;
   color: var(--mat-button-filled-label-text-color) !important;
   ::ng-deep .mat-button-toggle-label-content {
     line-height: 36px;
