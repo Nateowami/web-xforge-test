@@ -225,12 +225,11 @@ export class TextChooserDialogComponent {
    */
   textContent(mainNode: Node, dividingNode?: Node, offset?: number, afterDivider?: boolean): string {
     let includeText = dividingNode == null || afterDivider === false;
-    const ignoredTags = ['usx-note'];
     let text = '';
     for (const node of Array.from(mainNode.childNodes)) {
       const isTextNode = node.nodeType === node.TEXT_NODE;
       const tagName = node.nodeType === node.ELEMENT_NODE ? (node as Element).tagName.toLowerCase() : '';
-      const ignore = ignoredTags.includes(tagName);
+      const ignore = this.isIgnored(node);
 
       if (dividingNode != null && node.contains(dividingNode)) {
         if (!ignore && node.isSameNode(dividingNode)) {
@@ -421,6 +420,19 @@ export class TextChooserDialogComponent {
       lastVerseNum,
       result
     };
+  }
+
+  /**
+   * Whether the text within a node should be left out of the selected text. Notes are not part of the verse text, and
+   * neither are alternate (\va) and publishing alternate (\vp) verse numbers, which Paratext marks up within the verse
+   * but which are verse numbering rather than something the user can select as scripture text.
+   */
+  private isIgnored(node: Node): boolean {
+    if (node.nodeType !== node.ELEMENT_NODE) {
+      return false;
+    }
+    const element = node as Element;
+    return element.tagName.toLowerCase() === 'usx-note' || element.matches('[data-style~="va"], [data-style~="vp"]');
   }
 
   private getVerseFromElement(element: Element): number {

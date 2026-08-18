@@ -298,6 +298,38 @@ describe('TextChooserDialogComponent', () => {
     env.closeDialog();
   }));
 
+  it('excludes alternate and publishing alternate verse numbers from the text content', fakeAsync(() => {
+    const env = new TestEnvironment();
+    const element = env.elementFromHtml(
+      '<usx-segment data-segment="verse_1_1">Here <usx-char data-style="va">1b</usx-char> be ' +
+        '<usx-char data-style="vp">1c</usx-char> text</usx-segment>'
+    );
+    expect(env.component.textContent(element)).toEqual('Here  be  text');
+    const dividingNode = element.childNodes[1].firstChild!;
+    expect(dividingNode.textContent).toEqual('1b');
+    expect(env.component.textContent(element, dividingNode, 1, true)).toEqual(' be  text');
+    expect(env.component.textContent(element, dividingNode, 1, false)).toEqual('Here ');
+    env.closeDialog();
+  }));
+
+  it('does not include an alternate verse number in the selected text', fakeAsync(async () => {
+    const env = new TestEnvironment(
+      { start: 0, end: 'target: chapter 1, verse 12.'.length },
+      'verse_1_11',
+      'verse_1_12'
+    );
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('target: chapter 1,  verse 11. target: chapter 1, verse 12. (Matthew 1:11-12)');
+    env.click(env.saveButton);
+    expect(await env.resultPromise).toEqual({
+      verses: { bookNum: 40, chapterNum: 1, verseNum: 11, verse: '11-12' },
+      text: 'target: chapter 1,  verse 11. target: chapter 1, verse 12.',
+      startClipped: false,
+      endClipped: false
+    });
+    flush();
+  }));
+
   it('calculates range offsets correctly', fakeAsync(() => {
     const env = new TestEnvironment();
     let element = env.elementFromHtml(
@@ -569,6 +601,12 @@ class TestEnvironment {
     delta.insert({ blank: true }, { segment: 'verse_1_9' });
     delta.insert({ verse: { number: '10', style: 'v' } });
     delta.insert('verse ten', { segment: 'verse_1_10' });
+    delta.insert({ verse: { number: '11', style: 'v' } });
+    delta.insert('target: chapter 1, ', { segment: 'verse_1_11' });
+    delta.insert('11b', { char: { style: 'va' }, segment: 'verse_1_11' });
+    delta.insert(' verse 11.', { segment: 'verse_1_11' });
+    delta.insert({ verse: { number: '12', style: 'v' } });
+    delta.insert('target: chapter 1, verse 12.', { segment: 'verse_1_12' });
     return delta;
   }
 
