@@ -47,9 +47,30 @@
   &[aria-disabled='true'] {
     color: unset;
   }
+  // Flex items default to min-width: auto, which keeps the title from shrinking below the width of
+  // the text it contains; without this a long heading pushes the icons out of the row.
+  .chapter-title {
+    min-width: 0;
+  }
   .book-chapter-heading {
-    gap: 10px;
+    // The header has a fixed height, so a second flex line would spill out of the row. Only the
+    // book name shrinks (with an ellipsis); the chapter number and audio icon stay on that line.
+    flex-wrap: nowrap;
+    min-width: 0;
+    gap: 4px;
     align-items: center;
+    .book-name {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .chapter-number,
+    mat-icon {
+      flex-shrink: 0;
+    }
+    mat-icon {
+      margin-inline-start: 6px;
+    }
   }
 }
 
