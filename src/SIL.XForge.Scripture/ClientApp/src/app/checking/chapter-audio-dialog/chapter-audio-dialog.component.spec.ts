@@ -28,7 +28,10 @@ import { QuestionDoc } from '../../core/models/question-doc';
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextAudioDoc } from '../../core/models/text-audio-doc';
 import { TextsByBookId } from '../../core/models/texts-by-book-id';
+import { AudioPlayer } from '../../shared/audio/audio-player';
+import { AudioPlayerStub } from '../checking-test.utils';
 import { AudioAttachment } from '../checking/checking-audio-player/checking-audio-player.component';
+import { SingleButtonAudioPlayerComponent } from '../checking/single-button-audio-player/single-button-audio-player.component';
 import {
   ChapterAudioDialogComponent,
   ChapterAudioDialogData,
@@ -416,29 +419,22 @@ describe('ChapterAudioDialogComponent', () => {
     expect(env.component.allFieldsValid).toEqual(true);
   }));
 
-  // TODO: Enable once we have audio stub merged in
-  xit('stop playing audio if a new audio file is uploaded', fakeAsync(() => {
-    env.component.prepareTimingFileUpload(env.timingFile);
+  it('stops playing audio if a new audio file is uploaded', fakeAsync(() => {
     env.fixture.detectChanges();
-    const dataTransfer = new DataTransfer();
-    for (const file of TestEnvironment.uploadFiles) {
-      dataTransfer.items.add(file);
-    }
-    const event = new Event('change');
-    env.fileUploadElement.files = dataTransfer.files;
-    env.fileUploadElement.dispatchEvent(event);
-    tick();
+    env.uploadFilesViaBrowseButton();
+    env.fixture.detectChanges();
 
     expect(env.wrapperAudio.classList.contains('valid')).toBe(true);
-    env.playAudio();
-    expect(env.component.chapterAudio!.playing).toBe(true);
+    const audio: AudioPlayerStub = env.playAudio();
+    expect(audio.isPlaying).toBe(true);
 
-    // Trigger another upload event
-    env.fileUploadElement.dispatchEvent(event);
-    tick();
+    // Upload a new audio file while the first one is still playing
+    env.uploadFilesViaBrowseButton();
+    env.fixture.detectChanges();
 
+    // The audio the dialog was playing has to be stopped, not just swapped out for the newly uploaded audio
+    expect(audio.isPlaying).toBe(false);
     expect(env.wrapperAudio.classList.contains('valid')).toBe(true);
-    expect(env.component.chapterAudio!.playing).toBe(false);
   }));
 
   it('will maintain timing data parse errors across audio file uploads', fakeAsync(async () => {
@@ -783,9 +779,31 @@ class TestEnvironment {
     });
   }
 
-  playAudio(): void {
-    this.component.chapterAudio?.play();
+  /**
+   * Starts playing the audio preview. The real AudioPlayer only reports that it is playing once the browser has
+   * actually loaded the media, which does not happen within a test, so swap in a stub that tracks play state.
+   */
+  playAudio(): AudioPlayerStub {
+    const player: SingleButtonAudioPlayerComponent = this.component.chapterAudio!;
+    player.audio?.dispose();
+    const stub = new AudioPlayerStub(this.audioFile.url!, TestBed.inject(OnlineStatusService));
+    // The setter for 'audio' is protected, but tests need to supply a player that works without loading media
+    (player as unknown as { audio: AudioPlayer }).audio = stub;
+    player.play();
     this.fixture.detectChanges();
+    return stub;
+  }
+
+  /** Selects an audio file and a timing file with the file input, the same way the browse button does. */
+  uploadFilesViaBrowseButton(): void {
+    const dataTransfer = new DataTransfer();
+    for (const file of TestEnvironment.uploadFiles) {
+      dataTransfer.items.add(file);
+    }
+    // Selecting a timing file resets the input, so the files have to be set again for each upload
+    this.fileUploadElement.files = dataTransfer.files;
+    this.fileUploadElement.dispatchEvent(new Event('change'));
+    tick();
   }
 
   async wait(ms: number = 200): Promise<void> {

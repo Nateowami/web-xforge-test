@@ -32,7 +32,7 @@ import {
   SFProjectUserConfig
 } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
 import { createTestProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config-test-data';
-import { TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
+import { getTextAudioId, TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { getTextDocId, TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import { fromVerseRef, VerseRefData } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import * as RichText from 'rich-text';
@@ -2766,20 +2766,22 @@ describe('CheckingComponent', () => {
       expect(env.isSegmentHighlighted(1, 6)).toBe(true);
     }));
 
-    // TODO: Get this test working
-    xit('pauses audio on reload (changing book)', fakeAsync(() => {
+    it('stops audio when changing book', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER, questionScope: 'book' });
-      env.component.toggleAudio();
-      env.fixture.detectChanges();
-
-      const chapterAudio = mock(CheckingScriptureAudioPlayerComponent);
-      env.component.scriptureAudioPlayer = instance(chapterAudio);
+      // Give the book being navigated to its own audio, so that the player stays open and the audio of the previous
+      // book is only stopped if changing book stops it
+      env.addChapterAudio(40, 1);
+      const chapterAudio = env.stubScriptureAudioAndPlay();
+      expect(chapterAudio.isPlaying).toBe(true);
 
       env.setBookChapter('MAT', 1);
       env.waitForQuestionTimersToComplete();
 
-      verify(chapterAudio.pause()).once();
+      expect(env.component.book).toBe(40);
       expect(env.component.showScriptureAudioPlayer).toBe(true);
+      expect(chapterAudio.isPlaying).toBe(false);
+      flush();
+      discardPeriodicTasks();
     }));
 
     it('answer-scripture-text inherits project font from CSS custom property', fakeAsync(() => {
@@ -2801,6 +2803,23 @@ describe('CheckingComponent', () => {
     }));
   });
 });
+
+/** Stands in for the Scripture audio player so that tests can see whether audio was left playing. */
+class ScriptureAudioPlayerStub {
+  isPlaying: boolean = false;
+
+  play(): void {
+    this.isPlaying = true;
+  }
+
+  pause(): void {
+    this.isPlaying = false;
+  }
+
+  stop(): void {
+    this.isPlaying = false;
+  }
+}
 
 interface UserInfo {
   id: string;
@@ -2826,6 +2845,7 @@ class TestEnvironment {
   questionReadTimer: number = 2000;
   fileSyncComplete: Subject<void> = new Subject();
 
+  private readonly textAudioDocs: TextAudioDoc[] = [];
   private readonly params$: BehaviorSubject<Params>;
   private readonly queryParams$: BehaviorSubject<Params>;
   private readonly adminProjectUserConfig: SFProjectUserConfig = createTestProjectUserConfig({
@@ -2909,13 +2929,8 @@ class TestEnvironment {
     when(query.remoteChanges$).thenReturn(new BehaviorSubject<void>(undefined));
     when(query.localChanges$).thenReturn(new BehaviorSubject<void>(undefined));
     when(query.ready$).thenReturn(new BehaviorSubject<boolean>(true));
-    const doc = mock(TextAudioDoc);
-    const textAudio = mock<TextAudio>();
-    when(textAudio.audioUrl).thenReturn('test-audio-short.webm');
-    when(textAudio.timings).thenReturn([]);
-    when(doc.id).thenReturn('project01:43:1:target');
-    when(doc.data).thenReturn(instance(textAudio));
-    when(query.docs).thenReturn([instance(doc)]);
+    this.textAudioDocs.push(this.createTextAudioDoc(43, 1));
+    when(query.docs).thenReturn(this.textAudioDocs);
     when(mockedProjectService.queryAudioText('project01', anything())).thenResolve(instance(query));
 
     this.fixture = TestBed.createComponent(CheckingComponent);
@@ -3540,6 +3555,29 @@ class TestEnvironment {
     this.waitForQuestionTimersToComplete();
   }
 
+  /** Makes a chapter have Scripture audio, both on the project and in the audio query. */
+  addChapterAudio(bookNum: number, chapterNum: number): void {
+    const projectDoc: SFProjectProfileDoc = this.component.projectDoc!;
+    const textIndex: number = projectDoc.data!.texts.findIndex(t => t.bookNum === bookNum);
+    const chapterIndex: number = projectDoc.data!.texts[textIndex].chapters.findIndex(c => c.number === chapterNum);
+    projectDoc.submitJson0Op(op => op.set(p => p.texts[textIndex].chapters[chapterIndex].hasAudio, true));
+    this.textAudioDocs.push(this.createTextAudioDoc(bookNum, chapterNum));
+  }
+
+  /**
+   * Shows the Scripture audio player and starts it playing, using a stub that tracks its own play state, which a
+   * ts-mockito mock cannot do.
+   */
+  stubScriptureAudioAndPlay(): ScriptureAudioPlayerStub {
+    this.component.toggleAudio();
+    this.fixture.detectChanges();
+
+    const audio = new ScriptureAudioPlayerStub();
+    this.component.scriptureAudioPlayer = audio as unknown as CheckingScriptureAudioPlayerComponent;
+    tick();
+    return audio;
+  }
+
   mockScriptureAudioAndPlay(): CheckingScriptureAudioPlayerComponent {
     this.component.toggleAudio();
     this.fixture.detectChanges();
@@ -3963,6 +4001,16 @@ class TestEnvironment {
     delta.insert('End of chapter heading', { segment: 's1_2' });
     delta.insert('\n', { para: { style: 's1' } });
     return delta;
+  }
+
+  private createTextAudioDoc(bookNum: number, chapterNum: number): TextAudioDoc {
+    const doc = mock(TextAudioDoc);
+    const textAudio = mock<TextAudio>();
+    when(textAudio.audioUrl).thenReturn('test-audio-short.webm');
+    when(textAudio.timings).thenReturn([]);
+    when(doc.id).thenReturn(getTextAudioId('project01', bookNum, chapterNum));
+    when(doc.data).thenReturn(instance(textAudio));
+    return instance(doc);
   }
 
   private waitForTimersToComplete(time: number = 0): void {
