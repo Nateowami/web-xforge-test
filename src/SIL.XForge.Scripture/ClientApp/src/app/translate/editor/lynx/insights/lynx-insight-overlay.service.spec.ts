@@ -109,6 +109,31 @@ describe('LynxInsightOverlayService', () => {
     }));
   });
 
+  describe('editor scroll handling', () => {
+    it('should reposition overlay when origin is still within editor view', fakeAsync(() => {
+      const env = new TestEnvironment();
+      const { origin } = env.openOverlay();
+
+      // Origin is within the container bounds (container defaults to top 0 / bottom 600)
+      env.simulateEditorScroll(origin, { top: 100, bottom: 120, left: 50, right: 100 });
+
+      expect(env.service.isOpen).toBeTrue();
+      env.verifyOverlayPositionUpdated();
+    }));
+
+    it('should close overlay when origin scrolls out of editor view', fakeAsync(() => {
+      const env = new TestEnvironment();
+      const { origin } = env.openOverlay();
+
+      // Origin has scrolled above the top of the container (container defaults to top 0 / bottom 600)
+      env.simulateEditorScroll(origin, { top: -40, bottom: -20, left: 50, right: 100 });
+
+      expect(env.service.isOpen).toBeFalse();
+      env.verifyOverlayDisposed();
+      env.verifyOverlayPositionNotUpdated();
+    }));
+  });
+
   describe('close()', () => {
     it('should do nothing if no overlay is open', () => {
       const env = new TestEnvironment();
@@ -261,6 +286,7 @@ class TestEnvironment {
     const ref = mock(OverlayRef);
 
     when(ref.outsidePointerEvents()).thenReturn(clicksSubject);
+    when(ref.hasAttached()).thenReturn(true);
     when(ref.attach(anything())).thenReturn({ instance: componentInstance } as any);
     when(ref.overlayElement).thenReturn(overlayElement);
 
@@ -343,6 +369,24 @@ class TestEnvironment {
     tick(); // Process setTimeout
 
     return { ...testData, result };
+  }
+
+  /**
+   * Simulates a scroll of the editor scroll container with the origin at the specified position.
+   * Attaches the scroll strategy, as the real CDK overlay ref does on attach.
+   */
+  simulateEditorScroll(origin: HTMLElement, originRect: DOMRect | object, refIndex = 0): void {
+    origin.getBoundingClientRect = () => originRect as DOMRect;
+    this.captureOverlayConfig().scrollStrategy.attach(this.overlayRefs[refIndex].instance);
+    this.containerElement.dispatchEvent(new Event('scroll'));
+  }
+
+  verifyOverlayPositionUpdated(refIndex = 0): void {
+    verify(this.overlayRefs[refIndex].mock.updatePosition()).once();
+  }
+
+  verifyOverlayPositionNotUpdated(refIndex = 0): void {
+    verify(this.overlayRefs[refIndex].mock.updatePosition()).never();
   }
 
   verifyOverlayCreated(): void {

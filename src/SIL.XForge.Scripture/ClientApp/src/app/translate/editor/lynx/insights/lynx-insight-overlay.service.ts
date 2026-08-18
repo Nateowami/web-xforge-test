@@ -10,14 +10,20 @@ import { LynxInsightOverlayComponent } from './lynx-insight-overlay/lynx-insight
 /**
  * Custom scroll strategy that listens to a specific scroll container and repositions the overlay.
  * This replaces the need for CdkScrollable registration with ScrollDispatcher.
+ * Closes the overlay when its origin scrolls out of the scroll container view, as the overlay would
+ * otherwise follow the origin outside the container (overlapping other panes).
  */
 class OverlayScrollStrategy implements ScrollStrategy {
   private _scrollContainer: Element;
+  private _origin: HTMLElement;
+  private _onOriginScrolledOutOfView: () => void;
   private _overlayRef?: OverlayRef;
   private _scrollListener?: () => void;
 
-  constructor(scrollContainer: Element) {
+  constructor(scrollContainer: Element, origin: HTMLElement, onOriginScrolledOutOfView: () => void) {
     this._scrollContainer = scrollContainer;
+    this._origin = origin;
+    this._onOriginScrolledOutOfView = onOriginScrolledOutOfView;
   }
 
   attach(overlayRef: OverlayRef): void {
@@ -25,7 +31,11 @@ class OverlayScrollStrategy implements ScrollStrategy {
     this._scrollListener = () => {
       // Check if overlay is still attached before updating position
       if (this._overlayRef != null && this._overlayRef.hasAttached()) {
-        this._overlayRef.updatePosition();
+        if (isScrolledOutOfView(this._origin, this._scrollContainer)) {
+          this._onOriginScrolledOutOfView();
+        } else {
+          this._overlayRef.updatePosition();
+        }
       }
     };
     this._scrollContainer.addEventListener('scroll', this._scrollListener);
@@ -46,6 +56,21 @@ class OverlayScrollStrategy implements ScrollStrategy {
     this.disable();
     this._overlayRef = undefined;
   }
+}
+
+/**
+ * Determines whether an element is entirely scrolled out of the visible area of a scroll container.
+ */
+function isScrolledOutOfView(element: Element, scrollContainer: Element): boolean {
+  const elementRect: DOMRect = element.getBoundingClientRect();
+  const containerRect: DOMRect = scrollContainer.getBoundingClientRect();
+
+  return (
+    elementRect.bottom <= containerRect.top ||
+    elementRect.top >= containerRect.bottom ||
+    elementRect.right <= containerRect.left ||
+    elementRect.left >= containerRect.right
+  );
 }
 
 export interface LynxInsightOverlayRef {
@@ -161,7 +186,7 @@ export class LynxInsightOverlayService {
   }
 
   private getConfig(origin: HTMLElement, scrollContainer: HTMLElement): OverlayConfig {
-    this.overlayScrollStrategy = new OverlayScrollStrategy(scrollContainer);
+    this.overlayScrollStrategy = new OverlayScrollStrategy(scrollContainer, origin, () => this.close());
 
     return {
       positionStrategy: this.getPositionStrategy(origin),
