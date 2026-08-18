@@ -1,3 +1,4 @@
+import { Directionality } from '@angular/cdk/bidi';
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
@@ -166,6 +167,21 @@ describe('I18nService', () => {
     service.setLocale('ar');
     verify(mockedDocumentBody.setAttribute('dir', 'rtl')).once();
     expect().nothing();
+  });
+
+  it('should keep the CDK text direction in sync with the locale', () => {
+    // The CDK reads the document direction only when Directionality is created, so overlays opened after a locale
+    // change (e.g. the "Add to a project" dialog) lay out backwards unless the service keeps it up to date (SF-3795).
+    const service = getI18nService();
+    const directionality = TestBed.inject(Directionality);
+    const emitted: string[] = [];
+    directionality.change.subscribe(direction => emitted.push(direction));
+
+    service.setLocale('ar');
+    expect(directionality.value).toEqual('rtl');
+    service.setLocale('en');
+    expect(directionality.value).toEqual('ltr');
+    expect(emitted).toEqual(['rtl', 'ltr']);
   });
 
   it('should localize references', () => {

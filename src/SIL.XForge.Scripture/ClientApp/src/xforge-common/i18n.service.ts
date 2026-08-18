@@ -1,3 +1,4 @@
+import { Directionality } from '@angular/cdk/bidi';
 import { HttpClient } from '@angular/common/http';
 import { Inject, Injectable, InjectionToken, Optional } from '@angular/core';
 import { HashMap, Translation, TranslocoConfig, TranslocoLoader, TranslocoService } from '@ngneat/transloco';
@@ -135,7 +136,8 @@ export class I18nService {
     private readonly reportingService: ErrorReportingService,
     @Inject(DOCUMENT) private readonly document: Document,
     @Optional() @Inject(IGNORE_COOKIE_LOCALE) ignoreCookieLocale: boolean = false,
-    @Optional() private readonly featureFlags?: FeatureFlagService
+    @Optional() private readonly featureFlags?: FeatureFlagService,
+    @Optional() private readonly directionality?: Directionality
   ) {
     // This will set the locale to what is specified in the URL first, or fallback to the cookie
     const urlLocale = new URLSearchParams(locationService.search).get('locale');
@@ -228,6 +230,13 @@ export class I18nService {
     );
     this.reportingService.addMeta({ localeId: this.localeCode });
     this.document.body.setAttribute('dir', this.direction);
+    // The CDK reads the document direction once, when Directionality is first created, so overlays created after a
+    // locale change (dialogs, select and autocomplete panels, menus) would otherwise keep the direction the page was
+    // loaded with, and lay out backwards from the rest of the app.
+    if (this.directionality != null && this.directionality.value !== this.direction) {
+      this.directionality.valueSignal.set(this.direction);
+      this.directionality.change.emit(this.direction);
+    }
   }
 
   localizeBook(book: number | string): string {
