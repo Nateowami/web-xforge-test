@@ -1,4 +1,5 @@
 import { omit } from 'lodash-es';
+import { DeltaOperation } from 'rich-text';
 import { Blot, Scope } from 'parchment';
 import QuillBlockBlot, { BlockEmbed as QuillBlockEmbedBlot } from 'quill/blots/block';
 import QuillEmbedBlot from 'quill/blots/embed';
@@ -258,6 +259,31 @@ export class RefInline extends QuillInlineBlot {
   }
 }
 
+/**
+ * Gets the text of a note's contents, for display to the user. Blank embeds (i.e. non-string inserts) are ignored,
+ * except for optional line breaks, which are shown as the `//` the user typed (a URL such as `https://example.com`
+ * is parsed as text containing an optional line break, and would otherwise display as `https:example.com`).
+ */
+function noteContentsText(ops: DeltaOperation[]): string {
+  return ops.reduce((text, op) => {
+    if (typeof op.insert === 'string') {
+      return text + op.insert;
+    }
+
+    if (op.insert?.optbreak != null) {
+      return text + '//';
+    }
+
+    // Handle link inserts with nested contents
+    const link = op.insert?.link as Link | undefined;
+    if (link?.contents?.ops != null) {
+      return text + noteContentsText(link.contents.ops);
+    }
+
+    return text;
+  }, '');
+}
+
 export class NoteEmbed extends QuillEmbedBlot {
   static blotName = 'note';
   static tagName = 'usx-note';
@@ -272,23 +298,7 @@ export class NoteEmbed extends QuillEmbedBlot {
       node.innerText = value.caller;
     }
     if (value.contents != null) {
-      // ignore blank embeds (checked here as non-string insert)
-      node.title = value.contents.ops.reduce((text, op) => {
-        if (typeof op.insert === 'string') {
-          return text + op.insert;
-        }
-
-        // Handle link inserts with nested contents
-        const link = op.insert?.link as Link | undefined;
-        if (link?.contents?.ops) {
-          const linkText = link.contents.ops
-            .map(innerOp => (typeof innerOp.insert === 'string' ? innerOp.insert : ''))
-            .join('');
-          return text + linkText;
-        }
-
-        return text;
-      }, '');
+      node.title = noteContentsText(value.contents.ops);
     }
     setUsxValue(node, value);
     return node;

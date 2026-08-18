@@ -491,7 +491,7 @@ NoteChar =
         attribute style { FootnoteChar.char.style.enum | CrossReferenceChar.char.style.enum },
         char.link?,
         char.closed?,
-        (Char | Link | Reference | Unmatched | text)+
+        (Char | Link | Reference | Break | Unmatched | text)+
     }
 FootnoteChar.char.style.enum = (
       "fr" # The origin reference for the footnote

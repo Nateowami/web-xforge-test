@@ -4,3 +4,8 @@
   align-items: center;
   justify-content: space-between;
 }
+
+.mat-mdc-dialog-content {
+  // Keep long URLs inside the dialog instead of overflowing it
+  overflow-wrap: anywhere;
+}

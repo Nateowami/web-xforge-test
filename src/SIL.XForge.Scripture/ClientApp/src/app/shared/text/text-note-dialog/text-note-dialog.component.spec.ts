@@ -48,6 +48,39 @@ describe('TextNoteDialogComponent', () => {
     expect(env.text).toBe(text);
   }));
 
+  it('Displays URLs in footnotes as hyperlinks', fakeAsync(() => {
+    const text = '1:1 See https://example.com/wiki/Ruth for background.';
+    env = new TestEnvironment({ type: TextNoteType.Footnote, text, isRightToLeft: false });
+    expect(env.text).toBe(text);
+    expect(env.links.length).toBe(1);
+    expect(env.links[0].textContent).toBe('https://example.com/wiki/Ruth');
+    expect(env.links[0].getAttribute('href')).toBe('https://example.com/wiki/Ruth');
+    expect(env.links[0].getAttribute('target')).toBe('_blank');
+  }));
+
+  it('Displays URLs without a scheme as hyperlinks', fakeAsync(() => {
+    const text = 'Discussed at www.example.com/Ruth.html (accessed 2026).';
+    env = new TestEnvironment({ type: TextNoteType.Footnote, text, isRightToLeft: false });
+    expect(env.text).toBe(text);
+    expect(env.links.length).toBe(1);
+    expect(env.links[0].textContent).toBe('www.example.com/Ruth.html');
+    expect(env.links[0].getAttribute('href')).toBe('https://www.example.com/Ruth.html');
+  }));
+
+  it('Does not include surrounding punctuation in a hyperlink', fakeAsync(() => {
+    const text = 'See (https://example.com/a_(b)), and https://example.com/c.';
+    env = new TestEnvironment({ type: TextNoteType.Footnote, text, isRightToLeft: false });
+    expect(env.text).toBe(text);
+    expect(env.links.map(link => link.textContent)).toEqual(['https://example.com/a_(b)', 'https://example.com/c']);
+  }));
+
+  it('Displays text with no URL as text', fakeAsync(() => {
+    const text = 'Or, as some manuscripts have it: Ruth.';
+    env = new TestEnvironment({ type: TextNoteType.Footnote, text, isRightToLeft: false });
+    expect(env.text).toBe(text);
+    expect(env.links.length).toBe(0);
+  }));
+
   it('Displays extended cross-references', fakeAsync(() => {
     const text = 'Cross-reference text';
     env = new TestEnvironment({ type: TextNoteType.ExtendedCrossReference, text, isRightToLeft: false });
@@ -79,6 +112,12 @@ class TestEnvironment {
 
   get text(): string {
     return this.overlayContainerElement.query(By.css('mat-dialog-content'))!.nativeElement.textContent.trim();
+  }
+
+  get links(): HTMLAnchorElement[] {
+    return this.overlayContainerElement
+      .queryAll(By.css('mat-dialog-content a'))
+      .map(element => element.nativeElement as HTMLAnchorElement);
   }
 
   closeDialog(): void {

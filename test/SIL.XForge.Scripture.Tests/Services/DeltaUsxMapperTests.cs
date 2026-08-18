@@ -2295,6 +2295,117 @@ public class DeltaUsxMapperTests
     }
 
     [Test]
+    public void ToDelta_Note_OptBreak()
+    {
+        // A URL in a footnote is parsed as text containing an optional line break, i.e. the "//" in "https://"
+        XDocument usxDoc = Usx(
+            "PHM",
+            Chapter("1"),
+            Para(
+                "p",
+                Verse("1"),
+                "This is a verse with a footnote",
+                Note("f", "+", Char("fr", "1.1: "), Char("ft", "See https:", OptBreak(), "example.com")),
+                ", so that we can test it."
+            )
+        );
+
+        var mapper = new DeltaUsxMapper(_mapperGuidService, _logger, _exceptionHandler);
+        List<ChapterDelta> chapterDeltas = [.. mapper.ToChapterDeltas(usxDoc)];
+
+        string frCid = _testGuidService.Generate();
+        string ftCid = _testGuidService.Generate();
+        var expected = Delta
+            .New()
+            .InsertBook("PHM")
+            .InsertChapter("1")
+            .InsertBlank("p_1")
+            .InsertVerse("1")
+            .InsertText("This is a verse with a footnote", "verse_1_1")
+            .InsertNote(
+                Delta
+                    .New()
+                    .InsertChar("1.1: ", "fr", frCid)
+                    .InsertChar("See https:", "ft", ftCid)
+                    .InsertEmbed(
+                        "optbreak",
+                        [],
+                        attributes: new JObject(
+                            new JProperty(
+                                "char",
+                                new JObject(new JProperty("style", "ft"), new JProperty("cid", ftCid))
+                            )
+                        )
+                    )
+                    .InsertChar("example.com", "ft", ftCid),
+                "f",
+                "+",
+                "verse_1_1"
+            )
+            .InsertText(", so that we can test it.", "verse_1_1")
+            .InsertPara("p");
+
+        Assert.That(chapterDeltas[0].Number, Is.EqualTo(1));
+        Assert.That(chapterDeltas[0].LastVerse, Is.EqualTo(1));
+        Assert.That(chapterDeltas[0].IsValid, Is.True);
+        Assert.IsTrue(chapterDeltas[0].Delta.DeepEquals(expected));
+    }
+
+    [Test]
+    public void ToUsx_Note_OptBreak()
+    {
+        string cid = _testGuidService.Generate();
+        var chapterDelta = new ChapterDelta(
+            1,
+            1,
+            true,
+            Delta
+                .New()
+                .InsertChapter("1")
+                .InsertBlank("p_1")
+                .InsertVerse("1")
+                .InsertText("This is a verse with a footnote", "verse_1_1")
+                .InsertNote(
+                    Delta
+                        .New()
+                        .InsertChar("See https:", "ft", cid)
+                        .InsertEmbed(
+                            "optbreak",
+                            [],
+                            attributes: new JObject(
+                                new JProperty(
+                                    "char",
+                                    new JObject(new JProperty("style", "ft"), new JProperty("cid", cid))
+                                )
+                            )
+                        )
+                        .InsertChar("example.com", "ft", cid),
+                    "f",
+                    "+",
+                    "verse_1_1"
+                )
+                .InsertText(", so that we can test it.", "verse_1_1")
+                .InsertPara("p")
+        );
+
+        var mapper = new DeltaUsxMapper(_mapperGuidService, _logger, _exceptionHandler);
+        XDocument newUsxDoc = mapper.ToUsx(Usx("PHM"), [chapterDelta]);
+
+        XDocument expected = Usx(
+            "PHM",
+            Chapter("1"),
+            Para(
+                "p",
+                Verse("1"),
+                "This is a verse with a footnote",
+                Note("f", "+", Char("ft", "See https:", OptBreak(), "example.com")),
+                ", so that we can test it."
+            )
+        );
+        Assert.IsTrue(XNode.DeepEquals(newUsxDoc, expected));
+    }
+
+    [Test]
     public void ToDelta_Note_InvalidContent()
     {
         XDocument usxDoc = Usx(
