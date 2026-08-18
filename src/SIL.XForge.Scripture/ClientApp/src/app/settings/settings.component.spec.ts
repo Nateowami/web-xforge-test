@@ -20,6 +20,7 @@ import { of } from 'rxjs';
 import { anything, capture, deepEqual, instance, mock, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
 import { createTestFeatureFlag, FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
+import { GenericDialogComponent } from 'xforge-common/generic-dialog/generic-dialog.component';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { QueryParameters } from 'xforge-common/query-parameters';
@@ -738,6 +739,21 @@ describe('SettingsComponent', () => {
       expect(env.location.path()).toEqual('/projects');
     }));
 
+    it('should not delete project if it became a source project while the dialog was open', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject();
+      env.setDialogResponse(true);
+      env.wait();
+      // Another project starts using this project as a source while the confirmation dialog is open
+      env.setIsSourceProject(true);
+      env.clickElement(env.deleteProjectButton);
+      verify(mockedUserService.setCurrentProjectId(anything(), undefined)).never();
+      verify(mockedSFProjectService.onlineDelete(anything())).never();
+      env.fixture.detectChanges();
+      expect(env.sourceProjectMessage).not.toBeNull();
+      expect(env.deleteProjectButton.disabled).toBe(true);
+    }));
+
     it('should not delete project if user cancels', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setupProject();
@@ -760,6 +776,7 @@ class TestEnvironment {
   ) as TestOnlineStatusService;
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
   private mockedDialogRef = mock<MatDialogRef<DeleteProjectDialogComponent>>(MatDialogRef);
+  private mockedGenericDialogRef = mock<MatDialogRef<GenericDialogComponent<void>>>(MatDialogRef);
 
   constructor(hasConnection: boolean = true, isSource: boolean = false) {
     when(mockedActivatedRoute.params).thenReturn(of({ projectId: 'project01' }));
@@ -984,6 +1001,13 @@ class TestEnvironment {
   setDialogResponse(confirm: boolean): void {
     when(this.mockedDialogRef.afterClosed()).thenReturn(of(confirm ? 'accept' : 'cancel'));
     when(mockedDialog.open(DeleteProjectDialogComponent, anything())).thenReturn(instance(this.mockedDialogRef));
+    // Any message dialog shown instead of deleting
+    when(this.mockedGenericDialogRef.afterClosed()).thenReturn(of(undefined));
+    when(mockedDialog.open(GenericDialogComponent, anything())).thenReturn(instance(this.mockedGenericDialogRef));
+  }
+
+  setIsSourceProject(isSource: boolean): void {
+    when(mockedSFProjectService.onlineIsSourceProject('project01')).thenResolve(isSource);
   }
 
   clickElement(element: HTMLElement | DebugElement): void {

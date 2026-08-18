@@ -283,6 +283,14 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
     const dialogRef = this.dialogService.openMatDialog(DeleteProjectDialogComponent, config);
     dialogRef.afterClosed().subscribe(async result => {
       if (result === 'accept') {
+        // Another project may have started using this project as a source since the settings page was loaded
+        if (this.projectDoc != null) {
+          this.isActiveSourceProject = await this.projectService.onlineIsSourceProject(this.projectDoc.id);
+          if (this.isActiveSourceProject) {
+            await this.dialogService.message('settings.source_projects_cannot_be_deleted');
+            return;
+          }
+        }
         const user: UserDoc = await this.userService.getCurrentUser();
         await this.userService.setCurrentProjectId(user, undefined);
         if (this.projectDoc != null) {
