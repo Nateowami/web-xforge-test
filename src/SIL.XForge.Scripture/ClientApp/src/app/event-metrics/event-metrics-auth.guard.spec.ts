@@ -1,5 +1,5 @@
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot, UrlTree } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
@@ -71,11 +71,12 @@ describe('EventMetricsAuthGuard', () => {
     env.wait();
   }));
 
-  it('cannot activate if user is logged in but does not have any administrator role', fakeAsync(() => {
+  it('redirects to the project if user is logged in but does not have any administrator role', fakeAsync(() => {
     const env = new TestEnvironment(true, SystemRole.User);
 
     env.service.canActivate(env.getActivatedRouteSnapshot(project02), {} as RouterStateSnapshot).subscribe(result => {
-      expect(result).toBe(false);
+      expect(result instanceof UrlTree).toBe(true);
+      expect(TestBed.inject(Router).serializeUrl(result as UrlTree)).toEqual(`/projects/${project02}`);
     });
 
     env.wait();
