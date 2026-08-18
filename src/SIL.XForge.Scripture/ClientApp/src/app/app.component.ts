@@ -298,8 +298,10 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   }
 
   async ngOnInit(): Promise<void> {
-    await this.authService.loggedIn;
+    // Set the tab title before waiting on login, as some pages (such as joining a project with a share link) are
+    // shown to users who are not logged in, and would otherwise keep the placeholder title from index.html
     this.document.title = this.brandingService.siteName;
+    await this.authService.loggedIn;
     this.loadingStarted();
     this.currentUserDoc = await this.userService.getCurrentUser();
     const userData: User | undefined = cloneDeep(this.currentUserDoc.data);

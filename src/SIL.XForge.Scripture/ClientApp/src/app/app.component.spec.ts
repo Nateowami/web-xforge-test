@@ -1,5 +1,5 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
-import { Location } from '@angular/common';
+import { DOCUMENT, Location } from '@angular/common';
 import { Component, DebugElement, NgZone } from '@angular/core';
 import { ComponentFixture, discardPeriodicTasks, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { MatIcon } from '@angular/material/icon';
@@ -41,6 +41,7 @@ import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { AppComponent } from './app.component';
+import { BrandingService } from './core/branding.service';
 import { SFProjectProfileDoc } from './core/models/sf-project-profile-doc';
 import { SFProjectUserConfigDoc } from './core/models/sf-project-user-config-doc';
 import { SF_TYPE_REGISTRY } from './core/models/sf-type-registry';
@@ -67,6 +68,7 @@ const mockedFileService = mock(FileService);
 const mockedFontService = mock(FontService);
 const mockedErrorReportingService = mock(ErrorReportingService);
 const mockedDialogService = mock(DialogService);
+const mockedBrandingService = mock(BrandingService);
 
 @Component({
   template: `<div>Mock</div>`
@@ -123,6 +125,7 @@ describe('AppComponent', () => {
       { provide: ErrorReportingService, useMock: mockedErrorReportingService },
       { provide: BreakpointObserver, useClass: TestBreakpointObserver },
       { provide: DialogService, useMock: mockedDialogService },
+      { provide: BrandingService, useMock: mockedBrandingService },
       provideNoopAnimations()
     ]
   }));
@@ -486,6 +489,15 @@ describe('AppComponent', () => {
     expect(env.avatarIcon).toBeNull();
   }));
 
+  it('sets the tab title before the user is logged in', fakeAsync(() => {
+    // The join page can be viewed without logging in, so the title must not wait on authentication
+    const env = new TestEnvironment('online', false);
+    TestBed.inject(DOCUMENT).title = 'Loading…';
+    env.init();
+
+    expect(TestBed.inject(DOCUMENT).title).toEqual('Test Site Name');
+  }));
+
   it('show avatar after user logs in', fakeAsync(() => {
     const env = new TestEnvironment('online', false);
     env.init();
@@ -801,6 +813,7 @@ class TestEnvironment {
     when(mockedUrlService.announcementPage).thenReturn('community-announcements');
     when(mockedUrlService.communitySupport).thenReturn('community-support');
     when(mockedFontService.getFontFamilyFromProject(anything())).thenReturn('Charis SIL');
+    when(mockedBrandingService.siteName).thenReturn('Test Site Name');
 
     if (initialConnectionStatus === 'offline') {
       this.goFullyOffline();
