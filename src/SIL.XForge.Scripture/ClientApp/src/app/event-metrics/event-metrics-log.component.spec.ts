@@ -150,6 +150,21 @@ describe('EventMetricsLogComponent', () => {
     expect(env.rows.length).toEqual(2);
   }));
 
+  it('should show the system as the author of events without a user', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.populateEventMetrics([
+      {
+        scope: EventScope.Drafting,
+        timeStamp: new Date().toISOString(),
+        eventType: 'RetrievePreTranslationStatusAsync'
+      } as EventMetric
+    ]);
+    env.wait();
+    env.wait();
+
+    expect(env.cell(0, 3).nativeElement.textContent).toContain('System');
+  }));
+
   it('should show custom event type calculations', fakeAsync(() => {
     const env = new TestEnvironment();
     // This list is to ensure complete test coverage of the custom cases in EventMetricsLogComponent.getEventType()

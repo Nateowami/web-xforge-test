@@ -38,6 +38,23 @@ describe('OwnerComponent', () => {
     expect(env.userName).toBe('checking.unknown_author');
   }));
 
+  it('displays the no owner name when there is no owner', fakeAsync(() => {
+    // Some actions, such as background jobs, are performed by the system rather than by a user.
+    const template = '<app-owner noOwnerName="System"></app-owner>';
+    const env = new TestEnvironment(template);
+    tick();
+    env.fixture.detectChanges();
+    expect(env.userName).toBe('System');
+  }));
+
+  it('displays Unknown owner name when the owner cannot be found', fakeAsync(() => {
+    const template = '<app-owner ownerRef="no-longer-known-user-id" noOwnerName="System"></app-owner>';
+    const env = new TestEnvironment(template);
+    tick();
+    env.fixture.detectChanges();
+    expect(env.userName).toBe('checking.unknown_author');
+  }));
+
   it('displays avatar', () => {
     const template = '<app-owner #checkingOwner ownerRef="user01" [includeAvatar]="true"></app-owner>';
     const env = new TestEnvironment(template);

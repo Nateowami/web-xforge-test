@@ -31,6 +31,7 @@
               <td mat-cell *matCellDef="let row">
                 <app-owner
                   [ownerRef]="row.userId"
+                  [noOwnerName]="t('system')"
                   [includeAvatar]="true"
                   [layoutStacked]="false"
                   [dateTime]="row.timeStamp"

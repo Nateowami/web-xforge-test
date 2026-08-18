@@ -19,6 +19,8 @@ export class OwnerComponent implements OnInit {
   @Input() dateTime: string = '';
   @Input() layoutStacked: boolean = false;
   @Input() showTimeZone: boolean = false;
+  /** The name to display when there is no owner, e.g. when the action was performed by the system. */
+  @Input() noOwnerName?: string;
   private ownerDoc?: UserProfileDoc;
 
   constructor(
@@ -33,6 +35,10 @@ export class OwnerComponent implements OnInit {
 
   get name(): string {
     if (this.ownerDoc == null || this.ownerDoc.data == null) {
+      // Nothing to look up means there was no owner at all, which is distinct from an owner we cannot identify
+      if (this.ownerRef == null && this.noOwnerName != null) {
+        return this.noOwnerName;
+      }
       return this.translocoService.translate('checking.unknown_author');
     }
     return this.userService.currentUserId === this.ownerDoc.id
