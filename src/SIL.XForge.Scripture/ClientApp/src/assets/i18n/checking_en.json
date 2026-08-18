@@ -21,6 +21,7 @@
     "log_out": "Log out",
     "logged_in_as": "Logged in as",
     "my_progress": "My progress",
+    "not_a_project_member": "You are not a member of this project.",
     "offline": "Offline",
     "online": "Online",
     "open_source_licenses": "Open source licenses",

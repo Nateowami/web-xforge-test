@@ -1,25 +1,35 @@
-import { TestBed } from '@angular/core/testing';
+import { fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { ActivatedRouteSnapshot, Params, Router, RouterStateSnapshot } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
-import { mock, when } from 'ts-mockito';
+import { of } from 'rxjs';
+import { anything, mock, verify, when } from 'ts-mockito';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
+import { DialogService } from 'xforge-common/dialog.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
+import { PermissionsService } from '../core/permissions.service';
 import { SFProjectService } from '../core/sf-project.service';
-import { DraftNavigationAuthGuard, SyncAuthGuard } from './project-router.guard';
+import { DraftNavigationAuthGuard, ProjectAuthGuard, SyncAuthGuard } from './project-router.guard';
 
 const mockedAuthGuard = mock(AuthGuard);
 const mockedAuthService = mock(AuthService);
 const mockedProjectService = mock(SFProjectService);
 const mockedUserService = mock(UserService);
+const mockedDialogService = mock(DialogService);
+const mockedPermissionsService = mock(PermissionsService);
+const mockedRouter = mock(Router);
 
 describe('DraftNavigationAuthGuard', () => {
   configureTestingModule(() => ({
     providers: [
       { provide: AuthGuard, useMock: mockedAuthGuard },
+      { provide: DialogService, useMock: mockedDialogService },
+      { provide: PermissionsService, useMock: mockedPermissionsService },
+      { provide: Router, useMock: mockedRouter },
       { provide: SFProjectService, useMock: mockedProjectService }
     ]
   }));
@@ -42,6 +52,9 @@ describe('SyncAuthGuard', () => {
     providers: [
       { provide: AuthGuard, useMock: mockedAuthGuard },
       { provide: AuthService, useMock: mockedAuthService },
+      { provide: DialogService, useMock: mockedDialogService },
+      { provide: PermissionsService, useMock: mockedPermissionsService },
+      { provide: Router, useMock: mockedRouter },
       { provide: SFProjectService, useMock: mockedProjectService },
       { provide: UserService, useMock: mockedUserService }
     ]
@@ -101,6 +114,107 @@ describe('SyncAuthGuard', () => {
       } as SFProjectProfileDoc)
     ).toBe(false);
   });
+});
+
+describe('ProjectAuthGuard', () => {
+  const projectId = 'project01';
+  configureTestingModule(() => ({
+    providers: [
+      { provide: AuthGuard, useMock: mockedAuthGuard },
+      { provide: DialogService, useMock: mockedDialogService },
+      { provide: PermissionsService, useMock: mockedPermissionsService },
+      { provide: Router, useMock: mockedRouter },
+      { provide: SFProjectService, useMock: mockedProjectService }
+    ]
+  }));
+
+  it('allows a member of the project through', fakeAsync(() => {
+    const env = new ProjectAuthGuardTestEnvironment();
+    when(mockedProjectService.getProfile(projectId)).thenResolve({
+      data: createTestProjectProfile({ userRoles: { user01: SFProjectRole.ParatextTranslator } })
+    } as SFProjectProfileDoc);
+
+    let result: boolean | undefined;
+    env.service.canActivate(env.routeSnapshot(), {} as RouterStateSnapshot).subscribe(value => (result = value));
+    tick();
+
+    expect(result).toBe(true);
+    verify(mockedRouter.navigateByUrl(anything(), anything())).never();
+    verify(mockedDialogService.message(anything())).never();
+  }));
+
+  it('tells a user who is not a member of the project, and sends them to their projects', fakeAsync(() => {
+    const env = new ProjectAuthGuardTestEnvironment();
+    when(mockedProjectService.getProfile(projectId)).thenReject(new Error('403: Permission denied (read)'));
+    when(mockedPermissionsService.isUserOnProject(projectId)).thenResolve(false);
+
+    let result: boolean | undefined;
+    env.service.canActivate(env.routeSnapshot(), {} as RouterStateSnapshot).subscribe(value => (result = value));
+    tick();
+
+    expect(result).toBe(false);
+    verify(mockedRouter.navigateByUrl('/projects', anything())).once();
+    verify(mockedDialogService.message('app.not_a_project_member')).once();
+  }));
+
+  it('tells a user when the project does not exist, and sends them to their projects', fakeAsync(() => {
+    const env = new ProjectAuthGuardTestEnvironment();
+    when(mockedProjectService.getProfile(projectId)).thenResolve({ data: undefined } as SFProjectProfileDoc);
+
+    let result: boolean | undefined;
+    env.service.canActivate(env.routeSnapshot(), {} as RouterStateSnapshot).subscribe(value => (result = value));
+    tick();
+
+    expect(result).toBe(false);
+    verify(mockedRouter.navigateByUrl('/projects', anything())).once();
+    verify(mockedDialogService.message('app.project_has_been_deleted')).once();
+  }));
+
+  it('reports an unexpected error for a member of the project', fakeAsync(() => {
+    const env = new ProjectAuthGuardTestEnvironment();
+    when(mockedProjectService.getProfile(projectId)).thenReject(new Error('unexpected'));
+    when(mockedPermissionsService.isUserOnProject(projectId)).thenResolve(true);
+
+    let error: Error | undefined;
+    env.service
+      .canActivate(env.routeSnapshot(), {} as RouterStateSnapshot)
+      .subscribe({ error: (err: Error) => (error = err) });
+    tick();
+
+    expect(error?.message).toBe('unexpected');
+    verify(mockedDialogService.message(anything())).never();
+  }));
+
+  it('does not check the project for old style sharing links', fakeAsync(() => {
+    const env = new ProjectAuthGuardTestEnvironment();
+
+    let result: boolean | undefined;
+    env.service
+      .canActivate(env.routeSnapshot({ sharing: 'true' }), {} as RouterStateSnapshot)
+      .subscribe(value => (result = value));
+    tick();
+
+    expect(result).toBe(true);
+    verify(mockedProjectService.getProfile(anything())).never();
+  }));
+
+  class ProjectAuthGuardTestEnvironment {
+    readonly service: ProjectAuthGuard;
+
+    constructor() {
+      this.service = TestBed.inject(ProjectAuthGuard);
+      when(mockedAuthGuard.canActivate(anything(), anything())).thenReturn(of(true));
+      when(mockedAuthGuard.allowTransition()).thenReturn(of(true));
+      when(mockedUserService.currentUserId).thenReturn('user01');
+    }
+
+    routeSnapshot(queryParams: Params = {}): ActivatedRouteSnapshot {
+      const snapshot = new ActivatedRouteSnapshot();
+      snapshot.params = { projectId };
+      snapshot.queryParams = queryParams;
+      return snapshot;
+    }
+  }
 });
 
 class DraftNavigationTestEnvironment {

@@ -1,5 +1,5 @@
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
@@ -7,9 +7,11 @@ import { of } from 'rxjs';
 import { anything, mock, when } from 'ts-mockito';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
+import { DialogService } from 'xforge-common/dialog.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
+import { PermissionsService } from '../core/permissions.service';
 import { SFProjectService } from '../core/sf-project.service';
 import { EventMetricsAuthGuard } from './event-metrics-auth.guard';
 
@@ -17,6 +19,9 @@ const mockedAuthGuard = mock(AuthGuard);
 const mockedAuthService = mock(AuthService);
 const mockedProjectService = mock(SFProjectService);
 const mockedUserService = mock(UserService);
+const mockedDialogService = mock(DialogService);
+const mockedPermissionsService = mock(PermissionsService);
+const mockedRouter = mock(Router);
 
 describe('EventMetricsAuthGuard', () => {
   const project01 = 'project01';
@@ -26,6 +31,9 @@ describe('EventMetricsAuthGuard', () => {
     providers: [
       { provide: AuthGuard, useMock: mockedAuthGuard },
       { provide: AuthService, useMock: mockedAuthService },
+      { provide: DialogService, useMock: mockedDialogService },
+      { provide: PermissionsService, useMock: mockedPermissionsService },
+      { provide: Router, useMock: mockedRouter },
       { provide: SFProjectService, useMock: mockedProjectService },
       { provide: UserService, useMock: mockedUserService }
     ]

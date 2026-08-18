@@ -58,7 +58,8 @@ export class ActivatedProjectService {
     private readonly projectService: SFProjectService,
     private readonly cacheService: CacheService,
     @Inject(ActiveProjectIdService) activeProjectIdService: IActiveProjectIdService,
-    private destroyRef: DestroyRef
+    private destroyRef: DestroyRef,
+    private readonly permissionsService: PermissionsService
   ) {
     activeProjectIdService.projectId$
       .pipe(quietTakeUntilDestroyed(this.destroyRef))
@@ -112,7 +113,17 @@ export class ActivatedProjectService {
       return;
     }
     this.projectId = projectId;
-    const projectDoc: SFProjectProfileDoc = await this.projectService.getProfile(projectId);
+    let projectDoc: SFProjectProfileDoc;
+    try {
+      projectDoc = await this.projectService.getProfile(projectId);
+    } catch (error) {
+      // The project cannot be read if the user is not a member of it, which the router guard reports to the user, so
+      // there is nothing more to do here. Any other error should still be reported.
+      if (await this.permissionsService.isUserOnProject(projectId)) {
+        throw error;
+      }
+      return;
+    }
     // Make sure the project ID is still the same before updating the project document
     if (this.projectId === projectId) {
       this.projectDoc = projectDoc;
@@ -130,9 +141,10 @@ export class TestActivatedProjectService extends ActivatedProjectService {
   constructor(
     projectService: SFProjectService,
     cacheService: CacheService,
-    @Inject(ActiveProjectIdService) activeProjectIdService: IActiveProjectIdService
+    @Inject(ActiveProjectIdService) activeProjectIdService: IActiveProjectIdService,
+    permissionsService: PermissionsService
   ) {
-    super(projectService, cacheService, activeProjectIdService, noopDestroyRef);
+    super(projectService, cacheService, activeProjectIdService, noopDestroyRef, permissionsService);
   }
 
   static withProjectId(projectId: string): TestActivatedProjectService {
@@ -141,7 +153,8 @@ export class TestActivatedProjectService extends ActivatedProjectService {
     return new TestActivatedProjectService(
       projectService,
       new CacheService(projectService, permissionsService),
-      new TestActiveProjectIdService(projectId)
+      new TestActiveProjectIdService(projectId),
+      permissionsService
     );
   }
 }

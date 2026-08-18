@@ -42,7 +42,8 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     this.updateOfflineDataSub = merge(this.adapter.remoteChanges$, this.adapter.idle$, this.adapter.create$).subscribe(
       async () => {
         if (this.subscribePromise != null) {
-          await this.subscribePromise;
+          // A failed subscription is reported to whoever subscribed to the doc, so ignore it here
+          await this.subscribePromise.catch(() => {});
         }
         void this.updateOfflineData();
       }
@@ -177,7 +178,8 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
    */
   async dispose(): Promise<void> {
     if (this.subscribePromise != null) {
-      await this.subscribePromise;
+      // A failed subscription is reported to whoever subscribed to the doc, so ignore it here
+      await this.subscribePromise.catch(() => {});
     }
     this.updateOfflineDataSub.unsubscribe();
     this.onDeleteSub.unsubscribe();
