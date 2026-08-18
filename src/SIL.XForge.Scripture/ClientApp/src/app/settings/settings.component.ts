@@ -122,6 +122,8 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
 
   private static readonly projectSettingValueUnset = 'unset';
   private paratextUsername: string | undefined;
+  /** Whether the Paratext username lookup has returned. Until it has, we don't know the account status. */
+  private paratextUsernameLoaded = false;
   private projectDoc?: SFProjectDoc;
   /** Elements in this component and their states. */
   private controlStates = new Map<keyof SFProjectSettings, ElementState>();
@@ -197,6 +199,20 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
     return !this.isAppOnline || !this.mainSettingsLoaded || this.isActiveSourceProject || this.isProjectSyncing;
   }
 
+  /**
+   * Whether to tell the user that their Paratext account is not connected. The Paratext username lookup has to have
+   * returned first: if it never ran, or failed because the connection was down, the account status is unknown and
+   * saying it is not connected would be wrong.
+   */
+  get showParatextAccountNotice(): boolean {
+    return this.isAppOnline && !this.isLoadingData && this.paratextUsernameLoaded && !this.isLoggedInToParatext;
+  }
+
+  /** Whether the data this page needs still has to be fetched, either for the first time or after a failed attempt. */
+  private get settingsNeedLoading(): boolean {
+    return !this.mainSettingsLoaded || !this.paratextUsernameLoaded || this.projects == null;
+  }
+
   ngOnInit(): void {
     this.form.disable();
     this.form.valueChanges.subscribe(value => this.onFormValueChanges(value));
@@ -210,16 +226,21 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
       .pipe(quietTakeUntilDestroyed(this.destroyRef))
       .subscribe(async ([isOnline, projectId]) => {
         this.isAppOnline = isOnline;
-        if (isOnline && this.projects == null) {
+        if (isOnline && this.settingsNeedLoading) {
           this.loading = true;
 
           const mainSettingsPromise = Promise.all([
             this.projectService
               .onlineIsSourceProject(projectId)
               .then(isActiveSourceProject => (this.isActiveSourceProject = isActiveSourceProject)),
-            firstValueFrom(this.paratextService.getParatextUsername()).then((username: string | undefined) => {
-              if (username != null) this.paratextUsername = username;
-            }),
+            firstValueFrom(this.paratextService.getParatextUsername())
+              .then((username: string | undefined) => {
+                if (username != null) this.paratextUsername = username;
+                this.paratextUsernameLoaded = true;
+              })
+              // The rest of the settings do not depend on knowing the Paratext account, so a failed lookup (e.g. the
+              // connection dropped) must not stop them from loading. It is looked up again on the next reconnect.
+              .catch(() => {}),
             this.projectService.get(projectId).then(projectDoc => (this.projectDoc = projectDoc))
           ]).then(() => {
             if (this.projectDoc != null) {
@@ -264,12 +285,16 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
               })
           ]);
 
-          await Promise.all([mainSettingsPromise, projectsAndResourcesPromise]);
-          this.loading = false;
+          try {
+            await Promise.all([mainSettingsPromise, projectsAndResourcesPromise]);
+          } finally {
+            // Whatever happened, stop showing the page as loading. Anything that did not load is left unloaded so
+            // that it is fetched again the next time the app comes back online.
+            this.loading = false;
+            this.updateFormEnabled();
+          }
 
           if (paratextTokensExpired) this.authService.requestParatextCredentialUpdate();
-
-          this.updateFormEnabled();
         }
       });
   }

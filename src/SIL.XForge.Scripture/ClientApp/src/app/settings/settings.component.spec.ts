@@ -16,7 +16,7 @@ import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-
 import { createTestProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio-test-data';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
 import { anything, capture, deepEqual, instance, mock, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
 import { createTestFeatureFlag, FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
@@ -187,6 +187,38 @@ describe('SettingsComponent', () => {
       expect(env.basedOnSelectErrorMessage.textContent).toContain('error fetching the Digital Bible Library resources');
       expect(env.basedOnSelectComponent.isDisabled).toBe(false);
       expect(env.inputElement(env.biblicalTermsCheckbox).disabled).toBe(false);
+    }));
+
+    it('enables form even when the Paratext username fails to load', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject();
+      when(mockedParatextService.getParatextUsername()).thenReturn(
+        throwError(() => new HttpErrorResponse({ status: 504 }))
+      );
+      env.wait();
+
+      // The Paratext account status is unknown, so the notice claiming it is not connected must not be shown
+      expect(env.paratextAccountNotice).toBeNull();
+      expect(env.component.form.disabled).toBe(false);
+      expect(env.basedOnSelect).not.toBeNull();
+      expect(env.component.isLoadingData).toBe(false);
+    }));
+
+    it('looks up the Paratext username again when coming back online after it failed to load', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject();
+      when(mockedParatextService.getParatextUsername())
+        .thenReturn(throwError(() => new HttpErrorResponse({ status: 504 })))
+        .thenReturn(of(undefined));
+      env.wait();
+      expect(env.paratextAccountNotice).toBeNull();
+
+      env.onlineStatus = false;
+      env.onlineStatus = true;
+      env.wait();
+
+      verify(mockedParatextService.getParatextUsername()).twice();
+      expect(env.paratextAccountNotice).not.toBeNull();
     }));
 
     describe('Translation Suggestions options', () => {
