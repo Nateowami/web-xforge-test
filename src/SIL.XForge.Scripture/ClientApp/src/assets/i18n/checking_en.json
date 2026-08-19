@@ -248,6 +248,7 @@
     "no_timing_data_uploaded": "No timing data uploaded",
     "not_upload_audio_offline": "Audio files cannot be uploaded without connecting to the internet.",
     "save": "Save",
+    "save_failed": "The chapter audio could not be saved. Please check your internet connection and try again.",
     "segments_found": "{{ segments }} segments found",
     "timing": "Timing",
     "timing_past_audio_length": "One or more timing values extend past the end of the audio file.",

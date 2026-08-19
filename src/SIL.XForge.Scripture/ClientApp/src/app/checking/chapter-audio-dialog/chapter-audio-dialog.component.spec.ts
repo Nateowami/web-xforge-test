@@ -8,8 +8,9 @@ import { getTextAudioId, TextAudio } from 'realtime-server/lib/esm/scriptureforg
 import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio-test-data';
 import { Chapter, TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { firstValueFrom } from 'rxjs';
-import { anything, mock, spy, when } from 'ts-mockito';
+import { anything, mock, spy, verify, when } from 'ts-mockito';
 import { CsvService } from 'xforge-common/csv-service.service';
+import { DialogService } from 'xforge-common/dialog.service';
 import { FileService } from 'xforge-common/file.service';
 import { FileOfflineData, FileType } from 'xforge-common/models/file-offline-data';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -28,6 +29,7 @@ import { QuestionDoc } from '../../core/models/question-doc';
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextAudioDoc } from '../../core/models/text-audio-doc';
 import { TextsByBookId } from '../../core/models/texts-by-book-id';
+import { SFProjectService } from '../../core/sf-project.service';
 import { AudioAttachment } from '../checking/checking-audio-player/checking-audio-player.component';
 import {
   ChapterAudioDialogComponent,
@@ -37,6 +39,7 @@ import {
 
 const mockedCsvService = mock(CsvService);
 const mockedFileService = mock(FileService);
+const mockedDialogService = mock(DialogService);
 
 describe('ChapterAudioDialogComponent', () => {
   configureTestingModule(() => ({
@@ -46,6 +49,7 @@ describe('ChapterAudioDialogComponent', () => {
       provideTestRealtime(SF_TYPE_REGISTRY),
       { provide: CsvService, useMock: mockedCsvService },
       { provide: FileService, useMock: mockedFileService },
+      { provide: DialogService, useMock: mockedDialogService },
       { provide: OnlineStatusService, useClass: TestOnlineStatusService }
     ]
   }));
@@ -511,6 +515,56 @@ describe('ChapterAudioDialogComponent', () => {
     expect(env.numberOfTimesDialogClosed).withContext('saving should occur and close dialog when online').toEqual(1);
   }));
 
+  it('will save the timing data before closing the dialog', fakeAsync(() => {
+    env.onlineStatus = true;
+    env.component.audioUpdate(env.audioFile);
+    tick();
+    env.component.prepareTimingFileUpload(env.timingFile);
+    tick();
+
+    // SUT
+    env.component.save();
+    tick();
+    env.fixture.detectChanges();
+    flush();
+
+    verify(
+      env.projectServiceSpy.onlineCreateAudioTimingData(
+        'project01',
+        env.component.book,
+        env.component.chapter,
+        anything(),
+        'audio url'
+      )
+    ).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
+  }));
+
+  it('will keep the dialog open with the files attached if saving the timing data fails', fakeAsync(() => {
+    when(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenReject(new Error('Error invoking createAudioTimingData'));
+    env.onlineStatus = true;
+    env.component.audioUpdate(env.audioFile);
+    tick();
+    env.component.prepareTimingFileUpload(env.timingFile);
+    tick();
+
+    // SUT
+    env.component.save();
+    tick();
+    env.fixture.detectChanges();
+    flush();
+
+    expect(env.numberOfTimesDialogClosed)
+      .withContext('dialog should stay open so the selected files are not lost')
+      .toEqual(0);
+    expect(env.component.isAudioUploaded).toBe(true);
+    expect(env.component.isTimingUploaded).toBe(true);
+    expect(env.component.isLoadingAudio).toBe(false);
+    verify(mockedDialogService.message('chapter_audio_dialog.save_failed')).once();
+  }));
+
   it('will allow saving when fields are empty if they began filled', fakeAsync(() => {
     env.component.book = 1;
     env.component.chapter = 2;
@@ -646,6 +700,7 @@ class TestEnvironment {
   readonly testOnlineStatusService: TestOnlineStatusService = TestBed.inject(
     OnlineStatusService
   ) as TestOnlineStatusService;
+  readonly projectServiceSpy: SFProjectService;
   private numTimesClosedFired: number;
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
 
@@ -708,6 +763,11 @@ class TestEnvironment {
     this.fixture = TestBed.createComponent(ChildViewContainerComponent);
     this.dialogRef = TestBed.inject(MatDialog).open(ChapterAudioDialogComponent, config);
     this.component = this.dialogRef.componentInstance;
+
+    this.projectServiceSpy = spy(this.component['projectService']);
+    when(
+      this.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenResolve();
 
     this.numTimesClosedFired = 0;
     this.dialogRef.afterClosed().subscribe(() => {

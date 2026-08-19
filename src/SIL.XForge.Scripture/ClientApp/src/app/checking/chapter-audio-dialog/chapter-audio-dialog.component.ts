@@ -321,7 +321,12 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     if (this.allFieldsValid) {
       canSave = true;
     } else if (!this.isAudioUploaded && !this.isTimingUploaded && this._selectionHasAudioAlready) {
-      await this.projectService.onlineDeleteAudioTimingData(this.data.projectId, this.book, this.chapter);
+      try {
+        await this.projectService.onlineDeleteAudioTimingData(this.data.projectId, this.book, this.chapter);
+      } catch {
+        void this.dialogService.message('chapter_audio_dialog.save_failed');
+        return;
+      }
       this.dialogRef.close();
       return;
     }
@@ -341,29 +346,48 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     if (!this.onlineStatusService.isOnline) return;
 
     this._loadingAudio = true;
-    const audioUrl: string | undefined = await this.fileService.onlineUploadFileOrFail(
-      FileType.Audio,
-      this.data.projectId,
-      TextAudioDoc.COLLECTION,
-      objectId(),
-      this.audio!.blob!,
-      this.audio!.fileName!,
-      true
-    );
+    try {
+      const audioUrl: string | undefined = await this.fileService.onlineUploadFileOrFail(
+        FileType.Audio,
+        this.data.projectId,
+        TextAudioDoc.COLLECTION,
+        objectId(),
+        this.audio!.blob!,
+        this.audio!.fileName!,
+        true
+      );
 
-    // if the upload fails, we need to show an error and not close the dialog
-    this._loadingAudio = false;
-    if (audioUrl == null) {
-      void this.dialogService.message('chapter_audio_dialog.upload_failed');
-      return;
+      // if the upload fails, we need to show an error and not close the dialog
+      if (audioUrl == null) {
+        void this.dialogService.message('chapter_audio_dialog.upload_failed');
+        return;
+      }
+
+      // Save the timing data before closing. If this is left until after the dialog closes and it fails (most likely
+      // because the connection dropped part way through saving), the user gets an unexpected error and the files they
+      // had selected are gone.
+      try {
+        await this.projectService.onlineCreateAudioTimingData(
+          this.data.projectId,
+          this.book,
+          this.chapter,
+          this.timing_processed,
+          audioUrl
+        );
+      } catch {
+        void this.dialogService.message('chapter_audio_dialog.save_failed');
+        return;
+      }
+
+      this.dialogRef.close({
+        timingData: this.timing_processed,
+        book: this.book,
+        chapter: this.chapter,
+        audioUrl
+      });
+    } finally {
+      this._loadingAudio = false;
     }
-
-    this.dialogRef.close({
-      timingData: this.timing_processed,
-      book: this.book,
-      chapter: this.chapter,
-      audioUrl
-    });
   }
 
   uploadedFiles(e: Event): void {
