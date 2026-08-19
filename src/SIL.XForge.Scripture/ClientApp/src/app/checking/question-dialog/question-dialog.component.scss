@@ -3,6 +3,10 @@
 
 .mat-mdc-dialog-content.content-padding {
   padding-top: 0.5em;
+  // Material gives dialog content no bottom padding when the dialog has an actions row, so the
+  // last row sits flush against the bottom edge. The audio buttons' 48px touch targets overhang
+  // their 40px boxes by 4px, which overflows the content and shows a scrollbar for 4px of nothing.
+  padding-bottom: 4px;
   display: flex;
   flex-direction: column;
   row-gap: 1em;
