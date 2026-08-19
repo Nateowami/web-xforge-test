@@ -1260,14 +1260,28 @@ export class TextComponent implements AfterViewInit, OnDestroy {
             .subscribe(event => {
               const noteText = attributeFromMouseEvent(event, 'USX-NOTE', 'title');
               const noteType = attributeFromMouseEvent(event, 'USX-NOTE', 'data-style');
-              this.dialogService.openMatDialog(TextNoteDialogComponent, {
-                width: '600px',
-                data: {
-                  type: noteType,
-                  text: noteText,
-                  isRightToLeft: this.isRtl
-                } as NoteDialogData
-              });
+              // Clicking the marker focuses the editor, and closing the dialog by clicking the backdrop clears the
+              // browser selection first. Material's focus restoration would then focus the editor with no selection,
+              // putting the cursor at the start of the chapter and scrolling there, so restore focus via Quill
+              // instead, which restores the previous selection without scrolling.
+              const restoreFocus: boolean = this.editor?.hasFocus() === true;
+              this.dialogService
+                .openMatDialog(TextNoteDialogComponent, {
+                  width: '600px',
+                  restoreFocus: false,
+                  data: {
+                    type: noteType,
+                    text: noteText,
+                    isRightToLeft: this.isRtl
+                  } as NoteDialogData
+                })
+                .afterClosed()
+                .pipe(quietTakeUntilDestroyed(this.destroyRef))
+                .subscribe(() => {
+                  if (restoreFocus) {
+                    this.editor?.focus({ preventScroll: true });
+                  }
+                });
             })
         )
       );

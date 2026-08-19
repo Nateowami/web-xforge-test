@@ -1,5 +1,6 @@
 import { Component, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
 import { TranslocoService } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { QuillService } from 'ngx-quill';
@@ -13,7 +14,7 @@ import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge
 import { TextAnchor } from 'realtime-server/lib/esm/scriptureforge/models/text-anchor';
 import { TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import * as RichText from 'rich-text';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subject } from 'rxjs';
 import { LocalPresence } from 'sharedb/lib/sharedb';
 import { anything, instance, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
@@ -48,6 +49,9 @@ const mockedTranslocoService = mock(TranslocoService);
 const mockedUserService = mock(UserService);
 const mockedConsole: MockConsole = MockConsole.install();
 const mockedDialogService = mock(DialogService);
+const mockedNoteDialogRef = mock<MatDialogRef<TextNoteDialogComponent>>(MatDialogRef);
+let noteDialogClosed$: Subject<undefined>;
+let noteDialogConfig: MatDialogConfig | undefined;
 
 describe('TextComponent', () => {
   configureTestingModule(() => ({
@@ -66,6 +70,15 @@ describe('TextComponent', () => {
 
   beforeEach(async () => {
     mockedConsole.reset();
+    noteDialogClosed$ = new Subject<undefined>();
+    noteDialogConfig = undefined;
+    when(mockedNoteDialogRef.afterClosed()).thenReturn(noteDialogClosed$);
+    when(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thenCall(
+      (_component, config: MatDialogConfig) => {
+        noteDialogConfig = config;
+        return instance(mockedNoteDialogRef);
+      }
+    );
 
     // Pre-load Quill before each test to avoid async Quill import issues
     const quillService = TestBed.inject(QuillService);
@@ -1449,6 +1462,43 @@ describe('TextComponent', () => {
       note!.click();
     });
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
+  }));
+
+  it('restores the editor cursor when the footnote dialog is closed', fakeAsync(() => {
+    const chapterNum = 2;
+    const segmentRef: string = `verse_${chapterNum}_1`;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'quick brown', attributes: { segment: segmentRef } },
+      {
+        insert: {
+          note: {
+            caller: '+',
+            style: 'f',
+            contents: { ops: [{ insert: 'footnote text' }] }
+          }
+        },
+        attributes: { segment: segmentRef }
+      },
+      { insert: ' fox', attributes: { segment: segmentRef } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+    const editor: Quill = env.component.editor!;
+    spyOn(editor, 'hasFocus').and.returnValue(true);
+    const focusSpy = spyOn(editor, 'focus');
+
+    (env.quillEditor.querySelector('usx-note') as HTMLElement).click();
+
+    // Material would otherwise restore focus itself, which moves the cursor to the start of the chapter and scrolls
+    // there when the dialog was closed by clicking outside of it
+    expect(noteDialogConfig?.restoreFocus).toBe(false);
+    expect(focusSpy).not.toHaveBeenCalled();
+
+    noteDialogClosed$.next(undefined);
+    tick();
+    expect(focusSpy).toHaveBeenCalledWith({ preventScroll: true });
   }));
 
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
