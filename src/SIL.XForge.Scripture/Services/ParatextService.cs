@@ -1206,59 +1206,65 @@ public class ParatextService : DisposableBase, IParatextService
                     }
                 }
 
-                // If there is only one author, just write the book
-                if (scrTexts.Count == 1)
+                // The current user is always in scrTexts, so a count of one means that the current user is the
+                // only author of the book, and the whole book can be written in one go. The book is also written
+                // one chapter at a time when the author only has permission for some of its chapters, as Paratext
+                // refuses a whole book write from such a user.
+                if (scrTexts.Count == 1 && CanWriteToScrText(scrText, bookNum, chapterNum: 0))
                 {
-                    try
-                    {
-                        ScrText target = scrTexts.Values.First();
-                        string authorSFUserId = scrTexts.Keys.First();
-                        log.AppendLine(
-                            $"Using single author (SF user id '{authorSFUserId}') to write to {target.Name} book {bookNum}."
-                        );
-                        WriteChapterToScrText(target, authorSFUserId, bookNum, 0, usfm);
-                    }
-                    catch (SafetyCheckException e)
-                    {
-                        log.AppendLine(
-                            $"There was trouble writing ({e.Message}). Trying again, but using SF user id '{userSecret.Id}' to write to {scrText.Name}"
-                        );
-                        // If the author does not have permission, attempt to run as the current user
-                        WriteChapterToScrText(scrText, userSecret.Id, bookNum, 0, usfm);
-                    }
-
+                    log.AppendLine(
+                        $"Using single author (SF user id '{userSecret.Id}') to write to {scrText.Name} book {bookNum}."
+                    );
+                    WriteChapterToScrText(scrText, userSecret.Id, bookNum, 0, usfm);
                     booksUpdated++;
                 }
                 else
                 {
-                    log.AppendLine($"There are multiple authors. Splitting USFM into chapters.");
+                    log.AppendLine($"Writing the book one chapter at a time. Splitting USFM into chapters.");
                     // Split the usfm into chapters
                     List<string> chapters = ScrText.SplitIntoChapters(scrText.Name, bookNum, usfm);
                     log.AppendLine($"Received chapters: {(chapters == null ? "null" : ($"count {chapters.Count}"))}");
+                    bool chapterWritten = false;
 
                     // Put the individual chapters
                     foreach ((int chapterNum, string authorSFUserId) in chapNumToAuthorSFUserIdMap)
                     {
                         if (chapters != null && chapterNum - 1 < chapters.Count)
                         {
-                            try
+                            // The ScrText permissions will be the same as the last sync's permissions
+                            ScrText target = scrTexts[authorSFUserId];
+                            string writerSFUserId = authorSFUserId;
+                            if (!CanWriteToScrText(target, bookNum, chapterNum))
                             {
-                                ScrText target = scrTexts[authorSFUserId];
-                                string payloadUsfm = chapters[chapterNum - 1];
+                                // If the author does not have permission, write as the current user
                                 log.AppendLine(
-                                    $"Writing to {target.Name}, chapter {chapterNum}, using author SF user id {authorSFUserId}, the usfm: {payloadUsfm}"
+                                    $"Author SF user id {authorSFUserId} cannot write chapter {chapterNum}."
+                                        + $" Using SF user id {userSecret.Id} instead."
                                 );
-                                // The ScrText permissions will be the same as the last sync's permissions
-                                WriteChapterToScrText(target, authorSFUserId, bookNum, chapterNum, payloadUsfm);
+                                target = scrText;
+                                writerSFUserId = userSecret.Id;
                             }
-                            catch (SafetyCheckException e)
+
+                            if (!CanWriteToScrText(target, bookNum, chapterNum))
                             {
-                                log.AppendLine(
-                                    $"There was trouble writing ({e.Message}). Trying again, but using SF user id '{userSecret.Id}' to write to {scrText.Name}. Also now writing the whole book, not just the single chapter."
+                                // Skip the chapter rather than failing the entire synchronization. Paratext is
+                                // the source of truth for a chapter that nobody in the project may write to.
+                                log.AppendLine($"Skipping chapter {chapterNum}, as no user can write to it.");
+                                _logger.LogWarning(
+                                    "Skipped writing chapter {0} of {1} in {2}, as no user has permission to write it.",
+                                    chapterNum,
+                                    Canon.BookNumberToEnglishName(bookNum),
+                                    scrText.Name
                                 );
-                                // If the author does not have permission, attempt to run as the current user
-                                WriteChapterToScrText(scrText, userSecret.Id, bookNum, 0, usfm);
+                                continue;
                             }
+
+                            string payloadUsfm = chapters[chapterNum - 1];
+                            log.AppendLine(
+                                $"Writing to {target.Name}, chapter {chapterNum}, using author SF user id {writerSFUserId}, the usfm: {payloadUsfm}"
+                            );
+                            WriteChapterToScrText(target, writerSFUserId, bookNum, chapterNum, payloadUsfm);
+                            chapterWritten = true;
                         }
                         else
                         {
@@ -1266,7 +1272,10 @@ public class ParatextService : DisposableBase, IParatextService
                         }
                     }
 
-                    booksUpdated++;
+                    if (chapterWritten)
+                    {
+                        booksUpdated++;
+                    }
                 }
             }
         }
@@ -3855,6 +3864,22 @@ public class ParatextService : DisposableBase, IParatextService
             semaphore.Release();
         }
     }
+
+    /// <summary>
+    /// Determines whether the user associated with the <see cref="ScrText" /> can write the specified book or
+    /// chapter to the Paratext project.
+    /// </summary>
+    /// <param name="scrText">The Scripture Text from Paratext.</param>
+    /// <param name="bookNum">The book number.</param>
+    /// <param name="chapterNum">The chapter number. Set to 0 for the entire book.</param>
+    /// <remarks>
+    /// An administrator can always write, as <see cref="WriteChapterToScrText" /> escalates their permission.
+    /// Note that Paratext does not permit a user who only has permission for some of the chapters of a book to
+    /// write that book as a whole, so a whole book write must not be attempted for such a user.
+    /// </remarks>
+    private static bool CanWriteToScrText(ScrText? scrText, int bookNum, int chapterNum) =>
+        scrText is not null
+        && (scrText.Permissions.AmAdministrator || scrText.Permissions.CanEdit(bookNum, chapterNum));
 
     /// <summary>
     /// Writes the chapter to the <see cref="ScrText" />.

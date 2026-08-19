@@ -834,6 +834,88 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task PutBookText_WritesChaptersWhenAuthorCannotWriteWholeBook()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+
+        const int ruthBookNum = 8;
+
+        // The user is a translator with permission to edit some, but not all, of the chapters of Ruth.
+        // Paratext will not accept a whole book write from such a user.
+        env.ProjectScrText.Permissions.ChangeUserRole(env.Username01, UserRoles.TeamMember);
+        env.ProjectScrText.Permissions.SetPermission(
+            env.Username01,
+            ruthBookNum,
+            2,
+            ScrVers.English,
+            PermissionSet.Manual,
+            granted: false
+        );
+        Assert.That(env.ProjectScrText.Permissions.CanEdit(ruthBookNum, 1), Is.True, "setup");
+        Assert.That(env.ProjectScrText.Permissions.CanEdit(ruthBookNum, 0), Is.False, "setup");
+
+        var chapterAuthors = new Dictionary<int, string> { { 1, env.User01 } };
+
+        // SUT
+        int booksUpdated = await env.Service.PutBookText(
+            userSecret,
+            ptProjectId,
+            ruthBookNum,
+            env.RuthBookUsx,
+            chapterAuthors
+        );
+        Assert.That(booksUpdated, Is.EqualTo(1));
+
+        // The chapter the user has permission for is written, rather than the synchronization failing
+        string logMessage = string.Format(
+            CultureInfo.InvariantCulture,
+            "{0} updated chapter {1} of {2} in {3}.",
+            env.User01,
+            1,
+            Canon.BookNumberToEnglishName(ruthBookNum),
+            env.ProjectScrText.Name
+        );
+        env.MockLogger.AssertHasEvent((LogEvent logEvent) => logEvent.Message == logMessage);
+    }
+
+    [Test]
+    public async Task PutBookText_SkipsChaptersNoUserCanWrite()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+
+        const int ruthBookNum = 8;
+
+        // The user is a translator with no permission to edit Ruth
+        env.ProjectScrText.Permissions.ChangeUserRole(env.Username01, UserRoles.TeamMember);
+        env.ProjectScrText.Permissions.SetPermission(env.Username01, ruthBookNum, PermissionSet.Manual, false);
+        Assert.That(env.ProjectScrText.Permissions.CanEdit(ruthBookNum, 1), Is.False, "setup");
+
+        var chapterAuthors = new Dictionary<int, string> { { 1, env.User01 } };
+
+        // SUT
+        int booksUpdated = await env.Service.PutBookText(
+            userSecret,
+            ptProjectId,
+            ruthBookNum,
+            env.RuthBookUsx,
+            chapterAuthors
+        );
+
+        // The book is not written, and the synchronization does not fail
+        Assert.That(booksUpdated, Is.Zero);
+        env.ProjectFileManager.DidNotReceiveWithAnyArgs().WriteFileCreatingBackup(default, default);
+        env.MockLogger.AssertHasEvent(
+            (LogEvent logEvent) => logEvent.Message.Contains("Skipped writing chapter 1 of Ruth")
+        );
+    }
+
+    [Test]
     public void GetNotes_RetrievesNotes()
     {
         int ruthBookNum = 8;
