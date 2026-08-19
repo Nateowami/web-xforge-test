@@ -3968,6 +3968,31 @@ describe('EditorComponent', () => {
     env.dispose();
   }));
 
+  it('returns to the chapter last viewed in a book', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    env.setProjectUserConfig();
+    env.routeWithParams({ projectId: 'project01', bookId: 'MAT', chapter: '2' });
+    env.wait();
+    expect(env.component.chapter).toBe(2);
+
+    // Selecting a book not viewed yet navigates to the book without specifying a chapter
+    env.component.setBook(41);
+    env.wait();
+    expect(env.location.path()).toEqual('/projects/project01/translate/MRK');
+
+    env.routeWithParams({ projectId: 'project01', bookId: 'MRK' });
+    env.wait();
+    expect(env.component.chapter).toBe(1);
+
+    // Selecting a book viewed earlier returns to the chapter the user was last on
+    env.component.setBook(40);
+    env.wait();
+    expect(env.location.path()).toEqual('/projects/project01/translate/MAT/2');
+
+    env.dispose();
+  }));
+
   describe('tabs', () => {
     describe('blank tab', () => {
       it('should add a blank tab when no source', fakeAsync(() => {

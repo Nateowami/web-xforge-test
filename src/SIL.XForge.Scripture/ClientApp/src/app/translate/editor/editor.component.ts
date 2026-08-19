@@ -171,6 +171,7 @@ import { EditorDraftComponent } from './editor-draft/editor-draft.component';
 import { EditorHistoryComponent } from './editor-history/editor-history.component';
 import { EditorHistoryService } from './editor-history/editor-history.service';
 import { EditorResourceComponent } from './editor-resource/editor-resource.component';
+import { LastViewedChapterService } from './last-viewed-chapter.service';
 import { LynxInsightStateService } from './lynx/insights/lynx-insight-state.service';
 import { LynxInsightsPanelComponent } from './lynx/insights/lynx-insights-panel/lynx-insights-panel.component';
 import { MultiCursorViewer, MultiViewerComponent } from './multi-viewer/multi-viewer.component';
@@ -384,7 +385,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     private readonly breakpointObserver: BreakpointObserver,
     private readonly mediaBreakpointService: MediaBreakpointService,
     private readonly permissionsService: PermissionsService,
-    readonly editorInsightState: LynxInsightStateService
+    readonly editorInsightState: LynxInsightStateService,
+    private readonly lastViewedChapterService: LastViewedChapterService
   ) {
     super(noticeService, 'EditorComponent');
     const wordTokenizer = new LatinWordTokenizer();
@@ -478,7 +480,19 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   setBook(book: number): void {
-    void this.router.navigate(['projects', this.projectId, 'translate', Canon.bookNumberToId(book)]);
+    // Resume where the user left off in this book, if they have already viewed it
+    const lastViewedChapter: number | undefined =
+      this.projectId == null ? undefined : this.lastViewedChapterService.get(this.projectId, book);
+    const commands: (string | number | undefined)[] = [
+      'projects',
+      this.projectId,
+      'translate',
+      Canon.bookNumberToId(book)
+    ];
+    if (lastViewedChapter != null) {
+      commands.push(lastViewedChapter);
+    }
+    void this.router.navigate(commands);
   }
 
   get bookNum(): number | undefined {
@@ -2145,6 +2159,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     }
     this.toggleNoteThreadVerses(false);
     this.chapter$.next(chapter);
+    if (this.projectId != null) {
+      this.lastViewedChapterService.set(this.projectId, bookNum, chapter);
+    }
     await this.changeText();
     this.toggleNoteThreadVerses(true);
     await this.updateDraftTabVisibility();
