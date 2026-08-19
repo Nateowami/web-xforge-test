@@ -3314,6 +3314,36 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('keeps the insert note fab hidden after viewing a note that is not in a verse', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      // a Paratext note on the material before the first verse, e.g. the file header
+      env.addParatextNoteThread('08', 'LUK 1:0', '', { start: 0, length: 0 }, ['user01']);
+      env.wait();
+
+      const segmentRef = 'verse_1_1';
+      env.clickSegmentRef(segmentRef);
+      env.wait();
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('visible');
+
+      // open the note in the non-verse segment, which clears the verse selection
+      const notePosition: number = env.getNoteThreadEditorPosition('dataid08');
+      env.targetEditor.setSelection(notePosition, 'user');
+      const noteElem: HTMLElement = env.getNoteThreadIconElement('s_1', 'dataid08')!;
+      noteElem.click();
+      env.wait();
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+
+      // closing the dialog should not offer to add a note where one cannot be anchored
+      instance(mockedMatDialog).closeAll();
+      env.wait();
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
+      expect(env.getSegmentElement(segmentRef)!.classList).not.toContain('commenter-selection');
+      env.dispose();
+    }));
+
     it('deselects a verse when bottom sheet is open and chapter changed', fakeAsync(() => {
       const env = new TestEnvironment();
       env.ngZone.run(() => {

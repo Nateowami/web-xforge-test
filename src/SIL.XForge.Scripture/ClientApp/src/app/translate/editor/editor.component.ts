@@ -1725,7 +1725,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       }
       this.toggleNoteThreadVerseRefs$.next();
     }
-    if (this.isInsertNoteFabEnabled) {
+    // Only restore the FAB if a verse is still selected. Opening a note that is anchored outside of a verse
+    // (e.g. in the file header) moves the cursor to a segment that a new note cannot be attached to, which
+    // clears the verse selection and hides the FAB.
+    if (this.isInsertNoteFabEnabled && this.commenterSelectedVerseRef != null) {
       this.setNoteFabVisibility('visible');
       this.positionInsertNoteFab();
     }
