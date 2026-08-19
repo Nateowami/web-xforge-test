@@ -156,6 +156,21 @@ describe('SyncComponent', () => {
     expect(env.appNoticeUserPermissionError).not.toBeNull();
   }));
 
+  it('should prompt to update Paratext credentials if sync failed for that reason', fakeAsync(() => {
+    const env = new TestEnvironment({ lastSyncErrorCode: -2, lastSyncWasSuccessful: false });
+    env.clickElement(env.syncButton);
+    // Simulate sync in progress
+    env.setQueuedCount(env.projectId);
+
+    // Simulate sync error
+    env.emitSyncComplete(false, env.projectId);
+
+    expect(env.component.syncActive).toBe(false);
+    expect(env.component.showParatextAuthenticationFailureMessage).toBe(true);
+    verify(mockedAuthService.requestParatextCredentialUpdate()).once();
+    verify(mockedDialogService.message(anything())).never();
+  }));
+
   it('should show progress if in-progress when loaded', fakeAsync(() => {
     const env = new TestEnvironment({ isParatextAccountConnected: true, isInProgress: true });
     expect(env.component.syncActive).toBe(true);

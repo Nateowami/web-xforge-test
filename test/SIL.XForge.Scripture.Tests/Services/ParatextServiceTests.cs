@@ -5135,6 +5135,56 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task CanUserAuthenticateToPTArchivesAsync_TokenRefreshFailure()
+    {
+        var env = new TestEnvironment();
+        TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+
+        // The repository source would report that the user can authenticate, if we could get that far
+        IInternetSharedRepositorySource mockSource = Substitute.For<IInternetSharedRepositorySource>();
+        env.MockInternetSharedRepositorySourceProvider.GetSource(
+                Arg.Any<UserSecret>(),
+                Arg.Any<string>(),
+                Arg.Any<string>()
+            )
+            .Returns(mockSource);
+        mockSource.CanUserAuthenticateToPTArchives().Returns(true);
+
+        // The PT Registry rejects the refresh token, such as when it has been revoked. There is no user in the
+        // realtime service, so the tokens cannot be refreshed from Auth0 either.
+        env.MockJwtTokenHelper.RefreshAccessTokenAsync(
+                Arg.Any<ParatextOptions>(),
+                Arg.Any<Tokens>(),
+                Arg.Any<HttpClient>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Throws(new HttpRequestException("invalid or revoked refresh token"));
+
+        // SUT
+        Assert.That(
+            await env.Service.CanUserAuthenticateToPTArchivesAsync(env.User01),
+            Is.False,
+            "the user's tokens could not be refreshed"
+        );
+
+        // A 400 from the PT Registry token endpoint surfaces as an UnauthorizedAccessException
+        env.MockJwtTokenHelper.RefreshAccessTokenAsync(
+                Arg.Any<ParatextOptions>(),
+                Arg.Any<Tokens>(),
+                Arg.Any<HttpClient>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Throws(new UnauthorizedAccessException());
+
+        // SUT
+        Assert.That(
+            await env.Service.CanUserAuthenticateToPTArchivesAsync(env.User01),
+            Is.False,
+            "the refresh token was rejected"
+        );
+    }
+
+    [Test]
     public void ResourceDocsNeedUpdating_NotResource()
     {
         // Setup test environment

@@ -437,10 +437,18 @@ public class ParatextService : DisposableBase, IParatextService
             throw new ArgumentException(nameof(sfUserId));
         }
 
-        IInternetSharedRepositorySource ptRepoSource = await GetInternetSharedRepositorySource(
-            sfUserId,
-            CancellationToken.None
-        );
+        IInternetSharedRepositorySource ptRepoSource;
+        try
+        {
+            ptRepoSource = await GetInternetSharedRepositorySource(sfUserId, CancellationToken.None);
+        }
+        catch (Exception e) when (e is HttpRequestException or UnauthorizedAccessException)
+        {
+            // The user's Paratext tokens could not be refreshed, such as when the refresh token has been revoked,
+            // so the user cannot authenticate to the PT Archives.
+            return false;
+        }
+
         return ptRepoSource.CanUserAuthenticateToPTArchives();
     }
 

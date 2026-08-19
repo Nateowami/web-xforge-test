@@ -906,11 +906,44 @@ public class ParatextSyncRunner : IParatextSyncRunner
         }
     }
 
-    private async Task PreflightAuthenticationReportAsync()
+    /// <summary>
+    /// Reports whether the user can authenticate to the Paratext services that a sync requires.
+    /// </summary>
+    /// <returns><c>true</c> if the user can authenticate to both the PT Registry and the PT Archives.</returns>
+    /// <remarks>
+    /// A user being unable to authenticate is an expected condition, such as when their Paratext refresh token has
+    /// been revoked. So this report does not throw, allowing the caller to stop the sync cleanly rather than the
+    /// sync failing with an unhandled exception.
+    /// </remarks>
+    private async Task<bool> PreflightAuthenticationReportAsync()
     {
-        bool canAuthToRegistry = await _paratextService.CanUserAuthenticateToPTRegistryAsync(_userSecret);
-        bool canAuthToArchives = await _paratextService.CanUserAuthenticateToPTArchivesAsync(_userSecret.Id);
+        bool canAuthToRegistry = await CanAuthenticateAsync(
+            "PT Registry",
+            () => _paratextService.CanUserAuthenticateToPTRegistryAsync(_userSecret)
+        );
+        bool canAuthToArchives = await CanAuthenticateAsync(
+            "PT Archives",
+            () => _paratextService.CanUserAuthenticateToPTArchivesAsync(_userSecret.Id)
+        );
         LogMetric($"User can authenticate to PT Registry: {canAuthToRegistry}, to PT Archives: {canAuthToArchives}.");
+        return canAuthToRegistry && canAuthToArchives;
+    }
+
+    /// <summary>
+    /// Runs one of the authentication checks for <see cref="PreflightAuthenticationReportAsync"/>, treating a
+    /// thrown exception as the user not being able to authenticate, so that each service is still reported on.
+    /// </summary>
+    private async Task<bool> CanAuthenticateAsync(string service, Func<Task<bool>> check)
+    {
+        try
+        {
+            return await check();
+        }
+        catch (Exception e)
+        {
+            LogMetric($"Error while checking whether the user can authenticate to {service}: {e.Message}");
+            return false;
+        }
     }
 
     private async Task UpdateDocsAsync(
@@ -1072,7 +1105,14 @@ public class ParatextSyncRunner : IParatextSyncRunner
         }
 
         // Report on authentication success before other attempts.
-        await PreflightAuthenticationReportAsync();
+        if (!await PreflightAuthenticationReportAsync())
+        {
+            Log("The user cannot authenticate to Paratext, so the sync cannot continue.", projectSFId, userId);
+            await _projectDoc.SubmitJson0OpAsync(op =>
+                op.Set(pd => pd.Sync.LastSyncErrorCode, (int)SyncErrorCodes.ParatextAuthenticationError)
+            );
+            return false;
+        }
 
         try
         {

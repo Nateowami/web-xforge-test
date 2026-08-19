@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Linq.Expressions;
+using System.Net.Http;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -99,6 +100,54 @@ public class ParatextSyncRunnerTests
 
         SyncMetrics syncMetrics = env.GetSyncMetrics("project01");
         Assert.That(syncMetrics.Status, Is.EqualTo(SyncStatus.Failed));
+    }
+
+    [Test]
+    public async Task SyncAsync_ParatextAuthenticationError()
+    {
+        var env = new TestEnvironment();
+        env.SetupSFData(true, true, false, false);
+        env.SetupPTData(new Book("MAT", 2), new Book("MRK", 2));
+        env.ParatextService.CanUserAuthenticateToPTArchivesAsync("user01").Returns(false);
+
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        SFProject project = env.VerifyProjectSync(false);
+        Assert.That(project.Sync.LastSyncSuccessful, Is.False);
+        Assert.That(project.Sync.LastSyncErrorCode, Is.EqualTo((int)SyncErrorCodes.ParatextAuthenticationError));
+
+        // The sync should have stopped before doing any work, and without reporting an exception
+        await env
+            .ParatextService.DidNotReceive()
+            .SendReceiveAsync(
+                Arg.Any<UserSecret>(),
+                Arg.Any<string>(),
+                Arg.Any<IProgress<ProgressState>>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<SyncMetrics>()
+            );
+        env.ExceptionHandler.DidNotReceive().ReportException(Arg.Any<Exception>());
+
+        SyncMetrics syncMetrics = env.GetSyncMetrics("project01");
+        Assert.That(syncMetrics.Status, Is.EqualTo(SyncStatus.Failed));
+    }
+
+    [Test]
+    public async Task SyncAsync_ParatextAuthenticationCheckThrows()
+    {
+        // The authentication report should not be able to fail the sync with an unhandled exception
+        var env = new TestEnvironment();
+        env.SetupSFData(true, true, false, false);
+        env.SetupPTData(new Book("MAT", 2), new Book("MRK", 2));
+        env.ParatextService.CanUserAuthenticateToPTRegistryAsync(Arg.Any<UserSecret>())
+            .Throws(new HttpRequestException("invalid or revoked refresh token"));
+
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        SFProject project = env.VerifyProjectSync(false);
+        Assert.That(project.Sync.LastSyncSuccessful, Is.False);
+        Assert.That(project.Sync.LastSyncErrorCode, Is.EqualTo((int)SyncErrorCodes.ParatextAuthenticationError));
+        env.ExceptionHandler.DidNotReceive().ReportException(Arg.Any<Exception>());
     }
 
     [Test]
@@ -3577,6 +3626,10 @@ public class ParatextSyncRunnerTests
             UserService = Substitute.For<IUserService>();
             SFProjectService = Substitute.For<ISFProjectService>();
             ParatextService = Substitute.For<IParatextService>();
+
+            // By default, the user can authenticate to the Paratext services
+            ParatextService.CanUserAuthenticateToPTRegistryAsync(Arg.Any<UserSecret>()).Returns(true);
+            ParatextService.CanUserAuthenticateToPTArchivesAsync(Arg.Any<string>()).Returns(true);
 
             ParatextService
                 .GetBiblicalTermsAsync(Arg.Any<UserSecret>(), Arg.Any<string>(), Arg.Any<IEnumerable<int>>())

@@ -30,7 +30,8 @@ export function isSFProjectSyncing(project: SFProjectProfile): boolean {
 }
 
 enum SyncErrorCodes {
-  UserPermission = -1
+  UserPermission = -1,
+  ParatextAuthentication = -2
 }
 
 @Component({
@@ -133,6 +134,8 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
           this.previousLastSyncDate = this.lastSyncDate;
         } else if (this.showSyncUserPermissionsFailureMessage) {
           void this.dialogService.message(this.i18n.translate('sync.user_permissions_failure_dialog_message'));
+        } else if (this.showParatextAuthenticationFailureMessage) {
+          this.authService.requestParatextCredentialUpdate();
         } else {
           void this.dialogService.message(
             this.i18n.translate('sync.something_went_wrong_synchronizing_this_project', { projectName })
@@ -152,6 +155,10 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
 
   get showSyncUserPermissionsFailureMessage(): boolean {
     return this.lastSyncErrorCode === SyncErrorCodes.UserPermission;
+  }
+
+  get showParatextAuthenticationFailureMessage(): boolean {
+    return this.lastSyncErrorCode === SyncErrorCodes.ParatextAuthentication;
   }
 
   get showSyncFailureSupportMessage(): boolean {
