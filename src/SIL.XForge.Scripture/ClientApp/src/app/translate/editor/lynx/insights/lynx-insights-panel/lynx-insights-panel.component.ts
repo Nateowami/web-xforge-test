@@ -26,8 +26,10 @@ import { ActivatedProjectService } from 'xforge-common/activated-project.service
 import { I18nService } from 'xforge-common/i18n.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { isWhitespace } from 'xforge-common/util/string-util';
+import { TextDocId } from '../../../../../core/models/text-doc';
 import { SFProjectService } from '../../../../../core/sf-project.service';
 import { rangeComparer } from '../../../../../shared/text/quill-util';
+import { getSegmentStyleDescription } from '../../../../../shared/text/usfm-style-descriptions';
 import { combineVerseRefStrs, getVerseRefFromSegmentRef } from '../../../../../shared/verse-utils';
 import { EditorSegmentService } from '../base-services/editor-segment.service';
 import { EDITOR_INSIGHT_DEFAULTS, LynxInsight, LynxInsightConfig, LynxInsightRange } from '../lynx-insight';
@@ -478,6 +480,7 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
       const bookName = this.i18n.localizeBook(insight.textDocId.bookNum);
       const chapterNum = insight.textDocId.chapterNum;
       let verseNum = '';
+      let segmentRef: string | undefined;
 
       const textDocIdStr = insight.textDocId.toString();
       const editorSegments = this.textDocSegments.get(textDocIdStr);
@@ -486,7 +489,7 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
         const segmentRefs = this.editorSegmentService.getSegmentRefs(insight.range, editorSegments);
 
         if (segmentRefs.length > 0) {
-          const segmentRef = segmentRefs[0];
+          segmentRef = segmentRefs[0];
           const verseRef = getVerseRefFromSegmentRef(insight.textDocId.bookNum, segmentRef);
 
           if (verseRef) {
@@ -495,7 +498,9 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
         }
       }
 
-      refString = verseNum ? `${bookName} ${chapterNum}:${verseNum}` : `${bookName} ${chapterNum}`;
+      refString = verseNum
+        ? `${bookName} ${chapterNum}:${verseNum}`
+        : this.getNonVerseRefString(insight.textDocId, segmentRef);
     }
 
     return {
@@ -550,7 +555,8 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
    * Generate the description (link text) for an insight.  The format for the verse reference is as follows:
    * - If the range is within a single verse, `refString` is the verse reference (Example: `Mark 12:7`).
    * - If the range spans multiple verses, `refString` should reflect that (Example: `Mark 12:7-9`).
-   * - Non-verse segments are included as [segment_ref] in the place of verse references.
+   * - For non-verse segments (introduction material, headings, etc.), the description of the segment's USFM style
+   *   takes the place of the verse reference (Example: `John 1 (Introduction - Outline Level 1)`).
    */
   private createInsightDescription(insight: LynxInsightWithText): InsightDescription {
     let textDocIdStr: string = '';
@@ -587,12 +593,7 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
     if (combinedVerseRef != null) {
       refString = this.i18n.localizeReference(combinedVerseRef);
     } else {
-      const bookChapter: string = this.i18n.localizeBookChapter(
-        insight.textDocId.bookNum,
-        insight.textDocId.chapterNum
-      );
-
-      refString = `${bookChapter}:[${segmentRefs.length > 0 ? segmentRefs[0] : 'Unknown'}]`;
+      refString = this.getNonVerseRefString(insight.textDocId, segmentRefs[0]);
     }
 
     // Use the pre-calculated sample text parts from processInsightText
@@ -602,6 +603,23 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
       refString,
       sampleTextParts
     };
+  }
+
+  /**
+   * Location of an insight that is not within a verse, such as introduction material or a heading.
+   * The segment's USFM style describes the location (Example: `John 1 (Introduction - Outline Level 1)`).
+   * If the style is unknown, or the segment could not be determined, the book and chapter are used alone.
+   */
+  private getNonVerseRefString(textDocId: TextDocId, segmentRef: string | undefined): string {
+    const bookChapter: string = this.i18n.localizeBookChapter(textDocId.bookNum, textDocId.chapterNum);
+    const styleDescription: string | undefined = getSegmentStyleDescription(segmentRef);
+
+    return styleDescription == null
+      ? bookChapter
+      : this.i18n.translateStatic('lynx_insights_panel.insight_location_with_style', {
+          location: bookChapter,
+          style: styleDescription
+        });
   }
 
   /**

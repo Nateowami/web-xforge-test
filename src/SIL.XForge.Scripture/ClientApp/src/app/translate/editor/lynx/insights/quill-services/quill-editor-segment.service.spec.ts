@@ -54,9 +54,27 @@ describe('QuillEditorSegmentService', () => {
 
       const result = service.parseSegments(ops);
 
+      // Segment ranges span the embeds that occur within them (as in a note within a verse)
       expect(result.size).toBe(2);
-      expect(result.get('verse-1')).toEqual({ index: 0, length: 10 });
-      expect(result.get('verse-2')).toEqual({ index: 12, length: 14 });
+      expect(result.get('verse-1')).toEqual({ index: 0, length: 11 });
+      expect(result.get('verse-2')).toEqual({ index: 12, length: 15 });
+    });
+
+    it('should include embeds that are part of a segment', () => {
+      const ops: DeltaOperation[] = [
+        { insert: 'Hello ', attributes: { segment: 'verse-1' } },
+        { insert: { note: { style: 'f' } }, attributes: { segment: 'verse-1' } },
+        { insert: ' world', attributes: { segment: 'verse-1' } },
+        { insert: { blank: true }, attributes: { segment: 'verse-2' } },
+        { insert: '\n', attributes: { para: { style: 'p' } } }
+      ];
+
+      const result = service.parseSegments(ops);
+
+      expect(result.size).toBe(2);
+      expect(result.get('verse-1')).toEqual({ index: 0, length: 13 });
+      // A segment that contains only a blank embed still has a range
+      expect(result.get('verse-2')).toEqual({ index: 13, length: 1 });
     });
 
     it('should handle empty ops array', () => {

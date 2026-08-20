@@ -804,6 +804,52 @@ describe('LynxInsightsPanelComponent', () => {
       expect(result).toBe(' text');
     }));
   });
+
+  describe('createInsightDescription()', () => {
+    const textDocId = new TextDocId('project1', 43, 1);
+
+    function createEnv(segmentRefs: string[]): TestEnvironment {
+      const env = new TestEnvironment({
+        insights: [],
+        callback: () => {
+          when(mockI18nService.localizeBookChapter(anything(), anything())).thenReturn('John 1');
+          when(mockI18nService.localizeReference(anything())).thenReturn('John 1:5');
+          when(mockI18nService.translateStatic(anything(), anything())).thenCall(
+            (_key: string, params: { location: string; style: string }) => `${params.location} (${params.style})`
+          );
+          when(mockEditorSegmentService.getSegmentRefs(anything(), anything())).thenReturn(segmentRefs);
+        }
+      });
+
+      // Segments for the text doc must be present for the description to include the insight location
+      env.component['textDocSegments'].set(textDocId.toString(), new Map());
+
+      return env;
+    }
+
+    it('should use the verse reference for insights within a verse', fakeAsync(() => {
+      const env = createEnv(['verse_1_5']);
+      const insight = { ...createTestInsight('insight-1', 'warning', 'desc', textDocId), sampleTextParts: undefined };
+
+      expect(env.component['createInsightDescription'](insight as any).refString).toBe('John 1:5');
+    }));
+
+    it('should describe the USFM style for insights outside of a verse', fakeAsync(() => {
+      const env = createEnv(['io1_1']);
+      const insight = { ...createTestInsight('insight-1', 'warning', 'desc', textDocId), sampleTextParts: undefined };
+
+      expect(env.component['createInsightDescription'](insight as any).refString).toBe(
+        'John 1 (Introduction - Outline Level 1)'
+      );
+    }));
+
+    it('should use the book and chapter alone when the segment is unknown', fakeAsync(() => {
+      const env = createEnv([]);
+      const insight = { ...createTestInsight('insight-1', 'warning', 'desc', textDocId), sampleTextParts: undefined };
+
+      expect(env.component['createInsightDescription'](insight as any).refString).toBe('John 1');
+    }));
+  });
 });
 
 interface TestEnvironmentConstructorArgs {

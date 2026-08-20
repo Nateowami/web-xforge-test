@@ -10,6 +10,8 @@ import { LynxInsightRange } from '../lynx-insight';
 export class QuillEditorSegmentService extends EditorSegmentService {
   /**
    * Parses ops to get a map of segment name -> segment range.
+   * A segment range spans from the start of its first op to the end of its last op, so embeds within the
+   * segment (notes, figures, or the blank of an empty segment) are included in the segment's range.
    */
   parseSegments(ops: DeltaOperation[]): Map<string, LynxInsightRange> {
     const segmentMap = new Map<string, LynxInsightRange>();
@@ -17,23 +19,20 @@ export class QuillEditorSegmentService extends EditorSegmentService {
 
     for (const op of ops) {
       if (op.insert != null) {
-        if (isString(op.insert)) {
-          const length: number = op.insert.length;
-          const segment: string | undefined = op.attributes?.segment as string | undefined;
+        const length: number = isString(op.insert) ? op.insert.length : 1; // Embeds have a length of 1
+        const segment: string | undefined = op.attributes?.segment as string | undefined;
 
-          if (isString(segment)) {
-            if (segmentMap.has(segment)) {
-              const existingRange = segmentMap.get(segment)!;
-              existingRange.length += length;
-            } else {
-              segmentMap.set(segment, { index: currentIndex, length });
-            }
+        if (isString(segment)) {
+          const existingRange: LynxInsightRange | undefined = segmentMap.get(segment);
+
+          if (existingRange == null) {
+            segmentMap.set(segment, { index: currentIndex, length });
+          } else {
+            existingRange.length = currentIndex + length - existingRange.index;
           }
-
-          currentIndex += length;
-        } else {
-          currentIndex++; // Account for embeds
         }
+
+        currentIndex += length;
       }
     }
 

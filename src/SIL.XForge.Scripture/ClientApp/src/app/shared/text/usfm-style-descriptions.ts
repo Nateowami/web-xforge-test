@@ -249,3 +249,22 @@ zpa-d - Periph - Description`
     result[description.substring(0, description.indexOf(' '))] = description;
     return result;
   }, {});
+
+/**
+ * Gets the description of the USFM style of a segment, without the style name
+ * (as in 'Introduction - Outline Level 1' for a segment ref of 'io1_1').
+ * @param segmentRef The segment ref, which is of the form '{style}_{n}', optionally nested with '/'
+ * (as in 'verse_1_1/f_1' for the contents of a footnote).
+ * @returns The style description, or undefined if the segment's style is unknown.
+ */
+export function getSegmentStyleDescription(segmentRef: string | undefined): string | undefined {
+  if (segmentRef == null) {
+    return undefined;
+  }
+
+  const style: string = segmentRef.split('/').pop()!.replace(/_\d+$/, '');
+  const description: string | undefined = USFM_STYLE_DESCRIPTIONS[style];
+
+  // Descriptions are of the form '{style} - {description}'
+  return description == null ? undefined : description.substring(description.indexOf(' - ') + 3);
+}
