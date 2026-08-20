@@ -73,6 +73,18 @@ blockquote {
 .highlight {
   background-color: $highlight;
 }
+// MDL gives .mdl-button a fixed 36px height, centers its label with a matching 36px line-height, and
+// hides the overflow. A label that needs a second line (narrow screen, long translation) is therefore
+// clipped, leaving the first line against the top of the button instead of centered. Let the button
+// grow with its label, and center the label rather than relying on the line height.
+.mdl-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: auto;
+  min-height: 36px;
+  line-height: 1.2;
+}
 .mdl-button.button-lg {
   padding: 0.5em 2em;
   font-size: 18px;
