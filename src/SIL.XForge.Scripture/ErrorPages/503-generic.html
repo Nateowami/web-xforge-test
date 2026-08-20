@@ -5,6 +5,33 @@
         <meta http-equiv="X-UA-Compatible" content="IE=edge" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>503: Site unavailable</title>
+        <script type="text/javascript">
+            // The web server returns this page while the app server is down, including for the site
+            // root. A signed in user whose browser has the app cached in its service worker can keep
+            // working offline, but only from an app route, so send them to the app - which is what
+            // the root page does when the app server is up.
+            (function () {
+                if (window.location.pathname !== "/") {
+                    return;
+                }
+                try {
+                    if (localStorage.getItem("user_id") == null) {
+                        return;
+                    }
+                } catch (error) {
+                    // Storage can be unavailable, in which case there is no session to detect.
+                    return;
+                }
+                navigator.serviceWorker?.getRegistration("/").then(
+                    function (registration) {
+                        if (registration?.active != null) {
+                            window.location.replace("/projects");
+                        }
+                    },
+                    function () {}
+                );
+            })();
+        </script>
         <style type="text/css">
             html,
             body {
