@@ -399,13 +399,16 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   get targetFocused(): boolean {
-    return this._targetFocused;
+    // both the note dialog and the bottom sheet causes the editor to lose focus,
+    // but the editor should still keep the highlighting in both situations.
+    // This is evaluated when read rather than when the focus event occurs, so that the editor is no longer treated as
+    // focused once the dialog or bottom sheet closes without focus returning to it.
+    return (
+      this._targetFocused || this.dialogService.openDialogCount > 0 || this.bottomSheetRef?.containerInstance != null
+    );
   }
 
   set targetFocused(focused: boolean) {
-    // both the note dialog and the bottom sheet causes the editor to lose focus,
-    // but the editor should still keep the highlighting in both situations
-    focused = this.dialogService.openDialogCount > 0 || this.bottomSheetRef != null ? true : focused;
     this._targetFocused = focused;
   }
 

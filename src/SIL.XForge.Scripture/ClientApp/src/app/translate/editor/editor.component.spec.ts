@@ -2800,6 +2800,33 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('stops highlighting when focus is lost to a dialog opened outside the editor', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+      const segmentRef = 'verse_1_3';
+      const segmentRange = env.component.target!.getSegmentRange(segmentRef)!;
+      env.targetEditor.setSelection(segmentRange.index);
+      env.wait();
+      const element: HTMLElement = env.targetTextEditor.querySelector(
+        'usx-segment[data-segment="' + segmentRef + '"]'
+      )!;
+      expect(element.classList).withContext('editor focused').toContain('highlight-segment');
+
+      // opening a dialog from outside the editor, e.g. a footnote in the source text, blurs the editor
+      const iconElement: HTMLElement = env.getNoteThreadIconElement(segmentRef, 'dataid02')!;
+      iconElement.click();
+      env.component.targetFocused = false;
+      env.wait();
+      expect(element.classList).withContext('dialog opened').toContain('highlight-segment');
+
+      // the editor is not focused again when the dialog is closed
+      instance(mockedMatDialog).closeAll();
+      env.wait();
+      expect(element.classList).withContext('dialog closed').not.toContain('highlight-segment');
+      env.dispose();
+    }));
+
     it('shows only note threads published in Scripture Forge', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
