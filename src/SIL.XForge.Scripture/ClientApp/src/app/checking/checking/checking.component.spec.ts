@@ -2132,6 +2132,25 @@ describe('CheckingComponent', () => {
         flush();
       }));
 
+      it('shows the add comment button if the comment being edited is deleted by another user', fakeAsync(() => {
+        const env = new TestEnvironment({ user: CHECKER_USER });
+        env.selectQuestion(1);
+        env.answerQuestion('Answer question to be commented on');
+        env.commentOnAnswer(0, 'Response to answer');
+        env.waitForSliderUpdate();
+        env.clickButton(env.getEditCommentButton(0, 0));
+        expect(env.getYourCommentField(0)).not.toBeNull();
+        expect(env.getAddCommentButton(0)).toBeNull();
+
+        // A project administrator deletes the comment while it is being edited
+        env.simulateRemoteDeleteComment(0, 0);
+
+        expect(env.getAnswerComments(0).length).toBe(0);
+        expect(env.getYourCommentField(0)).toBeNull();
+        expect(env.getAddCommentButton(0)).not.toBeNull();
+        flush();
+      }));
+
       it('can record audio for a comment', fakeAsync(() => {
         const env = new TestEnvironment({ user: CHECKER_USER });
         env.selectQuestion(1);
@@ -3596,6 +3615,16 @@ class TestEnvironment {
   simulateRemoteDeleteAnswer(questionId: string, answerIndex: number): void {
     const questionDoc = this.getQuestionDoc(questionId);
     questionDoc.submitJson0Op(op => op.set(q => q.answers[answerIndex].deleted, true), false);
+    tick(this.questionReadTimer);
+    this.fixture.detectChanges();
+    tick();
+  }
+
+  simulateRemoteDeleteComment(answerIndex: number, commentIndex: number): void {
+    const questionDoc = this.component.questionsList!.activeQuestionDoc!;
+    const answerId = this.component.answersPanel!.answers[answerIndex].dataId;
+    const docAnswerIndex = questionDoc.data!.answers.findIndex(a => a.dataId === answerId);
+    questionDoc.submitJson0Op(op => op.set(q => q.answers[docAnswerIndex].comments[commentIndex].deleted, true), false);
     tick(this.questionReadTimer);
     this.fixture.detectChanges();
     tick();

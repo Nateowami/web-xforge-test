@@ -163,6 +163,17 @@ export class CheckingCommentsComponent extends SubscriptionDisposable implements
       this.initUserCommentRefsRead = cloneDeep(this.projectUserConfigDoc.data.commentRefsRead);
     }
     if (this.questionDoc != null) {
+      // If the comment currently being edited is deleted by another user, close the edit form. Otherwise the form
+      // disappears with the comment but the component still considers a form to be open, which hides the
+      // "Add a comment" button until the user navigates away.
+      this.subscribe(this.questionDoc.remoteChanges$, () => {
+        if (
+          this.activeComment != null &&
+          !this.getSortedComments().some(c => c.dataId === this.activeComment!.dataId)
+        ) {
+          this.hideCommentForm();
+        }
+      });
       // Give the user two seconds before marking the comment as read. This also prevents SF-624 - prematurely
       // marking a remotely added comment as read
       this.subscribe(this.questionDoc.remoteChanges$.pipe(debounceTime(2000)), () => {
