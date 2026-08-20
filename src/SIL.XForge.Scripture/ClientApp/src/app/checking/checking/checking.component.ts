@@ -1213,6 +1213,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
   }
 
   toggleAudio(forceStopAndHide: boolean = false): void {
+    const wasShowingScriptureAudioPlayer: boolean = this.showScriptureAudioPlayer;
+
     this._scriptureAudioPlayer?.isPlaying || forceStopAndHide
       ? this._scriptureAudioPlayer?.stop()
       : this._scriptureAudioPlayer?.play();
@@ -1226,10 +1228,13 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
 
     if (this.scripturePanel === undefined) return;
 
-    if (this.showScriptureAudioPlayer) {
-      this.scripturePanel.activeVerse = undefined;
-    } else {
+    if (!this.showScriptureAudioPlayer) {
       this.scripturePanel.activeVerse = this.activeQuestionVerseRef;
+    } else if (!wasShowingScriptureAudioPlayer) {
+      // Only clear the question's verse highlight when the audio player is first shown. If playback is merely being
+      // resumed, the highlight is already following the audio, and clearing it would scroll the text back to the top
+      // and leave nothing highlighted until the audio reaches the next timing segment.
+      this.scripturePanel.activeVerse = undefined;
     }
     this.changeDetector.markForCheck();
   }

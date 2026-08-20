@@ -2766,6 +2766,49 @@ describe('CheckingComponent', () => {
       expect(env.isSegmentHighlighted(1, 6)).toBe(true);
     }));
 
+    it('keeps the audio highlight when resuming playback with the header play button', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER
+      });
+      env.selectQuestion(1);
+
+      const audio = env.mockScriptureAudioAndPlay();
+      env.component.highlightSegments('verse_1_3');
+      env.waitForSliderUpdate();
+      env.fixture.detectChanges();
+      expect(env.isSegmentHighlighted(1, 3)).toBe(true);
+
+      // The user pauses with the player's own controls, so the player is still shown but is no longer playing
+      let isPlaying: boolean = false;
+      when(audio.isPlaying).thenCall(() => isPlaying);
+      when(audio.play()).thenCall(() => (isPlaying = true));
+
+      // Resume with the header play button
+      env.component.toggleAudio();
+      env.waitForSliderUpdate();
+      env.fixture.detectChanges();
+
+      expect(env.component.isAudioPlaying()).toBe(true);
+      expect(env.component.showScriptureAudioPlayer).toBe(true);
+      expect(env.isSegmentHighlighted(1, 3)).toBe(true);
+    }));
+
+    it('clears the question highlight when the audio player is first shown', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER
+      });
+      env.selectQuestion(1);
+      env.fixture.detectChanges();
+      expect(env.isSegmentHighlighted(1, 1)).toBe(true);
+
+      env.mockScriptureAudioAndPlay();
+      env.waitForSliderUpdate();
+      env.fixture.detectChanges();
+
+      expect(env.component.showScriptureAudioPlayer).toBe(true);
+      expect(env.isSegmentHighlighted(1, 1)).toBe(false);
+    }));
+
     // TODO: Get this test working
     xit('pauses audio on reload (changing book)', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER, questionScope: 'book' });
