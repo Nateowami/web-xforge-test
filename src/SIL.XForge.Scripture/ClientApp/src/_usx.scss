@@ -345,6 +345,15 @@ usx-segment:first-child usx-blank {
   width: 5px;
 }
 
+// A blank segment is just an atomic inline box (usx-blank above), and Firefox allows a line to
+// break before such a box even when it immediately follows a verse number. That leaves the verse
+// number stranded at the end of a line with its blank at the start of the next one, which is very
+// visible in books that are all verse numbers and no text. The segment holds no text, so there is
+// nothing to wrap inside it; marking it unbreakable simply keeps it with its verse number.
+usx-segment:has(> usx-blank) {
+  white-space: nowrap;
+}
+
 usx-char {
   // The data-style attribute is a space-delimited list of styles.
 
