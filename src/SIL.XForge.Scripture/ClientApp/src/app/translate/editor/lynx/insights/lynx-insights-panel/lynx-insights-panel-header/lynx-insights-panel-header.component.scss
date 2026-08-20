@@ -12,7 +12,12 @@
       min-width: auto;
     }
 
-    // TODO: make responsive (tabs header is cut off on small screens)
+    // Let the tab header shrink below its content width, so tabs that do not fit become
+    // scrollable (with Material's pagination buttons) rather than being clipped out of reach
+    mat-tab-group {
+      min-width: 0;
+    }
+
     .mat-mdc-tab-header {
       --mat-tab-container-height: 2.2em;
       --mat-tab-label-text-size: 0.9em;

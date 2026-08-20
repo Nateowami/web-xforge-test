@@ -295,6 +295,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   target: TextComponent | undefined;
   draftTimestamp?: Date;
   lynxInsightsEnabled = false;
+  /** Whether the source and target are stacked in a single column (narrow screens). */
+  isSingleColumnLayout = false;
   lynxAutoCorrectionsEnabled = false;
   readonly issueEmail = environment.issueEmail;
 
@@ -919,14 +921,16 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         this.syncScroll();
       });
 
-    // Consolidate tab groups for small screen widths
+    // Show a single editor column, with the tab groups consolidated into it, for screens too narrow
+    // for two usable columns
     combineLatest([
-      this.breakpointObserver.observe(this.mediaBreakpointService.width('<', Breakpoint.SM)),
+      this.breakpointObserver.observe(this.mediaBreakpointService.width('<', Breakpoint.LG)),
       this.tabStateInitialized$.pipe(filter(initialized => initialized)),
       this.targetEditorLoaded$.pipe(take(1))
     ])
       .pipe(quietTakeUntilDestroyed(this.destroyRef))
       .subscribe(([breakpointState]) => {
+        this.isSingleColumnLayout = breakpointState.matches;
         if (breakpointState.matches) {
           this.visibleTabGroups = ['target'];
           this.tabState.consolidateTabGroups('target');

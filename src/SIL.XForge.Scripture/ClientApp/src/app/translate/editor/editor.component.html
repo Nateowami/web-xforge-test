@@ -2,7 +2,11 @@
   @if (translationSuggestionsEnabled && userHasGeneralEditRight) {
     <app-smt-retirement-notice></app-smt-retirement-notice>
   }
-  <div class="content" [class.reverse-columns]="!isTargetTextRight" [class.target-only]="!showSourceTab">
+  <div
+    class="content"
+    [class.reverse-columns]="!isTargetTextRight"
+    [class.target-only]="!showSourceTab || isSingleColumnLayout"
+  >
     <div class="toolbar">
       <div class="toolbar-options">
         <app-book-chapter-chooser
