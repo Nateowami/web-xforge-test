@@ -24,8 +24,12 @@
 
 app-text {
   display: block;
-  overflow-y: scroll;
-  max-height: calc(100vh - 25rem);
+  overflow-y: auto;
+  // Take whatever height the dialog has left after the chapter picker and the selection preview.
+  // Sizing from the viewport instead left only a line or two of scripture visible on short windows
+  // (a 1366x768 laptop, or any window when the browser is zoomed in).
+  flex: 1 1 auto;
+  min-height: 8em;
 }
 
 .selection-reference {
@@ -34,8 +38,11 @@ app-text {
 
 .selection-preview {
   font-family: var(--project-font);
-  height: 16em;
-  overflow-y: scroll;
+  // Keep the preview a fixed size so the scripture doesn't shift while text is being selected, but
+  // small enough to leave the scripture itself the bulk of the dialog.
+  flex: 0 0 auto;
+  height: 6em;
+  overflow-y: auto;
   margin-top: 1em;
   > p {
     margin-bottom: 0;
