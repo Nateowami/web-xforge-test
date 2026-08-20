@@ -41,6 +41,8 @@ export const USER_ID_SETTING = 'user_id';
 export const ROLES_SETTING = 'roles';
 /** Key for local storage of when the token expires (Unix epoch) in milliseconds */
 export const EXPIRES_AT_SETTING = 'expires_at';
+/** Key for session storage of whether the user has logged out in this browser tab */
+export const LOGGED_OUT_SETTING = 'logged_out';
 export const AUTH0_SCOPE = `openid profile email ${environment.scope} offline_access`;
 
 /**
@@ -161,6 +163,15 @@ export class AuthService {
     return this.localSettings.get(EXPIRES_AT_SETTING);
   }
 
+  /**
+   * Whether the user has logged out in this browser tab. Session storage is used, rather than local storage (which is
+   * cleared on log out), so that the flag survives the redirects through Auth0 and the log out, lasts as long as the
+   * tab does, and does not affect other tabs.
+   */
+  get loggedOutInThisTab(): boolean {
+    return sessionStorage.getItem(LOGGED_OUT_SETTING) === 'true';
+  }
+
   get isLoggedInUserAnonymous(): Promise<boolean> {
     return firstValueFrom(this.loggedInState$.pipe(map(state => state.anonymousUser)));
   }
@@ -275,6 +286,7 @@ export class AuthService {
       );
     }
     if (proceedWithLogout) {
+      sessionStorage.setItem(LOGGED_OUT_SETTING, 'true');
       this.cookieService.deleteAll('/');
       await this.offlineStore.deleteDB();
       this.localSettings.clear();
@@ -618,6 +630,7 @@ export class AuthService {
   }
 
   private async localLogIn(accessToken: string, idToken: string, expiresIn: number): Promise<void> {
+    sessionStorage.removeItem(LOGGED_OUT_SETTING);
     const claims: any = jwtDecode(accessToken);
     const prevUserId: string | undefined = this.currentUserId;
     const role: string | string[] | undefined = claims[XF_ROLE_CLAIM];
