@@ -367,7 +367,12 @@ public class ParatextNotesMapper(
             || !XNode.DeepEquals(oldCommentElem.Element("content"), commentElem.Element("content"))
         )
             return true;
-        return expectNoteTagSet && !oldCommentElem.Elements("tagAdded").Any();
+        XElement? tagAddedElem = commentElem.Element("tagAdded");
+        if (!expectNoteTagSet || tagAddedElem is null)
+            return false;
+        // The community checking note tag is recreated with a new id if it is overwritten in Paratext,
+        // so re-send the comment if it is not tagged with the note tag we expect
+        return !oldCommentElem.Elements("tagAdded").Any(t => t.Value == tagAddedElem.Value);
     }
 
     private ParatextUserProfile FindOrCreateParatextUser(

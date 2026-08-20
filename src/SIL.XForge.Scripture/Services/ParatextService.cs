@@ -1546,14 +1546,19 @@ public class ParatextService : DisposableBase, IParatextService
             // Disallow updating existing comment tags from SF
             throw new ArgumentException("Cannot update an existing comment tag via Scripture Forge");
         }
-        var newCommentTag = new CommentTag(noteTag.Name, noteTag.Icon);
-        // Check that the tag does not already exist
-        if (commentTags.FindMatchingTag(newCommentTag) == CommentTag.toDoTagId)
+        // Check that the tag does not already exist. Only the name is matched on, as CommentTags.FindMatchingTag()
+        // falls back to matching on the icon, which can bind Scripture Forge to an unrelated Paratext note tag.
+        CommentTag? existingCommentTag = commentTags
+            .GetAllTags()
+            .FirstOrDefault(t => t.Name.Equals(noteTag.Name, StringComparison.OrdinalIgnoreCase));
+        if (existingCommentTag != null)
         {
-            // The to do tag is returned as the default if a matching tag does not exist
-            commentTags.AddOrUpdate(newCommentTag);
+            return existingCommentTag.Id;
         }
-        return commentTags.FindMatchingTag(newCommentTag);
+        var newCommentTag = new CommentTag(noteTag.Name, noteTag.Icon);
+        // AddOrUpdate() sets the id of the new tag
+        commentTags.AddOrUpdate(newCommentTag);
+        return newCommentTag.Id;
     }
 
     /// <summary>

@@ -4008,6 +4008,53 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public void UpdateCommentTag_CreatesTagWhenOnlyTheIconMatches()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string paratextId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        env.SetupCommentTags(env.ProjectScrText, null);
+        CommentTags.ClearCacheForProject(env.ProjectScrText);
+        // "icon2" is already used by the Paratext note tag named "tag2"
+        var noteTag = new NoteTag
+        {
+            TagId = CommentTag.notSetId,
+            Icon = "icon2",
+            Name = "SF Note Tag",
+        };
+
+        int tagId = env.Service.UpdateCommentTag(userSecret, paratextId, noteTag);
+
+        Assert.That(tagId, Is.EqualTo(env.TagCount + 1));
+        ParatextSettings? settings = env.Service.GetParatextSettings(userSecret, paratextId);
+        Assert.That(settings?.NoteTags.First(t => t.TagId == tagId).Name, Is.EqualTo(noteTag.Name));
+    }
+
+    [Test]
+    public void UpdateCommentTag_ReusesTagWithTheSameName()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string paratextId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        env.SetupCommentTags(env.ProjectScrText, null);
+        CommentTags.ClearCacheForProject(env.ProjectScrText);
+        var noteTag = new NoteTag
+        {
+            TagId = CommentTag.notSetId,
+            Icon = "someIcon",
+            Name = "tag2",
+        };
+
+        int tagId = env.Service.UpdateCommentTag(userSecret, paratextId, noteTag);
+
+        Assert.That(tagId, Is.EqualTo(2));
+        ParatextSettings? settings = env.Service.GetParatextSettings(userSecret, paratextId);
+        Assert.That(settings?.NoteTags.Count(), Is.EqualTo(env.TagCount - 1));
+    }
+
+    [Test]
     public void UpdateCommentTag_DoesNotWriteIfExistingTag()
     {
         var env = new TestEnvironment();

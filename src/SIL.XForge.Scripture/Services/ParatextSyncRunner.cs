@@ -92,6 +92,9 @@ public class ParatextSyncRunner : IParatextSyncRunner
     private Dictionary<string, string> _userIdsToDisplayNames;
     private IReadOnlyList<ParatextProjectUser> _paratextUsers = [];
 
+    /// <summary>The note tags in the Paratext project, as they were at the start of this sync.</summary>
+    private IReadOnlyList<NoteTag> _paratextNoteTags = [];
+
     public ParatextSyncRunner(
         IRepository<UserSecret> userSecrets,
         IUserService userService,
@@ -556,6 +559,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
         IReadOnlyCollection<IDocument<Question>> questionDocs = await _conn.GetAndFetchDocsAsync<Question>(questionIds);
 
         ParatextSettings? settings = _paratextService.GetParatextSettings(_userSecret, paratextId);
+        _paratextNoteTags = settings?.NoteTags is null ? [] : [.. settings.NoteTags];
         double i = 0.0;
         foreach (TextInfo text in _projectDoc.Data.Texts)
         {
@@ -1283,10 +1287,7 @@ public class ParatextSyncRunner : IParatextSyncRunner
         else
             oldNotesElem = new XElement("notes", new XAttribute("version", "1.1"));
 
-        if (
-            _projectDoc.Data.CheckingConfig.NoteTagId == null
-            && _projectDoc.Data.CheckingConfig.AnswerExportMethod != CheckingAnswerExport.None
-        )
+        if (_projectDoc.Data.CheckingConfig.AnswerExportMethod != CheckingAnswerExport.None)
         {
             bool hasExportableAnswers =
                 (
@@ -1626,28 +1627,47 @@ public class ParatextSyncRunner : IParatextSyncRunner
         });
     }
 
+    /// <summary>
+    /// Determines whether the note tag Scripture Forge uses needs to be created in Paratext.
+    /// </summary>
+    /// <remarks>
+    /// As well as the tag not having been created yet, the tag can go missing. ParatextData allocates note tag
+    /// ids sequentially, so a note tag created by Scripture Forge can be given the same id as a note tag created
+    /// in Paratext since the last sync. When CommentTags.xml is merged during send/receive, the conflicting
+    /// Paratext note tag wins, and the id recorded in the project doc then refers to that Paratext note tag.
+    /// </remarks>
+    private bool ShouldCreateNoteTag(int? noteTagId, string name)
+    {
+        if (noteTagId is null or NoteTag.notSetId)
+            return true;
+        // Do not remove a note tag id if the note tags could not be read from Paratext
+        if (_paratextNoteTags.Count == 0)
+            return false;
+        return !_paratextNoteTags.Any(t =>
+            t.TagId == noteTagId && t.Name.Equals(name, StringComparison.OrdinalIgnoreCase)
+        );
+    }
+
     private async Task UpdateTranslateNoteTag(string targetParatextId)
     {
         int? defaultTagId = _projectDoc.Data.TranslateConfig.DefaultNoteTagId;
-        if (defaultTagId == null)
+        if (!ShouldCreateNoteTag(defaultTagId, NoteTag.sfNoteTagName))
+            return;
+        var newNoteTag = new NoteTag
         {
-            var newNoteTag = new NoteTag
-            {
-                TagId = NoteTag.notSetId,
-                Icon = NoteTag.sfNoteTagIcon,
-                Name = NoteTag.sfNoteTagName,
-            };
-            // Note: If we introduce a new note tag and the remote PT repo also introduces a note tag,
-            // the tag introduced here will get overwritten
-            int noteTagId = _paratextService.UpdateCommentTag(_userSecret, targetParatextId, newNoteTag);
+            TagId = NoteTag.notSetId,
+            Icon = NoteTag.sfNoteTagIcon,
+            Name = NoteTag.sfNoteTagName,
+        };
+        int noteTagId = _paratextService.UpdateCommentTag(_userSecret, targetParatextId, newNoteTag);
+        if (noteTagId != defaultTagId)
             await _projectDoc.SubmitJson0OpAsync(op => op.Set(p => p.TranslateConfig.DefaultNoteTagId, noteTagId));
-        }
     }
 
     private async Task UpdateCheckingNoteTag(string targetParatextId)
     {
-        int noteTagId = _projectDoc.Data.CheckingConfig.NoteTagId ?? NoteTag.notSetId;
-        if (noteTagId != NoteTag.notSetId)
+        int? checkingTagId = _projectDoc.Data.CheckingConfig.NoteTagId;
+        if (!ShouldCreateNoteTag(checkingTagId, NoteTag.checkingTagName))
             return;
         var newNoteTag = new NoteTag
         {
@@ -1655,8 +1675,9 @@ public class ParatextSyncRunner : IParatextSyncRunner
             Icon = NoteTag.checkingTagIcon,
             Name = NoteTag.checkingTagName,
         };
-        noteTagId = _paratextService.UpdateCommentTag(_userSecret, targetParatextId, newNoteTag);
-        await _projectDoc.SubmitJson0OpAsync(op => op.Set(p => p.CheckingConfig.NoteTagId, noteTagId));
+        int noteTagId = _paratextService.UpdateCommentTag(_userSecret, targetParatextId, newNoteTag);
+        if (noteTagId != checkingTagId)
+            await _projectDoc.SubmitJson0OpAsync(op => op.Set(p => p.CheckingConfig.NoteTagId, noteTagId));
     }
 
     /// <summary>

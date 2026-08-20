@@ -929,6 +929,98 @@ public class ParatextNotesMapperTests
         Assert.That(XNode.DeepEquals(notesElem, XElement.Parse(expectedNotesText)), Is.True);
     }
 
+    [Test]
+    public async Task GetNotesChangelistAsync_ReTagsNotesWithAnOutdatedNoteTag()
+    {
+        var env = new TestEnvironment();
+        env.SetParatextProjectRoles(true);
+        env.InitMapper(false, true);
+        env.AddData(null, null, null, null);
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        // The answer was exported with a note tag that has since been replaced in Paratext, and the community
+        // checking note tag has been recreated with a new id
+        const string oldNotesText =
+            @"
+                    <notes version=""1.1"">
+                        <thread id=""ANSWER_answer04"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user04"" date=""2019-01-04T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 4 is marked for export</p>
+                                </content>
+                                <tagAdded>2</tagAdded>
+                            </comment>
+                        </thread>
+                    </notes>";
+        Dictionary<string, ParatextUserProfile> ptProjectUsers = env.PtProjectUsers.ToDictionary(u => u.Username);
+        XElement notesElem = await env.Mapper.GetNotesChangelistAsync(
+            XElement.Parse(oldNotesText),
+            await TestEnvironment.GetQuestionDocsAsync(conn),
+            ptProjectUsers,
+            TestEnvironment.UserRoles,
+            CheckingAnswerExport.MarkedForExport,
+            TestEnvironment.CheckingNoteTagId
+        );
+
+        const string expectedNotesText =
+            @"
+                    <notes version=""1.1"">
+                        <thread id=""ANSWER_answer04"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user04"" date=""2019-01-04T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 4 is marked for export</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                        </thread>
+                    </notes>";
+        Assert.That(XNode.DeepEquals(notesElem, XElement.Parse(expectedNotesText)), Is.True);
+    }
+
+    [Test]
+    public async Task GetNotesChangelistAsync_DoesNotReTagNotesWithTheCurrentNoteTag()
+    {
+        var env = new TestEnvironment();
+        env.SetParatextProjectRoles(true);
+        env.InitMapper(false, true);
+        env.AddData(null, null, null, null);
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        const string oldNotesText =
+            @"
+                    <notes version=""1.1"">
+                        <thread id=""ANSWER_answer04"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user04"" date=""2019-01-04T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 4 is marked for export</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                        </thread>
+                    </notes>";
+        Dictionary<string, ParatextUserProfile> ptProjectUsers = env.PtProjectUsers.ToDictionary(u => u.Username);
+        XElement notesElem = await env.Mapper.GetNotesChangelistAsync(
+            XElement.Parse(oldNotesText),
+            await TestEnvironment.GetQuestionDocsAsync(conn),
+            ptProjectUsers,
+            TestEnvironment.UserRoles,
+            CheckingAnswerExport.MarkedForExport,
+            TestEnvironment.CheckingNoteTagId
+        );
+
+        const string expectedNotesText = @"<notes version=""1.1"" />";
+        Assert.That(XNode.DeepEquals(notesElem, XElement.Parse(expectedNotesText)), Is.True);
+    }
+
     private class TestEnvironment
     {
         public static readonly Dictionary<string, string> UserRoles = new Dictionary<string, string>

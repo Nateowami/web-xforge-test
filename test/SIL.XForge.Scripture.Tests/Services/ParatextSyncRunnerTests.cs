@@ -843,6 +843,78 @@ public class ParatextSyncRunnerTests
     }
 
     [Test]
+    public async Task SyncAsync_RecreatesCheckingNoteTagOverwrittenInParatext()
+    {
+        var env = new TestEnvironment();
+        Book[] books = [new Book("MAT", 1)];
+        env.SetupSFData(false, true, false, false, books);
+        env.SetupPTData(books);
+        await env.AddAnswerToQuestion("project01", "MAT", 1);
+
+        // Simulate the note tag Scripture Forge created being replaced by a note tag created in Paratext,
+        // which happens when both are given the same tag id and CommentTags.xml is merged on send/receive
+        env.ParatextService.GetParatextSettings(Arg.Any<UserSecret>(), "target")
+            .Returns(
+                new ParatextSettings
+                {
+                    Editable = true,
+                    NoteTags =
+                    [
+                        new NoteTag
+                        {
+                            TagId = env.checkingNoteTagId,
+                            Icon = NoteTag.defaultTagIcon,
+                            Name = "A Paratext note tag",
+                        },
+                    ],
+                }
+            );
+        const int newNoteTagId = 8;
+        env.ParatextService.UpdateCommentTag(Arg.Any<UserSecret>(), "target", Arg.Any<NoteTag>()).Returns(newNoteTagId);
+        Assert.That(env.GetProject().CheckingConfig.NoteTagId, Is.EqualTo(env.checkingNoteTagId), "setup");
+
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        env.ParatextService.Received(1)
+            .UpdateCommentTag(Arg.Any<UserSecret>(), "target", Arg.Is<NoteTag>(t => t.Name == NoteTag.checkingTagName));
+        Assert.That(env.GetProject().CheckingConfig.NoteTagId, Is.EqualTo(newNoteTagId));
+        env.VerifyProjectSync(true);
+    }
+
+    [Test]
+    public async Task SyncAsync_DoesNotRecreateCheckingNoteTagThatStillExists()
+    {
+        var env = new TestEnvironment();
+        Book[] books = [new Book("MAT", 1)];
+        env.SetupSFData(false, true, false, false, books);
+        env.SetupPTData(books);
+        await env.AddAnswerToQuestion("project01", "MAT", 1);
+
+        env.ParatextService.GetParatextSettings(Arg.Any<UserSecret>(), "target")
+            .Returns(
+                new ParatextSettings
+                {
+                    Editable = true,
+                    NoteTags =
+                    [
+                        new NoteTag
+                        {
+                            TagId = env.checkingNoteTagId,
+                            Icon = NoteTag.checkingTagIcon,
+                            Name = NoteTag.checkingTagName,
+                        },
+                    ],
+                }
+            );
+
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        env.ParatextService.DidNotReceive().UpdateCommentTag(Arg.Any<UserSecret>(), "target", Arg.Any<NoteTag>());
+        Assert.That(env.GetProject().CheckingConfig.NoteTagId, Is.EqualTo(env.checkingNoteTagId));
+        env.VerifyProjectSync(true);
+    }
+
+    [Test]
     public async Task SyncAsync_UpdatesExistingNoteTags()
     {
         var env = new TestEnvironment();
