@@ -4,9 +4,11 @@ import { Component, DebugElement, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { TranslocoService } from '@ngneat/transloco';
-import { UserProfile } from 'realtime-server/lib/esm/common/models/user';
-import { createTestUserProfile } from 'realtime-server/lib/esm/common/models/user-test-data';
+import { User, UserProfile } from 'realtime-server/lib/esm/common/models/user';
+import { createTestUser, createTestUserProfile } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { anything, instance, mock, when } from 'ts-mockito';
+import { AuthService } from 'xforge-common/auth.service';
+import { UserDoc } from 'xforge-common/models/user-doc';
 import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
@@ -47,6 +49,17 @@ describe('OwnerComponent', () => {
     env.fixture.detectChanges();
     expect(env.avatar).toBeFalsy();
   });
+
+  it("displays the current user's own name and avatar when their profile doc is unavailable offline", fakeAsync(() => {
+    // The current user's profile doc has never been fetched, so it is not in the offline store, but their user doc is.
+    const template = '<app-owner #checkingOwner ownerRef="user02" [includeAvatar]="true"></app-owner>';
+    const env = new TestEnvironment(template);
+    tick();
+    env.fixture.detectChanges();
+    expect(env.userName).toBe('checking.me');
+    expect(env.fixture.componentInstance.checkingOwner.owner?.displayName).toBe('User 02');
+    expect(env.fixture.componentInstance.checkingOwner.owner?.avatarUrl).toBe('http://example.com/user02.png');
+  }));
 
   it('displays date/time ', () => {
     const template = '<app-owner #checkingOwner ownerRef="user01"></app-owner>';
@@ -91,6 +104,7 @@ class TestEnvironment {
   readonly fixture: ComponentFixture<HostComponent>;
 
   readonly mockedTranslocoService = mock(TranslocoService);
+  readonly mockedAuthService = mock(AuthService);
 
   private readonly realtimeService: TestRealtimeService;
 
@@ -100,6 +114,7 @@ class TestEnvironment {
       providers: [
         provideTestRealtime(SF_TYPE_REGISTRY),
         { provide: TranslocoService, useFactory: () => instance(this.mockedTranslocoService) },
+        { provide: AuthService, useFactory: () => instance(this.mockedAuthService) },
         provideHttpClient(withInterceptorsFromDi()),
         provideHttpClientTesting()
       ]
@@ -110,6 +125,12 @@ class TestEnvironment {
     this.realtimeService.addSnapshot<UserProfile>(UserProfileDoc.COLLECTION, {
       id: 'user01',
       data: createTestUserProfile({ displayName: 'User 01' })
+    });
+    // The current user, who has a user doc but no user profile doc available
+    when(this.mockedAuthService.currentUserId).thenReturn('user02');
+    this.realtimeService.addSnapshot<User>(UserDoc.COLLECTION, {
+      id: 'user02',
+      data: createTestUser({ displayName: 'User 02', avatarUrl: 'http://example.com/user02.png' }, 2)
     });
     when(this.mockedTranslocoService.translate<string>(anything())).thenCall(
       (translationStringKey: string) => translationStringKey
