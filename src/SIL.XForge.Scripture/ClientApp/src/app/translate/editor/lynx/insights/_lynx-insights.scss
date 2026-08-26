@@ -31,11 +31,11 @@ $lynx-insights-theme-variables: (
   ),
   '--lynx-insights-info-background': (
     light: hsla(var(--lynx-insights-info-color-h), var(--lynx-insights-info-color-s), 93%, 1),
-    dark: hsla(var(--lynx-insights-info-color-h), var(--lynx-insights-info-color-s), 93%, 1)
+    dark: hsla(var(--lynx-insights-info-color-h), var(--lynx-insights-info-color-s), 26%, 1)
   ),
   '--lynx-insights-info-background-hover': (
     light: hsla(var(--lynx-insights-info-color-h), var(--lynx-insights-info-color-s), 89%, 1),
-    dark: hsla(var(--lynx-insights-info-color-h), var(--lynx-insights-info-color-s), 89%, 1)
+    dark: hsla(var(--lynx-insights-info-color-h), var(--lynx-insights-info-color-s), 30%, 1)
   ),
   '--lynx-insights-info-icon-color': (
     light: #578cff,
@@ -55,11 +55,11 @@ $lynx-insights-theme-variables: (
   ),
   '--lynx-insights-warning-background': (
     light: hsla(var(--lynx-insights-warning-color-h), var(--lynx-insights-warning-color-s), 93%, 1),
-    dark: hsla(var(--lynx-insights-warning-color-h), var(--lynx-insights-warning-color-s), 93%, 1)
+    dark: hsla(var(--lynx-insights-warning-color-h), var(--lynx-insights-warning-color-s), 14%, 1)
   ),
   '--lynx-insights-warning-background-hover': (
     light: hsla(var(--lynx-insights-warning-color-h), var(--lynx-insights-warning-color-s), 89%, 1),
-    dark: hsla(var(--lynx-insights-warning-color-h), var(--lynx-insights-warning-color-s), 89%, 1)
+    dark: hsla(var(--lynx-insights-warning-color-h), var(--lynx-insights-warning-color-s), 18%, 1)
   ),
   '--lynx-insights-warning-color-h': (
     light: 42,
@@ -92,11 +92,11 @@ $lynx-insights-theme-variables: (
   ),
   '--lynx-insights-error-background': (
     light: hsla(var(--lynx-insights-error-color-h), var(--lynx-insights-error-color-s), 93%, 1),
-    dark: hsla(var(--lynx-insights-error-color-h), var(--lynx-insights-error-color-s), 93%, 1)
+    dark: hsla(var(--lynx-insights-error-color-h), var(--lynx-insights-error-color-s), 22%, 1)
   ),
   '--lynx-insights-error-background-hover': (
     light: hsla(var(--lynx-insights-error-color-h), var(--lynx-insights-error-color-s), 89%, 1),
-    dark: hsla(var(--lynx-insights-error-color-h), var(--lynx-insights-error-color-s), 89%, 1)
+    dark: hsla(var(--lynx-insights-error-color-h), var(--lynx-insights-error-color-s), 26%, 1)
   ),
   '--lynx-insights-error-color-h': (
     light: 356,
@@ -138,10 +138,10 @@ $lynx-insights-theme-variables: (
   '--lynx-insights-status-indicator-badge-text-color': (
     // This text is shown atop colors like --lynx-insights-warning-background. For light mode, specifying #1a1c1f
     // instead of (currently identical) --mat-sys-on-background since --lynx-insights-warning-background is hard-coded,
-    // not from a theme or system color. Using the same value for dark mode since it is shown on the same colour
-    // background.
+    // not from a theme or system color. Dark mode needs a light value because the dark-mode insight backgrounds are
+    // dark tints.
     light: #1a1c1f,
-    dark: #1a1c1f
+    dark: #e6e6eb
   ),
   '--lynx-insights-checkmark-icon-color': (
     light: #3bbf3b,
