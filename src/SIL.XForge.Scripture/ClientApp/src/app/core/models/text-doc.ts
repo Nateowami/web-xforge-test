@@ -7,6 +7,7 @@ import {
   TEXTS_COLLECTION,
   TextType
 } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
+import { DeltaOperation } from 'rich-text';
 import { RealtimeDoc } from 'xforge-common/models/realtime-doc';
 import { RealtimeDocAdapter } from 'xforge-common/realtime-remote-store';
 import { RealtimeService } from 'xforge-common/realtime.service';
@@ -33,6 +34,26 @@ export class TextDocId {
   isSameBookAndChapter(verseRef: VerseRef): boolean {
     return verseRef.bookNum === this.bookNum && verseRef.chapterNum === this.chapterNum;
   }
+}
+
+/**
+ * Whether these chapter ops contain any verse text. This is the definition of "this chapter has content" used when
+ * deciding whether applying a draft would overwrite the user's work, both in the editor's draft tab and in the draft
+ * import wizard, so that the two cannot disagree. Only verse segments count: a book's heading (\id, \h, \toc, \mt)
+ * belongs to chapter 1 in every book, translated or not, so counting it would make chapter 1 always look occupied.
+ */
+export function opsHaveVerseText(ops: DeltaOperation[] | undefined): boolean {
+  return (
+    ops?.some(op => {
+      const segRef = op.attributes?.segment;
+      return (
+        typeof segRef === 'string' &&
+        segRef.startsWith('verse_') &&
+        op.insert != null &&
+        (op.insert as any).blank == null
+      );
+    }) ?? false
+  );
 }
 
 /**
@@ -81,23 +102,9 @@ export class TextDoc extends RealtimeDoc<TextData, TextData, Range> {
     return { translated, blank };
   }
 
-  getNonEmptyVerses(): string[] {
-    const verses: string[] = [];
-    if (this.data != null && this.data.ops != null) {
-      for (const op of this.data.ops) {
-        if (op.attributes != null && op.attributes.segment != null && (op.insert as any).blank == null) {
-          const segRef: string = op.attributes.segment as string;
-          if (segRef.startsWith('verse_')) {
-            const verse: string | undefined = getVerseStrFromSegmentRef(segRef);
-            if (verse != null && !verses.includes(verse)) {
-              verses.push(verse);
-            }
-          }
-        }
-      }
-    }
-
-    return verses;
+  /** See opsHaveVerseText. */
+  hasVerseText(): boolean {
+    return opsHaveVerseText(this.data?.ops);
   }
 
   getSegmentText(ref: string): string {

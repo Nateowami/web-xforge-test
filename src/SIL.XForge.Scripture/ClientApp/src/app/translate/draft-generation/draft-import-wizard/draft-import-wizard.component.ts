@@ -641,7 +641,7 @@ export class DraftImportWizardComponent implements OnInit {
 
   private async hasTextInChapter(textDocId: TextDocId): Promise<boolean> {
     const textDoc: TextDoc = await this.projectService.getText(textDocId);
-    return textDoc.getNonEmptyVerses().length > 0;
+    return textDoc.hasVerseText();
   }
 
   async startImport(): Promise<void> {

@@ -369,7 +369,7 @@ class TestEnvironment {
       ])
     );
     when(mockProjectService.getText(anything())).thenResolve({
-      getNonEmptyVerses: (): string[] => ['verse_1_1']
+      hasVerseText: (): boolean => true
     } as TextDoc);
     when(mockProjectService.onlineCreate(anything())).thenResolve('project02');
     when(mockProjectService.get(anything())).thenCall(id =>

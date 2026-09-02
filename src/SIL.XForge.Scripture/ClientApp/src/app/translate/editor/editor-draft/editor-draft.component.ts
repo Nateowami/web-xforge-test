@@ -43,8 +43,7 @@ import { Locale } from 'xforge-common/models/i18n-locale';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { filterNullish, quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
-import { isString } from '../../../../type-utils';
-import { TextDocId } from '../../../core/models/text-doc';
+import { opsHaveVerseText, TextDocId } from '../../../core/models/text-doc';
 import { Revision } from '../../../core/paratext.service';
 import { ProjectNotificationService } from '../../../core/project-notification.service';
 import { SFProjectService } from '../../../core/sf-project.service';
@@ -354,7 +353,7 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
     }
 
     // Warn before overwriting existing text
-    if (this.hasContent(this.targetDelta?.ops)) {
+    if (opsHaveVerseText(this.targetDelta?.ops)) {
       const proceed: boolean = await this.dialogService.confirm('editor_draft_tab.overwrite', 'editor_draft_tab.yes');
       if (!proceed) {
         return;
@@ -408,20 +407,6 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
     }
 
     return closestEarlier ?? closestLater;
-  }
-
-  private hasContent(delta?: DeltaOperation[]): boolean {
-    const hasContent = delta?.some(op => {
-      if (op.insert == null || op.attributes?.segment == null) {
-        return false;
-      }
-
-      const isInsertBlank =
-        (isString(op.insert) && op.insert.trim().length === 0) || (!isString(op.insert) && op.insert.blank === true);
-      return !isInsertBlank;
-    });
-
-    return hasContent ?? false;
   }
 
   protected getLocalizedBookChapter(): string {
