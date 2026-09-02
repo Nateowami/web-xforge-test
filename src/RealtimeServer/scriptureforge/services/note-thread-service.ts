@@ -1,11 +1,13 @@
+import ShareDB from 'sharedb';
 import { Connection, Doc } from 'sharedb/lib/client';
+import { ConnectSession } from '../../common/connect-session';
 import { OwnedData } from '../../common/models/owned-data';
 import { ValidationSchema } from '../../common/models/validation-schema';
 import { ProjectDomainConfig } from '../../common/services/project-data-service';
-import { ANY_INDEX } from '../../common/utils/obj-path';
+import { ANY_INDEX, ObjPathTemplate } from '../../common/utils/obj-path';
 import { createFetchQuery, docSubmitJson0Op } from '../../common/utils/sharedb-utils';
 import { Note } from '../models/note';
-import { NOTE_THREAD_COLLECTION, NOTE_THREAD_INDEX_PATHS, NoteThread } from '../models/note-thread';
+import { NOTE_THREAD_COLLECTION, NOTE_THREAD_INDEX_PATHS, NoteStatus, NoteThread } from '../models/note-thread';
 import { SFProjectDomain } from '../models/sf-project-rights';
 import { SF_PROJECT_USER_CONFIGS_COLLECTION, SFProjectUserConfig } from '../models/sf-project-user-config';
 import { NOTE_THREAD_MIGRATIONS } from './note-thread-migrations';
@@ -169,6 +171,9 @@ export class NoteThreadService extends SFProjectDataService<NoteThread> {
     additionalProperties: false
   };
 
+  private readonly statusPathTemplate: ObjPathTemplate = this.pathTemplate(t => t.status, false);
+  private readonly notePathTemplate: ObjPathTemplate = this.pathTemplate(t => t.notes[ANY_INDEX], false);
+
   constructor() {
     super(NOTE_THREAD_MIGRATIONS);
 
@@ -202,6 +207,33 @@ export class NoteThreadService extends SFProjectDataService<NoteThread> {
         pathTemplate: this.pathTemplate(t => t.notes[ANY_INDEX])
       }
     ];
+  }
+
+  protected async allowUpdate(
+    docId: string,
+    oldDoc: NoteThread,
+    newDoc: NoteThread,
+    ops: ShareDB.Op[],
+    session: ConnectSession
+  ): Promise<boolean> {
+    // A thread's status follows the status of its notes, so adding a note to a resolved thread re-opens the thread.
+    // Users who are permitted to add notes but not to edit note threads, such as commenters, need that re-open to be
+    // permitted too, otherwise adding a note to a resolved thread is denied. Resolving a thread still requires the
+    // right to edit note threads.
+    const opsToCheck: ShareDB.Op[] = ops.filter(op => !this.isThreadReopenedByAddedNote(op, ops));
+    return super.allowUpdate(docId, oldDoc, newDoc, opsToCheck, session);
+  }
+
+  /** Whether the op sets the thread status to "to do" to match a "to do" note that is being added to the thread. */
+  private isThreadReopenedByAddedNote(op: ShareDB.Op, ops: ShareDB.Op[]): boolean {
+    const statusOp = op as ShareDB.ObjectReplaceOp;
+    if (!this.statusPathTemplate.matches(op.p) || statusOp.oi !== NoteStatus.Todo) {
+      return false;
+    }
+    return ops.some(o => {
+      const noteOp = o as ShareDB.ListInsertOp;
+      return this.notePathTemplate.matches(o.p) && (noteOp.li as Note | undefined)?.status === NoteStatus.Todo;
+    });
   }
 
   protected getApplicableDomains(entity?: OwnedData): ProjectDomainConfig[] {

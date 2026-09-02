@@ -252,6 +252,52 @@ describe('NoteThreadService', () => {
     expect(commenterNoteThread).toBeUndefined();
   });
 
+  it('allows commenter to add a note to a thread that has been resolved', async () => {
+    const env = new TestEnvironment();
+    await env.createData();
+    const adminConn: Connection = clientConnect(env.server, env.projectAdminId);
+    const noteThreadDocId: string = getNoteThreadDocId('project01', env.dataId2);
+    // an administrator resolves the thread, which adds a note with the resolved status
+    const resolvedNote: Note = env.getNewNote(env.threadId2, 'adminNote01', env.projectAdminId);
+    resolvedNote.status = NoteStatus.Resolved;
+    await submitJson0Op<NoteThread>(adminConn, NOTE_THREAD_COLLECTION, noteThreadDocId, op => {
+      op.add(n => n.notes, resolvedNote);
+      op.set(n => n.status, NoteStatus.Resolved);
+    });
+
+    const conn: Connection = clientConnect(env.server, env.commenterId);
+    const doc = await fetchDoc(conn, NOTE_THREAD_COLLECTION, noteThreadDocId);
+    const note: Note = env.getNewNote(env.threadId2, 'commenterNote01', env.commenterId);
+    // adding a note re-opens the thread
+    await submitJson0Op<NoteThread>(conn, NOTE_THREAD_COLLECTION, noteThreadDocId, op => {
+      op.add(n => n.notes, note);
+      op.set(n => n.status, NoteStatus.Todo);
+    });
+    const noteThread: NoteThread = doc.data;
+    expect(noteThread.notes.length).toEqual(3);
+    expect(noteThread.status).toEqual(NoteStatus.Todo);
+  });
+
+  it('prohibits commenter from resolving a note thread', async () => {
+    const env = new TestEnvironment();
+    await env.createData();
+    const conn: Connection = clientConnect(env.server, env.commenterId);
+    const noteThreadDocId: string = getNoteThreadDocId('project01', env.dataId2);
+    const doc = await fetchDoc(conn, NOTE_THREAD_COLLECTION, noteThreadDocId);
+    const note: Note = env.getNewNote(env.threadId2, 'commenterNote01', env.commenterId);
+    note.status = NoteStatus.Resolved;
+    await expect(() =>
+      submitJson0Op<NoteThread>(conn, NOTE_THREAD_COLLECTION, noteThreadDocId, op => {
+        op.add(n => n.notes, note);
+        op.set(n => n.status, NoteStatus.Resolved);
+      })
+    ).rejects.toEqual(
+      new Error(`403: Permission denied (update), collection: ${NOTE_THREAD_COLLECTION}, docId: ${noteThreadDocId}`)
+    );
+    const noteThread: NoteThread = doc.data;
+    expect(noteThread.status).toEqual(NoteStatus.Todo);
+  });
+
   it('removes have-read note refs when thread deleted', async () => {
     const env = new TestEnvironment();
     await env.createData();
