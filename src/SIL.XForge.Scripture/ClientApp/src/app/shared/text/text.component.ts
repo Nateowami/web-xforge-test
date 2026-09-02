@@ -50,7 +50,7 @@ import { QuillFormatRegistryService } from './quill-editor-registration/quill-fo
 import { getAttributesAtPosition, getRetainCount } from './quill-util';
 import { Segment } from './segment';
 import { NoteDialogData, TextNoteDialogComponent } from './text-note-dialog/text-note-dialog.component';
-import { EditorRange, TextViewModel } from './text-view-model';
+import { EditorRange, isVerseTextParaSegmentRef, TextViewModel } from './text-view-model';
 
 // When a user is active in the editor a timer starts to mark them as inactive for remote presences
 export const PRESENCE_EDITOR_ACTIVE_TIMEOUT = 3500;
@@ -759,9 +759,10 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     return segments.filter(s => verseRef.verse === (getVerseStrFromSegmentRef(s) ?? defaultValue));
   }
 
+  /** Gets the segments of a verse that contain verse text, leaving out extra content such as section headings. */
   getVerseSegmentsNoHeadings(verseRef: VerseRef): string[] {
     const segments: string[] = this.getVerseSegments(verseRef);
-    return segments.filter(s => VERSE_REGEX.test(s));
+    return segments.filter(s => this.isVerseTextSegment(s));
   }
 
   getSegmentElement(segment: string): Element | null {
@@ -1787,7 +1788,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     let lastSegment: string = filteredSegments[filteredSegments.length - 1];
     while (filteredSegments.length > 1) {
       const isBlankNewlineSegment: boolean = /\/[pq]+/.test(lastSegment) && this.isSegmentBlank(lastSegment);
-      if (!isBlankNewlineSegment && (includeExtraVerseSegments || VERSE_REGEX.test(lastSegment))) {
+      if (!isBlankNewlineSegment && (includeExtraVerseSegments || this.isVerseTextSegment(lastSegment))) {
         break;
       }
       // remove the last segment if it is blank and is on a new line and not part of the verse
@@ -1795,6 +1796,17 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       lastSegment = filteredSegments[filteredSegments.length - 1];
     }
     return filteredSegments;
+  }
+
+  /** Whether a segment contains verse text, as opposed to content that is not part of any verse, such as a section
+   * heading or an empty paragraph belonging to the following verse. */
+  private isVerseTextSegment(segmentRef: string): boolean {
+    if (VERSE_REGEX.test(segmentRef)) {
+      return true;
+    }
+    // A verse interrupted by a paragraph that cannot contain verse text (i.e. a section heading, or a page break)
+    // continues in a segment named after its own paragraph, which is only part of the verse if it has text in it.
+    return isVerseTextParaSegmentRef(segmentRef) && !this.isSegmentBlank(segmentRef);
   }
 
   /** Gets the embeds affected */

@@ -68,6 +68,40 @@ export function getCombinedVerseTextDoc(id: TextDocId, rtl: boolean = false): Te
   return delta;
 }
 
+/**
+ * A chapter where verses are interrupted by paragraphs that cannot contain verse text: verse 1 continues after a page
+ * break (\pb), verse 2 after a semantic division (\sd1), and verse 3 after a section heading (\s), in an indented
+ * paragraph (\pi1). The rest of an interrupted verse ends up in a segment named after its paragraph, which is how
+ * DeltaUsxMapper names such segments.
+ */
+export function getInterruptedVerseTextDoc(id: TextDocId): TextData {
+  const delta = new Delta();
+  delta.insert({ chapter: { number: id.chapterNum.toString(), style: 'c' } });
+  delta.insert({ blank: true }, { segment: 'p_1' });
+  delta.insert({ verse: { number: '1', style: 'v' } });
+  delta.insert('verse 1 before the page break', { segment: `verse_${id.chapterNum}_1` });
+  delta.insert('\n', { para: { style: 'p' } });
+  delta.insert('verse 1 after the page break', { segment: 'pb_1' });
+  delta.insert('\n', { para: { style: 'pb' } });
+  delta.insert({ blank: true }, { segment: 'p_2' });
+  delta.insert({ verse: { number: '2', style: 'v' } });
+  delta.insert('verse 2 before the semantic division', { segment: `verse_${id.chapterNum}_2` });
+  delta.insert('\n', { para: { style: 'p' } });
+  delta.insert({ blank: true }, { segment: 'sd1_1' });
+  delta.insert('\n', { para: { style: 'sd1' } });
+  delta.insert('verse 2 after the semantic division', { segment: 'p_3' });
+  delta.insert({ verse: { number: '3', style: 'v' } });
+  delta.insert('verse 3 before the section heading', { segment: `verse_${id.chapterNum}_3` });
+  delta.insert('\n', { para: { style: 'p' } });
+  delta.insert('Section heading', { segment: 's_1' });
+  delta.insert('\n', { para: { style: 's' } });
+  delta.insert('verse 3 after the section heading', { segment: 'pi1_1' });
+  delta.insert({ verse: { number: '4', style: 'v' } });
+  delta.insert('verse 4.', { segment: `verse_${id.chapterNum}_4` });
+  delta.insert('\n', { para: { style: 'pi1' } });
+  return delta;
+}
+
 export function getPoetryVerseTextDoc(id: TextDocId): TextData {
   const delta = new Delta();
   delta.insert(`Title for chapter ${id.chapterNum}`, { segment: 's_1' });

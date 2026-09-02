@@ -49,12 +49,28 @@ const PARA_STYLES: Set<string> = new Set<string>([
   'id'
 ]);
 
+/** Styles of paragraphs that do not contain verse text of their own, but that interrupt a verse, so that the text
+ * following them is still part of that verse. */
+const BREAK_STYLES: Set<string> = new Set<string>(['pb']);
+
 function canParaContainVerseText(style: string): boolean {
   if (style === '') {
     return true;
   }
   style = style.replace(/[0-9]/g, '');
   return PARA_STYLES.has(style);
+}
+
+/**
+ * Determines whether a segment named after its paragraph (i.e. p_2, pi1_1, pb_1) contains verse text. Verse text is
+ * normally in a segment named after its verse (verse_1_1, or verse_1_1/p_1 where a paragraph break splits the verse),
+ * but where a paragraph that cannot contain verse text interrupts a verse (a section heading, or a page break), the
+ * rest of the verse is in a segment named after its own paragraph. Segments of headings, titles and introductory
+ * material (i.e. s_1, sd1_1, mt_1) do not contain verse text.
+ */
+export function isVerseTextParaSegmentRef(ref: string): boolean {
+  const style: string = ref.substring(0, ref.lastIndexOf('_'));
+  return style !== '' && (canParaContainVerseText(style) || BREAK_STYLES.has(style.replace(/[0-9]/g, '')));
 }
 
 function getParagraphRef(nextIds: Map<string, number>, key: string, prefix: string): string {

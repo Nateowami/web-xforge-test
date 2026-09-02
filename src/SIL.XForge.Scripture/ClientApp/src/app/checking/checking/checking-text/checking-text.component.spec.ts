@@ -21,7 +21,7 @@ import { SFProjectProfileDoc } from '../../../core/models/sf-project-profile-doc
 import { SF_TYPE_REGISTRY } from '../../../core/models/sf-type-registry';
 import { TextDoc, TextDocId } from '../../../core/models/text-doc';
 import { SFProjectService } from '../../../core/sf-project.service';
-import { getCombinedVerseTextDoc, getTextDoc } from '../../../shared/test-utils';
+import { getCombinedVerseTextDoc, getInterruptedVerseTextDoc, getTextDoc } from '../../../shared/test-utils';
 import { provideQuillRegistrations } from '../../../shared/text/quill-editor-registration/quill-providers';
 import { EDITOR_READY_TIMEOUT } from '../../../shared/text/text.component';
 import { CheckingTextComponent } from './checking-text.component';
@@ -147,6 +147,51 @@ describe('CheckingTextComponent', () => {
     expect(env.isSegmentHighlighted('verse_1_6b')).toBe(true);
   }));
 
+  it('highlights all segments of an active verse that is interrupted by a page break or heading', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.component.id = new TextDocId('project01', 42, 1);
+
+    // verse 1 continues after a page break
+    env.component.activeVerse = new VerseRef('LUK', '1', '1');
+    env.wait();
+    expect(env.isSegmentHighlighted('verse_1_1')).toBe(true);
+    expect(env.isSegmentHighlighted('pb_1')).toBe(true);
+    // the blank segment that begins the paragraph of the next verse is not part of verse 1
+    expect(env.isSegmentHighlighted('p_2')).toBe(false);
+
+    // verse 2 continues after a semantic division
+    env.component.activeVerse = new VerseRef('LUK', '1', '2');
+    env.wait();
+    expect(env.isSegmentHighlighted('verse_1_2')).toBe(true);
+    expect(env.isSegmentHighlighted('p_3')).toBe(true);
+    expect(env.isSegmentHighlighted('sd1_1')).toBe(false);
+
+    // verse 3 continues after a section heading
+    env.component.activeVerse = new VerseRef('LUK', '1', '3');
+    env.wait();
+    expect(env.isSegmentHighlighted('verse_1_3')).toBe(true);
+    expect(env.isSegmentHighlighted('pi1_1')).toBe(true);
+    expect(env.isSegmentHighlighted('s_1')).toBe(false);
+  }));
+
+  it('marks all segments of a question verse that is interrupted by a page break or heading', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.component.id = new TextDocId('project01', 42, 1);
+    env.component.activeVerse = undefined;
+    env.component.questionVerses = [new VerseRef('LUK', '1', '1'), new VerseRef('LUK', '1', '3')];
+    env.wait();
+
+    for (const segment of ['verse_1_1', 'pb_1', 'verse_1_3', 'pi1_1']) {
+      expect(env.getSegmentElement(segment)!.classList).withContext(segment).toContain('question-segment');
+    }
+    for (const segment of ['p_2', 's_1', 'verse_1_2', 'p_3']) {
+      expect(env.getSegmentElement(segment)!.classList).withContext(segment).not.toContain('question-segment');
+    }
+    // the question icon belongs on the segment where the verse starts
+    expect(env.getSegmentElement('verse_1_1')!.getAttribute('data-question-count')).toEqual('1');
+    expect(env.getSegmentElement('pb_1')!.getAttribute('data-question-count')).toBeNull();
+  }));
+
   it('can set text direction explicitly', fakeAsync(() => {
     const env = new TestEnvironment();
     env.wait();
@@ -197,6 +242,7 @@ class TestEnvironment {
     this.addTextDoc(new TextDocId('project01', 40, 1, 'target'));
     this.addTextDoc(new TextDocId('project01', 40, 2, 'target'));
     this.addCombinedVerseTextDoc(new TextDocId('project01', 41, 1, 'target'));
+    this.addInterruptedVerseTextDoc(new TextDocId('project01', 42, 1, 'target'));
     this.setupProject();
     this.realtimeService.addSnapshot<User>(UserDoc.COLLECTION, {
       id: 'user01',
@@ -266,6 +312,14 @@ class TestEnvironment {
     });
   }
 
+  private addInterruptedVerseTextDoc(id: TextDocId): void {
+    this.realtimeService.addSnapshot(TextDoc.COLLECTION, {
+      id: id.toString(),
+      type: RichText.type.name,
+      data: getInterruptedVerseTextDoc(id)
+    });
+  }
+
   private addCombinedVerseTextDoc(id: TextDocId): void {
     this.realtimeService.addSnapshot(TextDoc.COLLECTION, {
       id: id.toString(),
@@ -291,6 +345,12 @@ class TestEnvironment {
           {
             bookNum: 41,
             chapters: [{ number: 1, lastVerse: 3, isValid: true, permissions: {} }],
+            hasSource: true,
+            permissions: {}
+          },
+          {
+            bookNum: 42,
+            chapters: [{ number: 1, lastVerse: 4, isValid: true, permissions: {} }],
             hasSource: true,
             permissions: {}
           }
