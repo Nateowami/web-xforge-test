@@ -936,6 +936,45 @@ describe('DraftGenerationComponent', () => {
       tick();
       expect(env.preGenerationStepper).not.toBeNull();
     }));
+
+    it('should leave the steps when a build is started by someone else', () => {
+      const buildProgress$ = new Subject<BuildDto | undefined>();
+      const env = new TestEnvironment(() => {
+        mockDraftGenerationService.getBuildProgress.and.returnValue(buildProgress$);
+      });
+
+      // No build is under way, so the user can configure a new one
+      buildProgress$.next(undefined);
+      env.component.currentPage = 'steps';
+      env.fixture.detectChanges();
+      expect(env.preGenerationStepper).not.toBeNull();
+
+      // A build appears that this user did not start
+      buildProgress$.next(buildDto);
+      env.fixture.detectChanges();
+
+      expect(env.component.currentPage).toBe('initial');
+      expect(env.preGenerationStepper).toBeNull();
+      expect(mockDialogService.message).toHaveBeenCalledOnceWith('draft_generation.draft_already_running');
+    });
+
+    it('should stay in the steps when no build is under way', () => {
+      const buildProgress$ = new Subject<BuildDto | undefined>();
+      const env = new TestEnvironment(() => {
+        mockDraftGenerationService.getBuildProgress.and.returnValue(buildProgress$);
+      });
+
+      env.component.currentPage = 'steps';
+      env.fixture.detectChanges();
+
+      // A build that is over does not prevent this user from configuring a new one
+      buildProgress$.next({ ...buildDto, state: BuildStates.Completed });
+      env.fixture.detectChanges();
+
+      expect(env.component.currentPage).toBe('steps');
+      expect(env.preGenerationStepper).not.toBeNull();
+      expect(mockDialogService.message).not.toHaveBeenCalled();
+    });
   });
 
   describe('startBuild', () => {

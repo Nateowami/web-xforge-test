@@ -516,6 +516,14 @@ export class DraftGenerationComponent extends DataLoadingComponent implements On
         this.isDraftJobFetched = true;
         this.loadingFinished();
 
+        // A build can only be started from the steps when none is under way, so a build appearing while the user is
+        // in the steps was started by someone else (or by this user in another browser). Their configuration can no
+        // longer be submitted, so tell them and show the build that is under way.
+        if (this.currentPage === 'steps' && this.isDraftInProgress(job)) {
+          this.currentPage = 'initial';
+          void this.dialogService.message('draft_generation.draft_already_running');
+        }
+
         // Ensure flag is set for case where first completed build happens while component is loaded
         if (this.isDraftComplete(job)) {
           this.lastCompletedBuild = job;
