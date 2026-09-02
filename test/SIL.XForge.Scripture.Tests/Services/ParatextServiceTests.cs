@@ -5649,6 +5649,67 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task GetRevisionHistoryAsync_DoesNotDuplicateTheInitialParatextImport()
+    {
+        var env = new TestEnvironment();
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        env.SetupProject(env.Project01, associatedPtUser);
+        SFProject project = env.NewSFProject();
+        project.UserRoles = new Dictionary<string, string> { { env.User01, SFProjectRole.PTObserver } };
+        env.AddProjectRepository(project);
+
+        // The book was just created in Paratext, so the only op is the one the sync created the text doc with
+        env.AddTextDataCreateOp(project.Id, "RUT", 1, DateTime.UtcNow);
+        env.ProjectHgRunner.SetStandardOutput(env.RuthBookUsfm, true);
+
+        // SUT
+        List<DocumentRevision> revisions = [];
+        await foreach (
+            DocumentRevision revision in env.Service.GetRevisionHistoryAsync(userSecret, project.Id, "RUT", 1)
+        )
+        {
+            revisions.Add(revision);
+        }
+
+        // Only the Paratext commit the book was imported from is returned, not the op that imported it
+        Assert.AreEqual(1, revisions.Count);
+        Assert.AreEqual(OpSource.Paratext, revisions[0].Source);
+        Assert.AreEqual(env.ProjectHg.Log[0].CommitTimeStamp.UtcDateTime, revisions[0].Timestamp);
+    }
+
+    [Test]
+    public async Task GetRevisionHistoryAsync_ReturnsTheInitialParatextImportWhenMercurialHasNoBookChanges()
+    {
+        var env = new TestEnvironment();
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        env.SetupProject(env.Project01, associatedPtUser);
+        SFProject project = env.NewSFProject();
+        project.UserRoles = new Dictionary<string, string> { { env.User01, SFProjectRole.PTObserver } };
+        env.AddProjectRepository(project);
+        DateTime timestamp = DateTime.UtcNow;
+
+        // MAT is not modified in the revision in MockHg.Log
+        env.AddTextDataCreateOp(project.Id, "MAT", 1, timestamp);
+        env.ProjectHgRunner.SetStandardOutput(string.Empty, false);
+
+        // SUT
+        List<DocumentRevision> revisions = [];
+        await foreach (
+            DocumentRevision revision in env.Service.GetRevisionHistoryAsync(userSecret, project.Id, "MAT", 1)
+        )
+        {
+            revisions.Add(revision);
+        }
+
+        // As Paratext has no revision for this book, the op that created the text doc is returned
+        Assert.AreEqual(1, revisions.Count);
+        Assert.AreEqual(OpSource.Paratext, revisions[0].Source);
+        Assert.AreEqual(timestamp, revisions[0].Timestamp);
+    }
+
+    [Test]
     public void GetRevisionHistoryAsync_InsufficientPermissions()
     {
         var env = new TestEnvironment();
@@ -7254,6 +7315,24 @@ public class ParatextServiceTests
                     },
                 },
             };
+        }
+
+        /// <summary>
+        /// Adds the single op that a sync creates when a book is new to Scripture Forge.
+        /// </summary>
+        public void AddTextDataCreateOp(string projectId, string book, int chapter, DateTime timestamp)
+        {
+            Op[] ops =
+            [
+                new Op
+                {
+                    Metadata = new OpMetadata { Timestamp = timestamp, Source = OpSource.Paratext },
+                    Version = 0,
+                },
+            ];
+            string id = TextData.GetTextDocId(projectId, book, chapter);
+            RealtimeService.AddRepository("texts", OTType.RichText, new MemoryRepository<TextData>());
+            RealtimeService.GetRepository<TextData>().SetOps(id, ops);
         }
 
         public void AddTextDataOps(string projectId, string book, int chapter)

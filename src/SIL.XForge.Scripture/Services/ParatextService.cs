@@ -2297,6 +2297,7 @@ public class ParatextService : DisposableBase, IParatextService
         DateTime milestonePeriod = DateTime.MaxValue;
         DocumentRevision documentRevision = new DocumentRevision { Timestamp = DateTime.UtcNow };
         int milestoneOps = 0;
+        int milestoneNewestOpIndex = -1;
         for (int i = ops.Length - 1; i >= 0; i--)
         {
             // Emit the op as a milestone if it is:
@@ -2333,22 +2334,35 @@ public class ParatextService : DisposableBase, IParatextService
                     Timestamp = op.Metadata.Timestamp,
                     UserId = op.Metadata.UserId,
                 };
+                milestoneNewestOpIndex = i;
             }
 
             milestoneOps++;
         }
 
-        // Emit the last op(s), if not emitted already
+        // Emit the last op(s), if not emitted already.
+        // If the last milestone is just the op that created the text document from a sync, it holds the book as it
+        // was imported from Paratext, which is the same data as the Paratext commit it was imported from. Hold that
+        // revision back so it is only emitted if no Paratext commit is returned below, otherwise the history will
+        // contain two identical revisions.
+        DocumentRevision? initialImportRevision = null;
         if (milestoneOps > 0)
         {
-            yield return documentRevision;
+            if (milestoneNewestOpIndex == 0 && ops[0].Version == 0 && ops[0].Metadata.Source == OpSource.Paratext)
+            {
+                initialImportRevision = documentRevision;
+            }
+            else
+            {
+                yield return documentRevision;
+            }
         }
 
         // Get the earlier op's timestamp (UTC)
         milestonePeriod = ops.FirstOrDefault()?.Metadata.Timestamp ?? DateTime.UtcNow;
 
         // Load the Paratext project
-        ScrText scrText;
+        ScrText? scrText = null;
         try
         {
             string ptProjectId = projectDoc.Data.ParatextId;
@@ -2361,6 +2375,16 @@ public class ParatextService : DisposableBase, IParatextService
         catch (DataNotFoundException)
         {
             // If an error occurs loading the project from disk, just return the revisions from Mongo
+            scrText = null;
+        }
+
+        if (scrText is null)
+        {
+            if (initialImportRevision is not null)
+            {
+                yield return initialImportRevision;
+            }
+
             yield break;
         }
 
@@ -2398,12 +2422,22 @@ public class ParatextService : DisposableBase, IParatextService
             //
             // For this return revision points-in-time, a timestamp for a change made to the book is sufficient.
             paratextUsers.TryGetValue(revision.User, out string? userId);
+
+            // The most recent Paratext commit is the one the book was imported into Scripture Forge from, so its
+            // revision replaces the one held back above
+            initialImportRevision = null;
             yield return new DocumentRevision
             {
                 Source = OpSource.Paratext,
                 Timestamp = revision.CommitTimeStamp.UtcDateTime,
                 UserId = userId,
             };
+        }
+
+        // If Paratext has no commits for this book, emit the revision for the import that was held back above
+        if (initialImportRevision is not null)
+        {
+            yield return initialImportRevision;
         }
 
         // Clean up the scripture text
