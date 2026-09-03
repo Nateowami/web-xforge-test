@@ -3354,6 +3354,9 @@ describe('EditorComponent', () => {
       verseElem.click();
       env.wait();
       expect(verseElem.classList).toContain('commenter-selection');
+      // the verse number of the selected verse is highlighted, even though the editor is read only
+      expect(env.getVerseNumberBackground('verse_1_1')).not.toEqual(env.getVerseNumberBackground('verse_1_2'));
+      expect(env.getVerseNumberBackground('verse_1_1')).toEqual('rgb(52, 58, 49)');
       let verse2Elem: HTMLElement = env.getSegmentElement('verse_1_2')!;
 
       // select verse 2, deselect verse one
@@ -5423,6 +5426,13 @@ class TestEnvironment {
 
   getSegmentElement(segmentRef: string): HTMLElement | null {
     return this.targetEditor.container.querySelector('usx-segment[data-segment="' + segmentRef + '"]');
+  }
+
+  /** The background color of the verse number that precedes the specified segment. */
+  getVerseNumberBackground(segmentRef: string): string {
+    const segmentElement: HTMLElement = this.getSegmentElement(segmentRef)!;
+    const verseNumber: HTMLElement = segmentElement.previousElementSibling!.querySelector('span > span > span')!;
+    return window.getComputedStyle(verseNumber).backgroundColor;
   }
 
   getTextDoc(textId: TextDocId): TextDoc {

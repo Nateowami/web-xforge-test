@@ -425,7 +425,9 @@ usx-verse {
   }
 }
 
-span.commenter-selection > usx-verse {
+// The `quill-editor` ancestor is needed so this outranks the read-only verse styling further down;
+// the editor is always read-only for users who select verses to comment on.
+quill-editor span.commenter-selection > usx-verse {
   span > span > span {
     color: white;
     background-color: $greyDark;
