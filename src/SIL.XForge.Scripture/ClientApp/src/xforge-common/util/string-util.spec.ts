@@ -35,10 +35,12 @@ describe('stripHtml', () => {
     expect(stripHtml('<div><span>Text</span></div>')).toBe('Text');
   });
 
-  it('removes stray angle brackets', () => {
-    expect(stripHtml('a < b > c')).toBe('a  b  c');
-    expect(stripHtml('< text >')).toBe(' text ');
-    expect(stripHtml('<div>hi></div>')).toBe('hi');
+  it('keeps angle brackets that are part of the text', () => {
+    expect(stripHtml('a < b > c')).toBe('a < b > c');
+    expect(stripHtml('< text >')).toBe('< text >');
+    expect(stripHtml('<div>hi></div>')).toBe('hi>');
+    // A Paratext note whose text is "<p> tree </p>" arrives with the text escaped within markup
+    expect(stripHtml('<p>&lt;p&gt; tree &lt;/p&gt;</p>')).toBe('<p> tree </p>');
   });
 
   it('handles complex HTML with attributes', () => {
@@ -62,14 +64,15 @@ describe('stripHtml', () => {
     expect(stripHtml('<div>&copy; 2024</div>')).toBe('© 2024');
   });
 
-  it('prevents script injection', () => {
+  // The callers display the result as text (never as markup), so text that looks like a tag is kept as text
+  it('removes script tags', () => {
     expect(stripHtml('<script>alert("xss")</script>')).toBe('alert("xss")');
-    expect(stripHtml('<scr<script>ipt>')).toBe('ipt');
+    expect(stripHtml('<scr<script>ipt>')).toBe('ipt>');
     expect(stripHtml('<script')).toBe('');
-    expect(stripHtml('<<script>script>')).toBe('script');
+    expect(stripHtml('<<script>script>')).toBe('<script>');
   });
 
-  it('prevents other dangerous tags', () => {
+  it('removes other dangerous tags', () => {
     expect(stripHtml('<style>body{color:red}</style>')).toBe('body{color:red}');
     expect(stripHtml('<iframe src="evil.html">')).toBe('');
     expect(stripHtml('<object data="evil.swf">')).toBe('');

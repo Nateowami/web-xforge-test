@@ -16,9 +16,11 @@ export function areStringArraysEqual(a: string[], b: string[]): boolean {
 }
 
 /**
- * Removes html tags from a string while preserving the text content.  Stray angle brackets are also removed.
+ * Removes html tags from a string while preserving the text content. Angle brackets that are part of the text (i.e.
+ * that were escaped in the markup, such as a Paratext note whose text is "<p> tree </p>") are kept, as removing them
+ * would corrupt the text.
  * @param content The string with possible HTML tags to process.
- * @returns The string with all tags and angle brackets removed.
+ * @returns The string with all tags removed.
  */
 export function stripHtml(content: string): string {
   if (content == null) {
@@ -32,10 +34,7 @@ export function stripHtml(content: string): string {
 
   // Use 'text/html' to avoid parsing errors with 'text/xml', as it is more lenient
   const doc: Document = new DOMParser().parseFromString(content, 'text/html');
-  const result: string = doc.documentElement.textContent || '';
-
-  // Remove any remaining stray angle brackets
-  return result.replace(/[<>]/g, '');
+  return doc.documentElement.textContent || '';
 }
 
 /**
