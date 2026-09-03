@@ -2143,6 +2143,32 @@ public class DeltaUsxMapperTests
     }
 
     [Test]
+    public void ToDelta_AlternateVerseNumberIsNotRestrictedToDigits()
+    {
+        // Paratext accepts any text between \va and \va*, e.g. "\va (23)\va*"
+        XDocument usxDoc = Usx("PHM", Chapter("1"), Para("p", Verse("1", altNumber: "(23)"), Verse("2")));
+
+        var mapper = new DeltaUsxMapper(_mapperGuidService, _logger, _exceptionHandler);
+        List<ChapterDelta> chapterDeltas = [.. mapper.ToChapterDeltas(usxDoc)];
+
+        var expected = Delta
+            .New()
+            .InsertBook("PHM")
+            .InsertChapter("1")
+            .InsertBlank("p_1")
+            .InsertVerse("1", altNumber: "(23)")
+            .InsertBlank("verse_1_1")
+            .InsertVerse("2")
+            .InsertBlank("verse_1_2")
+            .InsertPara("p");
+
+        Assert.That(chapterDeltas[0].Number, Is.EqualTo(1));
+        Assert.That(chapterDeltas[0].LastVerse, Is.EqualTo(2));
+        Assert.That(chapterDeltas[0].IsValid, Is.True);
+        Assert.IsTrue(chapterDeltas[0].Delta.DeepEquals(expected));
+    }
+
+    [Test]
     public void ToDelta_InvalidLastVerse()
     {
         XDocument usxDoc = Usx("PHM", Chapter("1"), Para("p", Verse("1"), Verse("2bad")));
@@ -4410,8 +4436,13 @@ public class DeltaUsxMapperTests
     private static XElement Chapter(string number, string style = "c") =>
         new XElement("chapter", new XAttribute("number", number), new XAttribute("style", style));
 
-    private static XElement Verse(string number, string style = "v") =>
-        new XElement("verse", new XAttribute("number", number), new XAttribute("style", style));
+    private static XElement Verse(string number, string style = "v", string altNumber = null)
+    {
+        var elem = new XElement("verse", new XAttribute("number", number), new XAttribute("style", style));
+        if (altNumber != null)
+            elem.Add(new XAttribute("altnumber", altNumber));
+        return elem;
+    }
 
     private static XElement Char(string style, params object[] contents) =>
         new XElement("char", new XAttribute("style", style), contents);

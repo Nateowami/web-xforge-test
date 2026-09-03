@@ -377,12 +377,6 @@ usx-char {
     color: #5faa5f;
     top: -0.5em;
     position: relative;
-    &:before {
-      content: '(';
-    }
-    &:after {
-      content: ')';
-    }
   }
 }
 
@@ -415,12 +409,9 @@ usx-verse {
       color: #5faa5f;
       top: -0.25em;
       position: relative;
-      &:before {
-        content: '(';
-      }
-      &:after {
-        content: ')';
-      }
+      // Alternate verse numbers are shown exactly as they are written in Paratext, so keep a
+      // gap rather than adding punctuation of our own around them.
+      margin-inline-start: 0.25em;
     }
   }
 }

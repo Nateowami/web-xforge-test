@@ -691,11 +691,15 @@
           </xs:restriction>
         </xs:simpleType>
       </xs:attribute>
+      <!--
+        Paratext accepts any text between \va and \va* (e.g. "\va (23)\va*"), so this is not
+        restricted to a verse number pattern. Otherwise the chapter would be marked invalid,
+        and read-only, for text that Paratext itself reports no errors for.
+      -->
       <xs:attribute name="altnumber">
         <xs:simpleType>
           <xs:restriction base="xs:string">
             <xs:minLength value="1"/>
-            <xs:pattern value="[0-9]+\w?(‏?[\-,:][0-9]+\w?)*"/>
           </xs:restriction>
         </xs:simpleType>
       </xs:attribute>
