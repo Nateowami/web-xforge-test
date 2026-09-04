@@ -1,5 +1,3 @@
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { DebugElement, getDebugNode } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
@@ -16,6 +14,9 @@ import { switchMap } from 'rxjs/operators';
 import { anything, instance, mock, verify, when } from 'ts-mockito';
 import { AvatarComponent } from 'xforge-common/avatar/avatar.component';
 import { FileType } from 'xforge-common/models/file-offline-data';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
+import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { environment } from '../../environments/environment';
 import { ProjectDoc } from '../models/project-doc';
@@ -42,9 +43,9 @@ describe('SaUsersComponent', () => {
       { provide: MatDialog, useMock: mockedMatDialog },
       { provide: UserService, useMock: mockedUserService },
       { provide: ProjectService, useMock: mockedProjectService },
+      { provide: OnlineStatusService, useClass: TestOnlineStatusService },
       emptyHammerLoader,
-      provideHttpClient(withInterceptorsFromDi()),
-      provideHttpClientTesting()
+      provideTestOnlineStatus()
     ]
   }));
 
@@ -109,6 +110,21 @@ describe('SaUsersComponent', () => {
     expect().nothing();
   }));
 
+  it('should disable the remove button when offline', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupUserData();
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+    expect(env.removeUserButtonOnRow(1).nativeElement.disabled).toBe(false);
+
+    env.setOnline(false);
+    expect(env.removeUserButtonOnRow(1).nativeElement.disabled).toBe(true);
+
+    env.setOnline(true);
+    expect(env.removeUserButtonOnRow(1).nativeElement.disabled).toBe(false);
+  }));
+
   it('should filter users', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setupUserData();
@@ -161,6 +177,7 @@ class TestEnvironment {
   readonly mockedDeleteUserDialogRef = mock<MatDialogRef<SaDeleteDialogComponent>>(MatDialogRef);
 
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
+  private readonly onlineStatusService = TestBed.inject(OnlineStatusService) as TestOnlineStatusService;
 
   constructor() {
     when(mockedMatDialog.open(anything(), anything())).thenReturn(instance(this.mockedDeleteUserDialogRef));
@@ -234,6 +251,12 @@ class TestEnvironment {
 
   removeUserButtonOnRow(row: number): DebugElement {
     return this.userRows[row].query(By.css('button.remove-user'));
+  }
+
+  setOnline(isOnline: boolean): void {
+    this.onlineStatusService.setIsOnline(isOnline);
+    tick();
+    this.fixture.detectChanges();
   }
 
   clickElement(element: HTMLElement | DebugElement): void {

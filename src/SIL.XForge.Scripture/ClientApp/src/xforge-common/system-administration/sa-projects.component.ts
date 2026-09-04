@@ -12,6 +12,7 @@ import { obj } from 'realtime-server/lib/esm/common/utils/obj-path';
 import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { BehaviorSubject } from 'rxjs';
 import { I18nService } from 'xforge-common/i18n.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { SFProjectDoc } from '../../app/core/models/sf-project-doc';
 import { SFProjectService } from '../../app/core/sf-project.service';
@@ -91,6 +92,7 @@ export class SaProjectsComponent extends DataLoadingComponent implements OnInit 
   @HostBinding('class') classes = 'flex-column';
 
   rows: Row[] = [];
+  isAppOnline: boolean = true;
 
   length: number = 0;
   pageIndex: number = 0;
@@ -106,6 +108,7 @@ export class SaProjectsComponent extends DataLoadingComponent implements OnInit 
     readonly i18n: I18nService,
     private readonly projectService: SFProjectService,
     private readonly userService: UserService,
+    private readonly onlineStatusService: OnlineStatusService,
     private destroyRef: DestroyRef
   ) {
     super(noticeService, 'SaProjectsComponent');
@@ -122,6 +125,10 @@ export class SaProjectsComponent extends DataLoadingComponent implements OnInit 
   }
 
   ngOnInit(): void {
+    this.onlineStatusService.onlineStatus$
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(isOnline => (this.isAppOnline = isOnline));
+
     this.loadingStarted();
     this.projectService
       .onlineQuery(this.searchTerm$, this.queryParameters$, [

@@ -12,6 +12,7 @@ import { obj } from 'realtime-server/lib/esm/common/utils/obj-path';
 import { BehaviorSubject } from 'rxjs';
 import { RealtimeQuery } from 'xforge-common/models/realtime-query';
 import { UserDoc } from 'xforge-common/models/user-doc';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { environment } from '../../environments/environment';
 import { AvatarComponent } from '../avatar/avatar.component';
@@ -65,6 +66,7 @@ export class SaUsersComponent extends DataLoadingComponent implements OnInit {
   pageSize: number = 50;
 
   userRows: Row[] = [];
+  isAppOnline: boolean = true;
 
   private readonly searchTerm$ = new BehaviorSubject<string>('');
   private readonly queryParameters$ = new BehaviorSubject<QueryParameters>(this.getQueryParameters());
@@ -75,6 +77,7 @@ export class SaUsersComponent extends DataLoadingComponent implements OnInit {
     noticeService: NoticeService,
     private readonly userService: UserService,
     private readonly projectService: ProjectService,
+    private readonly onlineStatusService: OnlineStatusService,
     private destroyRef: DestroyRef
   ) {
     super(noticeService, 'SaUsersComponent');
@@ -85,6 +88,10 @@ export class SaUsersComponent extends DataLoadingComponent implements OnInit {
   }
 
   ngOnInit(): void {
+    this.onlineStatusService.onlineStatus$
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(isOnline => (this.isAppOnline = isOnline));
+
     this.loadingStarted();
     this.userService
       .onlineQuery(this.searchTerm$, this.queryParameters$, this.reload$)

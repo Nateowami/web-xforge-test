@@ -1,8 +1,7 @@
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { DebugElement, getDebugNode } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { MatCheckbox } from '@angular/material/checkbox';
+import { MatSelect } from '@angular/material/select';
 import { By } from '@angular/platform-browser';
 import { provideRouter } from '@angular/router';
 import { escapeRegExp, merge } from 'lodash-es';
@@ -15,6 +14,9 @@ import { combineLatest, from, Observable } from 'rxjs';
 import { switchMap } from 'rxjs/operators';
 import { anything, mock, verify, when } from 'ts-mockito';
 import { FileType } from 'xforge-common/models/file-offline-data';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
+import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { SFProjectService } from '../../app/core/sf-project.service';
 import { ProjectDoc } from '../models/project-doc';
@@ -37,9 +39,9 @@ describe('SaProjectsComponent', () => {
       provideTestRealtime(new TypeRegistry([TestProjectDoc], [FileType.Audio], [])),
       { provide: SFProjectService, useMock: mockedProjectService },
       { provide: UserService, useMock: mockedUserService },
+      { provide: OnlineStatusService, useClass: TestOnlineStatusService },
       emptyHammerLoader,
-      provideHttpClient(withInterceptorsFromDi()),
-      provideHttpClientTesting()
+      provideTestOnlineStatus()
     ]
   }));
 
@@ -133,6 +135,29 @@ describe('SaProjectsComponent', () => {
     verify(mockedProjectService.onlineSetSyncDisabled(anything(), anything())).never();
   }));
 
+  it('should disable the role select and checkboxes when offline', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupProjectData();
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+    tick();
+
+    expect(env.isRoleSelectDisabled(0)).toBe(false);
+    expect(env.syncDisabledControl(0).nativeElement.disabled).toBe(false);
+    expect(env.preTranslateControl(0).nativeElement.disabled).toBe(false);
+
+    env.setOnline(false);
+    expect(env.isRoleSelectDisabled(0)).toBe(true);
+    expect(env.syncDisabledControl(0).nativeElement.disabled).toBe(true);
+    expect(env.preTranslateControl(0).nativeElement.disabled).toBe(true);
+
+    env.setOnline(true);
+    expect(env.isRoleSelectDisabled(0)).toBe(false);
+    expect(env.syncDisabledControl(0).nativeElement.disabled).toBe(false);
+    expect(env.preTranslateControl(0).nativeElement.disabled).toBe(false);
+  }));
+
   it('should process change for sync disabled', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setupProjectData();
@@ -223,6 +248,7 @@ class TestEnvironment {
   private readonly syncDisabledColumn = 3;
   private readonly preTranslateColumn = 4;
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
+  private readonly onlineStatusService = TestBed.inject(OnlineStatusService) as TestOnlineStatusService;
 
   constructor() {
     when(mockedUserService.currentUserId).thenReturn('user01');
@@ -291,6 +317,16 @@ class TestEnvironment {
 
   roleSelect(row: number): DebugElement {
     return this.cell(row, this.roleColumn).query(By.css('mat-select'));
+  }
+
+  isRoleSelectDisabled(row: number): boolean {
+    return (this.roleSelect(row).componentInstance as MatSelect).disabled;
+  }
+
+  setOnline(isOnline: boolean): void {
+    this.onlineStatusService.setIsOnline(isOnline);
+    tick();
+    this.fixture.detectChanges();
   }
 
   isSyncDisabled(row: number): boolean {

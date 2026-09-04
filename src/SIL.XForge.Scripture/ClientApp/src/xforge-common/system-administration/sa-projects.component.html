@@ -27,7 +27,7 @@
             <mat-select
               placeholder="Role"
               [value]="row.projectRole"
-              [disabled]="row.isUpdatingRole"
+              [disabled]="row.isUpdatingRole || !isAppOnline"
               (selectionChange)="updateRole(row, $event.value)"
               [hideSingleSelectionIndicator]="true"
             >
@@ -42,14 +42,22 @@
       </ng-container>
       <ng-container matColumnDef="syncDisabled">
         <td mat-cell *matCellDef="let row">
-          <mat-checkbox [checked]="row.syncDisabled" (change)="onUpdateSyncDisabled(row, $event.checked)">
+          <mat-checkbox
+            [checked]="row.syncDisabled"
+            [disabled]="!isAppOnline"
+            (change)="onUpdateSyncDisabled(row, $event.checked)"
+          >
             Sync Disabled
           </mat-checkbox>
         </td>
       </ng-container>
       <ng-container matColumnDef="preTranslate">
         <td mat-cell *matCellDef="let row">
-          <mat-checkbox [checked]="row.preTranslate" (change)="onUpdatePreTranslate(row, $event.checked)">
+          <mat-checkbox
+            [checked]="row.preTranslate"
+            [disabled]="!isAppOnline"
+            (change)="onUpdatePreTranslate(row, $event.checked)"
+          >
             NMT forward drafting
           </mat-checkbox>
         </td>

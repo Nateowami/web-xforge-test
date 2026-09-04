@@ -2,6 +2,12 @@
 <div class="body-content">
   <h1>System Administration</h1>
 
+  @if ((onlineStatusService.onlineStatus$ | async) === false) {
+    <p id="system-admin-offline-message" class="offline-text">
+      You are offline. Connect to the internet to administer users and projects.
+    </p>
+  }
+
   <mat-tab-group>
     <mat-tab label="Users">
       <app-sa-users></app-sa-users>
