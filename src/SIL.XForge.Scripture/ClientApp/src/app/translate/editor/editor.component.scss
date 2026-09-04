@@ -29,7 +29,10 @@
   display: grid;
   column-gap: 10px;
 
-  grid-template-rows: 72px minmax(0, 1fr);
+  // The toolbar row sizes to its content: when the toolbar options wrap to a second line (narrow
+  // viewport, long book name, several viewer avatars) a fixed row height would leave the wrapped
+  // controls overflowing the toolbar and overlapping the text area below.
+  grid-template-rows: min-content minmax(0, 1fr);
   grid-template-columns: repeat(2, minmax(0, 1fr)); // Prevent cols from expanding past 50%
 
   &.target-only {
