@@ -81,7 +81,11 @@ export function checkAppAccess(
     void router.navigateByUrl(route, { replaceUrl: true });
     return;
   }
-  if (pathname.includes('checking') && !roleCanAccessCommunityChecking(projectRole)) {
+  // Matches CheckingAuthGuard: the checking area is unavailable when community checking is turned
+  // off, whatever the user's role
+  const canAccessChecking =
+    projectDoc.data.checkingConfig.checkingEnabled && roleCanAccessCommunityChecking(projectRole);
+  if (pathname.includes('checking') && !canAccessChecking) {
     void router.navigateByUrl(route, { replaceUrl: true });
   }
 }

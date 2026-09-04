@@ -448,6 +448,20 @@ describe('AppComponent', () => {
     discardPeriodicTasks();
   }));
 
+  it('leaves the checking area when community checking is disabled', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.navigate(['/projects', 'project01', 'checking', 'MAT']);
+    env.setCurrentUser('user02');
+    env.init();
+
+    expect(env.selectedProjectId).toEqual('project01');
+    expect(env.location.path()).toEqual('/projects/project01/checking/MAT');
+    when(mockedLocationService.pathname).thenReturn('/projects/project01/checking/MAT');
+    env.setCheckingEnabled('project01', false);
+    expect(env.location.path()).toEqual('/projects/project01');
+    discardPeriodicTasks();
+  }));
+
   it('shows banner when update is available', fakeAsync(() => {
     const env = new TestEnvironment();
     env.navigate(['/projects', 'project01']);
@@ -1025,6 +1039,12 @@ class TestEnvironment {
     const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, projectId);
     projectDoc.submitJson0Op(op => op.set<string>(p => p.userRoles['user01'], SFProjectRole.CommunityChecker), false);
     this.currentUserDoc.submitJson0Op(op => op.add<string>(u => u.sites['sf'].projects, 'project04'), false);
+    this.wait();
+  }
+
+  setCheckingEnabled(projectId: string, enabled: boolean): void {
+    const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, projectId);
+    projectDoc.submitJson0Op(op => op.set<boolean>(p => p.checkingConfig.checkingEnabled, enabled), false);
     this.wait();
   }
 
