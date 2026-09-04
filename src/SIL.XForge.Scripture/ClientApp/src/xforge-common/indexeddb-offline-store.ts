@@ -32,25 +32,61 @@ function getKeyRange(filter: PropertyFilter): IDBKeyRange | undefined {
   return IDBKeyRange.only(filter);
 }
 
+interface IndexSpec {
+  name: string;
+  keyPath: string | string[];
+}
+
+function getIndexSpecs(indexPaths?: (string | { [x: string]: number | string } | [string, unknown])[]): IndexSpec[] {
+  if (indexPaths == null) {
+    return [];
+  }
+  return indexPaths.map((path): IndexSpec => {
+    if (typeof path === 'string') {
+      return { name: path, keyPath: `data.${path}` };
+    } else if (Array.isArray(path)) {
+      // Index options are not supported in IndexedDB, so we ignore them.
+      return { name: path[0], keyPath: `data.${path[0]}` };
+    } else {
+      const keys: string[] = Object.keys(path);
+      return { name: keys.join('_'), keyPath: keys.map(key => `data.${key}`) };
+    }
+  });
+}
+
 function createObjectStore(
   db: IDBDatabase,
   collection: string,
   indexPaths?: (string | { [x: string]: number | string } | [string, unknown])[]
 ): void {
   const objectStore = db.createObjectStore(collection, { keyPath: 'id' });
-  if (indexPaths != null) {
-    for (const path of indexPaths) {
-      if (typeof path === 'string') {
-        objectStore.createIndex(path, `data.${path}`);
-      } else if (Array.isArray(path)) {
-        // Index options are not supported in IndexedDB, so we ignore them.
-        objectStore.createIndex(path[0], `data.${path[0]}`);
-      } else {
-        objectStore.createIndex(
-          Object.keys(path).join('_'),
-          Object.keys(path).map(key => `data.${key}`)
-        );
-      }
+  for (const index of getIndexSpecs(indexPaths)) {
+    objectStore.createIndex(index.name, index.keyPath);
+  }
+}
+
+/**
+ * Brings the indexes of an object store that already exists in the database into line with the indexes that the
+ * application currently defines. Without this, indexes added to a doc type would only ever exist for users who create
+ * the database from scratch, i.e. after logging out and back in again.
+ */
+function updateObjectStoreIndexes(
+  transaction: IDBTransaction,
+  collection: string,
+  indexPaths?: (string | { [x: string]: number | string } | [string, unknown])[]
+): void {
+  const objectStore = transaction.objectStore(collection);
+  const indexes: IndexSpec[] = getIndexSpecs(indexPaths);
+  for (const indexName of Array.from(objectStore.indexNames)) {
+    const index: IndexSpec | undefined = indexes.find(i => i.name === indexName);
+    // The key path of an existing index cannot be changed, so the index has to be recreated if it has changed.
+    if (index == null || String(objectStore.index(indexName).keyPath) !== String(index.keyPath)) {
+      objectStore.deleteIndex(indexName);
+    }
+  }
+  for (const index of indexes) {
+    if (!objectStore.indexNames.contains(index.name)) {
+      objectStore.createIndex(index.name, index.keyPath);
     }
   }
 }
@@ -185,6 +221,8 @@ export class IndexeddbOfflineStore extends OfflineStore {
       if (!window.indexedDB) {
         return reject(new Error('IndexedDB is not available in this browser. Please use a different browser.'));
       }
+      // environment.offlineDBVersion must be incremented when object stores or their indexes change, as the
+      // database schema is only updated when the version changes.
       const request = window.indexedDB.open(DATABASE_NAME, environment.offlineDBVersion);
       request.onerror = () => reject(request.error);
       request.onsuccess = () => {
@@ -195,9 +233,15 @@ export class IndexeddbOfflineStore extends OfflineStore {
       };
       request.onupgradeneeded = () => {
         const db = request.result;
+        const transaction: IDBTransaction | null = request.transaction;
+        if (transaction == null) {
+          return reject(new Error('The IndexedDB upgrade transaction is not available.'));
+        }
         const storeNames = db.objectStoreNames;
         for (const docType of this.typeRegistry.docTypes) {
-          if (!storeNames.contains(docType.COLLECTION)) {
+          if (storeNames.contains(docType.COLLECTION)) {
+            updateObjectStoreIndexes(transaction, docType.COLLECTION, docType.INDEX_PATHS);
+          } else {
             createObjectStore(db, docType.COLLECTION, docType.INDEX_PATHS);
           }
         }
