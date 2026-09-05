@@ -1950,6 +1950,13 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     if (this._editor == null) {
       return;
     }
+    // A backslash begins a USFM marker, so it is not allowed in the text. The 'disable backslash' key binding
+    // only catches key presses of the backslash key on a US layout, but text can be entered without one, such as
+    // from an on-screen keyboard, an IME, dictation, autocorrect, or a drag and drop.
+    if (ev instanceof InputEvent && ev.data != null && ev.data.includes('\\')) {
+      ev.preventDefault();
+      return;
+    }
     const sel: Range | null = this._editor.getSelection();
     if (sel == null) {
       return;

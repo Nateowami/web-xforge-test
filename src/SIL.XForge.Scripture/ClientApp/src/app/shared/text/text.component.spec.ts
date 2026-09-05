@@ -1132,6 +1132,26 @@ describe('TextComponent', () => {
     expect(isValidSpy).withContext('the test may have worked for the wrong reason').toHaveBeenCalled();
   }));
 
+  it('cancels in beforeinput when the input contains a backslash', fakeAsync(() => {
+    const { env }: { env: TestEnvironment; segmentRange: QuillRange } = basicSimpleText();
+
+    // Input that does not come from a key press, such as from an on-screen keyboard or an IME.
+    const beforeinputEvent: InputEvent = new InputEvent('beforeinput', {
+      cancelable: true,
+      inputType: 'insertText',
+      data: '\\v 29 some text'
+    });
+
+    // When asked, the current selection will be called valid, so that the backslash is the only reason to cancel.
+    spyOn<any>(env.component, 'isValidSelectionForCurrentSegment').and.returnValue(true);
+
+    // SUT
+    const cancelled: boolean = !env.component.editor?.container.dispatchEvent(beforeinputEvent);
+    flush();
+
+    expect(cancelled).withContext('event should have been cancelled when input contains a backslash').toBeTrue();
+  }));
+
   it('allows backspace when valid selection', fakeAsync(() => {
     const { env, segmentRange }: { env: TestEnvironment; segmentRange: QuillRange } = basicSimpleText();
 
