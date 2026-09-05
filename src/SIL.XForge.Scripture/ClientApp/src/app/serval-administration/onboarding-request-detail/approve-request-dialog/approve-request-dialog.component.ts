@@ -34,12 +34,22 @@ export interface BackTranslationInfo extends SourceOption {
   draftingAlreadyEnabled: boolean;
 }
 
+/** A project selected in the onboarding request that has no Scripture Forge project, so it cannot be a source. */
+export interface UnconnectedSource {
+  paratextId: string;
+  /** Human readable description of the role(s) the project was given in the request. */
+  usedAs: string;
+}
+
 export interface ApproveRequestDialogData {
   targetProject: SourceOption;
   draftingSourceOptions: SourceOption[];
   trainingSourceOptions: SourceOption[];
+  defaultDraftingSource?: string;
   defaultTrainingSource?: string;
   backTranslation?: BackTranslationInfo;
+  /** Projects the request refers to that are not connected to Scripture Forge, and so are not offered as options. */
+  unconnectedSources?: UnconnectedSource[];
 }
 
 export interface ApproveRequestDialogResult {
@@ -99,6 +109,7 @@ export class ApproveRequestDialogComponent {
   readonly form: FormGroup;
   readonly enableBackTranslationDrafting: FormControl<boolean>;
   readonly backTranslationLanguageMatchesTarget: boolean;
+  readonly unconnectedSources: UnconnectedSource[];
   private readonly languageCodes: Map<string, string>;
   private readonly normalizedTargetLanguageCode: string;
 
@@ -106,20 +117,22 @@ export class ApproveRequestDialogComponent {
     readonly dialogRef: MatDialogRef<ApproveRequestDialogComponent, ApproveRequestDialogResult>,
     @Inject(MAT_DIALOG_DATA) readonly data: ApproveRequestDialogData
   ) {
-    if (data.defaultTrainingSource == null) throw new Error('defaultTrainingSource is required');
-
+    this.unconnectedSources = data.unconnectedSources ?? [];
     this.normalizedTargetLanguageCode = normalizeLanguageCodeToISO639_3(data.targetProject.languageCode);
     this.backTranslationLanguageMatchesTarget =
       data.backTranslation != null &&
       normalizeLanguageCodeToISO639_3(data.backTranslation.languageCode) === this.normalizedTargetLanguageCode;
-    this.draftingSource = new FormControl<string>(data.draftingSourceOptions[0]?.paratextId ?? '', {
+    this.draftingSource = new FormControl<string>(data.defaultDraftingSource ?? '', {
       validators: [Validators.required],
       nonNullable: true
     });
-    this.trainingSources = new FormControl<string[]>([data.defaultTrainingSource], {
-      validators: [trainingSourcesValidator],
-      nonNullable: true
-    });
+    this.trainingSources = new FormControl<string[]>(
+      data.defaultTrainingSource == null ? [] : [data.defaultTrainingSource],
+      {
+        validators: [trainingSourcesValidator],
+        nonNullable: true
+      }
+    );
     this.languageCodes = new Map<string, string>(
       [...data.trainingSourceOptions, ...data.draftingSourceOptions].map(o => [o.paratextId, o.languageCode] as const)
     );

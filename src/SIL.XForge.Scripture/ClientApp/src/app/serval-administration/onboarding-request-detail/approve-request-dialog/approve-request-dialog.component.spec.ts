@@ -21,7 +21,18 @@ const TEST_DATA: ApproveRequestDialogData = {
     { paratextId: 'ptid-B', name: 'English Source Beta', languageCode: 'eng' },
     { paratextId: 'ptid-bt', name: 'English Back Translation', languageCode: 'eng' }
   ],
+  defaultDraftingSource: 'ptid-draft',
   defaultTrainingSource: 'ptid-A'
+};
+
+const UNCONNECTED_SOURCES_DATA: ApproveRequestDialogData = {
+  targetProject: TEST_DATA.targetProject,
+  draftingSourceOptions: [],
+  trainingSourceOptions: [],
+  unconnectedSources: [
+    { paratextId: 'ptid-draft', usedAs: 'Draft source project' },
+    { paratextId: 'ptid-A', usedAs: 'First reference project' }
+  ]
 };
 
 const BT_NEEDS_ENABLING_DATA: ApproveRequestDialogData = {
@@ -116,6 +127,37 @@ describe('ApproveRequestDialogComponent', () => {
       )
     ).once();
     expect().nothing();
+  });
+
+  describe('projects that are not connected to Scripture Forge', () => {
+    it('reports none when every requested project is connected', () => {
+      expect(new TestEnvironment().unconnectedSourceItems).toEqual([]);
+    });
+
+    it('lists each one with the role it was given in the request', () => {
+      const env = new TestEnvironment(UNCONNECTED_SOURCES_DATA);
+      expect(env.unconnectedSourceItems.length).toBe(2);
+      expect(env.unconnectedSourceItems[0]).toContain('Draft source project');
+      expect(env.unconnectedSourceItems[0]).toContain('ptid-draft');
+      expect(env.unconnectedSourceItems[1]).toContain('First reference project');
+    });
+
+    it('does not select a source that was not offered, and blocks approval', () => {
+      const env = new TestEnvironment(UNCONNECTED_SOURCES_DATA);
+      expect(env.component.draftingSource.value).toBe('');
+      expect(env.component.trainingSources.value).toEqual([]);
+      expect(env.component.form.invalid).toBeTrue();
+      expect(env.approveButton.disabled).toBeTrue();
+    });
+
+    it('still allows approval when the sources that are connected are enough', () => {
+      const env = new TestEnvironment({
+        ...TEST_DATA,
+        unconnectedSources: [{ paratextId: 'ptid-C', usedAs: 'Third reference project' }]
+      });
+      expect(env.unconnectedSourceItems.length).toBe(1);
+      expect(env.approveButton.disabled).toBeFalse();
+    });
   });
 
   it('cancel button closes with undefined', () => {
@@ -274,5 +316,15 @@ class TestEnvironment {
 
   get cancelButton(): HTMLButtonElement {
     return this.fixture.nativeElement.querySelector('#cancel-button');
+  }
+
+  get approveButton(): HTMLButtonElement {
+    return this.fixture.nativeElement.querySelector('#approve-button');
+  }
+
+  get unconnectedSourceItems(): string[] {
+    return [...this.fixture.nativeElement.querySelectorAll('.unconnected-sources li')].map((e: HTMLElement) =>
+      e.textContent!.trim()
+    );
   }
 }

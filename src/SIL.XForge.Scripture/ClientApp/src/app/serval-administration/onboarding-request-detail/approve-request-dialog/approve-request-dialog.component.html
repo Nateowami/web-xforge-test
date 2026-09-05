@@ -1,8 +1,27 @@
 <h1 mat-dialog-title>Approve &amp; enable drafting</h1>
 <mat-dialog-content>
   <p class="dialog-subtitle">Configure sources for {{ data.targetProject.name }}</p>
+  @if (unconnectedSources.length > 0) {
+    <app-notice type="warning" mode="outline" class="unconnected-sources">
+      <p>
+        These projects were chosen in the request but are not connected to Scripture Forge, so they cannot be selected
+        as sources yet:
+      </p>
+      <ul>
+        @for (source of unconnectedSources; track source.paratextId) {
+          <li>
+            {{ source.usedAs }} <span class="language-code">{{ source.paratextId }}</span>
+          </li>
+        }
+      </ul>
+      <p>Have them connected to Scripture Forge, then reopen this dialog to configure them.</p>
+    </app-notice>
+  }
   <form [formGroup]="form">
     <h3>Drafting source</h3>
+    @if (data.draftingSourceOptions.length === 0) {
+      <p class="hint">No connected project is available to use as the drafting source.</p>
+    }
     <mat-radio-group formControlName="draftingSource" class="source-options">
       @for (option of data.draftingSourceOptions; track option.paratextId) {
         <mat-radio-button [value]="option.paratextId">
@@ -12,7 +31,11 @@
     </mat-radio-group>
 
     <h3>Training sources</h3>
-    <p class="hint">Select 1 or 2 training sources.</p>
+    @if (data.trainingSourceOptions.length === 0) {
+      <p class="hint">No connected project is available to use as a training source.</p>
+    } @else {
+      <p class="hint">Select 1 or 2 training sources.</p>
+    }
     <div class="source-options">
       @for (option of data.trainingSourceOptions; track option.paratextId) {
         <div class="training-source-option">
@@ -46,6 +69,9 @@
         }
       </p>
     }
+    @if (data.draftingSourceOptions.length > 0 && draftingSource.hasError("required")) {
+      <app-notice type="error" mode="outline">Select a drafting source.</app-notice>
+    }
     @if (form.hasError("languageCodesDiffer")) {
       <app-notice type="error" mode="outline">All source projects must be in the same language.</app-notice>
     }
@@ -54,7 +80,7 @@
         Sources are in the same language as the target project. This may be a mistake.
       </app-notice>
     }
-    @if (trainingSources.hasError("trainingSourceCount")) {
+    @if (data.trainingSourceOptions.length > 0 && trainingSources.hasError("trainingSourceCount")) {
       <app-notice type="error" mode="outline">Select one or two training sources.</app-notice>
     }
   </form>
@@ -63,7 +89,14 @@
   <button mat-button type="button" [mat-dialog-close]="undefined" id="cancel-button">
     <mat-icon>close</mat-icon> Cancel
   </button>
-  <button mat-flat-button color="primary" type="button" (click)="approve()" id="approve-button">
+  <button
+    mat-flat-button
+    color="primary"
+    type="button"
+    (click)="approve()"
+    [disabled]="form.invalid"
+    id="approve-button"
+  >
     <mat-icon>check_circle</mat-icon> Approve
   </button>
 </mat-dialog-actions>

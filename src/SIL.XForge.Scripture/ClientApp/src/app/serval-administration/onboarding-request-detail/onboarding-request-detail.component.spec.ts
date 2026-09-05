@@ -2,11 +2,11 @@ import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { DebugElement } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
-import { MatDialogRef } from '@angular/material/dialog';
+import { MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
-import { anything, deepEqual, instance, mock, verify, when } from 'ts-mockito';
+import { anything, capture, deepEqual, instance, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -23,7 +23,10 @@ import {
 } from '../../translate/draft-generation/onboarding-request.service';
 import { OnboardingRequestDetailComponent } from '../onboarding-request-detail/onboarding-request-detail.component';
 import { ServalAdministrationService } from '../serval-administration.service';
-import { ApproveRequestDialogResult } from './approve-request-dialog/approve-request-dialog.component';
+import {
+  ApproveRequestDialogData,
+  ApproveRequestDialogResult
+} from './approve-request-dialog/approve-request-dialog.component';
 
 const mockedActivatedRoute = mock(ActivatedRoute);
 const mockedDialogService = mock(DialogService);
@@ -214,6 +217,30 @@ describe('OnboardingRequestDetailComponent', () => {
       expect(env.component.request?.resolution).toBe('approved');
     }));
 
+    it('tells the dialog which requested projects are not connected to Scripture Forge', fakeAsync(() => {
+      const env = new TestEnvironment({
+        mainProjectDoc,
+        // The drafting source is connected, but the reference project the user chose has never been connected
+        projectDocsByParatextId: new Map([
+          ['drafting_source_pt', createProjectDoc('drafting01', 'drafting_source_pt', 'DRAFT')]
+        ]),
+        approveDialogResult: null
+      });
+      env.wait();
+
+      void env.component.approveRequest();
+      flush();
+
+      const dialogData: ApproveRequestDialogData = env.approveDialogData;
+      expect(dialogData.unconnectedSources).toEqual([
+        { paratextId: 'training_source_pt', usedAs: 'First reference project' }
+      ]);
+      expect(dialogData.draftingSourceOptions.map(o => o.paratextId)).toEqual(['drafting_source_pt']);
+      expect(dialogData.defaultDraftingSource).toBe('drafting_source_pt');
+      // The requested first reference project is not connected, so nothing is pre-selected for training
+      expect(dialogData.defaultTrainingSource).toBeUndefined();
+    }));
+
     it('enables back translation drafting when enableBackTranslationDrafting is true', fakeAsync(() => {
       when(mockedOnboardingRequestService.approveRequest(anything())).thenResolve(createTestRequest());
       const defaultSubmission = createTestRequest().submission;
@@ -310,6 +337,12 @@ describe('OnboardingRequestDetailComponent', () => {
       this.fixture = TestBed.createComponent(OnboardingRequestDetailComponent);
       this.component = this.fixture.componentInstance;
       this.fixture.detectChanges();
+    }
+
+    /** The data the component passed to the approve dialog. */
+    get approveDialogData(): ApproveRequestDialogData {
+      const [, config] = capture(mockedDialogService.openMatDialog as any).last();
+      return (config as MatDialogConfig<ApproveRequestDialogData>).data!;
     }
 
     get assigneeSelect(): DebugElement {

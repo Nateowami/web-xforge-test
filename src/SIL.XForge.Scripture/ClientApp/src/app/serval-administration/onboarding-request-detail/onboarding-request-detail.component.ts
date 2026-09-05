@@ -51,7 +51,8 @@ import {
   ApproveRequestDialogData,
   ApproveRequestDialogResult,
   BackTranslationInfo,
-  SourceOption
+  SourceOption,
+  UnconnectedSource
 } from './approve-request-dialog/approve-request-dialog.component';
 import { formatBookListForSILNLP } from './draft-request-detail-utils';
 
@@ -508,13 +509,51 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
       languageCode: mainData.writingSystem.tag
     };
 
+    // A project the user chose in the sign up form may never have been connected to Scripture Forge, in which case it
+    // cannot be used as a source. Report those so the dialog can explain why they are missing, rather than silently
+    // dropping them.
+    const unconnectedSources: UnconnectedSource[] = [];
+    for (const [paratextId, usedAs] of this.requestedSourceRoles()) {
+      if (this.projectDocs.get(paratextId)?.data == null) {
+        unconnectedSources.push({ paratextId, usedAs });
+      }
+    }
+
+    const isConnected = (paratextId: string | undefined): boolean =>
+      paratextId != null && draftingSourceOptions.some(o => o.paratextId === paratextId);
+
     return {
       targetProject,
       draftingSourceOptions,
       trainingSourceOptions,
-      defaultTrainingSource: onboardingRequestFormData.sourceProjectA,
-      backTranslation
+      defaultDraftingSource: isConnected(onboardingRequestFormData.draftingSourceProject)
+        ? onboardingRequestFormData.draftingSourceProject
+        : undefined,
+      defaultTrainingSource: isConnected(onboardingRequestFormData.sourceProjectA)
+        ? onboardingRequestFormData.sourceProjectA
+        : undefined,
+      backTranslation,
+      unconnectedSources
     };
+  }
+
+  /** Maps each Paratext project referenced by the request to the role(s) it was given, in display order. */
+  private requestedSourceRoles(): Map<string, string> {
+    const formData = this.formData;
+    const roles: [string | null | undefined, string][] = [
+      [formData.draftingSourceProject, 'Draft source project'],
+      [formData.sourceProjectA, 'First reference project'],
+      [formData.sourceProjectB, 'Second reference project'],
+      [formData.sourceProjectC, 'Third reference project'],
+      [formData.backTranslationProject, 'Back translation project']
+    ];
+    const rolesByParatextId = new Map<string, string>();
+    for (const [paratextId, role] of roles) {
+      if (!isPopulatedString(paratextId)) continue;
+      const existing = rolesByParatextId.get(paratextId);
+      rolesByParatextId.set(paratextId, existing == null ? role : `${existing}, ${role}`);
+    }
+    return rolesByParatextId;
   }
 
   downloadProjects(): void {
