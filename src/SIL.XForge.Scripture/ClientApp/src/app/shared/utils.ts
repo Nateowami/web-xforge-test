@@ -252,11 +252,7 @@ export class XmlUtils {
         treeWalker.nextNode();
         return '<span>' + this.processNodeAndSiblings(treeWalker) + '</span>';
       case '#text':
-        // get the inner html of the span element to get the encoded text so that < and > symbols are
-        // not lost during html sanitation
-        const span = document.createElement('span');
-        span.textContent = treeWalker.currentNode.nodeValue;
-        return span.innerHTML;
+        return this.encodeTextWithLinks(treeWalker.currentNode.nodeValue ?? '');
       default:
         // the node is for a tag we do not recognize. Show just the text content.
         if (!treeWalker.currentNode.hasChildNodes()) return '';
@@ -264,7 +260,39 @@ export class XmlUtils {
         return this.processNodeAndSiblings(treeWalker);
     }
   }
+
+  /**
+   * Encodes plain text as html, turning any web addresses it contains into links. Note content is plain text in
+   * Paratext, so a URL typed into a note (an audio clip link, for example) only becomes clickable if we make it so.
+   */
+  private static encodeTextWithLinks(text: string): string {
+    let html = '';
+    let index = 0;
+    for (const match of text.matchAll(URL_IN_TEXT_REGEX)) {
+      // trailing punctuation is far more likely to end the sentence than to be part of the address
+      const url: string = match[0].replace(/[.,;:!?]+$/, '');
+      html += this.encodeText(text.substring(index, match.index));
+      const anchor: HTMLAnchorElement = document.createElement('a');
+      anchor.setAttribute('href', url);
+      anchor.setAttribute('target', '_blank');
+      anchor.setAttribute('rel', 'noopener noreferrer');
+      anchor.textContent = url;
+      html += anchor.outerHTML;
+      index = match.index + url.length;
+    }
+    return html + this.encodeText(text.substring(index));
+  }
+
+  /** Encodes plain text as html, so that characters such as < and > are not lost during html sanitation. */
+  private static encodeText(text: string): string {
+    const span: HTMLSpanElement = document.createElement('span');
+    span.textContent = text;
+    return span.innerHTML;
+  }
 }
+
+/** Matches a web address within plain text. Only schemes that are safe to link to are recognized. */
+const URL_IN_TEXT_REGEX = /https?:\/\/[^\s<>"']+/g;
 
 /**
  * A non-exhaustive list of icons that should be mirrored in RTL languages.

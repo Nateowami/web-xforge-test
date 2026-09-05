@@ -188,6 +188,37 @@ describe('shared utils', () => {
         'check unknown <i>text</i>'
       );
     });
+
+    it('should convert web addresses in xml to links', () => {
+      const link = (url: string): string => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`;
+
+      expect(XmlUtils.convertXmlToHtml('<p>Audio clip: https://example.com/clip.mp3</p>')).toEqual(
+        `Audio clip: ${link('https://example.com/clip.mp3')}<br />`
+      );
+      expect(XmlUtils.convertXmlToHtml('http://example.com/a?b=1&amp;c=2')).toEqual(
+        link('http://example.com/a?b=1&amp;c=2')
+      );
+      // more than one address in the same text node
+      expect(XmlUtils.convertXmlToHtml('<p>See https://example.com/one and https://example.com/two</p>')).toEqual(
+        `See ${link('https://example.com/one')} and ${link('https://example.com/two')}<br />`
+      );
+      // punctuation ending the sentence is not part of the address
+      expect(XmlUtils.convertXmlToHtml('<p>Listen to https://example.com/clip.mp3.</p>')).toEqual(
+        `Listen to ${link('https://example.com/clip.mp3')}.<br />`
+      );
+      // addresses inside formatting are linked too
+      expect(XmlUtils.convertXmlToHtml('<bold>https://example.com</bold>')).toEqual(
+        `<b>${link('https://example.com')}</b>`
+      );
+      // text that is not a linkable web address is left alone
+      expect(XmlUtils.convertXmlToHtml('<p>file:///home/user/clip.mp3 and example.com</p>')).toEqual(
+        'file:///home/user/clip.mp3 and example.com<br />'
+      );
+      // an address is never allowed to inject markup
+      expect(XmlUtils.convertXmlToHtml('<p>https://example.com/&lt;script&gt;</p>')).toEqual(
+        `${link('https://example.com/')}&lt;script&gt;<br />`
+      );
+    });
   });
 
   describe('getVerseNumbers function', () => {

@@ -119,6 +119,8 @@ h1 {
   }
   .note-content {
     flex-basis: 100%;
+    // a long web address has nowhere to break, and would otherwise spill outside the dialog
+    overflow-wrap: anywhere;
   }
   .edit-actions {
     flex-basis: 0;
