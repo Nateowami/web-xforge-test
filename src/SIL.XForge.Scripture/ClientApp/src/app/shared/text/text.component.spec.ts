@@ -31,7 +31,13 @@ import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextDoc, TextDocId } from '../../core/models/text-doc';
 import { SFProjectService } from '../../core/sf-project.service';
-import { getCombinedVerseTextDoc, getEmptyChapterDoc, getPoetryVerseTextDoc, getTextDoc } from '../test-utils';
+import {
+  getCombinedVerseTextDoc,
+  getEmptyChapterDoc,
+  getNoParagraphTextDoc,
+  getPoetryVerseTextDoc,
+  getTextDoc
+} from '../test-utils';
 import { provideQuillRegistrations } from './quill-editor-registration/quill-providers';
 import { getAttributesAtPosition } from './quill-util';
 import { TextNoteDialogComponent, TextNoteType } from './text-note-dialog/text-note-dialog.component';
@@ -565,6 +571,34 @@ describe('TextComponent', () => {
       expect(result!.index).toEqual(range.index);
       expect(result!.length).toEqual(range.length);
     }
+  }));
+
+  it('selects the following verse when the cursor is placed before verse 1 without paragraph markers', fakeAsync(() => {
+    // A chapter without paragraph markers has no segment between the chapter number and verse 1, so a click there
+    // must not leave a previously selected verse as the current segment (SF-1360).
+    const env = new TestEnvironment({
+      textDoc: getNoParagraphTextDoc(new TextDocId('project01', 40, 2)).ops!,
+      chapterNum: 2
+    });
+    env.waitForEditor();
+
+    // the user was editing verse 2
+    const verse2Range: QuillRange = env.component.getSegmentRange('verse_2_2')!;
+    env.component.editor!.setSelection(verse2Range.index + 1, 0, 'user');
+    tick();
+    expect(env.component.segmentRef).toEqual('verse_2_2');
+
+    // the user clicks in the empty area between the chapter number and the verse 1 marker
+    const verse1Range: QuillRange = env.component.getSegmentRange('verse_2_1')!;
+    env.component.editor!.setSelection(verse1Range.index - 1, 0, 'user');
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.component.segmentRef).toEqual('verse_2_1');
+    // and the cursor is moved into verse 1, so that typing lands there rather than in verse 2 or outside any verse
+    expect(env.component.editor!.getSelection()!.index).toEqual(verse1Range.index);
+
+    TestEnvironment.waitForPresenceTimer();
   }));
 
   describe('MultiCursor Presence', () => {

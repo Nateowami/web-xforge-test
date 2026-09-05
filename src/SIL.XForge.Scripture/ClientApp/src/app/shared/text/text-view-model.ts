@@ -422,10 +422,13 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
   /**
    * Returns the segment reference with the most overlap of given range.
    * Preference is given to the specified segment if it is wholly contained within the range.
+   * A range that overlaps no segment at all, such as a cursor placed before the first verse of a chapter that has no
+   * paragraph markers, resolves to the segment that follows it.
    */
   getSegmentRef(range: Range, preferRef?: string): string | undefined {
     let segmentRef: string | undefined;
-    let maxOverlap = -1;
+    // negative overlap means the range is in a gap before the segment, which is still a better match than no segment
+    let maxOverlap = Number.NEGATIVE_INFINITY;
 
     if (range != null) {
       for (const [ref, segmentRange] of this.segments) {

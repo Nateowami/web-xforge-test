@@ -87,6 +87,18 @@ export function getPoetryVerseTextDoc(id: TextDocId): TextData {
   return delta;
 }
 
+/** A chapter with no paragraph markers, so the verses sit in an implicit paragraph. */
+export function getNoParagraphTextDoc(id: TextDocId): TextData {
+  const delta = new Delta();
+  delta.insert({ chapter: { number: id.chapterNum.toString(), style: 'c' } });
+  delta.insert({ verse: { number: '1', style: 'v' } });
+  delta.insert(`${id.textType}: chapter ${id.chapterNum}, verse 1.`, { segment: `verse_${id.chapterNum}_1` });
+  delta.insert({ verse: { number: '2', style: 'v' } });
+  delta.insert(`${id.textType}: chapter ${id.chapterNum}, verse 2.`, { segment: `verse_${id.chapterNum}_2` });
+  delta.insert('\n');
+  return delta;
+}
+
 export function getEmptyChapterDoc(id: TextDocId): TextData {
   const delta = new Delta();
   delta.insert({ blank: true }, { segment: 's_1' });
