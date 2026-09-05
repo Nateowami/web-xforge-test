@@ -12,6 +12,16 @@
   }
 }
 
+// Keep the header's action buttons together as one group, so they wrap onto a second line as a
+// unit rather than splitting up when the (translated) title and buttons no longer fit on one line.
+.primary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+}
+
 .flex {
   display: flex;
   flex: 1;

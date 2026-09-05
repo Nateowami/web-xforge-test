@@ -2,7 +2,7 @@
   <div [ngClass]="{ 'reviewer-panels': !canCreateQuestion }" class="header">
     <h1>{{ t(canCreateQuestion ? "manage_questions" : "my_progress") }}</h1>
     @if (canCreateQuestion) {
-      <ng-container class="primary-actions">
+      <div class="primary-actions">
         @if (showImportButton) {
           <button mat-button type="button" (click)="importDialog()" id="import-btn">
             <mat-icon>file_upload</mat-icon>
@@ -35,7 +35,7 @@
             <mat-icon class="mirror-rtl">post_add</mat-icon>
           </button>
         }
-      </ng-container>
+      </div>
     } @else {
       <div id="overall-progress-chart">
         <app-donut-chart
