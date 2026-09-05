@@ -21,7 +21,7 @@ import { ActivatedRoute, NavigationBehaviorOptions, Router } from '@angular/rout
 import { TranslocoModule } from '@ngneat/transloco';
 import { Canon, VerseRef } from '@sillsdev/scripture';
 import { AngularSplitModule, SplitComponent } from 'angular-split';
-import { cloneDeep, debounce } from 'lodash-es';
+import { cloneDeep, debounce, isEqual } from 'lodash-es';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { Answer, AnswerStatus } from 'realtime-server/lib/esm/scriptureforge/models/answer';
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
@@ -35,6 +35,7 @@ import { toVerseRef, VerseRefData } from 'realtime-server/lib/esm/scriptureforge
 import { asyncScheduler, BehaviorSubject, combineLatest, merge, Observable, of, Subscription } from 'rxjs';
 import { distinctUntilChanged, filter, map, startWith, take, throttleTime } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
+import { DialogService } from 'xforge-common/dialog.service';
 import { DonutChartComponent } from 'xforge-common/donut-chart/donut-chart.component';
 import { I18nService } from 'xforge-common/i18n.service';
 import { Breakpoint, MediaBreakpointService } from 'xforge-common/media-breakpoints/media-breakpoint.service';
@@ -199,6 +200,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
   private projectRemoteChangesSub?: Subscription;
   private questionsRemoteChangesSub?: Subscription;
   private text?: TextInfo;
+  private isBookDeletedDialogShown: boolean = false;
   private _scriptureAudioPlayer?: CheckingScriptureAudioPlayerComponent;
   private _showScriptureAudioPlayer: boolean = false;
 
@@ -217,7 +219,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     private readonly questionDialogService: QuestionDialogService,
     readonly i18n: I18nService,
     private readonly onlineStatusService: OnlineStatusService,
-    private readonly chapterAudioDialogService: ChapterAudioDialogService
+    private readonly chapterAudioDialogService: ChapterAudioDialogService,
+    private readonly dialogService: DialogService
   ) {
     super(noticeService, 'CheckingComponent');
   }
@@ -586,6 +589,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                     this.onRemovedFromProject();
                   } else if (!this.permissions.canAccessCommunityChecking(this.projectDoc)) {
                     this.onRemovedFromProject();
+                  } else {
+                    this.onProjectTextsChanged();
                   }
                 }
               });
@@ -1558,6 +1563,30 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
       ]);
     }, changeUpdateDelayMs);
     this.changeDetector.markForCheck();
+  }
+
+  /**
+   * Keeps the book list current when books are added to or removed from the project, such as when a sync with
+   * Paratext runs while the user is on this page. If the book being viewed was removed, notify the user and leave
+   * the page, as the editor does.
+   */
+  private onProjectTextsChanged(): void {
+    const books: number[] = this.projectDoc!.data!.texts.map(t => t.bookNum).sort((a, b) => a - b);
+    if (isEqual(books, this.books)) {
+      return;
+    }
+
+    this.books = books;
+    this.changeDetector.markForCheck();
+
+    if (this.book == null || books.includes(this.book) || this.isBookDeletedDialogShown) {
+      return;
+    }
+
+    this.isBookDeletedDialogShown = true;
+    void this.dialogService.message('editor.text_has_been_deleted').then(() => {
+      void this.router.navigate(['/projects', this.projectDoc!.id, 'checking'], { replaceUrl: true });
+    });
   }
 
   // Unbind this component from the data when a user is removed from the project, otherwise console

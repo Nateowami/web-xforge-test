@@ -143,6 +143,7 @@ class MockComponent {}
 const ROUTES: Route[] = [
   { path: 'projects/:projectId/checking/:bookId/:chapter', component: MockComponent },
   { path: 'projects/:projectId/checking/:bookId', component: MockComponent },
+  { path: 'projects/:projectId/checking', component: MockComponent },
   { path: 'projects/:projectId/translate/:bookId', component: MockComponent },
   { path: 'projects/:projectId', component: MockComponent }
 ];
@@ -472,6 +473,42 @@ describe('CheckingComponent', () => {
       expect(env.component.projectDoc).toBeUndefined();
       expect(env.component.questionDocs.length).toEqual(0);
       env.waitForSliderUpdate();
+    }));
+
+    it('responds to a book being removed from the project remotely', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+      expect(env.component.books).toEqual([40, 43]);
+
+      // A book other than the one being viewed is removed, e.g. by a sync with Paratext
+      env.removeBookFromProject(40);
+
+      expect(env.component.books).toEqual([43]);
+      expect(env.component.book).toEqual(43);
+      verify(mockedDialogService.message(anything())).never();
+      env.waitForSliderUpdate();
+      discardPeriodicTasks();
+    }));
+
+    it('notifies the user and leaves the page when the book being viewed is removed remotely', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+
+      env.removeBookFromProject(43);
+
+      expect(env.component.books).toEqual([40]);
+      verify(mockedDialogService.message('editor.text_has_been_deleted')).once();
+      expect(env.location.path()).toEqual('/projects/project01/checking');
+      env.waitForSliderUpdate();
+      discardPeriodicTasks();
     }));
 
     it('responds to remote community checking disabled when checker', fakeAsync(() => {
@@ -3570,6 +3607,17 @@ class TestEnvironment {
     return segment != null && segment.classList.contains('question-segment');
   }
 
+  /** Simulates a book being removed from the project by another user's sync with Paratext. */
+  removeBookFromProject(bookNum: number): void {
+    const index: number = this.component.projectDoc!.data!.texts.findIndex(t => t.bookNum === bookNum);
+    this.ngZone.run(() => {
+      this.component.projectDoc!.submitJson0Op(op => op.remove(p => p.texts, index), false);
+    });
+    this.waitForSliderUpdate();
+    tick();
+    this.fixture.detectChanges();
+  }
+
   setCheckingEnabled(isEnabled: boolean = true): void {
     this.ngZone.run(() => {
       this.component.projectDoc!.submitJson0Op(
@@ -3868,6 +3916,7 @@ class TestEnvironment {
       instance(this.mockedTextChooserDialogComponent)
     );
     when(mockedDialogService.confirm(anything(), anything())).thenResolve(true);
+    when(mockedDialogService.message(anything())).thenResolve();
     this.setupQuestionData();
   }
 
