@@ -277,19 +277,32 @@ public class ParatextNotesMapper(
             commentElem.Add(new XAttribute("extUser", comment.OwnerRef));
         commentElem.Add(new XAttribute("date", FormatCommentDate(comment.DateCreated)));
         var contentElem = new XElement("content");
-        // Responses that have empty texts will show in Paratext notes that it is audio-only
-        string responseText = string.IsNullOrEmpty(comment.Text)
-            ? localizer[SharedResource.Keys.AudioOnlyResponse, siteOptions.Value.Name]
-            : comment.Text;
-        if (prefixContent == null || prefixContent.Count == 0)
+        var responseTexts = new List<string>();
+        if (string.IsNullOrEmpty(comment.Text))
         {
-            contentElem.Add(responseText);
+            // Responses that have empty texts will show in Paratext notes that it is audio-only
+            responseTexts.Add(localizer[SharedResource.Keys.AudioOnlyResponse, siteOptions.Value.Name]);
         }
         else
         {
-            foreach (object paraContent in prefixContent)
-                contentElem.Add(new XElement("p", paraContent));
-            contentElem.Add(new XElement("p", responseText));
+            responseTexts.Add(comment.Text);
+            // Responses that have both text and audio will show in Paratext notes that there is also audio
+            if (!string.IsNullOrEmpty(comment.AudioUrl))
+                responseTexts.Add(localizer[SharedResource.Keys.AudioResponse, siteOptions.Value.Name]);
+        }
+        if ((prefixContent == null || prefixContent.Count == 0) && responseTexts.Count == 1)
+        {
+            contentElem.Add(responseTexts[0]);
+        }
+        else
+        {
+            if (prefixContent != null)
+            {
+                foreach (object paraContent in prefixContent)
+                    contentElem.Add(new XElement("p", paraContent));
+            }
+            foreach (string responseText in responseTexts)
+                contentElem.Add(new XElement("p", responseText));
         }
         commentElem.Add(contentElem);
         if (tagId != NoteTag.notSetId)

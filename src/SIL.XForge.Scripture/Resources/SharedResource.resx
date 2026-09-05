@@ -125,6 +125,10 @@
     <value>- {0} audio-only response -</value>
     <comment>Text to show in Paratext Notes when response is audio-only</comment>
   </data>
+  <data name="AudioResponse" xml:space="preserve">
+    <value>- {0} audio response also available -</value>
+    <comment>Text to show in Paratext Notes when a response has audio in addition to text</comment>
+  </data>
   <data name="CommunitySupport" xml:space="preserve">
     <value>Community Support</value>
   </data>

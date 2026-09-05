@@ -281,6 +281,7 @@ public class ParatextNotesMapperTests
                                     <p><span style=""italic"">This is some scripture. (MAT 1:2-3)</span></p>
                                     <p>[User 04 - xForge]</p>
                                     <p>Test answer 2.</p>
+                                    <p>- xForge audio response also available -</p>
                                 </content>
                                 <tagAdded>3</tagAdded>
                             </comment>
@@ -288,6 +289,7 @@ public class ParatextNotesMapperTests
                                 <content>
                                     <p>[User 02 - xForge]</p>
                                     <p>Test comment 2.</p>
+                                    <p>- xForge audio response also available -</p>
                                 </content>
                             </comment>
                         </thread>
@@ -1028,6 +1030,7 @@ public class ParatextNotesMapperTests
                                     SyncUserRef = answerSyncUserId1,
                                     DateCreated = new DateTime(2019, 1, 1, 8, 0, 0, DateTimeKind.Utc),
                                     Text = useAudioResponses ? null : "Test answer 1.",
+                                    AudioUrl = useAudioResponses ? "answer01.mp3" : null,
                                     Comments =
                                     {
                                         new Comment
@@ -1037,6 +1040,7 @@ public class ParatextNotesMapperTests
                                             SyncUserRef = commentSyncUserId1,
                                             DateCreated = new DateTime(2019, 1, 1, 9, 0, 0, DateTimeKind.Utc),
                                             Text = useAudioResponses ? null : "Test comment 1.",
+                                            AudioUrl = useAudioResponses ? "comment01.mp3" : null,
                                         },
                                     },
                                 },
@@ -1047,6 +1051,7 @@ public class ParatextNotesMapperTests
                                     SyncUserRef = answerSyncUserId2,
                                     DateCreated = new DateTime(2019, 1, 2, 8, 0, 0, DateTimeKind.Utc),
                                     Text = "Test answer 2.",
+                                    AudioUrl = useAudioResponses ? "answer02.mp3" : null,
                                     VerseRef = new VerseRefData(40, 1, "2-3"),
                                     ScriptureText = "This is some scripture.",
                                     Comments =
@@ -1058,6 +1063,7 @@ public class ParatextNotesMapperTests
                                             SyncUserRef = commentSyncUserId2,
                                             DateCreated = new DateTime(2019, 1, 2, 9, 0, 0, DateTimeKind.Utc),
                                             Text = "Test comment 2.",
+                                            AudioUrl = useAudioResponses ? "comment02.mp3" : null,
                                         },
                                         new Comment
                                         {

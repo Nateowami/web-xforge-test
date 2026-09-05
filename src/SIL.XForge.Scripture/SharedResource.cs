@@ -21,6 +21,7 @@ public class SharedResource
     {
         public const string AudioOnlyQuestion = "AudioOnlyQuestion";
         public const string AudioOnlyResponse = "AudioOnlyResponse";
+        public const string AudioResponse = "AudioResponse";
         public const string CommunitySupport = "CommunitySupport";
         public const string DraftCanceledEmailBody = "DraftCanceledEmailBody";
         public const string DraftEmailMoreInformation = "DraftEmailMoreInformation";
