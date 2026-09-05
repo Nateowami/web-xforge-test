@@ -276,10 +276,12 @@ describe('CheckingComponent', () => {
 
         const queryEmpty = mock(RealtimeQuery<QuestionDoc>) as RealtimeQuery<QuestionDoc>;
         when(queryEmpty.docs).thenReturn([]);
+        when(queryEmpty.docs$).thenReturn(new BehaviorSubject<QuestionDoc[]>([]));
         when(queryEmpty.ready$).thenReturn(new BehaviorSubject<boolean>(true));
 
         const query = mock(RealtimeQuery<QuestionDoc>) as RealtimeQuery<QuestionDoc>;
         when(query.docs).thenReturn([adjacentQuestion]);
+        when(query.docs$).thenReturn(new BehaviorSubject<QuestionDoc[]>([adjacentQuestion]));
         when(query.ready$).thenReturn(new BehaviorSubject<boolean>(true));
         const activeQuestion = { id: 'activeQId', data: { text: 'Active Question' } } as QuestionDoc;
 
@@ -327,6 +329,19 @@ describe('CheckingComponent', () => {
         tick();
         env.fixture.detectChanges();
         expect(prev.nativeElement.disabled).toBe(false);
+        expect(next.nativeElement.disabled).toBe(true);
+
+        // Scenario 5: Offline, so the query never becomes ready, but the local results are available
+        const queryOffline = mock(RealtimeQuery<QuestionDoc>) as RealtimeQuery<QuestionDoc>;
+        when(queryOffline.docs).thenReturn([]);
+        when(queryOffline.docs$).thenReturn(new BehaviorSubject<QuestionDoc[]>([]));
+        when(queryOffline.ready$).thenReturn(new BehaviorSubject<boolean>(false));
+        getAdjacentQuestionSpy.and.returnValue(Promise.resolve(instance(queryOffline)));
+        env.component['activeQuestionDoc$'].next(activeQuestion);
+        env.fixture.detectChanges();
+        tick();
+        env.fixture.detectChanges();
+        expect(prev.nativeElement.disabled).toBe(true);
         expect(next.nativeElement.disabled).toBe(true);
 
         env.waitForAudioPlayer();

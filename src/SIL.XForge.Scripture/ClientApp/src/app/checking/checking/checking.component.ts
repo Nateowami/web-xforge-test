@@ -825,16 +825,10 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
             this.destroyRef
           );
           this.prevQuestionOutOfScope = prevQuestionQuery;
-          prevQuestionQuery.ready$
-            .pipe(
-              filter(ready => ready),
-              map(() => prevQuestionQuery),
-              quietTakeUntilDestroyed(this.destroyRef)
-            )
-            .subscribe(async query => {
-              this.prevQuestion$ = of(this.filterQuestions(query.docs)[0]);
-              this.changeDetector.markForCheck();
-            });
+          // Use the query docs rather than waiting for the query to become ready. 'ready' only fires once the server
+          // responds, so offline it never fires and the buttons would keep the previously active question's state.
+          this.prevQuestion$ = prevQuestionQuery.docs$.pipe(map(docs => this.filterQuestions(docs)[0]));
+          this.changeDetector.markForCheck();
         }
 
         this.nextQuestionOutOfScope?.dispose();
@@ -851,16 +845,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
             this.destroyRef
           );
           this.nextQuestionOutOfScope = nextQuestionQuery;
-          nextQuestionQuery.ready$
-            .pipe(
-              filter(ready => ready),
-              map(() => nextQuestionQuery),
-              quietTakeUntilDestroyed(this.destroyRef)
-            )
-            .subscribe(async query => {
-              this.nextQuestion$ = of(this.filterQuestions(query.docs)[0]);
-              this.changeDetector.markForCheck();
-            });
+          this.nextQuestion$ = nextQuestionQuery.docs$.pipe(map(docs => this.filterQuestions(docs)[0]));
+          this.changeDetector.markForCheck();
         }
       });
 
