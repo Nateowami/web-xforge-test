@@ -985,6 +985,33 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public void PutNotes_VerseRefChanged_ThreadMoved()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        DateTime date = DateTime.Now; // This must be consistent as it is a part of the comment id
+
+        // Add a new comment on RUT 1:1
+        string threadId = "ANSWER_0123";
+        string content = "Content for comment to move.";
+        XElement updateNotesXml = TestEnvironment.GetUpdateNotesXml(threadId, env.User01, date, content, "RUT 1:1");
+        env.Service.PutNotes(userSecret, ptProjectId, updateNotesXml);
+        Assert.That(env.ProjectCommentManager.FindThread(threadId).Comments.First().VerseRefStr, Is.EqualTo("RUT 1:1"));
+
+        // Send the same comment on another verse, as happens when the verse reference of a question is changed.
+        // The verse reference of the first comment is what locates the note in Paratext.
+        updateNotesXml = TestEnvironment.GetUpdateNotesXml(threadId, env.User01, date, content, "RUT 1:2");
+        SyncMetricInfo syncMetricInfo = env.Service.PutNotes(userSecret, ptProjectId, updateNotesXml);
+
+        CommentThread thread = env.ProjectCommentManager.FindThread(threadId);
+        Assert.That(thread.Comments.Count, Is.EqualTo(1));
+        Assert.That(thread.Comments.First().VerseRefStr, Is.EqualTo("RUT 1:2"));
+        Assert.That(syncMetricInfo, Is.EqualTo(new SyncMetricInfo(added: 0, deleted: 0, updated: 1)));
+    }
+
+    [Test]
     public void PutNotes_RethrowsErrors()
     {
         var env = new TestEnvironment();

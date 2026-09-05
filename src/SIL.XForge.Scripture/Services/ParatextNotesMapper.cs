@@ -243,7 +243,7 @@ public class ParatextNotesMapper(
         bool setCheckingTag
     )
     {
-        if (IsCommentNewOrChanged(oldCommentElems, commentKey, commentElem, setCheckingTag))
+        if (IsCommentNewOrChanged(oldCommentElems, commentKey, commentElem, threadElem, setCheckingTag))
             threadElem.Add(commentElem);
 
         oldCommentElems.Remove(commentKey);
@@ -358,7 +358,8 @@ public class ParatextNotesMapper(
     private static bool IsCommentNewOrChanged(
         IReadOnlyDictionary<string, XElement> oldCommentElems,
         string key,
-        XContainer commentElem,
+        XElement commentElem,
+        XElement threadElem,
         bool expectNoteTagSet
     )
     {
@@ -367,8 +368,15 @@ public class ParatextNotesMapper(
             || !XNode.DeepEquals(oldCommentElem.Element("content"), commentElem.Element("content"))
         )
             return true;
+        // If the question moved to another verse, the comment has to be sent again so that Paratext
+        // updates the verse reference of the note
+        if (GetThreadVerseRef(oldCommentElem.Parent) != GetThreadVerseRef(threadElem))
+            return true;
         return expectNoteTagSet && !oldCommentElem.Elements("tagAdded").Any();
     }
+
+    private static string? GetThreadVerseRef(XElement? threadElem) =>
+        (string?)threadElem?.Element("selection")?.Attribute("verseRef");
 
     private ParatextUserProfile FindOrCreateParatextUser(
         string paratextUsername,

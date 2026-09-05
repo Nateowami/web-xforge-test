@@ -559,6 +559,60 @@ public class ParatextNotesMapperTests
     }
 
     [Test]
+    public async Task GetNotesChangelistAsync_QuestionVerseRefChanged_UpdatesNote()
+    {
+        var env = new TestEnvironment();
+        env.SetParatextProjectRoles(true);
+        env.InitMapper(false, true);
+        env.AddData(null, null, null, null);
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        // The note was exported when the question was on MAT 1:2, but the question is now on MAT 1:1
+        const string oldNotesText =
+            @"
+                    <notes version=""1.1"">
+                        <thread id=""ANSWER_answer04"">
+                            <selection verseRef=""MAT 1:2"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user04"" date=""2019-01-04T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 4 is marked for export</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                        </thread>
+                    </notes>";
+        Dictionary<string, ParatextUserProfile> ptProjectUsers = env.PtProjectUsers.ToDictionary(u => u.Username);
+        XElement notesElem = await env.Mapper.GetNotesChangelistAsync(
+            XElement.Parse(oldNotesText),
+            await TestEnvironment.GetQuestionDocsAsync(conn),
+            ptProjectUsers,
+            TestEnvironment.UserRoles,
+            CheckingAnswerExport.MarkedForExport,
+            TestEnvironment.CheckingNoteTagId
+        );
+
+        // The comment is sent again, even though its content did not change, so that Paratext moves the note
+        const string expectedNotesText =
+            @"
+                    <notes version=""1.1"">
+                        <thread id=""ANSWER_answer04"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 1"" extUser=""user04"" date=""2019-01-04T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 4 is marked for export</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                        </thread>
+                    </notes>";
+        Assert.That(XNode.DeepEquals(notesElem, XElement.Parse(expectedNotesText)), Is.True);
+    }
+
+    [Test]
     public async Task GetNotesChangelistAsync_DeleteNotes()
     {
         var env = new TestEnvironment();

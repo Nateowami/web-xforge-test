@@ -3059,6 +3059,10 @@ public class ParatextService : DisposableBase, IParatextService
                 {
                     existingComment.ExternalUser = comment.ExternalUser;
                     existingComment.Contents = comment.Contents;
+                    // The note may have been moved to another verse, e.g. when the verse reference of a
+                    // community checking question is changed
+                    if (!string.IsNullOrEmpty(comment.VerseRefStr))
+                        existingComment.VerseRefStr = comment.VerseRefStr;
                     existingComment.VersionNumber += 1;
                     existingComment.Deleted = false;
                     existingComment.TagsAdded = comment.TagsAdded;
