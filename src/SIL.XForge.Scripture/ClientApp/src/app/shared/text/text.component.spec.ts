@@ -1507,6 +1507,65 @@ describe('TextComponent', () => {
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
   }));
 
+  describe('arrow keys around a note', () => {
+    it('moves past a note with a single right arrow press', fakeAsync(() => {
+      const { env, noteIndex } = textWithNote();
+      env.component.editor!.setSelection(noteIndex, 0, 'user');
+      tick();
+
+      env.pressKey('ArrowRight');
+      tick();
+
+      expect(env.component.editor!.getSelection()!.index).toEqual(noteIndex + 1);
+      TestEnvironment.waitForPresenceTimer();
+    }));
+
+    it('moves past a note with a single left arrow press', fakeAsync(() => {
+      const { env, noteIndex } = textWithNote();
+      env.component.editor!.setSelection(noteIndex + 1, 0, 'user');
+      tick();
+
+      env.pressKey('ArrowLeft');
+      tick();
+
+      expect(env.component.editor!.getSelection()!.index).toEqual(noteIndex);
+      TestEnvironment.waitForPresenceTimer();
+    }));
+
+    it('leaves the cursor to the browser when the next character is text', fakeAsync(() => {
+      const { env, noteIndex } = textWithNote();
+      // one character before the note, so the arrow key moves over ordinary text
+      env.component.editor!.setSelection(noteIndex - 1, 0, 'user');
+      tick();
+
+      env.pressKey('ArrowRight');
+      tick();
+
+      // the browser, not the component, moves the cursor, so it has not moved within the test
+      expect(env.component.editor!.getSelection()!.index).toEqual(noteIndex - 1);
+      TestEnvironment.waitForPresenceTimer();
+    }));
+
+    it('moves to the next segment when a note is the last thing in the segment', fakeAsync(() => {
+      const { env, noteIndex } = textWithNote();
+      // the note in verse 2 is at the end of the segment
+      const secondNoteIndex: number = env.component.getSegmentRange('verse_2_2')!.index + 'lazy dog'.length;
+      env.component.editor!.setSelection(secondNoteIndex, 0, 'user');
+      tick();
+
+      env.pressKey('ArrowRight');
+      tick();
+      expect(env.component.editor!.getSelection()!.index).toEqual(secondNoteIndex + 1);
+
+      // the cursor is now at the end of the segment, so the next press moves to the following segment
+      env.pressKey('ArrowRight');
+      tick();
+      expect(env.component.segmentRef).toEqual('verse_2_3');
+      expect(noteIndex).toBeLessThan(secondNoteIndex);
+      TestEnvironment.waitForPresenceTimer();
+    }));
+  });
+
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
     const env = new TestEnvironment();
     env.id = new TextDocId('project01', 40, 1);
@@ -1992,6 +2051,14 @@ class TestEnvironment {
     this.fixture.detectChanges();
   }
 
+  /** Sends a key press to the editor so that Quill runs the keyboard bindings for it. */
+  pressKey(key: string): void {
+    const editor: Quill = this.component.editor!;
+    editor.focus();
+    editor.root.dispatchEvent(new KeyboardEvent('keydown', { key, bubbles: true }));
+    this.fixture.detectChanges();
+  }
+
   getUserDoc(userId: string): UserDoc {
     return this.realtimeService.get<UserDoc>(UserDoc.COLLECTION, userId);
   }
@@ -2194,6 +2261,37 @@ class TestEnvironment {
     resolver(textDocBeingGotten);
     this.waitForEditor();
   }
+}
+
+/**
+ * A chapter where verse 1 has a footnote in the middle of the text and verse 2 has one at the end of the text.
+ * @returns the environment and the editor position of the footnote in verse 1.
+ */
+function textWithNote(): { env: TestEnvironment; noteIndex: number } {
+  const chapterNum = 2;
+  const note = (style: string): RichText.DeltaOperation['insert'] => ({
+    note: {
+      caller: '+',
+      style,
+      contents: { ops: [{ insert: 'note text' }] }
+    }
+  });
+  const textDocOps: RichText.DeltaOperation[] = [
+    { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+    { insert: { verse: { number: '1', style: 'v' } } },
+    { insert: 'quick brown', attributes: { segment: 'verse_2_1' } },
+    { insert: note('f'), attributes: { segment: 'verse_2_1' } },
+    { insert: ' fox', attributes: { segment: 'verse_2_1' } },
+    { insert: { verse: { number: '2', style: 'v' } } },
+    { insert: 'lazy dog', attributes: { segment: 'verse_2_2' } },
+    { insert: note('x'), attributes: { segment: 'verse_2_2' } },
+    { insert: { verse: { number: '3', style: 'v' } } },
+    { insert: 'jumped over', attributes: { segment: 'verse_2_3' } }
+  ];
+
+  const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+  env.waitForEditor();
+  return { env, noteIndex: env.component.getSegmentRange('verse_2_1')!.index + 'quick brown'.length };
 }
 
 function basicSimpleText(): { env: TestEnvironment; segmentRange: QuillRange } {

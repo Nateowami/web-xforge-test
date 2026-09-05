@@ -240,7 +240,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
               this.movePrevSegment(true);
               return false;
             }
-            return true;
+            return !this.moveCursorOverEmbed(this.isLtr);
           }
         },
         'move next, segment end, left arrow': {
@@ -251,8 +251,9 @@ export class TextComponent implements AfterViewInit, OnDestroy {
               return false;
             } else if (this.isLtr && this.isSelectionAtSegmentStart) {
               this.movePrevSegment(true);
+              return true;
             }
-            return true;
+            return !this.moveCursorOverEmbed(this.isRtl);
           }
         },
         redo: {
@@ -1411,6 +1412,39 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     const selectionEndIndex = selection.index + (end ? selection.length : 0);
     const segmentEndIndex = segmentRange.index + (end ? segmentRange.length : 0);
     return selectionEndIndex === segmentEndIndex;
+  }
+
+  /**
+   * Moves the cursor over an embed (footnote, cross reference, figure, note icon) that sits next to it in the
+   * current segment, in the direction the cursor is travelling. Quill wraps each embed in zero width guard
+   * characters, and the browser parks the caret on those guards, so an arrow key press appears to do nothing until
+   * the guards on both sides have been stepped through. Quill has bindings that handle this ('embed left'/'embed
+   * right'), but they are disabled because they run before, and would therefore pre-empt, the segment navigation
+   * bindings.
+   * @param forward Whether the cursor is moving towards the end of the text.
+   * @returns Whether the cursor was moved.
+   */
+  private moveCursorOverEmbed(forward: boolean): boolean {
+    if (this._editor == null || this._segment == null) {
+      return false;
+    }
+    const selection: Range | null = this._editor.getSelection();
+    if (selection == null || selection.length > 0) {
+      return false;
+    }
+    // the index of the character the cursor would move over
+    const index: number = forward ? selection.index : selection.index - 1;
+    // only skip over an embed that is within the current segment, so that navigating between segments is unaffected
+    const segmentRange: Range = this._segment.range;
+    if (index < segmentRange.index || index >= segmentRange.index + segmentRange.length) {
+      return false;
+    }
+    const insert: unknown = this._editor.getContents(index, 1).ops[0]?.insert;
+    if (insert == null || isString(insert)) {
+      return false;
+    }
+    this._editor.setSelection(forward ? index + 1 : index, 0, 'user');
+    return true;
   }
 
   private isBackspaceAllowed(range: Range): boolean {
