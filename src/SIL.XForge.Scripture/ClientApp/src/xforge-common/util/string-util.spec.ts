@@ -35,10 +35,17 @@ describe('stripHtml', () => {
     expect(stripHtml('<div><span>Text</span></div>')).toBe('Text');
   });
 
-  it('removes stray angle brackets', () => {
-    expect(stripHtml('a < b > c')).toBe('a  b  c');
-    expect(stripHtml('< text >')).toBe(' text ');
-    expect(stripHtml('<div>hi></div>')).toBe('hi');
+  it('keeps angle brackets that are text rather than tags', () => {
+    expect(stripHtml('a < b > c')).toBe('a < b > c');
+    expect(stripHtml('< text >')).toBe('< text >');
+    expect(stripHtml('<div>hi></div>')).toBe('hi>');
+  });
+
+  it('decodes character references, including encoded angle brackets', () => {
+    // note content is stored xml encoded, so a note typed as 'a < b > c' arrives encoded
+    expect(stripHtml('a &lt; b &gt; c')).toBe('a < b > c');
+    expect(stripHtml('<p>a &lt; b &gt; c</p>')).toBe('a < b > c');
+    expect(stripHtml('Chapter 1 &amp; 2')).toBe('Chapter 1 & 2');
   });
 
   it('handles complex HTML with attributes', () => {
@@ -58,15 +65,15 @@ describe('stripHtml', () => {
   });
 
   it('handles special characters', () => {
-    expect(stripHtml('&lt;div&gt;')).toBe('&lt;div&gt;');
+    expect(stripHtml('&lt;div&gt;')).toBe('<div>');
     expect(stripHtml('<div>&copy; 2024</div>')).toBe('© 2024');
   });
 
-  it('prevents script injection', () => {
+  it('reduces markup to inert text', () => {
     expect(stripHtml('<script>alert("xss")</script>')).toBe('alert("xss")');
-    expect(stripHtml('<scr<script>ipt>')).toBe('ipt');
+    expect(stripHtml('<scr<script>ipt>')).toBe('ipt>');
     expect(stripHtml('<script')).toBe('');
-    expect(stripHtml('<<script>script>')).toBe('script');
+    expect(stripHtml('<<script>script>')).toBe('<script>');
   });
 
   it('prevents other dangerous tags', () => {

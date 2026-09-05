@@ -16,26 +16,26 @@ export function areStringArraysEqual(a: string[], b: string[]): boolean {
 }
 
 /**
- * Removes html tags from a string while preserving the text content.  Stray angle brackets are also removed.
+ * Removes html tags from a string while preserving the text content, including text that is written as a character
+ * reference such as `&lt;`, `&gt;` or `&amp;`.
  * @param content The string with possible HTML tags to process.
- * @returns The string with all tags and angle brackets removed.
+ * @returns The string with all tags removed and character references resolved.
  */
 export function stripHtml(content: string): string {
   if (content == null) {
     return '';
   }
 
-  // Skip processing if no angle brackets
-  if (!/[<>]/.test(content)) {
+  // Skip processing if there are no tags or character references
+  if (!/[<>&]/.test(content)) {
     return content;
   }
 
   // Use 'text/html' to avoid parsing errors with 'text/xml', as it is more lenient
   const doc: Document = new DOMParser().parseFromString(content, 'text/html');
-  const result: string = doc.documentElement.textContent || '';
 
-  // Remove any remaining stray angle brackets
-  return result.replace(/[<>]/g, '');
+  // Angle brackets that survive parsing are text the user intended, so they are kept
+  return doc.documentElement.textContent || '';
 }
 
 /**
