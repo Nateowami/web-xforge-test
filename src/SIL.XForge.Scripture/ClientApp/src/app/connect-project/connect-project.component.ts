@@ -100,6 +100,11 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
     return this._isAppOnline;
   }
 
+  /** Whether the browser has a network connection, even if Scripture Forge itself cannot be reached. */
+  get isBrowserOnline(): boolean {
+    return this.onlineStatusService.isBrowserOnline;
+  }
+
   get showSettings(): boolean {
     return this.state === 'input';
   }

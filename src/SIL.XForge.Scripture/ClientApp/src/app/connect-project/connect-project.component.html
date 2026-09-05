@@ -1,7 +1,13 @@
 <ng-container *transloco="let t; read: 'connect_project'">
   <h1>{{ t("connect_paratext_project") }}</h1>
   @if (!isAppOnline) {
-    <span class="offline-text"> {{ t("connect_network_to_connect_project") }} </span>
+    <span class="offline-text">
+      @if (isBrowserOnline) {
+        {{ t("problem_connecting_to_scripture_forge") }}
+      } @else {
+        {{ t("connect_network_to_connect_project") }}
+      }
+    </span>
   }
   <div class="content">
     @switch (state) {

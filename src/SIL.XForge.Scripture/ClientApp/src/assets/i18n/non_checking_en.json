@@ -123,6 +123,7 @@
     "engage_the_wider_community_to_check_scripture": "Engage the wider community to ensure that the translation is clear, accurate, and natural. Select verses, ask targeted questions, allow discussion of answers.",
     "error_fetching_resources": "There was an error fetching the Digital Bible Library resources. You will only be able to select projects.",
     "problem_already_connected": "The project is already connected. Maybe another project administrator connected the project at the same time. Please try again. If it continues to be a problem, please report the issue so we can get it fixed.",
+    "problem_connecting_to_scripture_forge": "There is a problem connecting to Scripture Forge. If you still see this message after checking your internet connection, please try again later.",
     "proceed": "Proceed",
     "project_settings": "Project Settings",
     "select_project_or_resource": "Select the Paratext project or Digital Bible Library resource that your project is based on. If your project is based on a Paratext project, it's best to set it up as a daughter project in Paratext.",

@@ -140,6 +140,20 @@ describe('ConnectProjectComponent', () => {
 
     env.onlineStatus = false;
     expect(env.component.state).toEqual('offline');
+    expect(env.offlineMessageText).toContain('Please connect to the internet');
+  }));
+
+  it('blames Scripture Forge, not the internet, when the server cannot be reached', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupDefaultProjectData();
+    env.waitForProjectsResponse();
+    expect(env.offlineMessage).toBeNull();
+
+    // The browser still has a network connection, but the connection to Scripture Forge is gone
+    env.realtimeServerConnected = false;
+    expect(env.component.state).toEqual('offline');
+    expect(env.offlineMessageText).toContain('problem connecting to Scripture Forge');
+    expect(env.offlineMessageText).not.toContain('Please connect to the internet');
   }));
 
   it('should create when non-existent project is selected', fakeAsync(() => {
@@ -432,6 +446,16 @@ class TestEnvironment {
 
   get offlineMessage(): DebugElement {
     return this.fixture.debugElement.query(By.css('.offline-text'));
+  }
+
+  get offlineMessageText(): string {
+    return this.offlineMessage?.nativeElement.textContent ?? '';
+  }
+
+  set realtimeServerConnected(isConnected: boolean) {
+    this.testOnlineStatusService.setRealtimeServerSocketIsOnline(isConnected);
+    tick();
+    this.fixture.detectChanges();
   }
 
   set onlineStatus(hasConnection: boolean) {
