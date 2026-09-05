@@ -233,6 +233,7 @@
     "audio": "Audio",
     "audio_already_exists": "Audio already exists for this selection.",
     "audio_file_less_than_one_hundred_mb": "Audio files under 95MB only",
+    "audio_permission_denied": "You do not have permission to manage audio for this project. Contact the project's administrator to get permission.",
     "browse_files": "Browse",
     "browse_files_tooltip": "Upload audio and timing files",
     "cancel": "Cancel",

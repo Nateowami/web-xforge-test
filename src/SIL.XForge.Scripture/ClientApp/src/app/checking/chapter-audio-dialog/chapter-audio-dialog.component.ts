@@ -8,6 +8,7 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogRef,
+  MatDialogState,
   MatDialogTitle
 } from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
@@ -20,6 +21,7 @@ import { Chapter, TextInfo } from 'realtime-server//lib/esm/scriptureforge/model
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
 import { getTextAudioId } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { filter } from 'rxjs/operators';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { CsvService } from 'xforge-common/csv-service.service';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ExternalUrlService } from 'xforge-common/external-url.service';
@@ -100,6 +102,7 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   private _timingErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _timingParseErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _loadingAudio: boolean = false;
+  private _saving: boolean = false;
 
   constructor(
     private readonly destroyRef: DestroyRef,
@@ -186,6 +189,10 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
 
   get isLoadingAudio(): boolean {
     return this._loadingAudio;
+  }
+
+  get isSaving(): boolean {
+    return this._saving;
   }
 
   get timingErrorMessageKey(): string {
@@ -317,11 +324,42 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   async save(): Promise<void> {
+    // Ignore clicks while a save is already running, and keep ignoring them while the dialog closes.
+    // Otherwise a second click resubmits the same request, and e.g. deleting the existing audio twice
+    // fails with "Audio timing data not found".
+    if (this._saving) return;
+    this._saving = true;
+    try {
+      await this.saveChapterAudio();
+    } finally {
+      if (this.dialogRef.getState() === MatDialogState.OPEN) {
+        this._saving = false;
+      }
+    }
+  }
+
+  uploadedFiles(e: Event): void {
+    const el = e.target as HTMLInputElement;
+    if (el.files == null) {
+      return;
+    }
+    this.processUploadedFiles(el.files);
+  }
+
+  private async saveChapterAudio(): Promise<void> {
     let canSave = false;
     if (this.allFieldsValid) {
       canSave = true;
     } else if (!this.isAudioUploaded && !this.isTimingUploaded && this._selectionHasAudioAlready) {
-      await this.projectService.onlineDeleteAudioTimingData(this.data.projectId, this.book, this.chapter);
+      try {
+        await this.projectService.onlineDeleteAudioTimingData(this.data.projectId, this.book, this.chapter);
+      } catch (error) {
+        // The audio being gone already is the outcome that was asked for, so it is not an error
+        if (!(error instanceof CommandError && error.code === CommandErrorCode.NotFound)) {
+          await this.reportSaveFailure(error);
+          return;
+        }
+      }
       this.dialogRef.close();
       return;
     }
@@ -366,12 +404,16 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     });
   }
 
-  uploadedFiles(e: Event): void {
-    const el = e.target as HTMLInputElement;
-    if (el.files == null) {
+  /**
+   * Turns a rejection the user can do something about into a message, and lets anything else through
+   * to the global error handler.
+   */
+  private async reportSaveFailure(error: unknown): Promise<void> {
+    if (error instanceof CommandError && error.code === CommandErrorCode.Forbidden) {
+      await this.dialogService.message('chapter_audio_dialog.audio_permission_denied');
       return;
     }
-    this.processUploadedFiles(el.files);
+    throw error;
   }
 
   private parseAdobeAuditionStyleTimingFile(data: string[][]): AudioTiming[] {

@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { MatDialogConfig } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { DialogService } from 'xforge-common/dialog.service';
 import { SFProjectService } from '../../core/sf-project.service';
 import {
@@ -28,12 +29,21 @@ export class ChapterAudioDialogService {
     if (result == null || result === 'close') {
       return;
     }
-    await this.projectService.onlineCreateAudioTimingData(
-      config.projectId,
-      result.book,
-      result.chapter,
-      result.timingData,
-      result.audioUrl
-    );
+    try {
+      await this.projectService.onlineCreateAudioTimingData(
+        config.projectId,
+        result.book,
+        result.chapter,
+        result.timingData,
+        result.audioUrl
+      );
+    } catch (error) {
+      // The user's permission to manage audio can be revoked while the dialog is open
+      if (error instanceof CommandError && error.code === CommandErrorCode.Forbidden) {
+        await this.dialogService.message('chapter_audio_dialog.audio_permission_denied');
+        return;
+      }
+      throw error;
+    }
   }
 }
