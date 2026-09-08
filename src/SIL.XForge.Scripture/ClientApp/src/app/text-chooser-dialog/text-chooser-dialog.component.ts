@@ -196,13 +196,18 @@ export class TextChooserDialogComponent {
     // last range, and don't need to be concerned whether there are multiple ranges or not.
     const startRange = selection.getRangeAt(0);
     const endRange = selection.getRangeAt(selection.rangeCount - 1);
-    let startOffset = 0;
+    const firstSegment = segments[0];
     const lastSegment = segments[segments.length - 1];
+    let startOffset = 0;
     let endOffset = this.textContent(lastSegment).length;
-    if (this.isInASegment(startRange.startContainer)) {
-      startOffset = this.textContent(segments[0], startRange.startContainer, startRange.startOffset, false).length;
+    // The selection can start or end in a node that is not in the first (or last) segment of the selection, e.g. when
+    // it starts in a heading, or in the empty segment that precedes a verse at the start of a paragraph. Those nodes
+    // don't tell us anything about where the selection starts (or ends) within the segment, so the whole of the first
+    // (or last) segment counts as selected.
+    if (firstSegment.contains(startRange.startContainer)) {
+      startOffset = this.textContent(firstSegment, startRange.startContainer, startRange.startOffset, false).length;
     }
-    if (this.isInASegment(endRange.endContainer)) {
+    if (lastSegment.contains(endRange.endContainer)) {
       endOffset = this.textContent(lastSegment, endRange.endContainer, endRange.endOffset, false).length;
     }
     return { startOffset, endOffset };
@@ -429,20 +434,6 @@ export class TextChooserDialogComponent {
 
   private getSegments(verse?: number): Element[] {
     return this.verseSegments().filter(el => (verse == null ? true : verse === this.getVerseFromElement(el)));
-  }
-
-  private isInASegment(node: Node): boolean {
-    if (this.isVerseSegment(node)) {
-      return true;
-    } else if (node.parentNode != null) {
-      return this.isInASegment(node.parentNode);
-    } else {
-      return false;
-    }
-  }
-
-  private isVerseSegment(node: Node): boolean {
-    return node.nodeType === node.ELEMENT_NODE && (node as Element).matches(this.verseSegmentSelector);
   }
 
   private verseSegments(): Element[] {

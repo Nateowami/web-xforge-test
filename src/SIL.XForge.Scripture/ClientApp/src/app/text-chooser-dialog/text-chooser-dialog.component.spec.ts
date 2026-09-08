@@ -274,6 +274,23 @@ describe('TextChooserDialogComponent', () => {
     env.closeDialog();
   }));
 
+  it('can handle a selection that starts in a segment the browser leaves out of the selection', fakeAsync(async () => {
+    // A verse that starts a paragraph (common in poetry and other indented styles, where every verse tends to start a
+    // new line) is preceded by an empty segment that belongs to the previous verse. A selection that starts at the end
+    // of that segment does not include it, as far as the browser is concerned.
+    const env = new TestEnvironment({ start: 1, end: 18 }, 'verse_1_2/p_1', 'verse_1_3', undefined, false);
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('target: chapter 1,… (Matthew 1:3)');
+    env.click(env.saveButton);
+    expect(await env.resultPromise).toEqual({
+      verses: { bookNum: 40, chapterNum: 1, verseNum: 3, verse: '3' },
+      text: 'target: chapter 1,',
+      startClipped: false,
+      endClipped: true
+    });
+    flush();
+  }));
+
   it('can handle selections starting outside the text', fakeAsync(() => {
     const env = new TestEnvironment({ start: 5, end: 3 }, 'p_1', 'verse_1_1');
     expect(() => env.fireSelectionChange()).not.toThrow();
@@ -402,7 +419,10 @@ class TestEnvironment {
     ranges: SimpleRange | SimpleRange[] = [],
     startSegment = 'verse_1_1',
     endSegment = 'verse_1_2',
-    dialogData?: TextChooserDialogData
+    dialogData?: TextChooserDialogData,
+    // Browsers do not report a segment as being part of the selection when the selection starts at the very end of
+    // that segment
+    startSegmentContained = true
   ) {
     ranges = Array.isArray(ranges) ? ranges : [ranges];
     when(mockedDocument.getSelection()).thenCall(
@@ -421,11 +441,15 @@ class TestEnvironment {
             const segments = Array.from(this.editor.querySelectorAll('usx-segment[data-segment]'));
             let startingSegmentReached = false;
             for (const segment of segments) {
-              if (segment.getAttribute('data-segment') === startSegment) {
+              const isStartSegment = segment.getAttribute('data-segment') === startSegment;
+              if (isStartSegment && startSegmentContained) {
                 startingSegmentReached = true;
               }
               if (startingSegmentReached && segment.contains(node)) {
                 return true;
+              }
+              if (isStartSegment) {
+                startingSegmentReached = true;
               }
               if (segment.getAttribute('data-segment') === endSegment) {
                 break;
