@@ -1798,7 +1798,6 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     this.questionsRemoteChangesSub?.unsubscribe();
     this.questionsQuery?.dispose();
     this.textAudioQuery?.dispose();
-    this.hideTextSub?.unsubscribe();
     this.textAudioSub?.unsubscribe();
     this.defaultQuestionsQuery?.dispose();
     this.defaultQuestionsQuerySub?.unsubscribe();

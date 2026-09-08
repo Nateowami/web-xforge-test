@@ -2672,6 +2672,23 @@ describe('CheckingComponent', () => {
   });
 
   describe('Chapter Audio', () => {
+    it('shows chapter audio player when hide scripture text is enabled while the page is open', fakeAsync(() => {
+      const env = new TestEnvironment({ user: CHECKER_USER });
+      env.fixture.detectChanges();
+      expect(env.component.showScriptureAudioPlayer).toBe(false);
+      expect(env.scriptureAudioPlayer).toBeNull();
+
+      // The project admin enables hide scripture text while the checker has the page open
+      env.setHideScriptureText(true, false);
+      env.waitForSliderUpdate();
+
+      expect(env.component.hideChapterText).toBe(true);
+      expect(env.component.showScriptureAudioPlayer).toBe(true);
+      expect(env.scriptureAudioPlayer).not.toBeNull();
+      flush();
+      discardPeriodicTasks();
+    }));
+
     it('can open chapter audio', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER });
       env.fixture.detectChanges();
@@ -3255,6 +3272,10 @@ class TestEnvironment {
     return this.fixture.debugElement.query(By.css('.no-audio-message'));
   }
 
+  get scriptureAudioPlayer(): DebugElement {
+    return this.fixture.debugElement.query(By.css('app-checking-scripture-audio-player'));
+  }
+
   static generateTestProject(): SFProject {
     const audioPermissions = [SF_PROJECT_RIGHTS.joinRight(SFProjectDomain.TextAudio, Operation.Create)];
     const questionPermissions = [SF_PROJECT_RIGHTS.joinRight(SFProjectDomain.Questions, Operation.Create)];
@@ -3738,9 +3759,9 @@ class TestEnvironment {
     tick();
   }
 
-  setHideScriptureText(hideScriptureText: boolean): void {
+  setHideScriptureText(hideScriptureText: boolean, isLocal: boolean = true): void {
     const projectDoc: SFProjectProfileDoc = this.component.projectDoc!;
-    projectDoc.submitJson0Op(op => op.set(p => p.checkingConfig.hideCommunityCheckingText, hideScriptureText));
+    projectDoc.submitJson0Op(op => op.set(p => p.checkingConfig.hideCommunityCheckingText, hideScriptureText), isLocal);
     tick();
     this.fixture.detectChanges();
   }
