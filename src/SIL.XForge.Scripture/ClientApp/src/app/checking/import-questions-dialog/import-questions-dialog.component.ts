@@ -345,14 +345,20 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
       // Questions imported from Transcelerator are considered duplicates if the ID and verse ref is the same. The
       // version in SF should be updated if the text is different from the version being imported. Transcelerator does
       // not allow changing the reference for a question, as of 2021-03-09
-      // Questions imported from a file should be skipped only if they are exactly the same as what is currently in SF.
-      const sfVersionOfQuestion: QuestionDoc | undefined = questionQuery.docs.find(
-        doc =>
-          (doc.data != null &&
-            (useQuestionIds ? doc.data.transceleratorQuestionId === question.id : doc.data.text === question.text) &&
-            toVerseRef(doc.data.verseRef).equals(question.verseRef)) ||
-          (useQuestionIds ? doc.data?.paratextNoteId === question.id : doc.data?.text === question.text)
-      );
+      // Paratext notes keep their ID when moved to another verse, so a note is a duplicate of the question imported
+      // from it regardless of the verse ref, and moving the note moves the question.
+      // Questions imported from a file have no ID to match on, so they are duplicates only of a question with the
+      // same text at the same verse ref.
+      const sfVersionOfQuestion: QuestionDoc | undefined = questionQuery.docs.find(doc => {
+        const data: Question | undefined = doc.data;
+        if (data == null) {
+          return false;
+        }
+        const sameVerseRef: boolean = toVerseRef(data.verseRef).equals(question.verseRef);
+        return useQuestionIds
+          ? (data.transceleratorQuestionId === question.id && sameVerseRef) || data.paratextNoteId === question.id
+          : data.text === question.text && sameVerseRef;
+      });
 
       this.questionList.push({
         question,

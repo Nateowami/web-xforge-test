@@ -394,6 +394,32 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('does not treat a question with the same text at another reference as a duplicate', fakeAsync(() => {
+    // The archived question has the same text, but a question at another reference is a different question
+    const archivedQuestion = {
+      data: {
+        text: 'Matthew 1:1 question',
+        verseRef: { bookNum: 40, chapterNum: 1, verseNum: 1 },
+        isArchived: true
+      }
+    };
+    const env = new TestEnvironment({ existingQuestions: [archivedQuestion as QuestionDoc] });
+
+    env.selectFileWithContents([
+      ['Reference', 'Questions'],
+      ['MAT 1:2', 'Matthew 1:1 question']
+    ]);
+
+    expect(env.component.filteredList.length).toBe(1);
+    expect(env.component.filteredList[0].sfVersionOfQuestion).toBeUndefined();
+    env.selectQuestion(env.tableRows[0]);
+    // no note that the question is a duplicate, and no prompt to update the existing question
+    expect(env.footerText).toBe('');
+    verify(mockedDialogService.openMatDialog(anything(), anything())).never();
+    env.click(env.importSelectedQuestionsButton);
+    verify(mockedQuestionsService.createQuestion('project01', anything(), undefined, undefined)).once();
+  }));
+
   it('does not import from a CSV file with unknown columns', fakeAsync(() => {
     const env = new TestEnvironment();
 
