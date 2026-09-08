@@ -10,7 +10,7 @@ import {
 import { RealtimeDoc } from 'xforge-common/models/realtime-doc';
 import { RealtimeDocAdapter } from 'xforge-common/realtime-remote-store';
 import { RealtimeService } from 'xforge-common/realtime.service';
-import { getVerseStrFromSegmentRef } from '../../shared/verse-utils';
+import { getVerseStrFromSegmentRef, verseStrsRefSameVerses } from '../../shared/verse-utils';
 
 export type TextDocSource = 'Draft' | 'Editor' | 'History' | 'Paratext';
 
@@ -141,7 +141,7 @@ export class TextDoc extends RealtimeDoc<TextData, TextData, Range> {
       // Locate range of ops that match the verse segments
       const opSegmentRef: string = (op.attributes?.segment as string) ?? '';
       const segmentVerse: string | undefined = getVerseStrFromSegmentRef(opSegmentRef);
-      if (segmentVerse === verseStr) {
+      if (segmentVerse != null && verseStrsRefSameVerses(verseStr, segmentVerse)) {
         text += textBetweenRelatedSegments + op.insert;
         // Reset text so no double-ups
         textBetweenRelatedSegments = '';

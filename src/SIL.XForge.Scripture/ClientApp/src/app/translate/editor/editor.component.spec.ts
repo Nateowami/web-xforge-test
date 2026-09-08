@@ -1870,6 +1870,31 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('shows note on verse that Paratext has combined with another verse', fakeAsync(() => {
+      // the note was created on verse 2 before Paratext combined verses 2 and 3 into the verse_1_2-3 segment
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.addParatextNoteThread(6, 'LUK 1:2', '', { start: 0, length: 0 }, ['user01']);
+      env.addParatextNoteThread(7, 'LUK 1:3', '', { start: 0, length: 0 }, ['user01']);
+      env.wait();
+
+      expect(env.getNoteThreadIconElement('verse_1_2-3', 'dataid06')).not.toBeNull();
+      expect(env.getNoteThreadIconElement('verse_1_2-3', 'dataid07')).not.toBeNull();
+      env.dispose();
+    }));
+
+    it('shows note on combined verse that Paratext has separated', fakeAsync(() => {
+      // the note was created on the combined verse 2-3 of LUK, which is separated into verses 2 and 3 in MAT
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.addParatextNoteThread(6, 'MAT 1:2-3', '', { start: 0, length: 0 }, ['user01']);
+      env.wait();
+
+      expect(env.getNoteThreadIconElement('verse_1_2', 'dataid06')).not.toBeNull();
+      env.dispose();
+    }));
+
     it('shows note on verse with letter', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();

@@ -6,6 +6,8 @@ import { attributeFromMouseEvent } from './utils';
 const VERSE_FROM_SEGMENT_REF_REGEX = /verse_\d+_(\d+[\u200f]?[a-z]?[,-]?\d*[a-z]?[^\/]?)/;
 // Regular expression for the verse segment ref of scripture content
 export const VERSE_REGEX = /verse_[0-9]+_[0-9]+/;
+// Regular expression for a verse string that identifies a part of a verse, e.g. 6a
+const VERSE_LETTER_REGEX = /[a-z]/i;
 export const RIGHT_TO_LEFT_MARK = '\u200f';
 export const LEFT_TO_RIGHT_EMBEDDING = '\u202A';
 export const POP_DIRECTIONAL_FORMATTING = '\u202C';
@@ -39,6 +41,42 @@ export function getVerseStrFromSegmentRef(segmentRef: string): string | undefine
 
 export function verseSlug(verse: VerseRef): string {
   return 'verse_' + verse.chapterNum + '_' + (verse.verse == null ? verse.verseNum : verse.verse);
+}
+
+/**
+ * Determines whether two verse strings (e.g. 6, 6a, 6-7, 6,8) refer to any of the same verses. This is not
+ * simply string equality, as Paratext can combine or separate verses at any time, which leaves features
+ * anchored to a verse that the text now covers with a different verse string. e.g. a note on verse 6 still
+ * belongs to the verse when Paratext combines verses 6 and 7 into 6-7. Verse strings that identify a part of
+ * a verse with a letter only refer to the same verses when they are identical, as the parts of a verse cannot
+ * be distinguished by verse number.
+ */
+export function verseStrsRefSameVerses(verseStr: string, otherVerseStr: string): boolean {
+  if (verseStr === otherVerseStr) {
+    return true;
+  }
+  if (VERSE_LETTER_REGEX.test(verseStr) || VERSE_LETTER_REGEX.test(otherVerseStr)) {
+    return false;
+  }
+  const otherVerseNums: Set<number> = new Set<number>(getVerseNumsFromVerseStr(otherVerseStr));
+  return getVerseNumsFromVerseStr(verseStr).some(verseNum => otherVerseNums.has(verseNum));
+}
+
+/** Returns every verse number a verse string covers, expanding ranges. e.g. 6-8 returns [6, 7, 8] */
+function getVerseNumsFromVerseStr(verseStr: string): number[] {
+  const verseNums: number[] = [];
+  for (const versePart of verseStr.split(',')) {
+    const bounds: number[] = versePart.split('-').map(bound => Number.parseInt(bound));
+    const start: number = bounds[0];
+    const end: number = bounds[bounds.length - 1];
+    if (Number.isNaN(start)) {
+      continue;
+    }
+    for (let verseNum = start; verseNum <= (Number.isNaN(end) ? start : end); verseNum++) {
+      verseNums.push(verseNum);
+    }
+  }
+  return verseNums;
 }
 
 /**

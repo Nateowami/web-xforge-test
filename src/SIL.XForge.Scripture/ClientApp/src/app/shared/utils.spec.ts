@@ -13,7 +13,7 @@ import {
   projectLabel,
   XmlUtils
 } from './utils';
-import { getVerseNumbers } from './verse-utils';
+import { getVerseNumbers, verseStrsRefSameVerses } from './verse-utils';
 
 describe('shared utils', () => {
   describe('projectLabel function', () => {
@@ -202,6 +202,36 @@ describe('shared utils', () => {
     });
     it('gets the verse number from a verse range', () => {
       expect(getVerseNumbers(new VerseRef('GEN', '2', '3,4-6'))).toEqual([3, 4, 6]);
+    });
+  });
+
+  describe('verseStrsRefSameVerses function', () => {
+    it('matches identical verse strings', () => {
+      expect(verseStrsRefSameVerses('3', '3')).toBe(true);
+      expect(verseStrsRefSameVerses('3a', '3a')).toBe(true);
+      expect(verseStrsRefSameVerses('3-4', '3-4')).toBe(true);
+    });
+    it('matches a verse that the text has combined with other verses', () => {
+      expect(verseStrsRefSameVerses('3', '3-4')).toBe(true);
+      expect(verseStrsRefSameVerses('4', '3-4')).toBe(true);
+      expect(verseStrsRefSameVerses('4', '3-5')).toBe(true);
+      expect(verseStrsRefSameVerses('4', '2,4')).toBe(true);
+    });
+    it('matches combined verses that the text has separated', () => {
+      expect(verseStrsRefSameVerses('3-4', '3')).toBe(true);
+      expect(verseStrsRefSameVerses('3-4', '4')).toBe(true);
+      expect(verseStrsRefSameVerses('3-5', '4')).toBe(true);
+    });
+    it('does not match verses that do not overlap', () => {
+      expect(verseStrsRefSameVerses('3', '4')).toBe(false);
+      expect(verseStrsRefSameVerses('3', '4-5')).toBe(false);
+      expect(verseStrsRefSameVerses('3-4', '5-6')).toBe(false);
+      expect(verseStrsRefSameVerses('3', '')).toBe(false);
+    });
+    it('does not match different parts of a verse', () => {
+      expect(verseStrsRefSameVerses('3a', '3b')).toBe(false);
+      expect(verseStrsRefSameVerses('3a', '3')).toBe(false);
+      expect(verseStrsRefSameVerses('3', '3a')).toBe(false);
     });
   });
 
