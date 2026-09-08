@@ -791,6 +791,7 @@
   },
   "question_dialog": {
     "add_question_denied": "You don't have permission to add or edit questions.",
+    "audio_upload_failed": "The audio file could not be uploaded. Please try again or use a different file.",
     "cancel": "Cancel",
     "edit_question": "Edit Question",
     "end_reference": "End reference",

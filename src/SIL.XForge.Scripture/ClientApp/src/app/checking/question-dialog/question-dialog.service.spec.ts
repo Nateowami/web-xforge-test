@@ -12,7 +12,7 @@ import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge
 import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { fromVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { of } from 'rxjs';
-import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { anything, capture, instance, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { FileService } from 'xforge-common/file.service';
 import { FileType } from 'xforge-common/models/file-offline-data';
@@ -56,12 +56,15 @@ describe('QuestionDialogService', () => {
     const result: QuestionDialogResult = {
       text: 'question added',
       verseRef: new VerseRef('MAT 1:3'),
-      audio: {}
+      questionId: 'q1Id'
     };
     when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
     await env.service.questionDialog(env.getQuestionDialogData());
-    verify(mockedQuestionsService.createQuestion(env.PROJECT01, anything(), undefined, undefined)).once();
-    expect().nothing();
+    verify(mockedQuestionsService.createQuestion(env.PROJECT01, anything())).once();
+    const question: Question = capture(mockedQuestionsService.createQuestion).last()[1];
+    expect(question.dataId).toBe('q1Id');
+    expect(question.text).toBe('question added');
+    expect(question.audioUrl).toBeUndefined();
   });
 
   it('should not add a question if cancelled', async () => {
@@ -77,7 +80,7 @@ describe('QuestionDialogService', () => {
     const result: QuestionDialogResult = {
       text: 'This question is added just as user role is changed',
       verseRef: new VerseRef('MAT 1:3'),
-      audio: {}
+      questionId: 'q1Id'
     };
     when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
     env.updateUserRole(SFProjectRole.CommunityChecker);
@@ -87,17 +90,18 @@ describe('QuestionDialogService', () => {
     expect().nothing();
   });
 
-  it('uploads audio when provided', async () => {
+  it('stores the audio url the dialog uploaded', async () => {
     const env = new TestEnvironment();
     const result: QuestionDialogResult = {
       text: 'question added',
       verseRef: new VerseRef('MAT 1:3'),
-      audio: { fileName: 'someFileName.mp3', blob: new Blob() }
+      questionId: 'q1Id',
+      audioUrl: 'anAudioFile.mp3'
     };
     when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
     await env.service.questionDialog(env.getQuestionDialogData());
-    verify(mockedQuestionsService.createQuestion(env.PROJECT01, anything(), 'someFileName.mp3', anything())).once();
-    expect().nothing();
+    const question: Question = capture(mockedQuestionsService.createQuestion).last()[1];
+    expect(question.audioUrl).toBe('anAudioFile.mp3');
   });
 
   it('edits a question', async () => {
@@ -105,7 +109,7 @@ describe('QuestionDialogService', () => {
     const result: QuestionDialogResult = {
       text: 'question edited',
       verseRef: new VerseRef('MAT 1:3'),
-      audio: {}
+      questionId: 'q1Id'
     };
     when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
     const questionDoc = env.addQuestion(env.getNewQuestion());
@@ -114,37 +118,12 @@ describe('QuestionDialogService', () => {
     expect(questionDoc!.data!.text).toBe('question edited');
   });
 
-  it('discards changes if failed to upload or store the audio', async () => {
-    const env = new TestEnvironment();
-    const result: QuestionDialogResult = {
-      text: 'question added',
-      verseRef: new VerseRef('MAT 1:3'),
-      audio: { fileName: 'someFileName.mp3', blob: new Blob() }
-    };
-    when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
-    when(
-      mockedFileService.uploadFile(
-        FileType.Audio,
-        env.PROJECT01,
-        QuestionDoc.COLLECTION,
-        anything(),
-        anything(),
-        anything(),
-        anything(),
-        anything()
-      )
-    ).thenResolve(undefined);
-    const questionDoc = env.addQuestion(env.getNewQuestion());
-    const editedQuestion = await env.service.questionDialog(env.getQuestionDialogData(questionDoc));
-    expect(editedQuestion).toBeUndefined();
-  });
-
   it('removes audio if audio deleted', async () => {
     const env = new TestEnvironment();
     const result: QuestionDialogResult = {
       text: 'question edited',
       verseRef: new VerseRef('MAT 1:3'),
-      audio: { status: 'reset' }
+      questionId: 'q1Id'
     };
     when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
     const audioUrl = 'anAudioFile.mp3';

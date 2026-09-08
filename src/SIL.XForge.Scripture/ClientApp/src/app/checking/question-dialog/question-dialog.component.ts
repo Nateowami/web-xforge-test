@@ -14,14 +14,18 @@ import {
 import { MatError, MatFormField, MatLabel, MatSuffix } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
+import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { TranslocoModule } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { cloneDeep } from 'lodash-es';
-import { Question } from 'realtime-server/lib/esm/scriptureforge/models/question';
+import { getQuestionDocId, Question } from 'realtime-server/lib/esm/scriptureforge/models/question';
 import { toStartAndEndVerseRefs } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { DialogService } from 'xforge-common/dialog.service';
+import { FileService } from 'xforge-common/file.service';
 import { I18nService } from 'xforge-common/i18n.service';
+import { FileType } from 'xforge-common/models/file-offline-data';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
+import { objectId } from 'xforge-common/utils';
 import { QuestionDoc } from '../../core/models/question-doc';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { TextDocId } from '../../core/models/text-doc';
@@ -48,7 +52,10 @@ export interface QuestionDialogData {
 export interface QuestionDialogResult {
   verseRef: VerseRef;
   text: string;
-  audio: AudioAttachment;
+  /** The data id of the question, which is also the data id of its audio file. */
+  questionId: string;
+  /** The url of the question audio, or undefined if the question has no audio. */
+  audioUrl?: string;
 }
 
 @Component({
@@ -73,7 +80,8 @@ export interface QuestionDialogResult {
     AttachAudioComponent,
     MatDialogActions,
     MatButton,
-    MatDialogClose
+    MatDialogClose,
+    MatProgressSpinner
   ]
 })
 export class QuestionDialogComponent implements OnInit {
@@ -93,12 +101,14 @@ export class QuestionDialogComponent implements OnInit {
   _selection?: VerseRef;
 
   private _question: Readonly<Question | undefined>;
+  private _isSaving: boolean = false;
 
   constructor(
     private readonly dialogRef: MatDialogRef<QuestionDialogComponent, QuestionDialogResult | 'close'>,
     @Inject(MAT_DIALOG_DATA) private data: QuestionDialogData,
     readonly i18n: I18nService,
     readonly dialogService: DialogService,
+    private readonly fileService: FileService,
     private readonly destroyRef: DestroyRef
   ) {}
 
@@ -152,6 +162,11 @@ export class QuestionDialogComponent implements OnInit {
     return this.data.projectDoc;
   }
 
+  /** Whether the question is being saved, which includes uploading its audio. */
+  get isSaving(): boolean {
+    return this._isSaving;
+  }
+
   ngOnInit(): void {
     this._question = cloneDeep(this.data.questionDoc?.data);
     if (this._question != null) {
@@ -199,6 +214,9 @@ export class QuestionDialogComponent implements OnInit {
   }
 
   async submit(): Promise<void> {
+    if (this._isSaving) {
+      return;
+    }
     if (this.textAndAudio != null) {
       this.textAndAudio.suppressErrors = false;
     }
@@ -212,11 +230,45 @@ export class QuestionDialogComponent implements OnInit {
       return;
     }
 
-    this.dialogRef.close({
-      verseRef: this._selection,
-      text: this.textAndAudio.text.value,
-      audio: this.textAndAudio.audioAttachment ?? {}
-    });
+    const questionId: string = this.data.questionDoc?.data?.dataId ?? objectId();
+    const audio: AudioAttachment = this.textAndAudio.audioAttachment ?? {};
+    let audioUrl: string | undefined = this.data.questionDoc?.data?.audioUrl;
+    if (audio.blob != null && audio.fileName != null) {
+      // Uploading the audio can take a while, so keep the dialog open, and showing progress, until it is done
+      this._isSaving = true;
+      try {
+        audioUrl = await this.uploadAudio(questionId, audio.blob, audio.fileName);
+      } finally {
+        this._isSaving = false;
+      }
+      if (audioUrl == null) {
+        // Keep the dialog open so that the question is not lost if the audio could not be uploaded or stored
+        await this.dialogService.message('question_dialog.audio_upload_failed');
+        return;
+      }
+    } else if (audio.status === 'reset') {
+      audioUrl = undefined;
+    }
+
+    this.dialogRef.close({ verseRef: this._selection, text: this.textAndAudio.text.value, questionId, audioUrl });
+  }
+
+  private uploadAudio(questionId: string, blob: Blob, fileName: string): Promise<string | undefined> {
+    const questionDoc: QuestionDoc | undefined = this.data.questionDoc;
+    if (questionDoc != null) {
+      return questionDoc.uploadFile(FileType.Audio, questionId, blob, fileName);
+    }
+    // The question does not exist yet, so upload the audio against the document it will be created as
+    return this.fileService.uploadFile(
+      FileType.Audio,
+      this.data.projectId,
+      QuestionDoc.COLLECTION,
+      questionId,
+      getQuestionDocId(this.data.projectId, questionId),
+      blob,
+      fileName,
+      true
+    );
   }
 
   /** Edit text of control using Scripture chooser dialog. */

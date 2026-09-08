@@ -461,7 +461,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
         }
 
         await this.zone.runOutsideAngular(() =>
-          this.checkingQuestionsService.createQuestion(this.data.projectId, newQuestion, undefined, undefined)
+          this.checkingQuestionsService.createQuestion(this.data.projectId, newQuestion)
         );
       } else if (this.questionsDiffer(listItem)) {
         await listItem.sfVersionOfQuestion.submitJson0Op(op =>

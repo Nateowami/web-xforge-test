@@ -392,6 +392,105 @@ describe('QuestionDialogComponent', () => {
     expect(env.component.textAndAudio?.text.errors!.invalid).not.toBeNull();
   }));
 
+  it('keeps the dialog open, and shows progress, while the question audio uploads', fakeAsync(() => {
+    env = new TestEnvironment();
+    flush();
+    env.component.scriptureStart.setValue('MAT 1:1');
+    env.inputValue(env.questionInput, 'question with audio');
+    let resolveUpload: (url: string | undefined) => void = () => {};
+    when(
+      mockedFileService.uploadFile(
+        FileType.Audio,
+        'project01',
+        QuestionDoc.COLLECTION,
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).thenReturn(new Promise<string | undefined>(resolve => (resolveUpload = resolve)));
+    env.setAudioAttachment({ status: 'uploaded', url: 'blob:audio', fileName: 'file.mp3', blob: new Blob() });
+
+    env.clickElement(env.saveButton);
+
+    // The question is not saved, and the dialog does not close, until the upload has finished
+    expect(env.component.isSaving).toBe(true);
+    expect(env.saveButton.querySelector('mat-spinner')).not.toBeNull();
+    expect(env.afterCloseCallback).not.toHaveBeenCalled();
+
+    resolveUpload('anAudioFile.mp3');
+    flush();
+
+    expect(env.component.isSaving).toBe(false);
+    expect(env.afterCloseCallback).toHaveBeenCalledWith(
+      jasmine.objectContaining({ text: 'question with audio', audioUrl: 'anAudioFile.mp3' })
+    );
+  }));
+
+  it('keeps the dialog open if the question audio could not be uploaded', fakeAsync(() => {
+    env = new TestEnvironment();
+    flush();
+    env.component.scriptureStart.setValue('MAT 1:1');
+    env.inputValue(env.questionInput, 'question with audio');
+    when(
+      mockedFileService.uploadFile(
+        FileType.Audio,
+        'project01',
+        QuestionDoc.COLLECTION,
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).thenResolve(undefined);
+    when(env.dialogServiceSpy.message(anything())).thenResolve();
+    env.setAudioAttachment({ status: 'uploaded', url: 'blob:audio', fileName: 'file.mp3', blob: new Blob() });
+
+    env.clickElement(env.saveButton);
+    flush();
+
+    expect(env.component.isSaving).toBe(false);
+    expect(env.afterCloseCallback).not.toHaveBeenCalled();
+    verify(env.dialogServiceSpy.message('question_dialog.audio_upload_failed')).once();
+  }));
+
+  it('keeps the audio of an edited question when the audio is not changed', fakeAsync(() => {
+    env = new TestEnvironment({
+      dataId: 'question01',
+      ownerRef: 'user01',
+      projectRef: 'project01',
+      verseRef: fromVerseRef(new VerseRef('LUK 1:3')),
+      answers: [],
+      isArchived: false,
+      dateCreated: '',
+      dateModified: '',
+      audioUrl: 'test-audio-short.mp3'
+    });
+    flush();
+    env.inputValue(env.questionInput, 'question edited');
+
+    env.clickElement(env.saveButton);
+    flush();
+
+    verify(
+      mockedFileService.uploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).never();
+    expect(env.afterCloseCallback).toHaveBeenCalledWith(
+      jasmine.objectContaining({ questionId: 'question01', audioUrl: 'test-audio-short.mp3' })
+    );
+  }));
+
   it('should not save with no text and audio permission is denied', fakeAsync(() => {
     env = new TestEnvironment();
     flush();
@@ -760,6 +859,11 @@ class TestEnvironment {
       audio.url = 'some/url';
     }
     this.component.textAndAudio?.setAudioAttachment(audio);
+  }
+
+  setAudioAttachment(audio: AudioAttachment): void {
+    this.component.textAndAudio?.setAudioAttachment(audio);
+    this.fixture.detectChanges();
   }
 
   private addTextDoc(id: TextDocId): void {

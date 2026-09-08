@@ -4,8 +4,6 @@ import { Answer } from 'realtime-server/lib/esm/scriptureforge/models/answer';
 import { getQuestionDocId, Question } from 'realtime-server/lib/esm/scriptureforge/models/question';
 import { VerseRefData } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { Subject } from 'rxjs';
-import { FileService } from 'xforge-common/file.service';
-import { FileType } from 'xforge-common/models/file-offline-data';
 import { RealtimeQuery } from 'xforge-common/models/realtime-query';
 import { ComparisonOperator, QueryParameters, Sort } from 'xforge-common/query-parameters';
 import { RealtimeService } from 'xforge-common/realtime.service';
@@ -41,10 +39,7 @@ export class CheckingQuestionsService {
    */
   afterQuestionCreated$ = new Subject<QuestionDoc>();
 
-  constructor(
-    private readonly realtimeService: RealtimeService,
-    private readonly fileService: FileService
-  ) {}
+  constructor(private readonly realtimeService: RealtimeService) {}
 
   /**
    * Query project questions that match the supplied criteria.
@@ -169,32 +164,9 @@ export class CheckingQuestionsService {
     return this.realtimeService.subscribeQuery(QuestionDoc.COLLECTION, queryParams, destroyRef);
   }
 
-  async createQuestion(
-    id: string,
-    question: Question,
-    audioFileName?: string,
-    audioBlob?: Blob
-  ): Promise<QuestionDoc | undefined> {
+  /** Creates a question. Any audio for the question must already have been uploaded. */
+  async createQuestion(id: string, question: Question): Promise<QuestionDoc | undefined> {
     const docId = getQuestionDocId(id, question.dataId);
-
-    if (audioFileName != null && audioBlob != null) {
-      const audioUrl = await this.fileService.uploadFile(
-        FileType.Audio,
-        id,
-        QuestionDoc.COLLECTION,
-        question.dataId,
-        docId,
-        audioBlob,
-        audioFileName,
-        true
-      );
-
-      if (audioUrl == null) {
-        return undefined;
-      }
-
-      question.audioUrl = audioUrl;
-    }
 
     this.beforeQuestionCreated$.next({
       docId,

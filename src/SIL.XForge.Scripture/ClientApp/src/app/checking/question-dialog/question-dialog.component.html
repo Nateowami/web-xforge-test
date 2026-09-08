@@ -57,7 +57,11 @@
         {{ t("cancel") }}
       </button>
       <button mat-flat-button color="primary" type="submit" (click)="submit()" id="question-save-btn">
-        {{ t("save") }}
+        @if (isSaving) {
+          <mat-spinner diameter="24" class="save-spinner"></mat-spinner>
+        } @else {
+          {{ t("save") }}
+        }
       </button>
     </mat-dialog-actions>
   </div>

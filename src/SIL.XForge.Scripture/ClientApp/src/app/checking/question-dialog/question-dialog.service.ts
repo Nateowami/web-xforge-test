@@ -10,7 +10,6 @@ import { DialogService } from 'xforge-common/dialog.service';
 import { FileType } from 'xforge-common/models/file-offline-data';
 import { NoticeService } from 'xforge-common/notice.service';
 import { UserService } from 'xforge-common/user.service';
-import { objectId } from 'xforge-common/utils';
 import { QuestionDoc } from '../../core/models/question-doc';
 import { SFProjectService } from '../../core/sf-project.service';
 import { CheckingQuestionsService } from '../checking/checking-questions.service';
@@ -37,8 +36,7 @@ export class QuestionDialogService {
       QuestionDialogComponent,
       QuestionDialogResult | 'close'
     >;
-    // ENHANCE: Put the audio upload logic into QuestionDialogComponent so we can detect if the upload
-    // fails and notify the user without discarding the question. For example, see chapter-audio-dialog.component.ts.
+    // The dialog uploads the question audio itself, so that it can report progress and errors while it is open
     const result: QuestionDialogResult | 'close' | undefined = await lastValueFrom(dialogRef.afterClosed());
     if (result == null || result === 'close') {
       return questionDoc;
@@ -47,26 +45,10 @@ export class QuestionDialogService {
       this.noticeService.show(this.transloco.translate('question_dialog.add_question_denied'));
       return undefined;
     }
-    const questionId = questionDoc != null && questionDoc.data != null ? questionDoc.data.dataId : objectId();
+    const questionId = result.questionId;
     const verseRefData = fromVerseRef(result.verseRef);
     const text = result.text;
-    let audioUrl = questionDoc != null && questionDoc.data != null ? questionDoc.data.audioUrl : undefined;
-    if (questionDoc != null && result.audio.fileName != null && result.audio.blob != null) {
-      // Get the amended filename and save it against the answer
-      const urlResult = await questionDoc.uploadFile(
-        FileType.Audio,
-        questionId,
-        result.audio.blob,
-        result.audio.fileName
-      );
-      if (urlResult == null) {
-        // Discard the question if an error occurred while uploading or storing the audio
-        return undefined;
-      }
-      audioUrl = urlResult;
-    } else if (result.audio.status === 'reset') {
-      audioUrl = undefined;
-    }
+    const audioUrl = result.audioUrl;
 
     const currentDate = new Date().toJSON();
     if (questionDoc != null && questionDoc.data != null) {
@@ -95,12 +77,7 @@ export class QuestionDialogService {
       dateCreated: currentDate,
       dateModified: currentDate
     };
-    return await this.checkingQuestionsService.createQuestion(
-      config.projectId,
-      newQuestion,
-      result.audio.fileName,
-      result.audio.blob
-    );
+    return await this.checkingQuestionsService.createQuestion(config.projectId, newQuestion);
   }
 
   private async canCreateAndEditQuestions(projectId: string): Promise<boolean> {
