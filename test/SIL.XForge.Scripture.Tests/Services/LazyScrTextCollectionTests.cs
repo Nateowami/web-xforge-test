@@ -95,9 +95,51 @@ public class LazyScrTextCollectionTests
         Assert.That(scrText, Is.Not.Null);
         Assert.That(scrText?.Name, Is.EqualTo(Project01Name));
         Assert.That(scrText?.Directory, Is.EqualTo(path));
-        Assert.That(scrText?.Settings.Versification.Type, Is.EqualTo(ScrVers.Vulgate.Type));
         env.FileSystemService.Received(1).FileExists(Path.Join(path, ProjectSettings.fileName));
         env.FileSystemService.Received(1).FileExists(Path.Join(basePath, ProjectSettings.fileName));
+        Assert.That(scrText?.Settings.Versification.Type, Is.EqualTo(ScrVers.Vulgate.Type));
+    }
+
+    [Test]
+    public void FindById_BaseProject_UsesBaseCustomVersification()
+    {
+        // Setup
+        var env = new TestEnvironment();
+        env.ConfigureProject(
+            User01,
+            _project01,
+            Project01Name,
+            SettingsFormat.Paratext8,
+            baseProjectId: _project02,
+            baseProjectName: Project02Name
+        );
+        env.ConfigureProject(User01, _project02, Project02Name, SettingsFormat.Paratext8, ScrVers.English);
+
+        // The base project has a custom versification where Matthew chapter 1 has 30 verses
+        env.ConfigureCustomVersification(_project02, "MAT 1:30");
+
+        // SUT
+        ScrText? scrText = env.Service.FindById(User01, _project01.Id);
+
+        Assert.That(scrText, Is.Not.Null);
+        ScrVers versification = scrText!.Settings.Versification;
+        Assert.That(versification.GetLastVerse(Canon.BookIdToNumber("MAT"), 1), Is.EqualTo(30));
+    }
+
+    [Test]
+    public void Versification_UsesProjectCustomVersification()
+    {
+        // Setup
+        var env = new TestEnvironment();
+        env.ConfigureProject(User01, _project01, Project01Name, SettingsFormat.Paratext8, ScrVers.English);
+
+        // The project has a custom versification where Matthew chapter 1 has 30 verses
+        env.ConfigureCustomVersification(_project01, "MAT 1:30");
+
+        // SUT - this is the name Paratext gives a project's customized versification
+        ScrVers versification = new ScrVers($"{ScrVersType.English}-{_project01.Id}");
+
+        Assert.That(versification.GetLastVerse(Canon.BookIdToNumber("MAT"), 1), Is.EqualTo(30));
     }
 
     [Test]
@@ -198,6 +240,23 @@ public class LazyScrTextCollectionTests
         public LazyScrTextCollection Service { get; }
 
         /// <summary>
+        /// Configures a custom versification file for a project.
+        /// </summary>
+        /// <param name="projectId">The Paratext project identifier.</param>
+        /// <param name="contents">The contents of the custom versification file.</param>
+        public void ConfigureCustomVersification(HexId projectId, string contents)
+        {
+            string path = Path.Join(
+                _testDirectory,
+                projectId.Id,
+                "target",
+                ParatextVersificationTable.customVersFilename
+            );
+            FileSystemService.FileExists(path).Returns(true);
+            FileSystemService.FileReadText(path).Returns(contents);
+        }
+
+        /// <summary>
         /// Configures a project for the text
         /// </summary>
         /// <param name="userId">The Paratext user identifier.</param>
@@ -226,8 +285,12 @@ public class LazyScrTextCollectionTests
             string versification = scrVers is null
                 ? string.Empty
                 : $"<Versification>{(int)scrVers.Type}</Versification>";
+            string translationInfo = baseProjectId is null
+                ? string.Empty
+                : $"<TranslationInfo>BackTranslation:{baseProjectName}:{baseProjectId.Id}</TranslationInfo>";
             string content =
-                $"<ScriptureText><Name>{projectName}</Name><Guid>{projectId.Id}</Guid>{versification}</ScriptureText>";
+                $"<ScriptureText><Name>{projectName}</Name><Guid>{projectId.Id}</Guid>"
+                + $"{versification}{translationInfo}</ScriptureText>";
             FileSystemService
                 .FileReadText(Arg.Is<string>(s => !string.IsNullOrEmpty(s) && s.StartsWith(targetPath)))
                 .Returns(content);
@@ -254,7 +317,10 @@ public class LazyScrTextCollectionTests
             var scrText = new MockScrText(
                 new SFParatextUser(userId),
                 new ProjectName { ProjectPath = targetPath, ShortName = projectName }
-            );
+            )
+            {
+                CachedGuid = projectId,
+            };
             if (baseProjectId is not null)
             {
                 scrText.Settings.TranslationInfo = new TranslationInformation(
