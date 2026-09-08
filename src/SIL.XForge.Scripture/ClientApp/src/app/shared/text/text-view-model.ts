@@ -105,6 +105,8 @@ class SegmentInfo {
   length: number = 0;
   origRef?: string;
   containsBlank: boolean = false;
+  /** The editor position of the blank embed in this segment, if it contains one. */
+  blankIndex?: number;
   notesCount: number = 0;
   isVerseNext: boolean = false;
   hasInitialFormat: boolean = false;
@@ -250,12 +252,18 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
       }
     }
 
+    // Blank embeds are only removed for the user's own edits. The change is not submitted to the text doc unless it
+    // originated from the user, so removing a blank that the text doc still contains would leave the editor out of
+    // sync with the text doc. When a remote user types in an empty verse, they submit the removal of the blank
+    // themselves, and that op removes the blank here.
+    const isUserEdit: boolean = source === 'user';
+
     // Re-compute segment boundaries so the insertion point stays in the right place.
-    void this.updateSegments(editor, isOnline);
+    void this.updateSegments(editor, isOnline, isUserEdit);
 
     // Defer the update, since it might cause the segment ranges to be out-of-sync with the view model
     void Promise.resolve().then(() => {
-      const updateDelta = this.updateSegments(editor, isOnline);
+      const updateDelta = this.updateSegments(editor, isOnline, isUserEdit);
       if (updateDelta.ops != null && updateDelta.ops.length > 0) {
         // Clean up blanks in quill editor. This may result in re-entering the update() method.
         // We force the source to be user for blank ops so that any created when coming online are sent to ShareDB.
@@ -658,7 +666,7 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
    * Re-generate segment boundaries from quill editor ops. Return ops to clean up where and whether blanks are
    * represented.
    */
-  private updateSegments(editor: Quill, isOnline: boolean): Delta {
+  private updateSegments(editor: Quill, isOnline: boolean, isUserEdit: boolean): Delta {
     const convertDelta = new Delta();
     let fixDelta = new Delta();
     let fixOffset = 0;
@@ -706,7 +714,7 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
                 paraSegment.ref = getParagraphRef(nextIds, paraSegment.ref, paraSegment.ref + '/' + style);
               }
 
-              [fixDelta, fixOffset] = this.fixSegment(editor, paraSegment, fixDelta, fixOffset, isOnline);
+              [fixDelta, fixOffset] = this.fixSegment(editor, paraSegment, fixDelta, fixOffset, isOnline, isUserEdit);
               this._segments.set(paraSegment.ref, { index: paraSegment.index, length: paraSegment.length });
             }
             paraSegments = [];
@@ -727,7 +735,7 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
           // title/header
           curSegment ??= new SegmentInfo('', curIndex);
           curSegment.ref = getParagraphRef(nextIds, style, style);
-          [fixDelta, fixOffset] = this.fixSegment(editor, curSegment, fixDelta, fixOffset, isOnline);
+          [fixDelta, fixOffset] = this.fixSegment(editor, curSegment, fixDelta, fixOffset, isOnline, isUserEdit);
           this._segments.set(curSegment.ref, { index: curSegment.index, length: curSegment.length });
           paraSegments = [];
           curIndex += curSegment.length + len;
@@ -763,6 +771,8 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
         curSegment.length += len;
         if ((op.insert as any)?.blank != null) {
           curSegment.containsBlank = true;
+          // Record where the blank is, as text inserted by a remote user can precede it
+          curSegment.blankIndex = curIndex + curSegment.length - 1;
           if (op.attributes != null && op.attributes['initial'] === true) {
             curSegment.hasInitialFormat = true;
           }
@@ -805,7 +815,8 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
     segment: SegmentInfo,
     fixDelta: Delta,
     fixOffset: number,
-    isOnline: boolean
+    isOnline: boolean,
+    isUserEdit: boolean
   ): [Delta, number] {
     // inserting blank embeds onto text docs while offline creates a scenario where quill misinterprets
     // the diff delta and can cause merge issues when returning online and duplicating verse segments
@@ -821,10 +832,10 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
       delta.insert({ blank: true }, attrs);
       fixDelta = fixDelta.compose(delta);
       fixOffset++;
-    } else if (segment.containsBlank && segment.length - segment.notesCount > 1) {
+    } else if (segment.containsBlank && segment.length - segment.notesCount > 1 && isUserEdit) {
       // The segment contains a blank and there is text other than translation notes
       // delete blank
-      const delta = new Delta().retain(segment.index + fixOffset + segment.notesCount).delete(1);
+      const delta = new Delta().retain(segment.blankIndex! + fixOffset).delete(1);
       fixDelta = fixDelta.compose(delta);
       fixOffset--;
       const sel = editor.getSelection();

@@ -1372,6 +1372,41 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  it('does not remove a blank when a remote user types in an empty verse', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = env.matTextDocId;
+    env.waitForEditor();
+
+    const textDoc: TextDoc = env.realtimeService.get<TextDoc>(TextDoc.COLLECTION, env.matTextDocId.toString());
+    // verse 2 is empty, so it is represented by a blank embed
+    const blankIndex: number = env.component.getSegmentRange('verse_1_2')!.index;
+    const lengthDifference: number = env.editorLengthDifference(textDoc);
+
+    // A remote user types in the empty verse. The op removing the blank can arrive as a separate op.
+    void textDoc.submit(new Delta().retain(blankIndex).insert('t', { segment: 'verse_1_2' }));
+    tick();
+    env.fixture.detectChanges();
+
+    // The blank has to remain until the remote user removes it, otherwise the editor no longer matches the text doc
+    // and subsequent remote ops get applied at the wrong position.
+    expect(env.component.getSegmentContents('verse_1_2')!.ops!.map(op => op.insert)).toEqual([
+      't',
+      { blank: true } as any
+    ]);
+    expect(env.editorLengthDifference(textDoc)).toEqual(lengthDifference);
+
+    // The remote user removes the blank
+    void textDoc.submit(new Delta().retain(blankIndex + 1).delete(1));
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.component.getSegmentText('verse_1_2')).toEqual('t');
+    expect(env.component.getSegmentText('verse_1_3')).toEqual('target: chapter 1, verse 3.');
+    expect(env.editorLengthDifference(textDoc)).toEqual(lengthDifference);
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('can display footnote dialog', fakeAsync(() => {
     const chapterNum = 2;
     const segmentRef: string = `verse_${chapterNum}_1`;
@@ -2017,6 +2052,12 @@ class TestEnvironment {
     this.component.editor!.insertText(index, text, 'user');
     tick();
     this.fixture.detectChanges();
+  }
+
+  /** How much longer the editor contents are than the text doc. Quill adds a trailing newline of its own, so this is
+   * not zero, but it stays constant while the editor and the text doc are in sync. */
+  editorLengthDifference(textDoc: TextDoc): number {
+    return this.component.editor!.getLength() - new Delta(textDoc.data!.ops!).length();
   }
 
   applyDelta(delta: Delta, source: EmitterSource): void {
