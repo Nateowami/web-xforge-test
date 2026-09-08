@@ -1080,6 +1080,78 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task GetNoteThreadChanges_NotePositionInMergedVerse()
+    {
+        // A note refers to verse 3, but the verses 2 and 3 have since been merged in Paratext into the
+        // verse bridge "2-3", so the text of the note's verse is now the text of the bridged verse.
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        env.AddTextDocs(40, 1, 6, env.ContextBefore, "Text selected");
+
+        env.AddNoteThreadData([new ThreadComponents { threadNum = 3, noteCount = 1 }]);
+        env.AddParatextComments([
+            new ThreadComponents
+            {
+                threadNum = 3,
+                noteCount = 1,
+                username = env.Username01,
+            },
+        ]);
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        IEnumerable<IDocument<NoteThread>> noteThreadDocs = await TestEnvironment.GetNoteThreadDocsAsync(
+            conn,
+            ["dataId3"]
+        );
+        Dictionary<string, ParatextUserProfile> ptProjectUsers = new Dictionary<string, ParatextUserProfile>
+        {
+            {
+                env.Username01,
+                new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 }
+            },
+        };
+
+        const string textBeforeNote = "Text kept from verse 2. ";
+        string selectedText = "Text selected thread3";
+        string bridgedVerseText = textBeforeNote + env.ContextBefore + selectedText + env.ContextAfter;
+        Delta chapterDelta = new Delta(
+            JToken.Parse(
+                "[ { \"insert\": { \"chapter\": { \"number\": \"1\" } } },"
+                    + "{ \"insert\": { \"verse\": { \"number\": \"1\" } } },"
+                    + "{ \"insert\": \"Verse one text.\", \"attributes\": { \"segment\": \"verse_1_1\" } },"
+                    + "{ \"insert\": { \"verse\": { \"number\": \"2-3\" } } },"
+                    + "{ \"insert\": \""
+                    + bridgedVerseText
+                    + "\", \"attributes\": { \"segment\": \"verse_1_2-3\" } } ]"
+            )
+        );
+        Dictionary<int, ChapterDelta> chapterDeltas = new Dictionary<int, ChapterDelta>
+        {
+            { 1, new ChapterDelta(1, 3, true, chapterDelta) },
+        };
+
+        IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+            userSecret,
+            ptProjectId,
+            40,
+            noteThreadDocs,
+            chapterDeltas,
+            ptProjectUsers
+        );
+
+        // The note is anchored to its text within the bridged verse, rather than defaulting to the start
+        NoteThreadChange change = changes.Single(c => c.ThreadId == "thread3");
+        TextAnchor expected = new TextAnchor
+        {
+            Start = (textBeforeNote + env.ContextBefore).Length,
+            Length = selectedText.Length,
+        };
+        Assert.That(change.Position, Is.EqualTo(expected));
+    }
+
+    [Test]
     public async Task GetNoteThreadChanges_NotePositionDefaulted()
     {
         var env = new TestEnvironment();

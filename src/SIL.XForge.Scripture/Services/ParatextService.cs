@@ -3703,10 +3703,32 @@ public class ParatextService : DisposableBase, IParatextService
 
     private static string GetVerseText(Delta delta, VerseRef verseRef)
     {
-        string vref = string.IsNullOrEmpty(verseRef.Verse) ? verseRef.VerseNum.ToString() : verseRef.Verse;
+        string vref = GetVerseNumberInText(delta, verseRef);
         return delta.TryConcatenateInserts(out string verseText, vref, DeltaUsxMapper.CanParaContainText)
             ? verseText
             : string.Empty;
+    }
+
+    /// <summary>
+    /// Gets the verse number, as it is written in the text, of the verse containing
+    /// <paramref name="verseRef"/>. This is normally just the verse itself, but when verses have been
+    /// merged in Paratext the verse is part of a verse bridge (verse 3 of "\v 2-3", for example) and its
+    /// text is stored under the bridged number. Paratext resolves a reference to a single verse of a
+    /// bridge to the text of the whole bridge, so notes referring to a verse that has since been merged
+    /// stay anchored to their text.
+    /// </summary>
+    private static string GetVerseNumberInText(Delta delta, VerseRef verseRef)
+    {
+        string vref = string.IsNullOrEmpty(verseRef.Verse) ? verseRef.VerseNum.ToString() : verseRef.Verse;
+        List<string> verseNumbers = [.. delta.GetVerseNumbers()];
+        if (verseNumbers.Contains(vref))
+            return vref;
+        string? bridgedVerseNumber = verseNumbers.FirstOrDefault(number =>
+            new VerseRef(verseRef.Book, verseRef.Chapter, number, verseRef.Versification)
+                .AllVerses()
+                .Any(verse => verse.VerseNum == verseRef.VerseNum)
+        );
+        return bridgedVerseNumber ?? vref;
     }
 
     private static TextAnchor GetThreadTextAnchor(CommentThread thread, Dictionary<int, ChapterDelta> chapterDeltas)

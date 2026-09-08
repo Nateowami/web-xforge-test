@@ -37,6 +37,32 @@ export function getVerseStrFromSegmentRef(segmentRef: string): string | undefine
   return undefined;
 }
 
+/**
+ * Returns whether the verse string of a segment ref (see getVerseStrFromSegmentRef) covers the given verse.
+ * A verse bridge covers every verse in it, e.g. '2-3' covers verses 2 and 3, since Paratext merges verses
+ * by combining them into a single verse of the text. Verses with letters only match exactly.
+ */
+export function verseStrCoversVerse(segmentVerseStr: string, verse: string): boolean {
+  if (segmentVerseStr === verse) {
+    return true;
+  }
+  const verseNum: number = Number.parseInt(verse);
+  if (Number.isNaN(verseNum)) {
+    return false;
+  }
+  // A verse string can be a sequence of verses and verse bridges, e.g. '2,4-5'
+  return segmentVerseStr.split(',').some(part => {
+    const range: string[] = part.split('-');
+    if (range.length < 2) {
+      // A single verse in the sequence is only covered when it is exactly the verse looked for
+      return part === verse;
+    }
+    const start: number = Number.parseInt(range[0]);
+    const end: number = Number.parseInt(range[range.length - 1]);
+    return !Number.isNaN(start) && !Number.isNaN(end) && verseNum >= start && verseNum <= end;
+  });
+}
+
 export function verseSlug(verse: VerseRef): string {
   return 'verse_' + verse.chapterNum + '_' + (verse.verse == null ? verse.verseNum : verse.verse);
 }

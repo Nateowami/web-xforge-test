@@ -220,6 +220,24 @@ public class Delta
     }
 
     /// <summary>
+    /// Gets the verse number of every verse marker in this delta, in the order they occur. A number is the
+    /// verse as it is written in the text, so it can be a verse bridge, for example "1", "2-3", "4".
+    /// </summary>
+    public IEnumerable<string> GetVerseNumbers()
+    {
+        foreach (JToken op in this.Ops)
+        {
+            if (op[InsertType]?.Type != JTokenType.Object)
+                continue;
+            if (((JObject)op[InsertType]).Property("verse")?.Value is not JObject verse)
+                continue;
+            JToken number = verse.Property("number")?.Value;
+            if (number?.Type == JTokenType.String)
+                yield return (string)number;
+        }
+    }
+
+    /// <summary>
     /// Concatenate all the text belonging to a given verse, including section headings. If the verse string
     /// given is 0, this returns all the text previous to the first verse in the text.
     /// </summary>

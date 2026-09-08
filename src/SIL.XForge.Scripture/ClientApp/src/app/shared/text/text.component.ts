@@ -45,7 +45,13 @@ import { TextDocService } from '../../core/text-doc.service';
 import { LynxInsightEditorObjectsComponent } from '../../translate/editor/lynx/insights/lynx-insight-editor-objects/lynx-insight-editor-objects.component';
 import { MultiCursorViewer } from '../../translate/editor/multi-viewer/multi-viewer.component';
 import { attributeFromMouseEvent } from '../utils';
-import { getBaseVerse, getVerseRefFromSegmentRef, getVerseStrFromSegmentRef, VERSE_REGEX } from '../verse-utils';
+import {
+  getBaseVerse,
+  getVerseRefFromSegmentRef,
+  getVerseStrFromSegmentRef,
+  VERSE_REGEX,
+  verseStrCoversVerse
+} from '../verse-utils';
 import { QuillFormatRegistryService } from './quill-editor-registration/quill-format-registry.service';
 import { getAttributesAtPosition, getRetainCount } from './quill-util';
 import { Segment } from './segment';
@@ -752,11 +758,16 @@ export class TextComponent implements AfterViewInit, OnDestroy {
    * Get segments compatible for a given verseRef. For verses with letters, only return the segments
    * that explicitly contain the letter or non-verse segment in the range.
    * i.e. LUK 1:1a will match segments verse_1_1a, verse_1_1a/p1, s_1 but not verse_1_1 or verse_1_1b.
+   * A verse that has been merged with others in Paratext matches the segment of the combined verse,
+   * i.e. LUK 1:3 will match segment verse_1_2-3.
    */
   getCompatibleSegments(verseRef: VerseRef): string[] {
     const segments: string[] = this.getVerseSegments(verseRef);
-    const defaultValue: string = verseRef.verse;
-    return segments.filter(s => verseRef.verse === (getVerseStrFromSegmentRef(s) ?? defaultValue));
+    return segments.filter(s => {
+      const segmentVerseStr: string | undefined = getVerseStrFromSegmentRef(s);
+      // Segments that do not belong to a verse of their own, such as section headings, are compatible
+      return segmentVerseStr == null || verseStrCoversVerse(segmentVerseStr, verseRef.verse);
+    });
   }
 
   getVerseSegmentsNoHeadings(verseRef: VerseRef): string[] {

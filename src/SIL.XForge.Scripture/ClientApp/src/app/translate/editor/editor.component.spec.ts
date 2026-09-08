@@ -1707,6 +1707,24 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('embeds note on a verse that has been merged with another verse', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      // The note is on verse 3, but verses 2 and 3 have been merged in Paratext, so the verse text is
+      // now in the segment of the combined verse
+      const textBeforeNote = 'target: chapter 1, ';
+      env.addParatextNoteThread(11, 'LUK 1:3', 'verse', { start: textBeforeNote.length, length: 5 }, ['user01']);
+      env.wait();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      const combinedVerseSegment: HTMLElement = env.getSegmentElement('verse_1_2-3')!;
+      expect(combinedVerseSegment.querySelector('display-note')).not.toBeNull();
+      const range: Range = env.component.target!.getSegmentRange('verse_1_2-3')!;
+      expect(env.getNoteThreadEditorPosition('dataid011')).toEqual(range.index + textBeforeNote.length);
+      env.dispose();
+    }));
+
     it('handles text doc updates with note embed offset', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_2' });
