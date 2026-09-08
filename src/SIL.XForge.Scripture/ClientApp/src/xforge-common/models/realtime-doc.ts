@@ -2,9 +2,13 @@ import { merge, Observable, Subject, Subscription } from 'rxjs';
 import { Presence } from 'sharedb/lib/sharedb';
 import { RealtimeService } from 'xforge-common/realtime.service';
 import { PresenceData } from '../../app/shared/text/text.component';
+import { hasStringProp } from '../../type-utils';
 import { RealtimeDocAdapter } from '../realtime-remote-store';
 import { RealtimeOfflineData } from './realtime-offline-data';
 import { Snapshot } from './snapshot';
+
+/** ShareDB's error code for a create op submitted for a doc that the server has already created. */
+const ERR_DOC_ALREADY_CREATED = 'ERR_DOC_ALREADY_CREATED';
 
 export interface RealtimeDocConstructor {
   readonly COLLECTION: string;
@@ -139,7 +143,7 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
   }
 
   async create(data: T, type?: string): Promise<void> {
-    void this.adapter.create(data, type).then(() => this.updateOfflineData(true));
+    void this.createInBackend(data, type);
     this.loadOfflineDataPromise = Promise.resolve();
     await this.updateOfflineData(true);
     await this.realtimeService.onLocalDocUpdate(this);
@@ -242,6 +246,28 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     await this.realtimeService.offlineStore.put(this.collection, offlineData);
   }
 
+  /**
+   * Creates the data in the backend and then updates offline storage.
+   *
+   * Offline storage records a doc as not yet created (no version) until the create op is acknowledged, so a doc whose
+   * create op was committed by the server but whose acknowledgement never made it back to the client, e.g. because the
+   * connection dropped, is created a second time the next time it is loaded from offline storage. ShareDB rejects that
+   * duplicate create with a fatal "Invalid op submitted. Document already created" error, but before reporting the
+   * error it fetches the doc from the server, so the doc ends up in the correct state anyway. Ignore the error instead
+   * of reporting it, since there is nothing wrong for the user to know about or act on.
+   */
+  private async createInBackend(data: T, type?: string): Promise<void> {
+    try {
+      await this.adapter.create(data, type);
+    } catch (err) {
+      if (!hasStringProp(err, 'code') || err.code !== ERR_DOC_ALREADY_CREATED) {
+        throw err;
+      }
+      console.warn(`The doc ${this.collection}:${this.id} had already been created in the backend.`);
+    }
+    await this.updateOfflineData(true);
+  }
+
   private async loadOfflineData(): Promise<void> {
     this.loadOfflineDataPromise ??= this.loadFromOfflineStore();
     return this.loadOfflineDataPromise;
@@ -251,7 +277,7 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     const offlineData = await this.realtimeService.offlineStore.get<RealtimeOfflineData>(this.collection, this.id);
     if (offlineData != null) {
       if (offlineData.v == null) {
-        void this.adapter.create(offlineData.data, offlineData.type).then(() => this.updateOfflineData(true));
+        void this.createInBackend(offlineData.data, offlineData.type);
       } else {
         await this.adapter.ingestSnapshot(offlineData);
         this.offlineSnapshotVersion = this.adapter.version;
