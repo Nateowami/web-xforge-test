@@ -1883,6 +1883,29 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('shows note on verse that is combined in the text', fakeAsync(() => {
+      // the note was created in Paratext before verses 2 and 3 were combined, so it is still on verse 2
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.addParatextNoteThread(6, 'LUK 1:2', '', { start: 0, length: 0 }, ['user01']);
+      env.wait();
+
+      expect(env.getNoteThreadIconElement('verse_1_2-3', 'dataid06')).not.toBeNull();
+      env.dispose();
+    }));
+
+    it('shows note on combined verse that is separated in the text', fakeAsync(() => {
+      // the note was created in Paratext on combined verses 2-3, which have since been separated
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.addParatextNoteThread(6, 'MAT 1:2-3', '', { start: 0, length: 0 }, ['user01']);
+      env.wait();
+
+      expect(env.getNoteThreadIconElement('verse_1_2', 'dataid06')).not.toBeNull();
+      env.dispose();
+    }));
+
     it('highlights note icons when new content is unread', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setCurrentUser('user02');

@@ -45,7 +45,13 @@ import { TextDocService } from '../../core/text-doc.service';
 import { LynxInsightEditorObjectsComponent } from '../../translate/editor/lynx/insights/lynx-insight-editor-objects/lynx-insight-editor-objects.component';
 import { MultiCursorViewer } from '../../translate/editor/multi-viewer/multi-viewer.component';
 import { attributeFromMouseEvent } from '../utils';
-import { getBaseVerse, getVerseRefFromSegmentRef, getVerseStrFromSegmentRef, VERSE_REGEX } from '../verse-utils';
+import {
+  getBaseVerse,
+  getVerseRefFromSegmentRef,
+  getVerseStrFromSegmentRef,
+  VERSE_REGEX,
+  verseStrsAreCompatible
+} from '../verse-utils';
 import { QuillFormatRegistryService } from './quill-editor-registration/quill-format-registry.service';
 import { getAttributesAtPosition, getRetainCount } from './quill-util';
 import { Segment } from './segment';
@@ -751,12 +757,17 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   /**
    * Get segments compatible for a given verseRef. For verses with letters, only return the segments
    * that explicitly contain the letter or non-verse segment in the range.
-   * i.e. LUK 1:1a will match segments verse_1_1a, verse_1_1a/p1, s_1 but not verse_1_1 or verse_1_1b.
+   * i.e. LUK 1:1a will match segments verse_1_1a, verse_1_1a/p1, s_1 but not verse_1_1b.
    */
   getCompatibleSegments(verseRef: VerseRef): string[] {
     const segments: string[] = this.getVerseSegments(verseRef);
-    const defaultValue: string = verseRef.verse;
-    return segments.filter(s => verseRef.verse === (getVerseStrFromSegmentRef(s) ?? defaultValue));
+    // getVerseSegments() has already matched on verse numbers, which includes the segment of a combined verse that
+    // the verse ref is part of, and the segments of the individual verses that a combined verse ref covers. Only
+    // exclude segments for a different lettered part of the same verse.
+    return segments.filter(s => {
+      const segmentVerseStr: string | undefined = getVerseStrFromSegmentRef(s);
+      return segmentVerseStr == null || verseStrsAreCompatible(verseRef.verse, segmentVerseStr);
+    });
   }
 
   getVerseSegmentsNoHeadings(verseRef: VerseRef): string[] {

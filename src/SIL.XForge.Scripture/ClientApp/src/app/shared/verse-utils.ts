@@ -37,6 +37,38 @@ export function getVerseStrFromSegmentRef(segmentRef: string): string | undefine
   return undefined;
 }
 
+/**
+ * Returns whether two verse strings (e.g. 6, 6a, 6-7) can refer to the same verse text. Verse strings that specify a
+ * letter only match verse strings with the same letter, so that content on verse 6a is not placed on verse 6b.
+ * Verse strings that differ only in how verses are combined do match, since Paratext keeps the verse ref that a note
+ * was created with even after the verses it refers to have been combined or separated. i.e. 1 matches 1-2, and 1-2
+ * matches both 1 and 2, but 6a does not match 6b.
+ */
+export function verseStrsAreCompatible(verseStrA: string, verseStrB: string): boolean {
+  const partsA: VerseStrPart[] = getVerseStrParts(verseStrA);
+  const partsB: VerseStrPart[] = getVerseStrParts(verseStrB);
+  return !partsA.some(a =>
+    partsB.some(b => a.verseNum === b.verseNum && a.letter !== '' && b.letter !== '' && a.letter !== b.letter)
+  );
+}
+
+interface VerseStrPart {
+  verseNum: number;
+  letter: string;
+}
+
+/** Splits a verse string into the verses it names. e.g. '6-7a' returns [{ 6, '' }, { 7, 'a' }] */
+function getVerseStrParts(verseStr: string): VerseStrPart[] {
+  const parts: VerseStrPart[] = [];
+  for (const part of verseStr.replace(RIGHT_TO_LEFT_MARK, '').split(/[,-]/)) {
+    const match: RegExpExecArray | null = /^(\d+)([a-z]*)/.exec(part.trim());
+    if (match != null) {
+      parts.push({ verseNum: Number.parseInt(match[1]), letter: match[2] });
+    }
+  }
+  return parts;
+}
+
 export function verseSlug(verse: VerseRef): string {
   return 'verse_' + verse.chapterNum + '_' + (verse.verse == null ? verse.verseNum : verse.verse);
 }
