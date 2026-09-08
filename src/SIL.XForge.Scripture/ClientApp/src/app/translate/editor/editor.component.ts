@@ -2393,7 +2393,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         return;
       }
       // un-select previously selected verses since a note can apply to only one verse.
-      this.target.toggleVerseSelection(this.commenterSelectedVerseRef);
+      this.target.setVerseSelection(this.commenterSelectedVerseRef, false);
     }
     this.commenterSelectedVerseRef = verseRef;
   }
@@ -2635,7 +2635,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
 
   private resetCommenterVerseSelection(): void {
     if (this.target != null && this.commenterSelectedVerseRef != null) {
-      this.target.toggleVerseSelection(this.commenterSelectedVerseRef);
+      this.target.setVerseSelection(this.commenterSelectedVerseRef, false);
       this.commenterSelectedVerseRef = undefined;
     }
     this.showAddCommentButton = false;

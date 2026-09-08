@@ -3380,6 +3380,30 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('does not re-select a verse when the editor no longer has the selection formatting', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.setCommenterUser();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      env.clickSegmentRef('verse_1_1');
+      expect(env.getSegmentElement('verse_1_1')!.classList).toContain('commenter-selection');
+
+      // Rewriting the chapter text, i.e. applying a draft or restoring a revision, reloads the editor, which
+      // discards the selection formatting.
+      env.clearSelectionFormatting();
+
+      // moving out of the verse must not bring the highlight back
+      env.clickSegmentRef('s_1');
+      expect(env.getSegmentElement('verse_1_1')!.classList).not.toContain('commenter-selection');
+
+      env.clickSegmentRef('verse_1_2-3');
+      expect(env.getSegmentElement('verse_1_2-3')!.classList).toContain('commenter-selection');
+      expect(env.getSegmentElement('verse_1_1')!.classList).not.toContain('commenter-selection');
+      env.dispose();
+    }));
+
     it('does not select verse when opening a note thread', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
@@ -5427,6 +5451,11 @@ class TestEnvironment {
 
   getTextDoc(textId: TextDocId): TextDoc {
     return this.realtimeService.get<TextDoc>(TextDoc.COLLECTION, textId.toString());
+  }
+
+  /** Drops the verse selection formatting from the editor, as reloading the editor for a rewritten chapter does. */
+  clearSelectionFormatting(): void {
+    this.targetEditor.formatText(0, this.targetEditor.getLength(), { 'commenter-selection': null }, 'api');
   }
 
   getNoteThreadDoc(projectId: string, threadDataId: string): NoteThreadDoc {

@@ -934,17 +934,29 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     return ret;
   }
 
+  /** Selects the verse if it is not selected, or deselects it if it is. Returns whether it is now selected. */
   toggleVerseSelection(verseRef: VerseRef): boolean {
     if (this.editor == null) return false;
     const verseSegments: string[] = this.filterSegments(this.getCompatibleSegments(verseRef));
     const verseRange: Range | undefined = this.getSegmentRange(verseSegments[0]);
-    let selectionValue: true | null = true;
+    let isSelected: boolean = false;
     if (verseRange != null) {
       const formats: StringMap = getAttributesAtPosition(this.editor, verseRange.index);
-      selectionValue = formats['commenter-selection'] ? null : true;
+      isSelected = formats['commenter-selection'] === true;
     }
 
-    const format: StringMap = { ['commenter-selection']: selectionValue };
+    this.setVerseSelection(verseRef, !isSelected);
+    return !isSelected;
+  }
+
+  /**
+   * Selects or deselects a verse. Unlike toggleVerseSelection(), the resulting state does not depend on the
+   * formatting currently in the editor, which is lost whenever the editor contents are replaced.
+   */
+  setVerseSelection(verseRef: VerseRef, isSelected: boolean): void {
+    if (this.editor == null) return;
+    const verseSegments: string[] = this.filterSegments(this.getCompatibleSegments(verseRef));
+    const format: StringMap = { ['commenter-selection']: isSelected ? true : null };
     let verseEmbedFormatted: boolean = false;
     for (const segment of verseSegments) {
       // only underline the selection if it is part of the verse text i.e. not a section heading
@@ -959,7 +971,6 @@ export class TextComponent implements AfterViewInit, OnDestroy {
         this.editor.formatText(range.index, range.length, format, 'api');
       }
     }
-    return selectionValue === true;
   }
 
   /** Respond to text changes in the quill editor. */
