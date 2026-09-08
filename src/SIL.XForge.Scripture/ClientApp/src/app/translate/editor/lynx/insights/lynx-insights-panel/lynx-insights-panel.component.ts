@@ -107,6 +107,12 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
   /** Maps TextDocId string to TextData. */
   private textDocDataCache = new Map<string, TextData>();
 
+  /** In-flight `loadTextDocLazily` calls, keyed by TextDocId string, so a doc is fetched once. */
+  private textDocLoadsInFlight = new Map<string, Promise<TextData | undefined>>();
+
+  /** TextDocId strings whose `changes$` is already subscribed (subscribe once per doc). */
+  private textDocsSubscribed = new Set<string>();
+
   /** Set of all insight ids currently in the tree (used for cache cleanup). */
   private currentInsightIds = new Set<string>();
 
@@ -191,14 +197,7 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
   }
 
   // Passed to mat-tree in the template
-  getChildrenAccessor = (node: InsightPanelNode): InsightPanelNode[] => {
-    if (node.children == null) {
-      return [];
-    }
-
-    // If paged loading is needed, only return a subset of children
-    return this.needsPagedLoading(node) ? this.getVisibleChildren(node) : node.children;
-  };
+  getChildrenAccessor = (node: InsightPanelNode): InsightPanelNode[] => this.getDisplayedChildren(node);
 
   // 'when' predicate to determine if the group template should be used
   isExpandableNodePredicate = (_index: number, node: InsightPanelNode): boolean => this.hasChildren(node);
@@ -322,6 +321,21 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
     if (node.children) {
       node.remainingChildCount = Math.max(0, node.children.length - newCount);
     }
+
+    // Load text snippets for the newly revealed children
+    this.processExpandedNode(node);
+  }
+
+  /**
+   * The children of a node that the tree currently displays: all of them, or just the current page
+   * for nodes with large child sets.  Only these need text snippets generated.
+   */
+  private getDisplayedChildren(node: InsightPanelNode): InsightPanelNode[] {
+    if (node.children == null) {
+      return [];
+    }
+
+    return this.needsPagedLoading(node) ? this.getVisibleChildren(node) : node.children;
   }
 
   /**
@@ -390,6 +404,11 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
     if (node.children != null && node.children.length > 0) {
       const isLargeNodeSet = node.children.length > this.lynxInsightConfig.panelOptimizationThreshold;
 
+      // Only the children the tree actually displays need snippets. Generating them for every child
+      // of a group with thousands of insights locks up the panel (and the "show more" button, which
+      // waits on loading progress) for as long as it takes to process the whole set.
+      const visibleChildren: InsightPanelNode[] = this.getDisplayedChildren(node);
+
       if (isLargeNodeSet) {
         this.nodesWithLargeChildSets.add(node.description);
 
@@ -398,7 +417,7 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
         let countToLoad = 0;
         let countAlreadyLoaded = 0;
 
-        for (const child of node.children) {
+        for (const child of visibleChildren) {
           if (child.insight) {
             if (this.textSnippetCache.has(child.insight.id)) {
               countAlreadyLoaded++;
@@ -418,11 +437,6 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
           });
         }
       }
-
-      // Initialize the visible subset for large node sets or show all for normal sets
-      const visibleChildren: InsightPanelNode[] = isLargeNodeSet
-        ? node.children.slice(0, this.lynxInsightConfig.panelOptimizationThreshold)
-        : node.children;
 
       for (const child of visibleChildren) {
         // Only update nodes that don't already have their text snippets
@@ -609,13 +623,15 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
    * to prevent freezing the UI while generating text for many insights.
    */
   private processChildrenTextProgressively(node: InsightPanelNode): void {
-    if (!node.children || node.children.length === 0) {
+    const displayedChildren: InsightPanelNode[] = this.getDisplayedChildren(node);
+
+    if (displayedChildren.length === 0) {
       return;
     }
 
     this.cleanUpCaches();
 
-    let nodesToProcess = node.children
+    let nodesToProcess = displayedChildren
       .filter(child => child.insight && child.isLoading === true)
       .map(child => ({
         node: child,
@@ -647,6 +663,7 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
       currentIndex++;
 
       await this.processNodeAsync(node, insight);
+      this.updateProgressForNode(node);
 
       // Schedule next node processing
       requestAnimationFrame(processNextNode);
@@ -841,35 +858,55 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
   private async loadTextDocLazily(insight: LynxInsight): Promise<TextData | undefined> {
     const textDocIdStr = insight.textDocId.toString();
 
-    // Check if we're already loading this text doc
     if (this.textDocDataCache.has(textDocIdStr)) {
-      return Promise.resolve(this.textDocDataCache.get(textDocIdStr)!);
+      return this.textDocDataCache.get(textDocIdStr)!;
     }
 
-    // Create and cache the promise for loading the document
-    return this.projectService.getText(insight.textDocId).then(textDoc => {
-      const textDocData: TextData | undefined = textDoc.data;
+    // Check if we're already loading this text doc.  Insights are processed concurrently, so without
+    // this a chapter is fetched (and subscribed to) once per insight rather than once per chapter.
+    let load: Promise<TextData | undefined> | undefined = this.textDocLoadsInFlight.get(textDocIdStr);
 
-      if (textDocData != null) {
-        this.textDocDataCache.set(textDocIdStr, textDocData);
+    if (load == null) {
+      load = this.projectService
+        .getText(insight.textDocId)
+        .then(textDoc => {
+          const textDocData: TextData | undefined = textDoc.data;
 
-        if (textDocData.ops != null) {
-          this.textDocSegments.set(textDocIdStr, this.editorSegmentService.parseSegments(textDocData.ops));
-        }
-      }
+          if (textDocData != null) {
+            this.textDocDataCache.set(textDocIdStr, textDocData);
 
-      // On text edits, update cached text doc data and segment map for text doc
-      textDoc.changes$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe((changes: TextData) => {
-        if (changes?.ops != null) {
-          const prevDocOps: DeltaOperation[] | undefined = this.textDocDataCache.get(textDocIdStr)?.ops;
-          const newTextDocData: TextData = new Delta(prevDocOps).compose(new Delta(changes.ops));
-          this.textDocDataCache.set(textDocIdStr, newTextDocData);
-          this.textDocSegments.set(textDocIdStr, this.editorSegmentService.parseSegments(newTextDocData.ops ?? []));
-        }
-      });
+            if (textDocData.ops != null) {
+              this.textDocSegments.set(textDocIdStr, this.editorSegmentService.parseSegments(textDocData.ops));
+            }
+          }
 
-      return this.textDocDataCache.get(textDocIdStr);
-    });
+          if (!this.textDocsSubscribed.has(textDocIdStr)) {
+            this.textDocsSubscribed.add(textDocIdStr);
+
+            // On text edits, update cached text doc data and segment map for text doc
+            textDoc.changes$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe((changes: TextData) => {
+              const prevDocOps: DeltaOperation[] | undefined = this.textDocDataCache.get(textDocIdStr)?.ops;
+
+              // If the doc has been evicted from the cache, it is re-read in full when next needed
+              if (changes?.ops != null && prevDocOps != null) {
+                const newTextDocData: TextData = new Delta(prevDocOps).compose(new Delta(changes.ops));
+                this.textDocDataCache.set(textDocIdStr, newTextDocData);
+                this.textDocSegments.set(
+                  textDocIdStr,
+                  this.editorSegmentService.parseSegments(newTextDocData.ops ?? [])
+                );
+              }
+            });
+          }
+
+          return this.textDocDataCache.get(textDocIdStr);
+        })
+        .finally(() => this.textDocLoadsInFlight.delete(textDocIdStr));
+
+      this.textDocLoadsInFlight.set(textDocIdStr, load);
+    }
+
+    return load;
   }
 
   /**
@@ -1181,17 +1218,19 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
   }
 
   private calculateProgress(node: InsightPanelNode): number {
-    // If all children are already processed, assume 100% completion.
+    // If all displayed children are already processed, assume 100% completion.
     // This check prevents showing the loading indicator when reopening already loaded nodes.
-    if (node.children && node.children.length > 0) {
-      const allChildrenProcessed = node.children.every(
+    const displayedChildren: InsightPanelNode[] = this.getDisplayedChildren(node);
+
+    if (displayedChildren.length > 0) {
+      const allChildrenProcessed = displayedChildren.every(
         child => !child.isLoading && (child.insight ? this.textSnippetCache.has(child.insight.id) : true)
       );
 
       if (allChildrenProcessed) {
         // Ensure progress map is updated to reflect 100% completion
         if (this.nodesWithLargeChildSets.has(node.description)) {
-          const totalChildren = node.children.length;
+          const totalChildren = displayedChildren.length;
           this.loadingProgressMap.set(node.description, {
             completed: totalChildren,
             total: totalChildren
@@ -1262,6 +1301,15 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
   private markNodeProcessingComplete(node: InsightPanelNode): void {
     this.nodesWithLargeChildSets.delete(node.description);
     this.loadingProgressMap.delete(node.description);
+
+    // The displayed children are all loaded, so the "show more" button (gated on progress) is usable
+    node.loadingProgressPercent = 100;
+
+    if (node.children != null) {
+      const defaultCount = this.lynxInsightConfig.panelOptimizationThreshold;
+      const currentCount = this.lastVisibleCountMap.get(node.description) || defaultCount;
+      node.remainingChildCount = Math.max(0, node.children.length - currentCount);
+    }
   }
 
   /**
