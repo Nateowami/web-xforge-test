@@ -977,7 +977,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     if (segment !== prevSegment) {
       this.lastShownSuggestions = [];
       if (this.source != null) {
-        this.source.setSegment(this.target.segmentRef);
+        this.setSourceSegment();
         this.syncScrollRequested$.next();
       }
       if (segment == null || !VERSE_REGEX.test(segment.ref)) {
@@ -1018,7 +1018,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       }
     } else {
       if (this.source != null && this.source.segmentRef !== this.target.segmentRef) {
-        this.source.setSegment(this.target.segmentRef);
+        this.setSourceSegment();
       }
 
       if (delta?.ops != null) {
@@ -1884,6 +1884,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     this.isTranslating = true;
     this.suggestions = [];
     this.showSuggestions = this.target != null && this.target.isSelectionAtSegmentEnd;
+  }
+
+  /** Selects the segment in the source text that corresponds to the current segment in the target text. */
+  private setSourceSegment(): void {
+    if (this.source == null || this.target == null) return;
+    this.source.setSegment(this.target.segmentRef, undefined, false, true, this.target.segmentVerseNum);
   }
 
   private setSegment(selectedSegment?: string, selectedSegmentChecksum?: number): void {

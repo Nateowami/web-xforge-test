@@ -1653,6 +1653,131 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  describe('aligning to another text', () => {
+    // A chapter where the headings are in different verses than in the text the requests come from, and which has
+    // introductory material. Corresponds to the source text in the issue: \s above verse 6 and \s above verse 7.
+    function headingsAndIntroDoc(): RichText.DeltaOperation[] {
+      const delta = new Delta();
+      delta.insert('Book title', { segment: 'mt_1' });
+      delta.insert('\n', { para: { style: 'mt' } });
+      delta.insert('Introduction', { segment: 'imt_1' });
+      delta.insert('\n', { para: { style: 'imt' } });
+      delta.insert('Intro paragraph text', { segment: 'ip_1' });
+      delta.insert('\n', { para: { style: 'ip' } });
+      delta.insert({ chapter: { number: '1', style: 'c' } });
+      delta.insert({ blank: true }, { segment: 'p_1' });
+      delta.insert({ verse: { number: '5', style: 'v' } });
+      delta.insert('Verse 5 text.', { segment: 'verse_1_5' });
+      delta.insert('\n', { para: { style: 'p' } });
+      delta.insert('Heading above verse 6', { segment: 's_1' });
+      delta.insert('\n', { para: { style: 's' } });
+      delta.insert({ blank: true }, { segment: 'p_2' });
+      delta.insert({ verse: { number: '6', style: 'v' } });
+      delta.insert('Verse 6 text.', { segment: 'verse_1_6' });
+      delta.insert('\n', { para: { style: 'p' } });
+      delta.insert('Heading above verse 7', { segment: 's_2' });
+      delta.insert('\n', { para: { style: 's' } });
+      delta.insert({ blank: true }, { segment: 'p_3' });
+      delta.insert({ verse: { number: '7', style: 'v' } });
+      delta.insert('Verse 7 text.', { segment: 'verse_1_7' });
+      delta.insert({ verse: { number: '8', style: 'v' } });
+      delta.insert('Verse 8 text.', { segment: 'verse_1_8' });
+      delta.insert('\n', { para: { style: 'p' } });
+      return delta.ops;
+    }
+
+    it('selects the verse when the requested heading is in a different verse in this text', fakeAsync(() => {
+      const env = new TestEnvironment({ textDoc: headingsAndIntroDoc(), chapterNum: 1 });
+      env.component.highlightSegment = true;
+      env.waitForEditor();
+      env.hostComponent.isReadOnly = true;
+
+      // In the other text, s_2 is the heading above verse 8, so it is in verse 7. This text has no heading in
+      // verse 7, so verse 7 is selected instead of this text's s_2, which is above verse 7.
+      env.component.setSegment('s_2', undefined, false, true, 7);
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.component.segment!.ref).toEqual('verse_1_7');
+      expect(env.isSegmentHighlighted(1, '7')).toBe(true);
+      expect(env.getSegment('s_2')!.classList.contains('highlight-segment')).toBe(false);
+
+      TestEnvironment.waitForPresenceTimer();
+    }));
+
+    it('selects the requested heading when it is in the same verse in this text', fakeAsync(() => {
+      const env = new TestEnvironment({ textDoc: headingsAndIntroDoc(), chapterNum: 1 });
+      env.component.highlightSegment = true;
+      env.waitForEditor();
+      env.hostComponent.isReadOnly = true;
+
+      // s_1 is the heading above verse 6 in both texts, so it is in verse 5 in both.
+      env.component.setSegment('s_1', undefined, false, true, 5);
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.component.segment!.ref).toEqual('s_1');
+      expect(env.getSegment('s_1')!.classList.contains('highlight-segment')).toBe(true);
+
+      TestEnvironment.waitForPresenceTimer();
+    }));
+
+    it('selects all the introductory material when the requested intro segment is not in this text', fakeAsync(() => {
+      const env = new TestEnvironment({ textDoc: headingsAndIntroDoc(), chapterNum: 1 });
+      env.component.highlightSegment = true;
+      env.waitForEditor();
+      env.hostComponent.isReadOnly = true;
+
+      // The other text has introductory material with different USFM tags, so is_1 is not in this text. It is in
+      // verse 0, so all of this text's introductory material is selected, as Paratext does.
+      env.component.setSegment('is_1', undefined, false, true, 0);
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.component.segment!.ref).toEqual('mt_1');
+      for (const ref of ['mt_1', 'imt_1', 'ip_1', 'p_1']) {
+        expect(env.getSegment(ref)!.classList.contains('highlight-segment')).withContext(ref).toBe(true);
+      }
+      expect(env.isSegmentHighlighted(1, '5')).toBe(false);
+
+      TestEnvironment.waitForPresenceTimer();
+    }));
+
+    it('clears the selection when this text has nothing in the requested verse', fakeAsync(() => {
+      const env = new TestEnvironment({ textDoc: headingsAndIntroDoc(), chapterNum: 1 });
+      env.component.highlightSegment = true;
+      env.waitForEditor();
+      env.hostComponent.isReadOnly = true;
+
+      env.component.setSegment('s_2', undefined, false, true, 20);
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.component.segment).toBeUndefined();
+
+      TestEnvironment.waitForPresenceTimer();
+    }));
+
+    it('reports the verse that a segment is in', fakeAsync(() => {
+      const env = new TestEnvironment({ textDoc: headingsAndIntroDoc(), chapterNum: 1 });
+      env.waitForEditor();
+
+      env.component.setSegment('ip_1');
+      tick();
+      expect(env.component.segmentVerseNum).toEqual(0);
+
+      env.component.setSegment('s_2');
+      tick();
+      expect(env.component.segmentVerseNum).toEqual(6);
+
+      env.component.setSegment('verse_1_8');
+      tick();
+      expect(env.component.segmentVerseNum).toEqual(8);
+
+      TestEnvironment.waitForPresenceTimer();
+    }));
+  });
+
   describe('Text selection behavior', () => {
     it('should track shift key state correctly', fakeAsync(() => {
       const env: TestEnvironment = new TestEnvironment();

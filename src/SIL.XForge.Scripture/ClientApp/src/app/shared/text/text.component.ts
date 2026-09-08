@@ -298,6 +298,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   private initialSegmentRef?: string;
   private initialSegmentChecksum?: number;
   private initialSegmentFocus?: boolean;
+  private initialSegmentVerseNum?: number;
   private _highlightSegment: boolean = false;
   private highlightMarker?: HTMLElement;
   private _selectionBoundsTop: number = 0;
@@ -405,6 +406,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       this.initialSegmentRef = undefined;
       this.initialSegmentChecksum = undefined;
       this.initialSegmentFocus = undefined;
+      this.initialSegmentVerseNum = undefined;
       this.initialTextFetched = false;
       if (this.editor != null) {
         if (this.highlightMarker != null) {
@@ -467,6 +469,11 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
   get segment(): Segment | undefined {
     return this._segment;
+  }
+
+  /** The number of the verse that the current segment is in. See TextViewModel.getSegmentVerseNum(). */
+  get segmentVerseNum(): number | undefined {
+    return this._segment == null ? undefined : this.viewModel.getSegmentVerseNum(this._segment.ref);
   }
 
   get segments(): IterableIterator<[string, Range]> {
@@ -708,16 +715,28 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  setSegment(segmentRef: string, checksum?: number, focus: boolean = false, end: boolean = true): boolean {
+  /**
+   * @param originVerseNum The number of the verse that the segment is in, in the text that the request came from.
+   * Specify this when setting the segment to match another text, so that segments that are not verse segments can be
+   * aligned even if the two texts do not have the same segments.
+   */
+  setSegment(
+    segmentRef: string,
+    checksum?: number,
+    focus: boolean = false,
+    end: boolean = true,
+    originVerseNum?: number
+  ): boolean {
     if (!this.initialTextFetched) {
       this.initialSegmentRef = segmentRef;
       this.initialSegmentChecksum = checksum;
       this.initialSegmentFocus = focus;
+      this.initialSegmentVerseNum = originVerseNum;
       return true;
     }
 
     const prevSegment = this.segment;
-    if (this.tryChangeSegment(segmentRef, checksum, focus, end)) {
+    if (this.tryChangeSegment(segmentRef, checksum, focus, end, originVerseNum)) {
       this.updated.emit({ prevSegment, segment: this._segment });
       return true;
     }
@@ -991,7 +1010,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     this.highlight([]);
   }
 
-  highlight(segmentRefs?: string[]): void {
+  highlight(segmentRefs?: string[], includeExtraVerseSegments: boolean = false): void {
     if (this._id == null) {
       return;
     }
@@ -1006,7 +1025,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       return;
     }
 
-    segmentRefs = this.filterSegments(segmentRefs, false);
+    segmentRefs = this.filterSegments(segmentRefs, includeExtraVerseSegments);
     // this changes the underlying HTML, which can mess up some Quill events, so defer this call
     void Promise.resolve(segmentRefs).then(refs => {
       this.viewModel.highlight(refs);
@@ -1604,13 +1623,16 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     let segmentRef: string | undefined;
     let checksum: number | undefined;
     let focus: boolean | undefined;
+    let originVerseNum: number | undefined;
     if (delta != null && !this.initialTextFetched) {
       segmentRef = this.initialSegmentRef;
       checksum = this.initialSegmentChecksum;
       focus = this.initialSegmentFocus;
+      originVerseNum = this.initialSegmentVerseNum;
       this.initialSegmentRef = undefined;
       this.initialSegmentChecksum = undefined;
       this.initialSegmentFocus = undefined;
+      this.initialSegmentVerseNum = undefined;
 
       this.initialTextFetched = true;
     }
@@ -1645,7 +1667,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     const prevSegment = this._segment;
     if (segmentRef != null) {
       // update/switch current segment
-      if (!this.tryChangeSegment(segmentRef, checksum, focus) && this._segment != null) {
+      if (!this.tryChangeSegment(segmentRef, checksum, focus, true, originVerseNum) && this._segment != null) {
         // the selection has not changed to a different segment, so update existing segment
         this.updateSegment();
         if (this._highlightSegment) {
@@ -1675,10 +1697,30 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     segmentRef: string,
     checksum?: number,
     focus: boolean = false,
-    end: boolean = true
+    end: boolean = true,
+    originVerseNum?: number
   ): boolean {
     if (this._id == null || this._editor == null) {
       return false;
+    }
+
+    const originalSegmentRefRequest: string = segmentRef;
+
+    // A segment that is not a verse segment, such as a heading or a paragraph of introductory material, has a ref
+    // that is numbered by order of appearance in the chapter, such as 's_2'. The same ref can therefore be in a
+    // different verse in each project's text. If the text the request came from says which verse the segment is in,
+    // and this text does not have that same segment in that verse, align to that verse instead, as Paratext does.
+    // Introductory material is verse 0, so this selects all of the introductory material.
+    let alignedVerseSegments: string[] | undefined;
+    if (
+      originVerseNum != null &&
+      !VERSE_REGEX.test(segmentRef) &&
+      this.viewModel.getSegmentVerseNum(segmentRef) !== originVerseNum
+    ) {
+      alignedVerseSegments = this.getVerseSegments(
+        new VerseRef(Canon.bookNumberToId(this._id.bookNum), this._id.chapterNum.toString(), originVerseNum.toString())
+      );
+      segmentRef = alignedVerseSegments[0] ?? '';
     }
 
     if (this._segment != null && this._id.bookNum === this._segment.bookNum && segmentRef === this._segment.ref) {
@@ -1688,8 +1730,6 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       // the selection has not changed to a different segment
       return false;
     }
-
-    const originalSegmentRefRequest: string = segmentRef;
 
     // One project's chapter may have verses combined (eg "1-2"), or a verse split in paragraphs, differently than the
     // same chapter in another project. When the user clicks in a verse range, or in a paragraph of a verse, the segment
@@ -1744,7 +1784,12 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     this.segmentRefChange.emit(this.segmentRef);
 
     if (this.highlightSegment) {
-      if (this.viewModel.hasSegmentRange(originalSegmentRefRequest)) {
+      if (alignedVerseSegments != null) {
+        // The requested segment was aligned to a verse, so highlight the segments in that verse. Introductory
+        // material, which is verse 0, consists entirely of segments that are not verse segments, so all of them are
+        // highlighted rather than being filtered out.
+        this.highlight(alignedVerseSegments, originVerseNum === 0);
+      } else if (this.viewModel.hasSegmentRange(originalSegmentRefRequest)) {
         this.highlight();
       } else {
         // If the requested segment was a verse range, highlight all segments in the range.

@@ -370,6 +370,30 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
     return Array.from(this._segments.keys()).filter(r => r.indexOf(ref + '/') === 0);
   }
 
+  /**
+   * Gets the number of the verse that a segment falls within. This is the verse of the segment itself, or, for a
+   * segment that is not a verse segment (a heading, an introductory paragraph, etc.), the verse of the closest
+   * preceding verse segment. Content before the first verse of the chapter, such as introductory material, is in
+   * verse 0, as it is in Paratext.
+   * @returns The verse number, or undefined if this text does not contain the segment.
+   */
+  getSegmentVerseNum(ref: string): number | undefined {
+    let verseNum = 0;
+    for (const segment of this._segments.keys()) {
+      const verseStr: string | undefined = getVerseStrFromSegmentRef(segment);
+      if (verseStr != null) {
+        const startVerseNum: number = Number.parseInt(verseStr.split('-')[0]);
+        if (!Number.isNaN(startVerseNum)) {
+          verseNum = startVerseNum;
+        }
+      }
+      if (segment === ref) {
+        return verseNum;
+      }
+    }
+    return undefined;
+  }
+
   /** Get the segments that fall within a given verse reference. A segment is considered
    * to be in the reference if (1) its ref is in the format verse_c_v or verse_c_v-w, and that
    * ref is within the given verse reference, or (2) its ref is not in that format, but the
