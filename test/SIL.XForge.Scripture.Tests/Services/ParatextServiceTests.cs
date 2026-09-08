@@ -1726,6 +1726,93 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task GetNoteThreadChanges_IntroductionParagraph_TextAnchorCountsEveryParagraphBreak()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        const string threadId = "thread1";
+        const string usfmVersion = "3.0";
+        const string heading = "Matthew";
+        const string introBefore = "This introduction mentions ";
+        const string selected = "Levi";
+        const string introAfter = " the tax collector.";
+        // The note is anchored in the book introduction, which is all part of verse 0. The offset is over the
+        // concatenated text of every introduction paragraph, with one character per paragraph break.
+        int startPosition = usfmVersion.Length + "\n".Length + heading.Length + "\n".Length + introBefore.Length;
+
+        var comment = new Paratext.Data.ProjectComments.Comment(associatedPtUser)
+        {
+            Thread = threadId,
+            VerseRefStr = "MAT 1:0",
+            SelectedText = selected,
+            ContextBefore = introBefore,
+            ContextAfter = introAfter,
+            StartPosition = startPosition,
+            Contents = null,
+            Date = "2019-12-31T08:00:00.0000000+00:00",
+            Deleted = false,
+            Status = NoteStatus.Todo,
+            Type = NoteType.Normal,
+            ConflictType = NoteConflictType.None,
+            AssignedUser = CommentThread.unassignedUser,
+        };
+        env.AddParatextComment(comment);
+
+        await using (await env.RealtimeService.ConnectAsync())
+        {
+            IEnumerable<IDocument<NoteThread>> noteThreadDocs = Array.Empty<IDocument<NoteThread>>();
+            Dictionary<int, ChapterDelta> chapterDeltas = [];
+            // These deltas represent the following USFM:
+            // \usfm 3.0
+            // \h Matthew
+            // \ip This introduction mentions Levi the tax collector.
+            // \c 1
+            // \p
+            // \v 1 Verse one text.
+            const string chapterText =
+                "[ { \"insert\": \""
+                + usfmVersion
+                + "\", \"attributes\": { \"segment\": \"usfm_1\" } }, "
+                + "{ \"insert\": \"\n\", \"attributes\": { \"para\": { \"style\": \"usfm\" } } }, "
+                + "{ \"insert\": \""
+                + heading
+                + "\", \"attributes\": { \"segment\": \"h_1\" } }, "
+                + "{ \"insert\": \"\n\", \"attributes\": { \"para\": { \"style\": \"h\" } } }, "
+                + "{ \"insert\": \""
+                + introBefore
+                + selected
+                + introAfter
+                + "\", \"attributes\": { \"segment\": \"ip_1\" } }, "
+                + "{ \"insert\": \"\n\", \"attributes\": { \"para\": { \"style\": \"ip\" } } }, "
+                + "{ \"insert\": { \"chapter\": { \"style\": \"c\", \"number\": \"1\" } } }, "
+                + "{ \"insert\": { \"blank\": true }, \"attributes\": { \"segment\": \"p_1\" } }, "
+                + "{ \"insert\": { \"verse\": { \"style\": \"v\", \"number\": \"1\" } } }, "
+                + "{ \"insert\": \"Verse one text.\", \"attributes\": { \"segment\": \"verse_1_1\" } }, "
+                + "{ \"insert\": \"\n\", \"attributes\": { \"para\": { \"style\": \"p\" } } } ]";
+            chapterDeltas.Add(1, new ChapterDelta(1, 1, true, new Delta(JToken.Parse(chapterText))));
+            Dictionary<string, ParatextUserProfile> ptProjectUsers = new[]
+            {
+                new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 },
+            }.ToDictionary(u => u.Username);
+            IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+                userSecret,
+                ptProjectId,
+                40,
+                noteThreadDocs,
+                chapterDeltas,
+                ptProjectUsers
+            );
+            Assert.That(changes.Count, Is.EqualTo(1));
+            // The paragraph break after \usfm 3.0 must be counted even though usfm is not a style that holds
+            // scripture text, otherwise the anchor is a character short and the note is drawn in the wrong place.
+            TextAnchor expected = new TextAnchor { Start = startPosition, Length = selected.Length };
+            Assert.That(changes.First().Position, Is.EqualTo(expected));
+        }
+    }
+
+    [Test]
     public async Task GetNoteThreadChanges_NoChangeTriggersNoUpdate()
     {
         var env = new TestEnvironment();

@@ -227,8 +227,7 @@ public class Delta
     /// <param name="verseRef">
     /// The reference to the verse. For example: "1". If the verses in the text data is combined, "1-2".
     /// </param>
-    /// <param name="includeParaWithStyle">Function to determine if the paragraph break should be included.</param>
-    public bool TryConcatenateInserts(out string opStr, string verseRef, Func<string, bool> includeParaWithStyle)
+    public bool TryConcatenateInserts(out string opStr, string verseRef)
     {
         List<JToken> verseOps = [];
         bool isTargetVerse = verseRef == "0";
@@ -249,17 +248,10 @@ public class Delta
                 else if (((JObject)op[InsertType]).Property("chapter")?.Value.Type == JTokenType.Object)
                     continue;
             }
-            else if (op[Attributes]?.Type == JTokenType.Object)
-            {
-                var paragraphObj = ((JObject)op[Attributes]).Property("para")?.Value;
-                if (paragraphObj?.Type == JTokenType.Object)
-                {
-                    string style = (string)((JObject)paragraphObj).Property("style").Value;
-                    if (!includeParaWithStyle(style))
-                        continue;
-                }
-            }
 
+            // Every other op, including a paragraph break of any style, counts towards the verse text. The editor
+            // counts one character per paragraph break when it positions notes, so skipping one here (while still
+            // including the text of that paragraph) would shift every note that follows it in the verse.
             if (isTargetVerse)
                 verseOps.Add(op);
         }
