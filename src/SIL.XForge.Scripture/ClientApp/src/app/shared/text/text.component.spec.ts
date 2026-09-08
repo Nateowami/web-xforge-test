@@ -475,6 +475,44 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  it('clears a verse selection that quill moved onto the para contents element', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 43, 1);
+    env.waitForEditor();
+
+    const verseRef = new VerseRef('JHN 1:1');
+    expect(env.component.toggleVerseSelection(verseRef)).withContext('setup').toBe(true);
+    tick();
+    env.fixture.detectChanges();
+
+    // While applying some deltas, such as an undo, quill wraps existing content in a new para contents element, and
+    // parchment moves the attributes of the wrapped content onto that new wrapper. Reproduce the result of that: the
+    // verse number of the selected verse in its own para contents element, which carries the verse selection.
+    const segmentElement: HTMLElement = env.getSegment('verse_1_1')!;
+    const selectedVerseNumber: HTMLElement = segmentElement.previousElementSibling as HTMLElement;
+    expect(selectedVerseNumber.classList).withContext('setup').toContain('commenter-selection');
+    const wrapper: HTMLElement = document.createElement('usx-para-contents');
+    selectedVerseNumber.replaceWith(wrapper);
+    wrapper.appendChild(selectedVerseNumber);
+    selectedVerseNumber.classList.remove('commenter-selection');
+    env.component.editor!.update();
+    (Quill.find(wrapper) as any).format('commenter-selection', true);
+    env.fixture.detectChanges();
+    expect(env.component.editor!.container.querySelectorAll('usx-para-contents.commenter-selection').length)
+      .withContext('setup')
+      .toBe(1);
+
+    // SUT - deselecting the verse has to clear the selection everywhere, so that the verse can be selected again
+    env.component.toggleVerseSelection(verseRef);
+    tick();
+    env.fixture.detectChanges();
+    expect(env.component.editor!.container.querySelector('usx-para-contents.commenter-selection')).toBeNull();
+    expect(env.component.toggleVerseSelection(verseRef)).toBe(true);
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('pastes text with proper attributes', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();

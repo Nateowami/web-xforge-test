@@ -1,5 +1,5 @@
 import { omit } from 'lodash-es';
-import { Blot, Scope } from 'parchment';
+import { Attributor, Blot, Scope } from 'parchment';
 import QuillBlockBlot, { BlockEmbed as QuillBlockEmbedBlot } from 'quill/blots/block';
 import QuillEmbedBlot from 'quill/blots/embed';
 import QuillInlineBlot from 'quill/blots/inline';
@@ -490,13 +490,28 @@ export class ParaInline extends QuillInlineBlot {
   }
 
   formatAt(index: number, length: number, name: string, value: any): void {
-    if (name === ParaInline.blotName || name === 'invalid-inline') {
+    if (name === ParaInline.blotName || name === 'invalid-inline' || this.hasFormat(name)) {
       super.formatAt(index, length, name, value);
     } else {
       this.children.forEachAt(index, length, (child, offset, len) => {
         child.formatAt(offset, len, name, value);
       });
     }
+  }
+
+  /**
+   * Whether this element itself carries the specified format. Formatting normally belongs on the children of a para
+   * contents element, but when quill wraps content in a new para contents element, such as while applying an undo,
+   * parchment moves the attributes of the wrapped content onto the new wrapper. Formatting that has landed there has
+   * to be updated there. Otherwise it can never be removed, and it keeps being reported as the format of everything
+   * inside the element, which prevents e.g. a verse from being selected again.
+   */
+  private hasFormat(name: string): boolean {
+    if (this.formats()[name] != null) {
+      return true;
+    }
+    const attributor = this.scroll.query(name, Scope.ATTRIBUTE);
+    return attributor instanceof Attributor && attributor.value(this.domNode) !== '';
   }
 
   insertAt(index: number, value: string, def?: any): void {
