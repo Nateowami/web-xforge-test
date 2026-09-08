@@ -1372,6 +1372,43 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  it('does not put a remotely re-inserted verse embed into the preceding segment', fakeAsync(() => {
+    // When another user empties a verse, the delta that reaches this editor deletes the following verse embed and
+    // inserts it again. That verse embed does not belong to a segment, so it must not pick up the segment formatting
+    // at the position where it is inserted.
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.component.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+
+    const range: QuillRange = env.component.getSegmentRange('verse_1_3')!;
+    // The other user's edit: verse 3's text is replaced with a blank, and the verse 4 embed following it is deleted
+    // and re-inserted.
+    env.applyRemoteDelta(
+      env.matTextDocId,
+      new Delta()
+        .retain(range.index)
+        .insert({ blank: true }, { segment: 'verse_1_3' })
+        .insert({ verse: { number: '4', style: 'v' } })
+        .delete(range.length + 1)
+    );
+
+    expect(env.component.getSegmentContents('verse_1_3')!.ops![0].insert).toEqual({ blank: true });
+    expect(env.getSegment('verse_1_3')!.querySelector('usx-verse'))
+      .withContext('verse embed rendered inside the preceding segment')
+      .toBeNull();
+    const verseOps: RichText.DeltaOperation[] = env.component
+      .editor!.getContents()
+      .ops!.filter(op => (op.insert as any)?.verse != null);
+    expect(verseOps.length).toEqual(6);
+    for (const op of verseOps) {
+      expect(op.attributes?.['segment'])
+        .withContext(`verse ${(op.insert as any).verse.number} has a segment attribute`)
+        .toBeUndefined();
+    }
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('can display footnote dialog', fakeAsync(() => {
     const chapterNum = 2;
     const segmentRef: string = `verse_${chapterNum}_1`;
@@ -2015,6 +2052,14 @@ class TestEnvironment {
 
   insertText(index: number, text: string): void {
     this.component.editor!.insertText(index, text, 'user');
+    tick();
+    this.fixture.detectChanges();
+  }
+
+  /** Apply a delta to the text doc the way an edit from another user arrives. */
+  applyRemoteDelta(textDocId: TextDocId, delta: Delta): void {
+    const textDoc: TextDoc = this.realtimeService.get<TextDoc>(TextDoc.COLLECTION, textDocId.toString());
+    textDoc.submit({ ops: delta.ops });
     tick();
     this.fixture.detectChanges();
   }

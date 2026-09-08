@@ -1,6 +1,6 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { VerseRef } from '@sillsdev/scripture';
-import { cloneDeep } from 'lodash-es';
+import { cloneDeep, pick } from 'lodash-es';
 import Quill, { Delta, EmitterSource, Range } from 'quill';
 import { DeltaOperation, StringMap } from 'rich-text';
 import { BehaviorSubject, Subject, Subscription } from 'rxjs';
@@ -962,7 +962,16 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
         }
         previousOp = 'delete';
       } else if (cloneOp.insert != null) {
-        cloneOp.attributes = getAttributesAtPosition(this.checkEditor(), editorStartPos);
+        const attributes: StringMap = getAttributesAtPosition(this.checkEditor(), editorStartPos);
+        // Verse and chapter embeds separate segments instead of belonging to one, which is why they have no segment
+        // attribute in the text doc. Such an embed must not inherit the formatting of the segment at the insertion
+        // position, or it is rendered inside that segment's element, where the verse number takes on the segment's
+        // font and highlighting. The highlighting is never cleared again, since only ops with a segment attribute are
+        // considered when highlighting.
+        cloneOp.attributes =
+          typeof cloneOp.insert === 'object' && cloneOp.attributes?.['segment'] == null
+            ? pick(attributes, 'para-contents')
+            : attributes;
         previousOp = 'insert';
       }
       (adjustedDelta as any).push(cloneOp);
