@@ -110,6 +110,11 @@ export class DialogService {
     return this.matDialog.openDialogs.length;
   }
 
+  /** Emits when the last open dialog is closed, i.e. whenever `openDialogCount` returns to zero. */
+  get afterAllClosed(): Observable<void> {
+    return this.matDialog.afterAllClosed;
+  }
+
   /**
    * @param value A string that is a translation key, or an Observable<string>
    * @returns `value` if it is an Observable, or an Observable for a translation with `value` as the localization key.

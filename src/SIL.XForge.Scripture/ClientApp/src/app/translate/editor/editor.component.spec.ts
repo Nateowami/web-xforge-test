@@ -112,6 +112,7 @@ import {
 } from '../../shared/sf-tab-group';
 import { getCombinedVerseTextDoc, paratextUsersFromRoles } from '../../shared/test-utils';
 import { provideQuillRegistrations } from '../../shared/text/quill-editor-registration/quill-providers';
+import { TextNoteDialogComponent } from '../../shared/text/text-note-dialog/text-note-dialog.component';
 import { PRESENCE_EDITOR_ACTIVE_TIMEOUT } from '../../shared/text/text.component';
 import { XmlUtils } from '../../shared/utils';
 import { BiblicalTermsComponent } from '../biblical-terms/biblical-terms.component';
@@ -1796,7 +1797,9 @@ describe('EditorComponent', () => {
       const range: Range = env.component.target!.getSegmentRange('verse_1_3')!;
       const contents = env.targetEditor.getContents(range.index, range.length);
       // The footnote starts after a note thread in the segment
-      expect(contents.ops![1].insert).toEqual({ note: { caller: '*' } });
+      expect(contents.ops![1].insert).toEqual({
+        note: { caller: '*', style: 'f', contents: { ops: [{ insert: 'Footnote text' }] } }
+      });
       const note2Position = env.getNoteThreadEditorPosition('dataid02');
       expect(range.index).toEqual(note2Position);
       const noteThreadDoc3 = env.getNoteThreadDoc('project01', 'dataid03');
@@ -3440,6 +3443,23 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('shows the insert note fab again after closing a footnote in the selected verse', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+
+      // view the footnote in verse 3 before selecting the verse itself
+      env.clickFootnote();
+      env.clickSegmentRef('verse_1_3');
+      env.wait();
+      expect(env.getSegmentElement('verse_1_3')!.classList).toContain('commenter-selection');
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
+
+      env.closeFootnoteDialog();
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('visible');
+      env.dispose();
+    }));
+
     it('deselects a verse when bottom sheet is open and chapter changed', fakeAsync(() => {
       const env = new TestEnvironment();
       env.ngZone.run(() => {
@@ -4830,6 +4850,7 @@ class TestEnvironment {
     user07: TextInfoPermission.Read
   };
   private openNoteDialogs: MockNoteDialogRef[] = [];
+  private readonly afterAllDialogsClosed$ = new Subject<void>();
   private noteTags: NoteTag[] = [
     { tagId: 1, name: 'PT Translation Note 1', icon: '01flag1', creatorResolve: false },
     { tagId: 2, name: 'PT Translation Note 2', icon: '02tag1', creatorResolve: false },
@@ -5058,6 +5079,13 @@ class TestEnvironment {
     when(mockedMatDialog.closeAll()).thenCall(() => {
       this.openNoteDialogs.forEach(dialog => dialog.close());
       this.openNoteDialogs = [];
+      this.afterAllDialogsClosed$.next();
+    });
+    when(mockedMatDialog.afterAllClosed).thenReturn(this.afterAllDialogsClosed$);
+    // the dialog showing the contents of a footnote, cross-reference or end note
+    when(mockedMatDialog.open(TextNoteDialogComponent, anything())).thenCall(() => {
+      this.openNoteDialogs.push(this.mockNoteDialogRef);
+      return this.mockNoteDialogRef;
     });
     when(mockedMatDialog.open(GenericDialogComponent, anything())).thenReturn(instance(this.mockedDialogRef));
     when(this.mockedDialogRef.afterClosed()).thenReturn(of());
@@ -5249,6 +5277,18 @@ class TestEnvironment {
     const range = this.component.target!.getSegmentRange(segmentRef);
     this.targetEditor.setSelection(range!.index, 0, 'user');
     this.getSegmentElement(segmentRef)!.click();
+    this.wait();
+  }
+
+  /** Simulates clicking the footnote embedded in verse 3, which opens a dialog showing its contents. */
+  clickFootnote(): void {
+    (this.targetEditor.container.querySelector('usx-note') as HTMLElement).click();
+    this.wait();
+  }
+
+  closeFootnoteDialog(): void {
+    this.openNoteDialogs.pop();
+    this.afterAllDialogsClosed$.next();
     this.wait();
   }
 
@@ -5653,7 +5693,7 @@ class TestEnvironment {
         break;
     }
     delta.insert({ verse: { number: '3', style: 'v' } });
-    delta.insert({ note: { caller: '*' } });
+    delta.insert({ note: { caller: '*', style: 'f', contents: { ops: [{ insert: 'Footnote text' }] } } });
     delta.insert(`${id.textType}: chapter ${id.chapterNum}, verse 3.`, { segment: `verse_${id.chapterNum}_3` });
     delta.insert({ verse: { number: '4', style: 'v' } });
     delta.insert(`${id.textType}: chapter ${id.chapterNum}, verse 4.`, { segment: `verse_${id.chapterNum}_4` });
