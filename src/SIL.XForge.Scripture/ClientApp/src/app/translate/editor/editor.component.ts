@@ -2328,11 +2328,14 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       }
       await Promise.all(updatePromises);
 
-      // Re-apply the underline style to notes that were re-inserted
+      // Re-apply the underline style to notes that were re-inserted, but only where there is anchored text to
+      // underline. Underlining the icon of an unanchored note makes text typed next to it inherit the underline.
       const embedPositions: Readonly<Map<string, number>> = this.target.embeddedElements;
       for (const id of reinsertedNoteIds) {
         const position: number | undefined = embedPositions.get(id);
-        if (position != null) {
+        const anchorLength: number =
+          this.noteThreadQuery.docs.find(n => n.data?.dataId === id)?.data?.position.length ?? 0;
+        if (position != null && anchorLength > 0) {
           this.target.editor?.formatText(position, 1, 'text-anchor', 'true', 'api');
         }
       }

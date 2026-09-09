@@ -896,6 +896,10 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     // Add text anchors as a separate formatText call rather than part of insertEmbed as it needs to expand over a
     // a length of text
     if (role !== SFProjectRole.Commenter) {
+      // A note without anchored text gets no text anchor formatting. Applying it would only cover the note icon,
+      // putting the icon inside a text anchor blot, and text typed next to the icon would then inherit the
+      // underline even though there is no anchor for it to become part of.
+      const textAnchorFormat: StringMap = textAnchor.length > 0 ? { 'text-anchor': true } : {};
       // Formatting for text anchors only need the text-anchor property when inserted at position zero
       if (textAnchor.start === 0) {
         insertFormat = {};
@@ -903,9 +907,9 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       const segmentLastPosition: number = editorPosOfSegmentToModify.index + editorPosOfSegmentToModify.length;
       if (segmentLastPosition === embedInsertPos) {
         // the last position needs the segment format info
-        insertFormat = { ...insertFormat, ...{ 'text-anchor': true } };
+        insertFormat = { ...insertFormat, ...textAnchorFormat };
       } else {
-        insertFormat = { 'text-anchor': true };
+        insertFormat = textAnchorFormat;
       }
       this.editor.formatText(embedInsertPos, formatLength, insertFormat, 'api');
     }

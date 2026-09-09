@@ -2654,6 +2654,22 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('does not underline a note that has no anchored text', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+
+      // thread02 is anchored to the whole verse, thread03 is anchored to text within the verse
+      expect(env.getNoteThreadDoc('project01', 'dataid02').data!.position).toEqual({ start: 0, length: 0 });
+      expect(env.getNoteThreadDoc('project01', 'dataid03').data!.position.length).toBeGreaterThan(0);
+
+      const verseNoteIcon: HTMLElement = env.getNoteThreadIconElement('verse_1_3', 'dataid02')!;
+      expect(verseNoteIcon.closest('display-text-anchor')).toBeNull();
+      const anchoredNoteIcon: HTMLElement = env.getNoteThreadIconElement('verse_1_3', 'dataid03')!;
+      expect(anchoredNoteIcon.closest('display-text-anchor')).not.toBeNull();
+      env.dispose();
+    }));
+
     it('undo delete-a-note-icon removes the duplicate recreated icon', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
@@ -2807,7 +2823,8 @@ describe('EditorComponent', () => {
       iconElement02.click();
       env.wait();
       verify(mockedMatDialog.open(NoteDialogComponent, anything())).thrice();
-      expect(iconElement02.parentElement!.tagName.toLowerCase()).toBe('display-text-anchor');
+      // thread02 has no anchored text, so its icon must not be wrapped in a text anchor
+      expect(iconElement02.closest('display-text-anchor')).toBeNull();
       iconElement03 = env.getNoteThreadIconElement('verse_1_3', 'dataid03')!;
       iconElement03.click();
       env.wait();
