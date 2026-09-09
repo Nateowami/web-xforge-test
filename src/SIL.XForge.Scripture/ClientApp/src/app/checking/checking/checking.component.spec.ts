@@ -2866,6 +2866,46 @@ describe('CheckingComponent', () => {
       expect(env.isSegmentHighlighted(1, 6)).toBe(true);
     }));
 
+    it('keeps the highlight on the audio position when another user adds a question', fakeAsync(() => {
+      const env = new TestEnvironment({ user: CHECKER_USER });
+      env.selectQuestion(1);
+
+      env.component.toggleAudio();
+      env.mockScriptureAudioAndPlay();
+      env.fixture.detectChanges();
+      expect(env.component.isAudioPlaying()).toBe(true);
+
+      env.component.highlightSegments('verse_1_5');
+      env.waitForSliderUpdate();
+      env.fixture.detectChanges();
+      expect(env.isSegmentHighlighted(1, 5)).toBe(true);
+
+      // Another user adds a question while the audio is playing
+      const dateNow = new Date();
+      env.insertQuestion({
+        dataId: objectId(),
+        ownerRef: ADMIN_USER.id,
+        projectRef: 'project01',
+        text: 'Admin just added a question.',
+        answers: [],
+        verseRef: { bookNum: 43, chapterNum: 1, verseNum: 2 },
+        isArchived: false,
+        dateCreated: dateNow.toJSON(),
+        dateModified: dateNow.toJSON()
+      });
+      env.waitForSliderUpdate();
+      env.fixture.detectChanges();
+      // A second change detection pass: the questions list activates its question during the first pass, after the
+      // Scripture text bindings for that pass have already been evaluated.
+      tick();
+      env.fixture.detectChanges();
+      tick();
+      // The highlight should stay where the audio is, rather than jumping back to the question verse
+      expect(env.isSegmentHighlighted(1, 5)).toBe(true);
+      expect(env.isSegmentHighlighted(1, 1)).toBe(false);
+      expect(env.isSegmentHighlighted(1, 2)).toBe(false);
+    }));
+
     // TODO: Get this test working
     xit('pauses audio on reload (changing book)', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER, questionScope: 'book' });

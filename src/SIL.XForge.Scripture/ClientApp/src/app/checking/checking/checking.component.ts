@@ -1525,10 +1525,18 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
   }
 
   private updateActiveQuestionVerseRef(questionDoc: QuestionDoc | undefined): void {
+    const verseRef: VerseRef | undefined =
+      questionDoc?.data == null ? undefined : toVerseRef(questionDoc.data.verseRef);
+    // Keep the existing instance if the verse is unchanged. The Scripture text 'activeVerse' input is bound to this
+    // and is compared by reference, so a new instance re-highlights the question verse, which would override the
+    // verse highlight that follows the chapter audio while it plays.
+    if (this._activeQuestionVerseRef?.toString() === verseRef?.toString()) {
+      return;
+    }
+
     // If the chapter has changed, stop the audio player. Book changes are handled elsewhere
-    const hasActiveChapterChanged: boolean =
-      this._activeQuestionVerseRef?.chapterNum !== questionDoc?.data?.verseRef.chapterNum;
-    this._activeQuestionVerseRef = questionDoc?.data == null ? undefined : toVerseRef(questionDoc.data.verseRef);
+    const hasActiveChapterChanged: boolean = this._activeQuestionVerseRef?.chapterNum !== verseRef?.chapterNum;
+    this._activeQuestionVerseRef = verseRef;
     if (hasActiveChapterChanged && this.isAudioPlaying()) {
       this._scriptureAudioPlayer?.stop();
     }
