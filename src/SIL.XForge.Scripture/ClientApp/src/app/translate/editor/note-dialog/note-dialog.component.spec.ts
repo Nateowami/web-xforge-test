@@ -215,6 +215,24 @@ describe('NoteDialogComponent', () => {
     expect(env.component.notesToDisplay[5].title).toEqual('Note reattached');
   }));
 
+  it('shows the verse the thread was created on when it has not been reattached', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread() });
+    expect(env.verseRef).toEqual('Matthew 1:7');
+  }));
+
+  it('shows the reattached verse in the dialog heading', fakeAsync(() => {
+    // The thread was created on MAT 1:7 and reattached to MAT 1:4 in Paratext
+    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread('Reattached content text.') });
+    expect(env.verseRef).toEqual('Matthew 1:4');
+  }));
+
+  it('shows the verse the thread was created on when the reattached verse is invalid', fakeAsync(() => {
+    env = new TestEnvironment({
+      noteThread: TestEnvironment.getNoteThread('Reattached content text.', undefined, undefined, true)
+    });
+    expect(env.verseRef).toEqual('Matthew 1:7');
+  }));
+
   it('shows assigned user', fakeAsync(() => {
     env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread() });
     expect(env.threadAssignedUser.nativeElement.textContent).toContain('Team');

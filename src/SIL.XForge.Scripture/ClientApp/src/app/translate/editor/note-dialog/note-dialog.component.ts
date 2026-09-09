@@ -297,11 +297,12 @@ export class NoteDialogComponent implements OnInit {
     return this.data.threadDataId;
   }
 
+  /** The verse the note thread is currently anchored to, which is the last re-attached verse, if any. */
   private get verseRef(): VerseRef | undefined {
     if (this.threadDoc?.data == null) {
       return this.data.verseRef == null ? undefined : this.data.verseRef;
     }
-    return toVerseRef(this.threadDoc.data.verseRef);
+    return this.threadDoc.currentVerseRef();
   }
 
   editNote(note: Note): void {
