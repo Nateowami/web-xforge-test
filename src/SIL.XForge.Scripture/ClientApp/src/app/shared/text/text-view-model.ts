@@ -962,7 +962,7 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
         }
         previousOp = 'delete';
       } else if (cloneOp.insert != null) {
-        cloneOp.attributes = getAttributesAtPosition(this.checkEditor(), editorStartPos);
+        cloneOp.attributes = this.getInsertAttributes(editorStartPos, cloneOp.attributes);
         previousOp = 'insert';
       }
       (adjustedDelta as any).push(cloneOp);
@@ -976,6 +976,22 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
     }
 
     return adjustedDelta;
+  }
+
+  /**
+   * Gets the attributes to use for content that a delta inserts into the editor. The attributes that come with the op
+   * are the formatting the text doc specifies for the inserted content, so they take precedence over the formatting at
+   * the insertion point, which is only inferred from the surrounding content. Character styles are not inferred at all
+   * for an op that brings its own attributes, otherwise inserted content that is not part of a neighboring character
+   * style (such as an alternate verse number) would be formatted as though it were.
+   */
+  private getInsertAttributes(editorStartPos: number, opAttributes?: StringMap): StringMap {
+    const attributes: StringMap = getAttributesAtPosition(this.checkEditor(), editorStartPos);
+    if (opAttributes == null) {
+      return attributes;
+    }
+    delete attributes['char'];
+    return { ...attributes, ...opAttributes };
   }
 
   /** Gets the number of embeds in a given range displayed in the quill editor. */

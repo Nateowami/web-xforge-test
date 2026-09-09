@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import Quill, { Delta, Range } from 'quill';
-import { instance, mock, when } from 'ts-mockito';
+import { StringMap } from 'rich-text';
+import { anything, instance, mock, when } from 'ts-mockito';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { TextViewModel } from './text-view-model';
 
@@ -101,12 +102,66 @@ describe('TextViewModel', () => {
     });
   });
 
+  describe('dataDeltaToEditorDelta', () => {
+    it('should keep the formatting that the insert op specifies', () => {
+      const env = new TestEnvironment();
+      env.setupBasicContent();
+      env.setFormatAtPosition({ 'para-contents': true, segment: 'verse_1_1' });
+
+      const dataDelta = new Delta([
+        { retain: 5 },
+        // an alternate verse number, as it arrives from a Paratext sync
+        { insert: '2b', attributes: { segment: 'verse_1_1', char: { style: 'va' } } }
+      ]);
+      const result: Delta = env.textViewModel.dataDeltaToEditorDelta(dataDelta);
+
+      expect(result.ops[1].attributes).toEqual({
+        'para-contents': true,
+        segment: 'verse_1_1',
+        char: { style: 'va' }
+      });
+    });
+
+    it('should not apply a character style from the insertion point to an insert op that has formatting', () => {
+      const env = new TestEnvironment();
+      env.setupBasicContent();
+      // the content that follows the insertion point is part of an alternate verse number
+      env.setFormatAtPosition({ 'para-contents': true, segment: 'verse_1_1', char: { style: 'va' } });
+
+      const dataDelta = new Delta([{ retain: 5 }, { insert: 'text', attributes: { segment: 'verse_1_1' } }]);
+      const result: Delta = env.textViewModel.dataDeltaToEditorDelta(dataDelta);
+
+      expect(result.ops[1].attributes).toEqual({ 'para-contents': true, segment: 'verse_1_1' });
+    });
+
+    it('should use the formatting at the insertion point for an insert op without formatting', () => {
+      const env = new TestEnvironment();
+      env.setupBasicContent();
+      env.setFormatAtPosition({ 'para-contents': true, segment: 'verse_1_1', char: { style: 'va' } });
+
+      const dataDelta = new Delta([{ retain: 5 }, { insert: 'text' }]);
+      const result: Delta = env.textViewModel.dataDeltaToEditorDelta(dataDelta);
+
+      expect(result.ops[1].attributes).toEqual({
+        'para-contents': true,
+        segment: 'verse_1_1',
+        char: { style: 'va' }
+      });
+    });
+  });
+
   class TestEnvironment {
     readonly textViewModel: TextViewModel;
 
     constructor() {
       this.textViewModel = TestBed.inject(TextViewModel);
       this.textViewModel.editor = instance(mockQuill);
+    }
+
+    /** Sets the formatting that the editor reports at any position. */
+    setFormatAtPosition(format: StringMap): void {
+      when(mockQuill.getFormat(anything())).thenCall(() => ({ ...format }));
+      when(mockQuill.getFormat(anything(), anything())).thenCall(() => ({ ...format }));
     }
 
     setupBasicContent(): void {
