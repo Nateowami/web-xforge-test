@@ -154,6 +154,24 @@ describe('BiblicalTermsComponent', () => {
     expect(env.getProjectUserConfigDoc('project01', 'user01').data?.selectedBiblicalTermsFilter).toBe('current_book');
   }));
 
+  it('should not re-render the rows when the verse changes but the filtered terms do not', fakeAsync(() => {
+    const env = new TestEnvironment('project01', 1, 1, '1');
+    env.setupProjectData('en');
+    env.wait();
+    env.component.selectedRangeFilter = 'current_book';
+    env.wait();
+    const termsBeforeVerseChange: Node[] = Array.from(env.biblicalTermsTerm);
+    expect(termsBeforeVerseChange.length).toBe(3);
+
+    env.component.verse = '2';
+    env.wait();
+
+    // The same table cells must still be present, i.e. the table was not rebuilt
+    const termsAfterVerseChange: Node[] = Array.from(env.biblicalTermsTerm);
+    expect(termsAfterVerseChange.length).toBe(termsBeforeVerseChange.length);
+    expect(termsAfterVerseChange.every((term, index) => term === termsBeforeVerseChange[index])).toBe(true);
+  }));
+
   it('should filter biblical terms by chapter', fakeAsync(() => {
     const env = new TestEnvironment('project01', 1, 1, '1');
     env.setupProjectData('en');

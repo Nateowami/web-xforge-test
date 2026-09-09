@@ -82,11 +82,11 @@ type RangeFilter = 'current_verse' | 'current_chapter' | 'current_book';
 
 class Row {
   constructor(
-    private readonly biblicalTermDoc: BiblicalTermDoc,
+    readonly biblicalTermDoc: BiblicalTermDoc,
     private readonly i18n: I18nService,
     private readonly projectDoc?: SFProjectProfileDoc,
     private readonly projectUserConfigDoc?: SFProjectUserConfigDoc,
-    private readonly noteThreadDoc?: NoteThreadDoc
+    public noteThreadDoc?: NoteThreadDoc
   ) {}
 
   get id(): string | undefined {
@@ -241,6 +241,7 @@ export class BiblicalTermsComponent extends DataLoadingComponent implements OnDe
   private _chapter?: number;
   private chapter$: BehaviorSubject<number> = new BehaviorSubject<number>(0);
   private noteThreadQuery?: RealtimeQuery<NoteThreadDoc>;
+  private rowsByTermDocId = new Map<string, Row>();
   private _projectId?: string;
   private projectId$: BehaviorSubject<string> = new BehaviorSubject<string>('');
   private projectDoc?: SFProjectProfileDoc;
@@ -434,12 +435,7 @@ export class BiblicalTermsComponent extends DataLoadingComponent implements OnDe
   }
 
   protected sortData(sort: Sort): void {
-    const data: Row[] = this.rows.slice();
-    if (!sort.active || sort.direction === '') {
-      this.rows = data;
-    } else {
-      this.rows = data.sort((a, b) => compare(a[sort.active], b[sort.active], sort.direction === 'asc'));
-    }
+    this.rows = sortRows(this.rows.slice(), sort);
   }
 
   private filterBiblicalTerms(bookNum: number, chapter: number, verse: string | undefined): void {
@@ -451,30 +447,35 @@ export class BiblicalTermsComponent extends DataLoadingComponent implements OnDe
     const categories = new Set<string>();
     const rangeRows: Row[] = [];
     const rangeAndCategoryRows: Row[] = [];
+    const rowsByTermDocId = new Map<string, Row>();
     const verses: number[] = getVerseNumbers(new VerseRef(Canon.bookNumberToId(bookNum), chapter.toString(), verse));
     for (const biblicalTermDoc of this.biblicalTermQuery?.docs || []) {
       let matchesRange = false;
       // Filter by verse, chapter, or book
       for (const bbbcccvvv of biblicalTermDoc.data?.references || []) {
-        const verseRef = new VerseRef(bbbcccvvv);
-        if (this.selectedRangeFilter === 'current_book' && verseRef.bookNum === bookNum) {
+        // References are stored as BBBCCCVVV, so decode them arithmetically rather than
+        // constructing a VerseRef for every reference of every term
+        const refBookNum = Math.floor(bbbcccvvv / 1000000);
+        const refChapterNum = Math.floor(bbbcccvvv / 1000) % 1000;
+        const refVerseNum = bbbcccvvv % 1000;
+        if (this.selectedRangeFilter === 'current_book' && refBookNum === bookNum) {
           matchesRange = true;
           break;
         } else if (
           this.selectedRangeFilter === 'current_chapter' &&
-          verseRef.bookNum === bookNum &&
-          verseRef.chapterNum === chapter
+          refBookNum === bookNum &&
+          refChapterNum === chapter
         ) {
           matchesRange = true;
           break;
         } else if (
           this.selectedRangeFilter === 'current_verse' &&
-          verseRef.bookNum === bookNum &&
-          verseRef.chapterNum === chapter &&
+          refBookNum === bookNum &&
+          refChapterNum === chapter &&
           (verses.length === 0 ||
             verses[0] === 0 ||
-            verses.includes(verseRef.verseNum) ||
-            (verses.length === 2 && verseRef.verseNum >= verses[0] && verseRef.verseNum <= verses[1]))
+            verses.includes(refVerseNum) ||
+            (verses.length === 2 && refVerseNum >= verses[0] && refVerseNum <= verses[1]))
         ) {
           matchesRange = true;
           break;
@@ -518,8 +519,16 @@ export class BiblicalTermsComponent extends DataLoadingComponent implements OnDe
           }
         }
 
+        // Reuse the row from the previous filter, so the table only re-renders rows that changed
+        let row: Row | undefined = this.rowsByTermDocId.get(biblicalTermDoc.id);
+        if (row?.biblicalTermDoc === biblicalTermDoc) {
+          row.noteThreadDoc = noteThreadDoc;
+        } else {
+          row = new Row(biblicalTermDoc, this.i18n, this.projectDoc, this.projectUserConfigDoc, noteThreadDoc);
+        }
+        rowsByTermDocId.set(biblicalTermDoc.id, row);
+
         // Add the row to the two arrays so we can select all if the category is missing
-        const row = new Row(biblicalTermDoc, this.i18n, this.projectDoc, this.projectUserConfigDoc, noteThreadDoc);
         rangeRows.push(row);
         if (matchesCategory) {
           rangeAndCategoryRows.push(row);
@@ -528,16 +537,23 @@ export class BiblicalTermsComponent extends DataLoadingComponent implements OnDe
     }
 
     this.categories = Array.from(categories).sort();
+    this.rowsByTermDocId = rowsByTermDocId;
 
     // If we do not have the same category, show all rows in the range
+    let rows: Row[];
     if (!this.categories.includes(this.selectedCategory) && this.selectedCategory !== 'show_all') {
       this.selectedCategory = 'show_all';
-      this.rows = rangeRows;
+      rows = rangeRows;
     } else {
-      this.rows = rangeAndCategoryRows;
+      rows = rangeAndCategoryRows;
     }
 
-    this.sortData({ active: this.columnsToDisplay[0], direction: 'asc' });
+    rows = sortRows(rows, { active: this.columnsToDisplay[0], direction: 'asc' });
+
+    // Only replace the rows if they changed, as the table re-renders every row when the array changes
+    if (rows.length !== this.rows.length || rows.some((row, index) => row !== this.rows[index])) {
+      this.rows = rows;
+    }
 
     this.loadingFinished();
   }
@@ -697,6 +713,13 @@ export class BiblicalTermsComponent extends DataLoadingComponent implements OnDe
       });
     }
   }
+}
+
+function sortRows(rows: Row[], sort: Sort): Row[] {
+  if (!sort.active || sort.direction === '') {
+    return rows;
+  }
+  return rows.sort((a, b) => compare(a[sort.active], b[sort.active], sort.direction === 'asc'));
 }
 
 function compare(a: string, b: string, isAsc: boolean): number {
