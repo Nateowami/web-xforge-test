@@ -393,8 +393,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     }
 
     this._book = book;
-    this.text = this.projectDoc.data.texts.find(t => t.bookNum === book);
-    this.chapters = this.text == null ? [] : this.text.chapters.map(c => c.number);
+    this.updateBookChapterLists();
     this._chapter = undefined;
   }
 
@@ -566,7 +565,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
               throw new Error('Project has no texts');
             }
 
-            this.books = this.projectDoc.data.texts.map(t => t.bookNum).sort((a, b) => a - b) ?? [];
+            this.updateBookChapterLists();
             this.initQuestionFilters();
 
             this.projectUserConfigDoc = await this.projectService.getUserConfig(
@@ -586,6 +585,13 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                     this.onRemovedFromProject();
                   } else if (!this.permissions.canAccessCommunityChecking(this.projectDoc)) {
                     this.onRemovedFromProject();
+                  } else {
+                    // A sync can remove books from the project, so keep the book/chapter lists up to date and move
+                    // off of a book that no longer exists.
+                    this.updateBookChapterLists();
+                    if (this.book != null && this.text == null && this.books.length > 0) {
+                      this.onBookSelect(this.books[0]);
+                    }
                   }
                 }
               });
@@ -1341,6 +1347,19 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     const filterFunction = questionFilterFunctions[this.activeQuestionFilter];
 
     return unfilteredQuestions.filter(q => (q.data == null ? false : filterFunction(q.getAnswers())));
+  }
+
+  /** Sets the books and chapters that can be navigated to, along with the current book, from the project. */
+  private updateBookChapterLists(): void {
+    const texts: TextInfo[] | undefined = this.projectDoc?.data?.texts;
+    if (texts == null) {
+      return;
+    }
+
+    this.books = texts.map(t => t.bookNum).sort((a, b) => a - b);
+    this.text = texts.find(t => t.bookNum === this.book);
+    this.chapters = this.text == null ? [] : this.text.chapters.map(c => c.number);
+    this.changeDetector.markForCheck();
   }
 
   private updateAudioMissingWarning(): void {

@@ -327,8 +327,11 @@ export class CheckingQuestionsComponent implements OnInit, OnChanges {
     }
 
     // No stored question, so use first question within route book/chapter if available.
+    // A question doc can be in the list without data if it was deleted remotely, e.g. by a sync that removed the book.
     questionToActivate ??= this.questionDocs.find(
-      qd => this.routeBookChapter == null || bookChapterMatchesVerseRef(this.routeBookChapter, qd.data!.verseRef)
+      qd =>
+        qd.data != null &&
+        (this.routeBookChapter == null || bookChapterMatchesVerseRef(this.routeBookChapter, qd.data.verseRef))
     );
 
     if (questionToActivate != null) {

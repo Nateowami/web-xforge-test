@@ -203,6 +203,23 @@ describe('CheckingComponent', () => {
       discardPeriodicTasks();
     }));
 
+    it('should navigate away from a book that is removed from the project', fakeAsync(() => {
+      const env = new TestEnvironment({ user: CHECKER_USER });
+      env.waitForSliderUpdate();
+      expect(env.component.books).toEqual([40, 43]);
+      expect(env.component.book).toEqual(43);
+
+      // A sync removes the book from the project, e.g. it was deleted in Paratext
+      env.component.projectDoc!.submitJson0Op(op => op.remove(p => p.texts, 0), false);
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.component.books).toEqual([40]);
+      expect(env.router.url).toContain('MAT/1');
+      flush();
+      discardPeriodicTasks();
+    }));
+
     it('should re-calculate scripture slide position on drag end', fakeAsync(() => {
       const testProject: SFProject = TestEnvironment.generateTestProject();
       const env = new TestEnvironment({ user: CHECKER_USER, testProject });
@@ -566,6 +583,27 @@ describe('CheckingComponent', () => {
       env.fixture.detectChanges();
       expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).toBe('q15Id');
       tick();
+      flush();
+      discardPeriodicTasks();
+    }));
+
+    it('changes route book/chapter when questions have been deleted remotely', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'book'
+      });
+      expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).toBe('q5Id');
+
+      // A sync that removes a book deletes the questions in it, but the query results can still hold the deleted docs
+      for (const questionDoc of env.component.questionDocs) {
+        questionDoc.delete();
+      }
+      env.setBookChapter('JHN', 2);
+      env.fixture.detectChanges();
+
+      expect(env.component.questionsList!.activeQuestionDoc).toBeUndefined();
       flush();
       discardPeriodicTasks();
     }));
