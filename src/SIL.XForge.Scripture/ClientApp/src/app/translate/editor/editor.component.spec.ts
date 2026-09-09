@@ -63,7 +63,7 @@ import { TextInfoPermission } from 'realtime-server/lib/esm/scriptureforge/model
 import { fromVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import * as RichText from 'rich-text';
 import { DeltaOperation, StringMap } from 'rich-text';
-import { BehaviorSubject, defer, firstValueFrom, Observable, of, Subject, take } from 'rxjs';
+import { BehaviorSubject, defer, delay, firstValueFrom, Observable, of, Subject, take } from 'rxjs';
 import { anything, capture, deepEqual, instance, mock, resetCalls, verify, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { AuthService } from 'xforge-common/auth.service';
@@ -4419,6 +4419,27 @@ describe('EditorComponent', () => {
         env.wait();
 
         expect(addTab).not.toHaveBeenCalled();
+        env.dispose();
+      }));
+
+      it('should not add a second draft tab when chapters are navigated in quick succession', fakeAsync(() => {
+        const env = new TestEnvironment();
+        env.wait();
+
+        when(mockedPermissionsService.canAccessDrafts(anything(), anything())).thenReturn(true);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), anything())).thenReturn(true);
+        // A slow build request lets a second chapter navigation start before the first one has finished
+        when(mockedDraftGenerationService.getLastCompletedBuild(anything())).thenReturn(
+          of({} as BuildDto).pipe(delay(50))
+        );
+
+        env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '1' });
+        env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '2' });
+        env.wait();
+
+        const draftTabs = env.component.tabState.getTabGroup('source')?.tabs.filter(t => t.type === 'draft');
+        expect(draftTabs?.length).toEqual(1);
+
         env.dispose();
       }));
 

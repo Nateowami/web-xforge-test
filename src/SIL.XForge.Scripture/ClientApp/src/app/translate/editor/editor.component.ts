@@ -1592,11 +1592,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   private async updateDraftTabVisibility(): Promise<void> {
-    const chapter: Chapter | undefined = this.text?.chapters.find(c => c.number === this.chapter);
-    const hasDraft: boolean = this.projectService.hasDraft(this.projectDoc?.data, this.bookNum, this.chapter);
+    // Capture the location this call is for, so a navigation occurring during the await below can be detected
+    const bookNum: number | undefined = this.bookNum;
+    const chapterNum: number | undefined = this.chapter;
+    const chapter: Chapter | undefined = this.text?.chapters.find(c => c.number === chapterNum);
+    const hasDraft: boolean = this.projectService.hasDraft(this.projectDoc?.data, bookNum, chapterNum);
     const draftApplied: boolean = chapter?.draftApplied ?? false;
-    const existingDraftTab: { groupId: EditorTabGroupType; index: number } | undefined =
-      this.tabState.getFirstTabOfTypeIndex('draft');
 
     const urlDraftActive: boolean = this.activatedRoute.snapshot.queryParams['draft-active'] === 'true';
     if (this.activatedRoute.snapshot.queryParams['draft-timestamp'] != null) {
@@ -1616,7 +1617,16 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     // Only try to fetch the draft build if existing information indicates we should show the draft
     if (draftShouldBeVisible && canViewDrafts && this.projectId != null) {
       draftBuild = await firstValueFrom(this.draftGenerationService.getLastCompletedBuild(this.projectId));
+
+      // The user may have navigated while the build was being fetched. A later call to this method is then
+      // responsible for the draft tab, and the values gathered above no longer describe the current chapter.
+      if (this.bookNum !== bookNum || this.chapter !== chapterNum) return;
     }
+
+    // Look up the draft tab only after the await above, otherwise concurrent calls (rapid chapter navigation)
+    // can each see no draft tab and each add one, leaving multiple draft tabs open.
+    const existingDraftTab: { groupId: EditorTabGroupType; index: number } | undefined =
+      this.tabState.getFirstTabOfTypeIndex('draft');
 
     const isBlockedByFormattingOptions: boolean =
       this.draftOptionsService.areFormattingOptionsAvailableButUnselected(draftBuild);
