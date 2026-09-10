@@ -38,6 +38,7 @@ using SIL.XForge.Configuration;
 using SIL.XForge.DataAccess;
 using SIL.XForge.Models;
 using SIL.XForge.Realtime;
+using SIL.XForge.Realtime.Json0;
 using SIL.XForge.Realtime.RichText;
 using SIL.XForge.Scripture.Models;
 using SIL.XForge.Scripture.Realtime;
@@ -1077,6 +1078,83 @@ public class ParatextServiceTests
         NoteThreadChange change2 = changes.First(c => c.ThreadId == "thread2");
         TextAnchor expected2 = new TextAnchor { Start = 0, Length = 0 };
         Assert.That(change2.Position, Is.EqualTo(expected2));
+    }
+
+    [Test]
+    public async Task GetNoteThreadChanges_TextTypedWithinAnchorKeepsNotePosition()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+
+        env.AddNoteThreadData([new ThreadComponents { threadNum = 1, noteCount = 1 }]);
+        env.AddParatextComments([
+            new ThreadComponents
+            {
+                threadNum = 1,
+                noteCount = 1,
+                username = env.Username01,
+            },
+        ]);
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        IEnumerable<IDocument<NoteThread>> noteThreadDocs = await TestEnvironment.GetNoteThreadDocsAsync(
+            conn,
+            ["dataId1"]
+        );
+        Dictionary<string, ParatextUserProfile> ptProjectUsers = new Dictionary<string, ParatextUserProfile>
+        {
+            {
+                env.Username01,
+                new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 }
+            },
+        };
+
+        // A user typed "Test" into the anchored text of thread 1, and the editor extended the note's anchor over it
+        const string typedText = "Test";
+        string selectedText = "Text selected thread1";
+        string editedText = selectedText[..1] + typedText + selectedText[1..];
+        IDocument<NoteThread> noteThreadDoc = noteThreadDocs.Single();
+        TextAnchor extendedAnchor = new TextAnchor
+        {
+            Start = noteThreadDoc.Data.Position.Start,
+            Length = noteThreadDoc.Data.Position.Length + typedText.Length,
+        };
+        await noteThreadDoc.SubmitJson0OpAsync(op => op.Set(nt => nt.Position, extendedAnchor));
+        Dictionary<int, ChapterDelta> chapterDeltas = env.GetChapterDeltasByBook(
+            1,
+            env.ContextBefore,
+            editedText,
+            false
+        );
+
+        IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+            userSecret,
+            ptProjectId,
+            40,
+            noteThreadDocs,
+            chapterDeltas,
+            ptProjectUsers
+        );
+
+        // The matcher can only find part of the selected text now that text was typed into it
+        int matchStart = env.ContextBefore.Length;
+        StringUtils.MatchContexts(
+            env.ContextBefore + editedText + env.ContextAfter,
+            env.ContextBefore,
+            selectedText,
+            env.ContextAfter,
+            null,
+            ref matchStart,
+            out int matchEnd
+        );
+        TextAnchor partialMatch = new TextAnchor { Start = matchStart, Length = matchEnd - matchStart };
+        Assert.That(partialMatch, Is.Not.EqualTo(extendedAnchor), "setup");
+
+        // The note keeps the anchor the editor extended, rather than moving onto the partial match
+        NoteThreadChange change = changes.FirstOrDefault(c => c.ThreadId == "thread1");
+        Assert.That(change?.Position, Is.Null.Or.EqualTo(extendedAnchor));
     }
 
     [Test]

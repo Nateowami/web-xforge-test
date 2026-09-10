@@ -1455,8 +1455,14 @@ public class ParatextService : DisposableBase, IParatextService
             }
             if (existingThread.Comments.Count > 0)
             {
-                // Get the text anchor to use for the note
-                TextAnchor range = GetThreadTextAnchor(existingThread, chapterDeltas);
+                // Get the text anchor to use for the note. The anchor the note thread already has is only relevant
+                // if it was anchored to the same comment selection, and not to one arriving in this sync.
+                bool isNewlyAnchored = newCommentIds.Contains(GetAnchoringComment(existingThread).Id);
+                TextAnchor range = GetThreadTextAnchor(
+                    existingThread,
+                    chapterDeltas,
+                    isNewlyAnchored ? null : threadDoc.Data.Position
+                );
                 if (!range.Equals(threadDoc.Data.Position))
                     threadChange.Position = range;
             }
@@ -3709,10 +3715,27 @@ public class ParatextService : DisposableBase, IParatextService
             : string.Empty;
     }
 
-    private static TextAnchor GetThreadTextAnchor(CommentThread thread, Dictionary<int, ChapterDelta> chapterDeltas)
+    /// <summary>
+    /// Gets the comment in a thread whose selection the note thread is anchored to.
+    /// </summary>
+    private static Paratext.Data.ProjectComments.Comment GetAnchoringComment(CommentThread thread) =>
+        thread.Comments.LastOrDefault(c => c.Reattached != null) ?? thread.Comments[0];
+
+    /// <summary>
+    /// Gets the text anchor for a note thread by locating the Paratext comment's selected text in the verse.
+    /// </summary>
+    /// <param name="thread">The Paratext comment thread.</param>
+    /// <param name="chapterDeltas">The chapter deltas of the Scripture Forge text.</param>
+    /// <param name="currentAnchor">
+    /// The text anchor the note thread already has in Scripture Forge, if it has one.
+    /// </param>
+    private static TextAnchor GetThreadTextAnchor(
+        CommentThread thread,
+        Dictionary<int, ChapterDelta> chapterDeltas,
+        TextAnchor? currentAnchor = null
+    )
     {
-        Paratext.Data.ProjectComments.Comment comment =
-            thread.Comments.LastOrDefault(c => c.Reattached != null) ?? thread.Comments[0];
+        Paratext.Data.ProjectComments.Comment comment = GetAnchoringComment(thread);
         VerseRef verseRef = comment.VerseRef;
         int startPos = comment.StartPosition;
         string selectedText = comment.SelectedText;
@@ -3742,7 +3765,22 @@ public class ParatextService : DisposableBase, IParatextService
             out int posJustPastLastCharacter
         );
         // The text anchor is relative to the text in the verse
-        return new TextAnchor { Start = startPos, Length = posJustPastLastCharacter - startPos };
+        var anchor = new TextAnchor { Start = startPos, Length = posJustPastLastCharacter - startPos };
+
+        // Text typed within the anchored text stops the matcher above from finding the selected text intact, so it
+        // settles for matching a part of it, and the note ends up beside the text that was typed rather than
+        // anchored over it. The anchor Scripture Forge already has was extended as that text was typed, so keep it
+        // when it is longer than the selected text and still spans everything the matcher did find.
+        if (
+            currentAnchor is not null
+            && anchor.Length > 0
+            && currentAnchor.Length > (selectedText?.Length ?? 0)
+            && currentAnchor.Start <= anchor.Start
+            && currentAnchor.Start + currentAnchor.Length >= anchor.Start + anchor.Length
+        )
+            return currentAnchor;
+
+        return anchor;
     }
 
     /// <summary>
