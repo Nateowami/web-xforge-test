@@ -416,6 +416,43 @@ describe('TextComponent', () => {
     expect(segmentText).toEqual('Poetry third line');
   }));
 
+  it('keeps the verses of a paragraph whose style cannot contain verse text', fakeAsync(() => {
+    // An invalid chapter, e.g. \v 2 mistyped as \sv 2, puts the following verses in a paragraph whose style
+    // cannot contain verse text (see DeltaUsxMapper.CanParaContainVerseText).
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: '1', style: 'c' } } },
+      { insert: { blank: true }, attributes: { segment: 'p_1' } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'chapter 1, verse 1.', attributes: { segment: 'verse_1_1' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } },
+      { insert: '2 chapter 1, verse 2.', attributes: { segment: 'sv_1' } },
+      { insert: { verse: { number: '3', style: 'v' } } },
+      { insert: 'chapter 1, verse 3.', attributes: { segment: 'verse_1_3' } },
+      { insert: { verse: { number: '4', style: 'v' } } },
+      { insert: 'chapter 1, verse 4.', attributes: { segment: 'verse_1_4' } },
+      { insert: '\n', attributes: { 'invalid-block': true, para: { style: 'sv', status: 'unknown' } } }
+    ];
+    const env = new TestEnvironment({ chapterNum: 1, textDoc: textDocOps });
+    env.waitForEditor();
+    env.hostComponent.isReadOnly = true;
+
+    expect(env.component.getVerseSegments(new VerseRef('MAT 1:1-4'))).toEqual([
+      'verse_1_1',
+      'sv_1',
+      'verse_1_3',
+      'verse_1_4'
+    ]);
+
+    env.component.highlight(env.component.getVerseSegmentsNoHeadings(new VerseRef('MAT 1:1-4')));
+    tick();
+    env.fixture.detectChanges();
+    expect(env.isSegmentHighlighted(1, '1')).toBe(true);
+    expect(env.isSegmentHighlighted(1, '3')).toBe(true);
+    expect(env.isSegmentHighlighted(1, '4')).toBe(true);
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('can undo when segment is blank', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();

@@ -726,10 +726,26 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
         } else {
           // title/header
           curSegment ??= new SegmentInfo('', curIndex);
-          curSegment.ref = getParagraphRef(nextIds, style, style);
-          [fixDelta, fixOffset] = this.fixSegment(editor, curSegment, fixDelta, fixOffset, isOnline);
-          this._segments.set(curSegment.ref, { index: curSegment.index, length: curSegment.length });
-          paraSegments = [];
+          if (paraSegments.length > 0) {
+            // The paragraph style cannot contain verse text, but verses were found in it. This happens in an
+            // invalid chapter, e.g. when an unknown marker is used in place of \v. Keep the verse segments
+            // instead of discarding them, so that only the text before the first verse takes the paragraph ref.
+            paraSegments[0].ref = getParagraphRef(nextIds, style, style);
+            paraSegments.push(curSegment);
+            for (const paraSegment of paraSegments) {
+              if (this._segments.has(paraSegment.ref) && paraSegment.ref.startsWith('verse')) {
+                paraSegment.ref = getParagraphRef(nextIds, paraSegment.ref, paraSegment.ref + '/' + style);
+              }
+
+              [fixDelta, fixOffset] = this.fixSegment(editor, paraSegment, fixDelta, fixOffset, isOnline);
+              this._segments.set(paraSegment.ref, { index: paraSegment.index, length: paraSegment.length });
+            }
+            paraSegments = [];
+          } else {
+            curSegment.ref = getParagraphRef(nextIds, style, style);
+            [fixDelta, fixOffset] = this.fixSegment(editor, curSegment, fixDelta, fixOffset, isOnline);
+            this._segments.set(curSegment.ref, { index: curSegment.index, length: curSegment.length });
+          }
           curIndex += curSegment.length + len;
           curSegment = undefined;
         }
