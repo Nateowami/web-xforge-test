@@ -19,6 +19,23 @@ import { tryParseJSON } from './utils';
 
 types.register(RichText.type);
 
+/**
+ * These ShareDB errors all report that a doc no longer exists on the server, so an op the client submitted for it can
+ * never be accepted. This happens when a user or a project is deleted while someone has the app open: the deletion
+ * removes docs the client is watching, which prompts the client to submit ops of its own (such as clearing the
+ * current project), and those ops reach the server after the docs they apply to are gone. ShareDB discards the ops
+ * and refetches the doc, so there is nothing for the user to do about it, and nothing worth reporting.
+ */
+const DELETED_DOC_ERROR_CODES = [
+  'ERR_DOC_DOES_NOT_EXIST',
+  'ERR_DOC_WAS_DELETED',
+  'ERR_OP_VERSION_NEWER_THAN_CURRENT_SNAPSHOT'
+];
+
+function isDeletedDocError(error: unknown): boolean {
+  return hasStringProp(error, 'code') && DELETED_DOC_ERROR_CODES.includes(error.code);
+}
+
 /** Checks whether the given string is a message sending an op to the server */
 function isMessageSendingOp(data: unknown): boolean {
   return hasPropWithValue(data, 'a', 'op');
@@ -244,6 +261,14 @@ export class SharedbRealtimeDocAdapter implements RealtimeDocAdapter {
   readonly remoteChanges$: Observable<any>;
 
   constructor(private readonly doc: Doc) {
+    // ShareDB emits errors that no op callback consumed on the doc itself, and an 'error' event with no listener is
+    // re-thrown out of the web socket message handler. Errors for a doc that has been deleted on the server are
+    // expected, so only pass on the rest.
+    this.doc.on('error', error => {
+      if (!isDeletedDocError(error)) {
+        throw error;
+      }
+    });
     this.idle$ = fromEvent(this.doc, 'no write pending').pipe(map(() => undefined));
     this.create$ = fromEvent(this.doc, 'create').pipe(map(() => undefined));
     this.delete$ = fromEvent(this.doc, 'del').pipe(map(() => undefined));
@@ -369,7 +394,7 @@ export class SharedbRealtimeDocAdapter implements RealtimeDocAdapter {
         options.source = source;
       }
       this.doc.submitOp(op, options, err => {
-        if (err != null) {
+        if (err != null && !isDeletedDocError(err)) {
           reject(err);
         } else {
           resolve();
