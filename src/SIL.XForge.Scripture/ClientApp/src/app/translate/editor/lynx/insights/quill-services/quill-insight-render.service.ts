@@ -1,6 +1,6 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import * as Comlink from 'comlink';
-import Quill, { Delta } from 'quill';
+import Quill, { Delta, Range } from 'quill';
 import { LynxInsightTypes } from 'realtime-server/lib/esm/scriptureforge/models/lynx-insight';
 import { StringMap } from 'rich-text';
 import { take, takeUntil } from 'rxjs';
@@ -177,8 +177,10 @@ export class QuillInsightRenderService extends InsightRenderService implements O
       const overlayAnchorInsight: LynxInsight | undefined = getMostNestedInsight(insights);
 
       if (leadingInsight != null && overlayAnchorInsight != null) {
-        // Scroll to the first occurring active insight in the editor
-        editor.setSelection(leadingInsight.range.index, 'api');
+        // Scroll to the first occurring active insight in the editor.
+        // Insight ranges are in data coordinates, so convert to editor coordinates (note embeds).
+        const leadingEditorRange: Range = textModelConverter.dataRangeToEditorRange(leadingInsight.range);
+        editor.setSelection(leadingEditorRange.index, 'api');
 
         const overlayAnchor: HTMLElement | null = this.getInsightElements(editor, overlayAnchorInsight.id)[0];
 
