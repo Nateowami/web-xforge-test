@@ -475,6 +475,32 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  it('embeds a note anchored past the end of the verse at the end of the verse', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+
+    // Paratext can anchor a note one character past the text SF has, such as a note created after a space at
+    // the end of the last verse of a paragraph, since that space is dropped when the USFM is parsed.
+    // verse_1_4 is followed by a blank segment, which does not get note thread formatting or click handling.
+    const textAnchor: TextAnchor = { start: env.component.getSegmentText('verse_1_4').length + 1, length: 0 };
+
+    const embedSegmentRef: string | undefined = env.embedThreadAt('MAT 1:4', textAnchor);
+    tick();
+    env.fixture.detectChanges();
+
+    expect(embedSegmentRef).toEqual('verse_1_4');
+    expect(env.getSegment('verse_1_4')!.classList).toContain('note-thread-segment');
+    // The icon has to be within the verse segment for the editor to hook up its click handler
+    expect(env.quillEditor.querySelectorAll('usx-segment[data-segment="verse_1_4"] display-note').length).toEqual(1);
+    expect(env.quillEditor.querySelectorAll('usx-segment[data-segment="verse_1_4/p_1"] display-note').length).toEqual(
+      0
+    );
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('pastes text with proper attributes', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();
@@ -2031,15 +2057,27 @@ class TestEnvironment {
   }
 
   /** Where reference is like 'MAT 1:2'. */
-  embedThreadAt(reference: string, textAnchor: TextAnchor, role: string = SFProjectRole.ParatextTranslator): void {
+  embedThreadAt(
+    reference: string,
+    textAnchor: TextAnchor,
+    role: string = SFProjectRole.ParatextTranslator
+  ): string | undefined {
     const verseRef: VerseRef = new VerseRef(reference);
     const uniqueSuffix: string = Math.random().toString();
     const id: string = `embedid${reference}${uniqueSuffix}`;
     const iconSource: string = '--icon-file: url(/assets/icons/TagIcons/01flag1.png)';
     const text: string = `text message on ${id}`;
     const format = { iconsrc: iconSource, preview: text, threadid: id };
-    this.component.embedElementInline(verseRef, id, role, textAnchor, 'note-thread-embed', format);
+    const embedSegmentRef: string | undefined = this.component.embedElementInline(
+      verseRef,
+      id,
+      role,
+      textAnchor,
+      'note-thread-embed',
+      format
+    );
     this.component.toggleFeaturedVerseRefs(true, [verseRef], 'note-thread');
+    return embedSegmentRef;
   }
 
   performDeleteWordTest(

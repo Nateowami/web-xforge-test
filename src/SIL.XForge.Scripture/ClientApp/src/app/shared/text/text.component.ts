@@ -836,8 +836,10 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       return undefined;
     }
 
-    // A single verse can be associated with multiple compatible segments (e.g verse_1_1, verse_1_1/p_1)
-    const verseSegments: string[] = this.getCompatibleSegments(verseRef);
+    // A single verse can be associated with multiple compatible segments (e.g verse_1_1, verse_1_1/p_1).
+    // Only the segments that get the note thread formatting and click handling can hold a note icon, so leave
+    // out the ones filterSegments discards (see toggleFeaturedVerseRefs and EditorComponent.subscribeClickEvents).
+    const verseSegments: string[] = this.filterSegments(this.getCompatibleSegments(verseRef));
     if (verseSegments.length === 0) {
       return undefined;
     }
@@ -850,6 +852,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     let embedSegmentRef: string = verseSegments[0];
     const nextSegmentMarkerLength = 1;
     const blankSegmentLength = 1;
+    let anchorStartFound: boolean = false;
+    let lastSegment: { ref: string; range: Range; textLength: number } | undefined;
     for (const vs of verseSegments) {
       const editorPosOfSomeSegment: Range | undefined = this.getSegmentRange(vs);
       if (editorPosOfSomeSegment == null) {
@@ -864,15 +868,26 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       const segmentTextLength: number =
         editorPosOfSomeSegment.length -
         this.getEmbedCountInRange(editorPosOfSomeSegment.index, editorPosOfSomeSegment.length);
+      lastSegment = { ref: vs, range: editorPosOfSomeSegment, textLength: segmentTextLength };
       // Does the textAnchor begin in this segment?
       if (segmentTextLength >= startTextPosInVerse) {
         editorPosOfSegmentToModify = editorPosOfSomeSegment;
         embedSegmentRef = vs;
+        anchorStartFound = true;
         break;
       } else {
         // The embed starts in a later segment. Subtract the text-only length of this segment from the start index.
         startTextPosInVerse -= segmentTextLength + nextSegmentMarkerLength;
       }
+    }
+
+    if (!anchorStartFound && lastSegment != null) {
+      // The anchor starts past the end of the verse text. Paratext can anchor a note past the last character
+      // SF has, e.g. after a space at the end of the last verse of a paragraph, which is dropped when the USFM
+      // is parsed. Put the note at the end of the verse rather than at a position measured from its start.
+      editorPosOfSegmentToModify = lastSegment.range;
+      embedSegmentRef = lastSegment.ref;
+      startTextPosInVerse = lastSegment.textLength;
     }
 
     if (editorPosOfSegmentToModify == null) {
