@@ -475,6 +475,39 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  it('keeps the selection when a note is embedded in an earlier verse of a chapter with no text', fakeAsync(() => {
+    const chapterNum = 2;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { blank: true }, attributes: { segment: 'p_1' } }
+    ];
+    for (const verseNum of ['1', '2', '3', '4', '5']) {
+      textDocOps.push({ insert: { verse: { number: verseNum, style: 'v' } } });
+      textDocOps.push({ insert: { blank: true }, attributes: { segment: `verse_${chapterNum}_${verseNum}` } });
+    }
+    textDocOps.push({ insert: '\n', attributes: { para: { style: 'p' } } });
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+
+    const verse4Ref: string = `verse_${chapterNum}_4`;
+    let verse4Range: QuillRange = env.component.getSegmentRange(verse4Ref)!;
+    env.component.editor!.setSelection(verse4Range.index + verse4Range.length, 0, 'user');
+    tick();
+    env.fixture.detectChanges();
+    expect(env.component.segmentRef).toEqual(verse4Ref);
+
+    // SUT
+    env.embedThreadAt(`MAT ${chapterNum}:2`, { start: 0, length: 0 });
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.component.segmentRef).toEqual(verse4Ref);
+    verse4Range = env.component.getSegmentRange(verse4Ref)!;
+    expect(env.component.editor!.getSelection()!.index).toEqual(verse4Range.index + verse4Range.length);
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('pastes text with proper attributes', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();

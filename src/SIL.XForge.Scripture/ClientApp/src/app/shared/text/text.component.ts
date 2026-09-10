@@ -298,6 +298,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   private initialSegmentRef?: string;
   private initialSegmentChecksum?: number;
   private initialSegmentFocus?: boolean;
+  /** The selection and insert position of an embed that is currently being inserted, if any. */
+  private pendingEmbedInsert?: { selection: Range; insertPos: number };
   private _highlightSegment: boolean = false;
   private highlightMarker?: HTMLElement;
   private _selectionBoundsTop: number = 0;
@@ -889,7 +891,11 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
     // Include formatting from the current insert position as well as any unique formatting
     format = { ...insertFormat, ...format };
+    const selectionBeforeEmbed: Range | null = this.editor.getSelection();
+    this.pendingEmbedInsert =
+      selectionBeforeEmbed == null ? undefined : { selection: selectionBeforeEmbed, insertPos: embedInsertPos };
     this.editor.insertEmbed(embedInsertPos, formatName, format, 'api');
+    this.pendingEmbedInsert = undefined;
     const textAnchorRange = this.viewModel.getEditorContentRange(embedInsertPos, textAnchor.length);
     const formatLength: number = textAnchorRange.editorLength;
 
@@ -964,6 +970,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
   /** Respond to text changes in the quill editor. */
   onContentChanged(delta: Delta, source: string): void {
+    this.correctSelectionForEmbedInsert();
     const preDeltaSegmentCache: IterableIterator<[string, Range]> = this.viewModel.segmentsSnapshot;
     const preDeltaEmbedCache: Readonly<Map<string, number>> = this.viewModel.embeddedElementsSnapshot;
     this.viewModel.update(delta, source as EmitterSource, this.onlineStatusService.isOnline);
@@ -974,6 +981,25 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     }
 
     this.updateLocalCursor();
+  }
+
+  /**
+   * Puts the selection back where inserting an embed should have left it. Quill works out the new selection by
+   * diffing the editor contents, and when everything following the insert position is an embed (a chapter where
+   * every verse is blank) that diff can come back as "delete the rest of the paragraph and re-insert it", which
+   * leaves the cursor at the end of the chapter. Inserting an embed only ever moves the selection by one.
+   */
+  private correctSelectionForEmbedInsert(): void {
+    const embedInsert = this.pendingEmbedInsert;
+    if (this.editor == null || embedInsert == null) {
+      return;
+    }
+    // only the text change of the insert itself is corrected
+    this.pendingEmbedInsert = undefined;
+    const shift = (pos: number): number => (pos > embedInsert.insertPos ? pos + 1 : pos);
+    const index: number = shift(embedInsert.selection.index);
+    const length: number = shift(embedInsert.selection.index + embedInsert.selection.length) - index;
+    this.editor.setSelection(index, length, 'silent');
   }
 
   async onSelectionChanged(range: Range | null): Promise<void> {
