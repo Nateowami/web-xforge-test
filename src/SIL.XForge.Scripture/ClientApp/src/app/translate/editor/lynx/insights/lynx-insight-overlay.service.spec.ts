@@ -161,6 +161,66 @@ describe('LynxInsightOverlayService', () => {
     }));
   });
 
+  describe('scroll handling', () => {
+    const containerRect = { top: 100, right: 500, bottom: 500, left: 0, width: 500, height: 400 };
+
+    it('should hide the overlay when the insight it is anchored to scrolls above the editor view', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.configureElementRects(containerRect, { top: 200, right: 450, bottom: 260, left: 50, width: 400, height: 60 });
+      env.configureOriginRect({ top: 150, right: 200, bottom: 170, left: 100, width: 100, height: 20 });
+      env.openOverlay();
+      env.attachScrollStrategy();
+      expect(env.getOverlayElement().style.visibility).toBe('');
+
+      // Insight scrolls above the top of the editor
+      env.configureOriginRect({ top: 60, right: 200, bottom: 80, left: 100, width: 100, height: 20 });
+      env.simulateScroll();
+
+      expect(env.getOverlayElement().style.visibility).toBe('hidden');
+    }));
+
+    it('should hide the overlay when the insight it is anchored to scrolls below the editor view', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.configureElementRects(containerRect, { top: 200, right: 450, bottom: 260, left: 50, width: 400, height: 60 });
+      env.configureOriginRect({ top: 150, right: 200, bottom: 170, left: 100, width: 100, height: 20 });
+      env.openOverlay();
+      env.attachScrollStrategy();
+
+      // Insight scrolls below the bottom of the editor
+      env.configureOriginRect({ top: 520, right: 200, bottom: 540, left: 100, width: 100, height: 20 });
+      env.simulateScroll();
+
+      expect(env.getOverlayElement().style.visibility).toBe('hidden');
+    }));
+
+    it('should show the overlay again when the insight scrolls back into the editor view', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.configureElementRects(containerRect, { top: 200, right: 450, bottom: 260, left: 50, width: 400, height: 60 });
+      env.configureOriginRect({ top: 60, right: 200, bottom: 80, left: 100, width: 100, height: 20 });
+      env.openOverlay();
+      env.attachScrollStrategy();
+      env.simulateScroll();
+      expect(env.getOverlayElement().style.visibility).toBe('hidden');
+
+      // Insight scrolls back into view
+      env.configureOriginRect({ top: 150, right: 200, bottom: 170, left: 100, width: 100, height: 20 });
+      env.simulateScroll();
+
+      expect(env.getOverlayElement().style.visibility).toBe('');
+    }));
+
+    it('should reposition the overlay as the editor scrolls', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.configureElementRects(containerRect, { top: 200, right: 450, bottom: 260, left: 50, width: 400, height: 60 });
+      env.openOverlay();
+      env.attachScrollStrategy();
+
+      env.simulateScroll();
+
+      env.verifyOverlayPositionUpdated();
+    }));
+  });
+
   describe('direction handling', () => {
     it('should use rtl i18n direction when creating overlay config', fakeAsync(() => {
       const env = new TestEnvironment();
@@ -196,11 +256,14 @@ class TestEnvironment {
   }> = [];
 
   private containerElement: HTMLElement;
+  private originElement: HTMLElement;
   private containerRectConfig: DOMRect | null = null;
   private overlayRectConfig: DOMRect | null = null;
+  private originRectConfig: DOMRect | null = null;
 
   constructor(numOverlayRefs = 1) {
     this.containerElement = this.createContainerElement();
+    this.originElement = document.createElement('div');
     this.setupOverlayMocks(numOverlayRefs);
     this.configureMockRects();
 
@@ -280,7 +343,7 @@ class TestEnvironment {
     insights: LynxInsight[];
     textModelConverter: LynxTextModelConverter;
   } {
-    const origin = document.createElement('div');
+    const origin = this.originElement;
     const editorMock = mock<LynxEditor>();
     when(editorMock.getScrollingContainer()).thenReturn(this.containerElement);
     const editor = instance(editorMock);
@@ -300,15 +363,43 @@ class TestEnvironment {
   }
 
   /**
+   * Configures the mock dimensions of the overlay origin (the insight element within the editor).
+   */
+  configureOriginRect(originRect: DOMRect | object): void {
+    this.originRectConfig = originRect as DOMRect;
+    this.configureMockRects();
+  }
+
+  /**
+   * Attaches the scroll strategy from the captured overlay config, as the real `OverlayRef` would.
+   */
+  attachScrollStrategy(refIndex = 0): void {
+    when(this.overlayRefs[refIndex].mock.hasAttached()).thenReturn(true);
+    this.captureOverlayConfig().scrollStrategy.attach(this.overlayRefs[refIndex].instance);
+  }
+
+  simulateScroll(): void {
+    this.containerElement.dispatchEvent(new Event('scroll'));
+  }
+
+  getOverlayElement(refIndex = 0): HTMLElement {
+    return this.overlayRefs[refIndex].overlayElement;
+  }
+
+  /**
    * Updates the getBoundingClientRect mock implementations.
    */
   private configureMockRects(): void {
     // Default dimensions
     const defaultContainerRect = { top: 0, right: 800, bottom: 600, left: 0, width: 800, height: 600 } as DOMRect;
     const defaultOverlayRect = { top: 100, right: 500, bottom: 300, left: 100, width: 400, height: 200 } as DOMRect;
+    const defaultOriginRect = { top: 100, right: 200, bottom: 120, left: 100, width: 100, height: 20 } as DOMRect;
 
     // Override getBoundingClientRect for container
     this.containerElement.getBoundingClientRect = () => this.containerRectConfig ?? defaultContainerRect;
+
+    // Override getBoundingClientRect for the origin
+    this.originElement.getBoundingClientRect = () => this.originRectConfig ?? defaultOriginRect;
 
     // Override getBoundingClientRect for overlay elements
     this.overlayRefs.forEach(ref => {
@@ -359,6 +450,10 @@ class TestEnvironment {
 
   verifyOverlayDisposed(refIndex = 0): void {
     verify(this.overlayRefs[refIndex].mock.dispose()).once();
+  }
+
+  verifyOverlayPositionUpdated(refIndex = 0): void {
+    verify(this.overlayRefs[refIndex].mock.updatePosition()).once();
   }
 
   verifyOverlayNotDisposed(): void {

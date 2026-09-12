@@ -10,14 +10,19 @@ import { LynxInsightOverlayComponent } from './lynx-insight-overlay/lynx-insight
 /**
  * Custom scroll strategy that listens to a specific scroll container and repositions the overlay.
  * This replaces the need for CdkScrollable registration with ScrollDispatcher.
+ * The overlay is rendered outside the scroll container, so it is also hidden while the insight it is
+ * anchored to is scrolled out of the container's visible area (the overlay would otherwise appear
+ * over unrelated parts of the page, detached from its text).
  */
 class OverlayScrollStrategy implements ScrollStrategy {
   private _scrollContainer: Element;
+  private _origin: HTMLElement;
   private _overlayRef?: OverlayRef;
   private _scrollListener?: () => void;
 
-  constructor(scrollContainer: Element) {
+  constructor(scrollContainer: Element, origin: HTMLElement) {
     this._scrollContainer = scrollContainer;
+    this._origin = origin;
   }
 
   attach(overlayRef: OverlayRef): void {
@@ -26,9 +31,27 @@ class OverlayScrollStrategy implements ScrollStrategy {
       // Check if overlay is still attached before updating position
       if (this._overlayRef != null && this._overlayRef.hasAttached()) {
         this._overlayRef.updatePosition();
+        this.updateOverlayVisibility();
       }
     };
     this._scrollContainer.addEventListener('scroll', this._scrollListener);
+  }
+
+  /**
+   * Hides the overlay while its origin (the insight in the editor) is scrolled out of view.
+   */
+  updateOverlayVisibility(): void {
+    const overlayElement: HTMLElement | undefined = this._overlayRef?.overlayElement;
+
+    if (overlayElement == null) {
+      return;
+    }
+
+    const containerRect: DOMRect = this._scrollContainer.getBoundingClientRect();
+    const originRect: DOMRect = this._origin.getBoundingClientRect();
+    const isOriginVisible: boolean = originRect.bottom > containerRect.top && originRect.top < containerRect.bottom;
+
+    overlayElement.style.visibility = isOriginVisible ? '' : 'hidden';
   }
 
   enable(): void {
@@ -130,7 +153,10 @@ export class LynxInsightOverlayService {
     this.openRef = overlayRef;
 
     // When initially displayed, scroll editor if necessary to ensure overlay is displayed within editor bounds
-    setTimeout(() => this.ensureOverlayWithinEditorBounds(scrollContainer));
+    setTimeout(() => {
+      this.ensureOverlayWithinEditorBounds(scrollContainer);
+      this.overlayScrollStrategy?.updateOverlayVisibility();
+    });
 
     return overlayRef;
   }
@@ -161,7 +187,7 @@ export class LynxInsightOverlayService {
   }
 
   private getConfig(origin: HTMLElement, scrollContainer: HTMLElement): OverlayConfig {
-    this.overlayScrollStrategy = new OverlayScrollStrategy(scrollContainer);
+    this.overlayScrollStrategy = new OverlayScrollStrategy(scrollContainer, origin);
 
     return {
       positionStrategy: this.getPositionStrategy(origin),
