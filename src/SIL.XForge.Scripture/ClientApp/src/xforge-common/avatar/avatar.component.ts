@@ -4,6 +4,31 @@ import { UserProfile } from 'realtime-server/lib/esm/common/models/user';
 
 type AvatarMode = 'image' | 'initials' | 'user_icon';
 
+/** Prefix of the generic initials images that Auth0 uses when a user has no picture of their own. */
+const AUTH0_PLACEHOLDER_AVATAR_URL = 'https://cdn.auth0.com/avatars/';
+
+/**
+ * Rewrites a Gravatar URL that falls back to an Auth0 placeholder so that Gravatar returns a 404
+ * instead of redirecting to the placeholder. Gravatar serves such a fallback by redirecting through
+ * a wp.com image proxy, so every user without a Gravatar costs three cross-origin requests instead
+ * of one, and pages that show a lot of avatars get rate limited (HTTP 429). A 404 lets the avatar
+ * fall back to the initials this component draws itself, which is what the placeholder shows anyway.
+ */
+export function preferLocalAvatarFallback(avatarUrl: string): string {
+  let url: URL;
+  try {
+    url = new URL(avatarUrl);
+  } catch {
+    return avatarUrl;
+  }
+  const isGravatar = url.hostname === 'gravatar.com' || url.hostname.endsWith('.gravatar.com');
+  if (!isGravatar || !url.searchParams.get('d')?.startsWith(AUTH0_PLACEHOLDER_AVATAR_URL)) {
+    return avatarUrl;
+  }
+  url.searchParams.set('d', '404');
+  return url.href;
+}
+
 @Component({
   selector: 'app-avatar',
   templateUrl: './avatar.component.html',
@@ -17,6 +42,7 @@ export class AvatarComponent implements DoCheck, OnChanges {
 
   name?: string;
   avatarUrl?: string;
+  imageUrl?: string;
   avatarColorFromDisplayName?: string;
   initials?: string;
   mode: AvatarMode = 'user_icon';
@@ -31,6 +57,7 @@ export class AvatarComponent implements DoCheck, OnChanges {
   ngOnChanges(): void {
     this.name = this.user?.displayName;
     this.avatarUrl = this.user?.avatarUrl;
+    this.imageUrl = this.avatarUrl == null ? undefined : preferLocalAvatarFallback(this.avatarUrl);
     this.mode = this.getMode();
   }
 
