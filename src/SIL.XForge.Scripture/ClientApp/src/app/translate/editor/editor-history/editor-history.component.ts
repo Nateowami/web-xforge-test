@@ -8,12 +8,13 @@ import {
   OnChanges,
   OnInit,
   Output,
+  SimpleChanges,
   ViewChild
 } from '@angular/core';
 import { MatProgressBar } from '@angular/material/progress-bar';
 import { TranslocoModule } from '@ngneat/transloco';
 import { Delta } from 'quill';
-import { combineLatest, startWith, tap } from 'rxjs';
+import { combineLatest, skip, startWith, tap } from 'rxjs';
 import { I18nService } from 'xforge-common/i18n.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
@@ -53,6 +54,9 @@ export class EditorHistoryComponent implements OnChanges, OnInit, AfterViewInit 
   @Input() isRightToLeft!: boolean;
   @Input() fontSize?: string;
   @Input() diffText?: TextComponent;
+
+  /** The timestamp of the revision to select when the history loads. Defaults to the most recent revision. */
+  @Input() selectedRevisionTimestamp?: string;
   @Output() revisionSelect = new EventEmitter<Revision | undefined>();
 
   @ViewChild(HistoryChooserComponent) historyChooser?: HistoryChooserComponent;
@@ -70,7 +74,11 @@ export class EditorHistoryComponent implements OnChanges, OnInit, AfterViewInit 
     private readonly projectService: SFProjectService
   ) {}
 
-  ngOnChanges(): void {
+  ngOnChanges(changes: SimpleChanges): void {
+    if (changes.bookNum == null && changes.chapter == null) {
+      return;
+    }
+
     // Clear any loaded revision if chapter changes
     this.loadedRevision = undefined;
 
@@ -81,9 +89,10 @@ export class EditorHistoryComponent implements OnChanges, OnInit, AfterViewInit 
   }
 
   ngOnInit(): void {
-    // When the locale changes, emit the loaded Revision again, as the date formatting will need to update
+    // When the locale changes, emit the loaded Revision again, as the date formatting will need to update.
+    // Skip the current locale, as emitting before a revision is loaded would clear the tab's selected revision.
     this.i18nService.locale$
-      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .pipe(skip(1), quietTakeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.revisionSelect.emit(this.loadedRevision));
   }
 

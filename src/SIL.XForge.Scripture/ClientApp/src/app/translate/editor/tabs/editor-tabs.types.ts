@@ -16,4 +16,10 @@ export interface EditorTabInfo extends TabInfo<EditorTabType> {
    * The SF project id if tab is a project/resource tab.
    */
   projectId?: string;
+
+  /**
+   * The timestamp of the revision selected in a history tab. Moving a tab to another tab group recreates its
+   * component, so this is kept on the tab in order to restore the selection.
+   */
+  selectedRevisionTimestamp?: string;
 }

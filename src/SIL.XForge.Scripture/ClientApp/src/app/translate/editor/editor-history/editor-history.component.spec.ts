@@ -1,13 +1,14 @@
-import { EventEmitter } from '@angular/core';
+import { EventEmitter, SimpleChange } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import Quill from 'quill';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
-import { ReplaySubject, Subject } from 'rxjs';
+import { BehaviorSubject, ReplaySubject, Subject } from 'rxjs';
 import { anything, mock, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { FileType } from 'xforge-common/models/file-offline-data';
+import { Locale } from 'xforge-common/models/i18n-locale';
 import { Snapshot } from 'xforge-common/models/snapshot';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
@@ -56,27 +57,57 @@ describe('EditorHistoryComponent', () => {
     mockHistoryChooserComponent.showDiffChange = showDiffChange$ as EventEmitter<boolean>;
   });
 
-  it('should clear loadedRevision and emit revisionSelect on ngOnChanges', () => {
+  it('should clear loadedRevision and emit revisionSelect on chapter change', () => {
     component.loadedRevision = {} as Revision;
     component.isViewInitialized = true;
     spyOn(component.revisionSelect, 'emit');
 
-    component.ngOnChanges();
+    component.ngOnChanges({ chapter: { currentValue: 2 } as SimpleChange });
 
     expect(component.loadedRevision).toBeUndefined();
     expect(component.revisionSelect.emit).toHaveBeenCalledWith(undefined);
   });
 
-  it('should not emit revisionSelect on ngOnChanges when isViewInitialized is false', () => {
+  it('should not emit revisionSelect on chapter change when isViewInitialized is false', () => {
     component.loadedRevision = {} as Revision;
     component.isViewInitialized = false;
     spyOn(component.revisionSelect, 'emit');
 
-    component.ngOnChanges();
+    component.ngOnChanges({ chapter: { currentValue: 2 } as SimpleChange });
 
     expect(component.loadedRevision).toBeUndefined();
     expect(component.revisionSelect.emit).not.toHaveBeenCalled();
   });
+
+  it('should keep the loaded revision when an input other than the book or chapter changes', () => {
+    const revision = {} as Revision;
+    component.loadedRevision = revision;
+    component.isViewInitialized = true;
+    spyOn(component.revisionSelect, 'emit');
+
+    component.ngOnChanges({ fontSize: { currentValue: '1.2rem' } as SimpleChange });
+
+    expect(component.loadedRevision).toBe(revision);
+    expect(component.revisionSelect.emit).not.toHaveBeenCalled();
+  });
+
+  it('should only emit revisionSelect when the locale changes, not for the current locale', fakeAsync(() => {
+    const locale$ = new BehaviorSubject<Locale>({} as Locale);
+    when(mockI18nService.locale$).thenReturn(locale$);
+    spyOn(component.revisionSelect, 'emit');
+
+    component.ngOnInit();
+    tick();
+
+    // Emitting here would clear the revision the tab was created with
+    expect(component.revisionSelect.emit).not.toHaveBeenCalled();
+
+    component.loadedRevision = { timestamp: 'date_here' };
+    locale$.next({} as Locale);
+    tick();
+
+    expect(component.revisionSelect.emit).toHaveBeenCalledWith(component.loadedRevision);
+  }));
 
   it('should load the project document when the project id is set', fakeAsync(() => {
     const testProjectId = 'test_project_id';

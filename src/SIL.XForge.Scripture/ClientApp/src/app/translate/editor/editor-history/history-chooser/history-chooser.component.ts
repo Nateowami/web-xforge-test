@@ -94,6 +94,9 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
 
   @Input() bookNum?: number;
   @Input() chapter?: number;
+
+  /** The timestamp of the revision to select when the history loads. Defaults to the most recent revision. */
+  @Input() selectedRevisionTimestamp?: string;
   @Input() showDiff = true;
   @Output() showDiffChange = new EventEmitter<boolean>();
   @Output() revisionSelect = new EventEmitter<RevisionSelectEvent>();
@@ -172,7 +175,10 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
       this.bookId = Canon.bookNumberToId(changes.bookNum.currentValue, '');
     }
 
-    this.inputChanged$.next();
+    // Only reload the history when the text being viewed changes
+    if (changes.projectId || changes.bookNum || changes.chapter) {
+      this.inputChanged$.next();
+    }
   }
 
   ngAfterViewInit(): void {
@@ -204,7 +210,13 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
             (await this.paratextService.getRevisions(this.projectId, this.bookId, this.chapter)) ?? [];
 
           if (this.historyRevisions.length > 0) {
-            await this.selectRevision(this.historyRevisions[0]);
+            // Restore the previously selected revision, if it is still available. This component is recreated when
+            // its tab is moved to another tab group, and the selection would otherwise be lost.
+            const restoredRevision: Revision | undefined =
+              this.selectedRevision == null
+                ? this.historyRevisions.find(r => r.timestamp === this.selectedRevisionTimestamp)
+                : undefined;
+            await this.selectRevision(restoredRevision ?? this.historyRevisions[0]);
           }
         }
       } finally {

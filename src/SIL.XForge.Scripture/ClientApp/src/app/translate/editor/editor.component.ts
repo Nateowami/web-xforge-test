@@ -1123,6 +1123,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   async onHistoryTabRevisionSelect(tab: EditorTabInfo, revision: Revision | undefined): Promise<void> {
+    // Remember the selection so it can be restored if the tab is moved to the other tab group, which recreates the
+    // history component
+    tab.selectedRevisionTimestamp = revision?.timestamp;
+
     if (revision != null) {
       const separator: string = this.i18n.isRtl ? `${RIGHT_TO_LEFT_MARK} - ` : ' - ';
       tab.headerText$ = of(

@@ -69,6 +69,24 @@ describe('HistoryChooserComponent', () => {
     expect(env.historySelect.hidden).toBeFalsy();
   }));
 
+  it('should select the previously selected revision on load', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.withRevisions(['newer_date', 'older_date']);
+    env.component.selectedRevisionTimestamp = 'older_date';
+    env.triggerNgOnChanges();
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('older_date');
+  }));
+
+  it('should select the most recent revision on load if the previous selection is gone', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.withRevisions(['newer_date', 'older_date']);
+    env.component.selectedRevisionTimestamp = 'deleted_date';
+    env.triggerNgOnChanges();
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('newer_date');
+  }));
+
   it('should not fetch revisions on load if offline', fakeAsync(() => {
     const env = new TestEnvironment();
     env.testOnlineStatusService.setIsOnline(false);
@@ -284,6 +302,22 @@ describe('HistoryChooserComponent', () => {
         this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, 'project01')
       );
       when(mockedTextDocService.canRestore(anything(), 40, 1)).thenReturn(true);
+    }
+
+    /** Replaces the revisions returned for MAT 1, most recent first. */
+    withRevisions(timestamps: string[]): void {
+      when(mockedParatextService.getRevisions('project01', 'MAT', 1)).thenResolve(
+        timestamps.map(t => ({ timestamp: t }))
+      );
+      for (const timestamp of timestamps) {
+        when(mockedParatextService.getSnapshot('project01', 'MAT', 1, timestamp)).thenResolve({
+          data: { ops: [] },
+          id: 'id',
+          type: '',
+          v: 1,
+          isValid: this.isSnapshotValid
+        });
+      }
     }
 
     get historySelect(): HTMLElement {
