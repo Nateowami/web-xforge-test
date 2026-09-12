@@ -101,12 +101,53 @@ describe('TextViewModel', () => {
     });
   });
 
+  describe('dataDeltaToEditorDelta', () => {
+    it('should keep the attributes of an inserted paragraph', () => {
+      const env = new TestEnvironment();
+      env.setupBasicContent();
+      env.setupFormatAtPosition(5);
+
+      // a remote change that inserts a new paragraph, as applying a draft or syncing does
+      const dataDelta = new Delta([
+        { retain: 5 },
+        { insert: 'A remark', attributes: { segment: 'rem_1' } },
+        { insert: '\n', attributes: { para: { style: 'rem' } } }
+      ]);
+
+      const result: Delta = env.textViewModel.dataDeltaToEditorDelta(dataDelta);
+
+      expect(result.ops.length).toEqual(3);
+      // the segment and paragraph style the op specifies win over the ones at the insertion point
+      expect(result.ops[1].attributes).toEqual({ para: { style: 'h' }, segment: 'rem_1', 'para-contents': true });
+      expect(result.ops[2].attributes).toEqual({ para: { style: 'rem' }, segment: 'h_1', 'para-contents': true });
+    });
+
+    it('should format an insert without attributes with the attributes at the insertion point', () => {
+      const env = new TestEnvironment();
+      env.setupBasicContent();
+      env.setupFormatAtPosition(5);
+
+      // text a remote user typed into an existing segment comes with no attributes of its own
+      const dataDelta = new Delta([{ retain: 5 }, { insert: 'more text' }]);
+
+      const result: Delta = env.textViewModel.dataDeltaToEditorDelta(dataDelta);
+
+      expect(result.ops[1].attributes).toEqual({ para: { style: 'h' }, segment: 'h_1', 'para-contents': true });
+    });
+  });
+
   class TestEnvironment {
     readonly textViewModel: TextViewModel;
 
     constructor() {
       this.textViewModel = TestBed.inject(TextViewModel);
       this.textViewModel.editor = instance(mockQuill);
+    }
+
+    /** The formatting the editor reports at editorPosition, i.e. that of the text an insert lands before. */
+    setupFormatAtPosition(editorPosition: number): void {
+      when(mockQuill.getFormat(editorPosition)).thenCall(() => ({ para: { style: 'h' } }));
+      when(mockQuill.getFormat(editorPosition, 1)).thenCall(() => ({ segment: 'h_1', 'para-contents': true }));
     }
 
     setupBasicContent(): void {

@@ -962,7 +962,13 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
         }
         previousOp = 'delete';
       } else if (cloneOp.insert != null) {
-        cloneOp.attributes = getAttributesAtPosition(this.checkEditor(), editorStartPos);
+        // Text inserted into an existing segment carries no attributes of its own, so take the formatting from the
+        // insertion point. Attributes the op does specify (a new segment, or a paragraph style for an inserted
+        // paragraph) must win, otherwise the insert adopts the formatting of the text it was inserted before.
+        cloneOp.attributes = {
+          ...getAttributesAtPosition(this.checkEditor(), editorStartPos),
+          ...cloneOp.attributes
+        };
         previousOp = 'insert';
       }
       (adjustedDelta as any).push(cloneOp);
