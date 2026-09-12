@@ -346,6 +346,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   private toggleNoteThreadSub?: Subscription;
   private shouldNoteThreadsRespondToEdits: boolean = false;
   private commenterSelectedVerseRef?: VerseRef;
+  /** The verse the note currently being typed into the mobile bottom sheet will be attached to. */
+  private mobileNoteVerseRef?: VerseRef;
   private resizeObserver?: ResizeObserver;
   private scrollSubscription?: Subscription;
   private tabStateInitialized$ = new BehaviorSubject<boolean>(false);
@@ -551,11 +553,29 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   get currentSegmentReference(): string {
-    const verseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
+    // while a note is being added, show the verse it will be attached to
+    const verseRef: VerseRef | undefined = this.addingMobileNote
+      ? this.mobileNoteVerseRef
+      : this.commenterSelectedVerseRef;
     if (verseRef == null) {
       return '';
     }
     return this.i18n.localizeReference(verseRef);
+  }
+
+  /**
+   * The verse a new note will be attached to: the selected verse, or the first verse of the chapter if no verse is
+   * selected.
+   */
+  private get noteTargetVerseRef(): VerseRef | undefined {
+    if (this.commenterSelectedVerseRef != null) {
+      return this.commenterSelectedVerseRef;
+    }
+    const defaultSegmentRef: string | undefined = this.target?.firstVerseSegment;
+    if (this.bookNum == null || defaultSegmentRef == null) {
+      return undefined;
+    }
+    return getVerseRefFromSegmentRef(this.bookNum, defaultSegmentRef);
   }
 
   get direction(): LocaleDirection {
@@ -1259,15 +1279,11 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       this.noticeService.show(this.i18n.translateStatic('editor.navigate_to_a_valid_text'));
       return;
     }
-    let verseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
-    if (verseRef == null) {
-      const defaultSegmentRef: string | undefined = this.target.firstVerseSegment;
-      if (defaultSegmentRef == null) return;
-      verseRef = getVerseRefFromSegmentRef(this.bookNum, defaultSegmentRef);
-    }
+    const verseRef: VerseRef | undefined = this.noteTargetVerseRef;
+    if (verseRef == null) return;
     // Mobile users can use the bottom sheet to add new notes
     if (this.breakpointObserver.isMatched(this.mediaBreakpointService.width('<', Breakpoint.LG))) {
-      this.toggleAddingMobileNote();
+      this.toggleAddingMobileNote(verseRef);
       this.setNoteFabVisibility('hidden');
       this.bottomSheetRef = this.bottomSheet.open(this.TemplateBottomSheet, { hasBackdrop: false });
     } else {
@@ -1286,9 +1302,11 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     }
   }
 
-  toggleAddingMobileNote(): void {
+  toggleAddingMobileNote(verseRef?: VerseRef): void {
     this.addingMobileNote = !this.addingMobileNote;
     if (this.addingMobileNote) {
+      // remember the verse the note is being added to, as the verse selection can be lost while the note is typed
+      this.mobileNoteVerseRef = verseRef ?? this.noteTargetVerseRef;
       this.mobileNoteControl.reset();
       // On-screen keyboards appearing can interfere with the resize height logic which then changes the focus
       // Waiting for 100ms was found to be a good amount of time for that to be resolved
@@ -1300,11 +1318,11 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   async saveMobileNote(): Promise<void> {
-    if (!this.mobileNoteControl.valid || this.projectId == null || this.commenterSelectedVerseRef == null) {
+    if (!this.mobileNoteControl.valid || this.projectId == null || this.mobileNoteVerseRef == null) {
       return;
     }
 
-    await this.saveNote({ content: this.mobileNoteControl.value, verseRef: this.commenterSelectedVerseRef });
+    await this.saveNote({ content: this.mobileNoteControl.value, verseRef: this.mobileNoteVerseRef });
     this.addingMobileNote = false;
     this.bottomSheetRef?.dismiss();
     this.toggleNoteThreadVerseRefs$.next();
@@ -1736,7 +1754,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       data: noteDialogData
     });
 
-    const currentVerseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
+    // a new note belongs to the verse the dialog was opened for, which can differ from the verse selected by the
+    // time the dialog is closed
+    const currentVerseRef: VerseRef | undefined = verseRef ?? this.commenterSelectedVerseRef;
     this.setNoteFabVisibility('hidden');
     const result: NoteDialogResult | undefined = await lastValueFrom(dialogRef.afterClosed());
 

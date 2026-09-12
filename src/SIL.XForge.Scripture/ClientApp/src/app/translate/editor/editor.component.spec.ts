@@ -3210,6 +3210,63 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('creates the note on the verse shown in the dialog when no verse is selected', fakeAsync(() => {
+      const projectId: string = 'project01';
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+
+      // moving the cursor out of the verses clears the verse selection, which the FAB survives, as it is shown
+      // again whenever a note dialog is closed
+      env.clickSegmentRef('verse_1_2');
+      env.clickSegmentRef('p_1');
+
+      env.insertNoteFab.nativeElement.click();
+      env.wait();
+      const [, config] = capture(mockedMatDialog.open).last();
+      const dialogVerseRef: VerseRef = (config as MatDialogConfig).data!.verseRef;
+      expect(dialogVerseRef.toString()).toEqual('MAT 1:1');
+
+      const content: string = 'note added with no verse selected';
+      env.mockNoteDialogRef.close({ noteContent: content });
+      env.wait();
+      verify(mockedSFProjectService.createNoteThread(projectId, anything())).once();
+      const [, noteThread] = capture(mockedSFProjectService.createNoteThread).last();
+      expect(noteThread.verseRef).toEqual(fromVerseRef(dialogVerseRef));
+      expect(noteThread.notes[0].content).toEqual(content);
+      env.dispose();
+    }));
+
+    it('saves the mobile note and closes the bottom sheet when no verse is selected', fakeAsync(() => {
+      const projectId: string = 'project01';
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+
+      // Allow check for mobile viewports to return TRUE
+      env.breakpointObserver.matchedResult = true;
+      // moving the cursor out of the verses clears the verse selection
+      env.clickSegmentRef('verse_1_2');
+      env.clickSegmentRef('p_1');
+
+      env.insertNoteFab.nativeElement.click();
+      env.wait();
+      expect(env.mobileNoteTextArea).toBeTruthy();
+      expect(env.bottomSheetVerseReference?.textContent).toEqual('Matthew 1:1');
+
+      const content: string = 'mobile note added with no verse selected';
+      env.component.mobileNoteControl.setValue(content);
+      env.saveMobileNoteButton!.click();
+      env.wait();
+      verify(mockedSFProjectService.createNoteThread(projectId, anything())).once();
+      const [, noteThread] = capture(mockedSFProjectService.createNoteThread).last();
+      expect(noteThread.verseRef).toEqual(fromVerseRef(new VerseRef('MAT 1:1')));
+      expect(noteThread.notes[0].content).toEqual(content);
+      // the bottom sheet closes once the note is saved
+      expect(env.mobileNoteTextArea).toBeNull();
+      env.dispose();
+    }));
+
     it('allows adding a note to an existing thread', fakeAsync(() => {
       const projectId: string = 'project01';
       const threadDataId: string = 'dataid04';
