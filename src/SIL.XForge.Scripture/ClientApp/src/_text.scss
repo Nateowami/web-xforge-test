@@ -110,10 +110,6 @@ quill-editor {
       color: var(--sf-quill-delete-segment-color);
       padding: 0;
       text-decoration: line-through;
-
-      usx-note[data-caller='+']:not([data-style='x']) > span::before {
-        counter-increment: none;
-      }
     }
 
     .question-segment,
