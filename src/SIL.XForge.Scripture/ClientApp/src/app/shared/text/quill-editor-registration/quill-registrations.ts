@@ -1,11 +1,11 @@
 import { Attributor } from 'parchment';
 import Quill from 'quill';
-import QuillCursors from 'quill-cursors';
 import QuillInlineBlot from 'quill/blots/inline';
 import QuillScrollBlot from 'quill/blots/scroll';
 import { DragAndDrop } from '../drag-and-drop';
 import { SelectAll } from '../select-all';
 import { DisableHtmlClipboard } from './quill-clipboard';
+import { FixBidiCaretCursors } from './quill-cursors';
 import { FormattableBlotClass, QuillFormatRegistryService } from './quill-format-registry.service';
 import {
   CheckingQuestionCountAttribute,
@@ -102,7 +102,7 @@ export function registerScriptureFormats(formatRegistry: QuillFormatRegistryServ
   Quill.register('blots/scroll', ScrollBlot, true);
   Quill.register('blots/text', NotNormalizedText, true);
   Quill.register('modules/clipboard', DisableHtmlClipboard, true);
-  Quill.register('modules/cursors', QuillCursors, true);
+  Quill.register('modules/cursors', FixBidiCaretCursors, true);
   Quill.register('modules/history', FixSelectionHistory, true);
   Quill.register('modules/dragAndDrop', DragAndDrop, true);
   Quill.register('modules/selectAll', SelectAll, true);

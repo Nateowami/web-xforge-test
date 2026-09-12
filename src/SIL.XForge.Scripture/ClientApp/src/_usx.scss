@@ -398,7 +398,9 @@ usx-chapter {
 
 usx-verse {
   user-select: none;
-  unicode-bidi: embed;
+  // A verse number is digits, and so is some verse text. Isolate keeps the two from being reordered
+  // into a single left-to-right run in right-to-left text, which puts them on each other's side.
+  unicode-bidi: isolate;
   > span > span > span {
     // superscript
     top: -0.5em;

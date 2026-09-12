@@ -1,10 +1,10 @@
 import { TestBed } from '@angular/core/testing';
 import Quill from 'quill';
-import QuillCursors from 'quill-cursors';
 import QuillInlineBlot from 'quill/blots/inline';
 import QuillScrollBlot from 'quill/blots/scroll';
 import { DragAndDrop } from '../drag-and-drop';
 import { DisableHtmlClipboard } from './quill-clipboard';
+import { FixBidiCaretCursors } from './quill-cursors';
 import { QuillFormatRegistryService } from './quill-format-registry.service';
 import { ChapterEmbed, NotNormalizedText, ParaBlock, ScrollBlot } from './quill-formats/quill-blots';
 import { FixSelectionHistory } from './quill-history';
@@ -75,7 +75,7 @@ describe('QuillRegistrations', () => {
     expect(quillRegisterSpy).toHaveBeenCalledWith('blots/scroll', ScrollBlot, true);
     expect(quillRegisterSpy).toHaveBeenCalledWith('blots/text', NotNormalizedText, true);
     expect(quillRegisterSpy).toHaveBeenCalledWith('modules/clipboard', DisableHtmlClipboard, true);
-    expect(quillRegisterSpy).toHaveBeenCalledWith('modules/cursors', QuillCursors, true);
+    expect(quillRegisterSpy).toHaveBeenCalledWith('modules/cursors', FixBidiCaretCursors, true);
     expect(quillRegisterSpy).toHaveBeenCalledWith('modules/history', FixSelectionHistory, true);
     expect(quillRegisterSpy).toHaveBeenCalledWith('modules/dragAndDrop', DragAndDrop, true);
   });
