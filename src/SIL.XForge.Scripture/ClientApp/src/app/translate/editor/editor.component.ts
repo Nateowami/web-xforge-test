@@ -1166,7 +1166,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       return;
     }
 
-    const verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(this.bookNum, segmentRef);
+    const verseRef: VerseRef | undefined = this.getVerseForSegmentRef(segmentRef);
     if (verseRef == null) {
       this._verse = '0';
       return;
@@ -2407,7 +2407,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       this.target.segment.bookNum === this.bookNum &&
       this.target.segment.chapter === this.chapter
     ) {
-      const verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(this.bookNum, this.target.segment.ref);
+      const verseRef: VerseRef | undefined = this.getVerseForSegmentRef(this.target.segment.ref);
       if (verseRef != null) {
         this._verse = verseRef.verse;
         return;
@@ -2416,6 +2416,37 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
 
     // Default to no verse selected
     this._verse = '0';
+  }
+
+  /**
+   * Gets the verse that a segment belongs to. Paratext treats a segment that is not verse text, such as a section
+   * heading, as belonging to the preceding verse, so look back through the chapter for a verse segment, and only look
+   * forward if the segment comes before the first verse in the chapter.
+   */
+  private getVerseForSegmentRef(segmentRef: string): VerseRef | undefined {
+    if (this.bookNum == null) {
+      return undefined;
+    }
+    return (
+      getVerseRefFromSegmentRef(this.bookNum, segmentRef) ??
+      this.getAdjacentVerse(segmentRef, 'prev') ??
+      this.getAdjacentVerse(segmentRef, 'next')
+    );
+  }
+
+  /** Gets the verse of the nearest verse segment before or after the specified segment in the chapter. */
+  private getAdjacentVerse(segmentRef: string, direction: 'prev' | 'next'): VerseRef | undefined {
+    let ref: string | undefined = segmentRef;
+    while (ref != null) {
+      ref = direction === 'prev' ? this.target?.getPrevSegmentRef(ref) : this.target?.getNextSegmentRef(ref);
+      if (ref != null) {
+        const verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(this.bookNum!, ref);
+        if (verseRef != null) {
+          return verseRef;
+        }
+      }
+    }
+    return undefined;
   }
 
   /** Determine the number of embeds that are within an anchoring.

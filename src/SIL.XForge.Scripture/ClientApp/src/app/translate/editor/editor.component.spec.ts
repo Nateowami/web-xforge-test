@@ -4004,6 +4004,44 @@ describe('EditorComponent', () => {
     env.dispose();
   }));
 
+  describe('current verse', () => {
+    it('is the verse of the selected segment', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      env.clickSegmentRef('verse_1_2-3');
+
+      expect(env.component.verse).toEqual('2-3');
+      env.dispose();
+    }));
+
+    it('is the preceding verse when a section heading is selected', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      env.clickSegmentRef('s_2');
+
+      expect(env.component.verse).toEqual('2-3');
+      env.dispose();
+    }));
+
+    it('is the following verse when a section heading precedes the first verse', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      env.clickSegmentRef('s_1');
+
+      expect(env.component.verse).toEqual('1');
+      env.dispose();
+    }));
+  });
+
   describe('tabs', () => {
     describe('blank tab', () => {
       it('should add a blank tab when no source', fakeAsync(() => {
