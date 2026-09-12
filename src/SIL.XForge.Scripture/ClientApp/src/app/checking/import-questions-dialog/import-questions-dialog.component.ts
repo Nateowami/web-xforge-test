@@ -331,7 +331,11 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
       // add more list items if the user has scrolled to within 1000 pixels of the bottom of the list
       if (element.scrollHeight <= element.scrollTop + element.clientHeight + 1000) {
         const list = this.status === 'file_import_errors' ? this.invalidRows : this.filteredList;
-        this.maxListItemsToDisplay = Math.min(list.length, this.maxListItemsToDisplay + 25);
+        // only ever raise the limit; lowering it to the length of a filtered list would leave items hidden after
+        // the filter is cleared again
+        if (list.length > this.maxListItemsToDisplay) {
+          this.maxListItemsToDisplay = Math.min(list.length, this.maxListItemsToDisplay + 25);
+        }
       }
     }
   }

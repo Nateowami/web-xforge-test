@@ -512,6 +512,26 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('still shows questions after scrolling while the filter matches nothing', fakeAsync(() => {
+    const questions: TransceleratorQuestion[] = Array.from(Array(200), (_, i) => ({
+      book: 'MAT',
+      startChapter: '1',
+      startVerse: i + 1 + '',
+      text: 'Question for verse ' + (i + 1),
+      id: 'id_' + (i + 1)
+    }));
+    const env = new TestEnvironment({ transceleratorQuestions: questions });
+    env.click(env.importFromTransceleratorButton);
+    env.setControlValue(env.component.filterControl, 'no question contains this');
+    expect(env.tableRows.length).toBe(0);
+
+    // scrolling with nothing to show must not reduce the number of questions shown once the filter is cleared
+    env.scrollDialogContentBodyToBottom();
+    env.click(env.showAllButton);
+    expect(env.tableRows.length).toBe(100);
+    env.click(env.backButton);
+  }));
+
   it('does not try to load transcelerator questions when the user is online', fakeAsync(() => {
     const env = new TestEnvironment({ offline: true });
     expect(env.importFromTransceleratorButton.disabled).toBe(true);
