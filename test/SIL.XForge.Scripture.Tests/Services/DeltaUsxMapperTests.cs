@@ -2396,7 +2396,10 @@ public class DeltaUsxMapperTests
                     .InsertChar("Mark 1:1", "xt", _testGuidService.Generate()),
                 "f",
                 "+",
-                "verse_1_1"
+                "verse_1_1",
+                // The note itself is marked invalid so that the invalid char inside it,
+                // which is only visible when the note is opened, is flagged in the editor
+                invalid: true
             )
             .InsertText(", so that we can test it.", "verse_1_1")
             .InsertPara("p");
@@ -3014,7 +3017,8 @@ public class DeltaUsxMapperTests
                     .Insert("."),
                 "f",
                 "+",
-                "verse_1_1"
+                "verse_1_1",
+                invalid: true
             )
             .InsertText(", so that we can test it.", "verse_1_1")
             .InsertPara("p");

@@ -478,11 +478,13 @@ public partial class DeltaUsxMapper(
         {
             obj.Add(new JProperty("contents", new JObject(new JProperty("ops", new JArray(contents.Ops)))));
         }
+        // An embed's contents are not rendered inline (a note's contents only appear in its tooltip and dialog), so
+        // if anything inside it is invalid, mark the embed itself as invalid to make the problem visible.
         newDelta.InsertEmbed(
             elem.Name.LocalName,
             obj,
             curRef,
-            AddInvalidInlineAttribute(invalidNodes, elem, attributes)
+            AddInvalidInlineAttribute(invalidNodes, elem, attributes, includeDescendants: true)
         );
     }
 
@@ -549,10 +551,18 @@ public partial class DeltaUsxMapper(
     private static JObject? AddInvalidInlineAttribute(
         HashSet<XNode> invalidNodes,
         XNode node,
-        JObject? attributes = null
+        JObject? attributes = null,
+        bool includeDescendants = false
     )
     {
-        if (invalidNodes.Contains(node))
+        bool isInvalid =
+            invalidNodes.Contains(node)
+            || (
+                includeDescendants
+                && node is XContainer container
+                && container.DescendantNodes().Any(invalidNodes.Contains)
+            );
+        if (isInvalid)
         {
             attributes = (JObject)attributes?.DeepClone() ?? [];
             attributes["invalid-inline"] = true;
