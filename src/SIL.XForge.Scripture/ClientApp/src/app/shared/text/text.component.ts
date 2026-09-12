@@ -1683,7 +1683,13 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
     if (this._segment != null && this._id.bookNum === this._segment.bookNum && segmentRef === this._segment.ref) {
       if (focus) {
-        this._editor.focus();
+        // Quill's focus() is not used here, because it restores the selection that was saved for the text that was
+        // loaded before. If a different text has been loaded since, that selection gets clamped to the end of the new
+        // text, which puts the cursor, and with it the segment highlight, on the last verse.
+        const index: number | undefined = this.getFocusIndex(segmentRef, end);
+        if (index != null) {
+          this._editor.setSelection(index, 0, 'user');
+        }
       }
       // the selection has not changed to a different segment
       return false;
@@ -1721,18 +1727,10 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     }
 
     if (focus) {
-      const selection = this._editor.getSelection();
-      const selectedSegmentRef = selection == null ? null : this.viewModel.getSegmentRef(selection, this.segmentRef);
-      if (selectedSegmentRef !== segmentRef) {
-        const range = this.viewModel.getSegmentRange(segmentRef);
-        if (range != null) {
-          // setTimeout seems necessary to ensure that the editor is focused
-          setTimeout(() => {
-            if (this._editor != null) {
-              this._editor.setSelection(end ? range.index + range.length : range.index, 0, 'user');
-            }
-          });
-        }
+      const index: number | undefined = this.getFocusIndex(segmentRef, end);
+      if (index != null) {
+        // setTimeout seems necessary to ensure that the editor is focused
+        setTimeout(() => this._editor?.setSelection(index, 0, 'user'));
       }
     }
 
@@ -1761,6 +1759,23 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       }
     }
     return true;
+  }
+
+  /**
+   * The editor position to put the cursor at in order to select the specified segment, or undefined if the cursor does
+   * not need to move, or the segment is not part of the text that is currently loaded.
+   */
+  private getFocusIndex(segmentRef: string, end: boolean): number | undefined {
+    const selection = this._editor?.getSelection();
+    const selectedSegmentRef = selection == null ? null : this.viewModel.getSegmentRef(selection, this.segmentRef);
+    if (selectedSegmentRef === segmentRef) {
+      return undefined;
+    }
+    const range: Range | undefined = this.viewModel.getSegmentRange(segmentRef);
+    if (range == null) {
+      return undefined;
+    }
+    return end ? range.index + range.length : range.index;
   }
 
   private updateSegment(): void {
