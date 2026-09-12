@@ -416,6 +416,39 @@ describe('TextComponent', () => {
     expect(segmentText).toEqual('Poetry third line');
   }));
 
+  it('labels verse segments in a paragraph that cannot contain verse text', fakeAsync(() => {
+    // Paratext can produce invalid USFM where a verse marker sits inside a section heading. The verses still
+    // need segments, otherwise note icons in them cannot be placed.
+    const chapterNum = 2;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { blank: true }, attributes: { segment: 'p_1' } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'quick brown fox', attributes: { segment: `verse_${chapterNum}_1` } },
+      { insert: '\n', attributes: { para: { style: 'p' } } },
+      { insert: 'Section heading', attributes: { segment: 's_1' } },
+      { insert: { verse: { number: '2', style: 'v' } } },
+      { insert: 'jumped over', attributes: { segment: `verse_${chapterNum}_2` } },
+      { insert: '\n', attributes: { para: { style: 's' }, 'invalid-block': true } }
+    ];
+
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+
+    expect(env.component.getSegmentRange(`verse_${chapterNum}_2`)).toBeDefined();
+    expect(env.component.getVerseSegments(new VerseRef(`MAT ${chapterNum}:2`))).toContain(`verse_${chapterNum}_2`);
+
+    const embedSegment: string | undefined = env.component.embedElementInline(
+      new VerseRef(`MAT ${chapterNum}:2`),
+      'thread01',
+      SFProjectRole.ParatextTranslator,
+      { start: 0, length: 0 },
+      'note-thread-embed',
+      { threadid: 'thread01' }
+    );
+    expect(embedSegment).toEqual(`verse_${chapterNum}_2`);
+  }));
+
   it('can undo when segment is blank', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();

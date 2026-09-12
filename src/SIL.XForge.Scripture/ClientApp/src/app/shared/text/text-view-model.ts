@@ -679,7 +679,11 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
       const len = typeof op.insert === 'string' ? op.insert.length : 1;
       if (op.insert === '\n' || op.attributes?.para != null || op.attributes?.book != null) {
         const style: string | null = (op.attributes?.para ?? (op.attributes?.book as any))?.style;
-        if (style == null || canParaContainVerseText(style)) {
+        // A paragraph whose style cannot contain verse text but that does contain verses is invalid USFM,
+        // e.g. a verse marker inside a section heading. Index its segments as if it were a verse paragraph,
+        // so that the verses within it can still be located.
+        const containsVerses: boolean = paraSegments.length > 0;
+        if (style == null || canParaContainVerseText(style) || containsVerses) {
           // paragraph
           for (const _ch of op.insert as any) {
             if (curSegment != null) {
