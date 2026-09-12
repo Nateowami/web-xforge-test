@@ -380,7 +380,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
 
   openScriptureChooser(control: AbstractControl): void {
     const dialogConfig: MatDialogConfig<ScriptureChooserDialogData> = {
-      data: { booksAndChaptersToShow: this.data.textsByBookId }
+      data: { booksAndChaptersToShow: this.data.textsByBookId, projectId: this.data.projectId }
     };
 
     const dialogRef = this.dialogService.openMatDialog(ScriptureChooserDialogComponent, dialogConfig) as MatDialogRef<

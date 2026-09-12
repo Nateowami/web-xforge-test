@@ -81,6 +81,36 @@ export class TextDoc extends RealtimeDoc<TextData, TextData, Range> {
     return { translated, blank };
   }
 
+  /**
+   * Gets the numbers of the verses that exist in this chapter, in ascending order. Verses that the text skips (e.g. a
+   * chapter that goes from verse 10 to verse 12) are not included, while a bridged verse (e.g. `10-12`) contributes
+   * every verse it spans.
+   */
+  getVerseNumbers(): number[] {
+    const verseNums = new Set<number>();
+    for (const op of this.data?.ops ?? []) {
+      const segmentRef = op.attributes?.segment;
+      if (typeof segmentRef !== 'string') {
+        continue;
+      }
+      const verseStr: string | undefined = getVerseStrFromSegmentRef(segmentRef);
+      if (verseStr == null) {
+        continue;
+      }
+      for (const part of verseStr.split(',')) {
+        // A part is a single verse ('10', '10a') or a bridge ('10-12')
+        const [first, last] = part.split('-').map(verse => parseInt(verse, 10));
+        if (isNaN(first)) {
+          continue;
+        }
+        for (let verseNum = first; verseNum <= (isNaN(last) ? first : last); verseNum++) {
+          verseNums.add(verseNum);
+        }
+      }
+    }
+    return Array.from(verseNums).sort((a, b) => a - b);
+  }
+
   getNonEmptyVerses(): string[] {
     const verses: string[] = [];
     if (this.data != null && this.data.ops != null) {

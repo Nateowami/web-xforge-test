@@ -6,7 +6,9 @@ import { MatIcon } from '@angular/material/icon';
 import { TranslocoModule } from '@ngneat/transloco';
 import { Canon, VerseRef } from '@sillsdev/scripture';
 import { I18nService } from 'xforge-common/i18n.service';
+import { TextDocId } from '../core/models/text-doc';
 import { TextsByBookId } from '../core/models/texts-by-book-id';
+import { SFProjectService } from '../core/sf-project.service';
 
 export interface ScriptureChooserDialogData {
   /** Starting verse selection, to highlight */
@@ -26,6 +28,10 @@ export interface ScriptureChooserDialogData {
    *  wanting to return a book and chapter.
    */
   includeVerseSelection?: boolean;
+
+  /** Project whose chapter texts say which verses exist. Without it, every verse through the last
+   *  verse of a chapter is offered, including any that the text skips. */
+  projectId?: string;
 }
 
 /** Dialog to allow selection of a particular Scripture reference. */
@@ -47,9 +53,13 @@ export class ScriptureChooserDialogComponent implements OnInit {
   /** User's selection */
   selection: { book?: string; chapter?: string; verse?: string } = {};
 
+  /** Verses that exist in the chapter currently being shown, if they could be determined. */
+  private versesInChapter?: { bookId: string; chapter: number; verses: number[] };
+
   constructor(
     public dialogRef: MatDialogRef<ScriptureChooserDialogComponent>,
     readonly i18n: I18nService,
+    private readonly projectService: SFProjectService,
     @Inject(MAT_DIALOG_DATA) public data: ScriptureChooserDialogData
   ) {}
 
@@ -84,6 +94,7 @@ export class ScriptureChooserDialogComponent implements OnInit {
         if (chapter != null && rangeStart.verseNum <= chapter.lastVerse) {
           this.selection.book = this.data.rangeStart.book;
           this.selection.chapter = this.data.rangeStart.chapter;
+          void this.loadVersesInChapter(rangeStart.book, rangeStart.chapterNum);
           this.showRangeEndSelection();
         }
       }
@@ -110,11 +121,12 @@ export class ScriptureChooserDialogComponent implements OnInit {
     this.showChapterSelection();
   }
 
-  onClickChapter(chapter: number): void {
+  async onClickChapter(chapter: number): Promise<void> {
     this.selection.chapter = chapter.toString();
     if (this.data.includeVerseSelection === false) {
       this.dialogRef.close(new VerseRef(this.selection.book!, this.selection.chapter!, ''));
     } else {
+      await this.loadVersesInChapter(this.selection.book!, chapter);
       this.showVerseSelection();
     }
   }
@@ -161,7 +173,8 @@ export class ScriptureChooserDialogComponent implements OnInit {
     return this.data.booksAndChaptersToShow[bookId].chapters.map(chapter => chapter.number);
   }
 
-  /** Returns an array of all verses in a chapter.*/
+  /** Returns the verses of a chapter that can be selected: the verses its text contains, or, when that text is not
+   * available, every verse through the last verse of the chapter. */
   versesOf(bookId: string | undefined, chapter: string | undefined, startingWithVerse?: number): number[] | undefined {
     if (!bookId || !chapter) {
       return undefined;
@@ -171,12 +184,34 @@ export class ScriptureChooserDialogComponent implements OnInit {
     if (chapterInfo == null) {
       return undefined;
     }
-    // Array of [1, 2, ... , lastVerse]
-    let verses = Array.from([...Array(chapterInfo.lastVerse + 1).keys()]).slice(1);
+    let verses: number[];
+    if (this.versesInChapter?.bookId === bookId && this.versesInChapter.chapter === +chapter) {
+      verses = this.versesInChapter.verses;
+    } else {
+      // The verses in the chapter are unknown, so offer all of them: [1, 2, ... , lastVerse]
+      verses = Array.from([...Array(chapterInfo.lastVerse + 1).keys()]).slice(1);
+    }
     if (startingWithVerse != null) {
-      verses = verses.slice(startingWithVerse - 1);
+      verses = verses.filter(verse => verse >= startingWithVerse);
     }
     return verses;
+  }
+
+  /** Records which verses exist in a chapter, so that verses the text skips are not offered. */
+  private async loadVersesInChapter(bookId: string, chapter: number): Promise<void> {
+    this.versesInChapter = undefined;
+    if (this.data.projectId == null) {
+      return;
+    }
+    const textDocId = new TextDocId(this.data.projectId, Canon.bookIdToNumber(bookId), chapter);
+    // The chapter text may not be available, such as when offline and it has not been cached
+    const verses = await this.projectService
+      .getText(textDocId)
+      .then(textDoc => textDoc.getVerseNumbers())
+      .catch(() => []);
+    if (verses.length > 0) {
+      this.versesInChapter = { bookId, chapter, verses };
+    }
   }
 
   getBookName(bookId: string | undefined): string {

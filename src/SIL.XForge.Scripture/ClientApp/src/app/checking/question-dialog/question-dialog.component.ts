@@ -236,7 +236,12 @@ export class QuestionDialogComponent implements OnInit {
     }
 
     const dialogConfig: MatDialogConfig<ScriptureChooserDialogData> = {
-      data: { input: currentVerseSelection, booksAndChaptersToShow: this.data.textsByBookId, rangeStart }
+      data: {
+        input: currentVerseSelection,
+        booksAndChaptersToShow: this.data.textsByBookId,
+        rangeStart,
+        projectId: this.data.projectId
+      }
     };
 
     const dialogRef = this.dialogService.openMatDialog(ScriptureChooserDialogComponent, dialogConfig) as MatDialogRef<

@@ -5,15 +5,31 @@ import { ComponentFixture, fakeAsync, flush, TestBed } from '@angular/core/testi
 import { MatDialog, MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
 import { Canon, VerseRef } from '@sillsdev/scripture';
+import { Delta } from 'quill';
+import { getTextDocId, TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
+import * as RichText from 'rich-text';
+import { anything, mock, when } from 'ts-mockito';
+import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
+import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { ChildViewContainerComponent, configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
+import { TextDoc, TextDocId } from '../core/models/text-doc';
 import { TextsByBookId } from '../core/models/texts-by-book-id';
+import { SF_TYPE_REGISTRY } from '../core/models/sf-type-registry';
+import { SFProjectService } from '../core/sf-project.service';
 import { ScriptureChooserDialogComponent, ScriptureChooserDialogData } from './scripture-chooser-dialog.component';
+
+const mockedProjectService = mock(SFProjectService);
 
 describe('ScriptureChooserDialog', () => {
   configureTestingModule(() => ({
     imports: [getTestTranslocoModule(), ScriptureChooserDialogComponent],
-    providers: [provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+    providers: [
+      provideHttpClient(withInterceptorsFromDi()),
+      provideHttpClientTesting(),
+      provideTestRealtime(SF_TYPE_REGISTRY),
+      { provide: SFProjectService, useMock: mockedProjectService }
+    ]
   }));
 
   let env: TestEnvironment;
@@ -396,15 +412,56 @@ describe('ScriptureChooserDialog', () => {
     expect(env.component.selection.chapter).toBeUndefined();
   }));
 
+  it('only offers the verses that exist in the chapter', fakeAsync(() => {
+    env = new TestEnvironment({ versesInChapters: { 'EPH:3': [1, 2, 3, 5] } });
+    env.click(env.bookEphesians);
+    env.click(env.chapter3);
+    expect(env.versesShown).toEqual([1, 2, 3, 5]);
+  }));
+
+  it('offers every verse of a bridge', fakeAsync(() => {
+    env = new TestEnvironment({ versesInChapters: { 'EPH:3': [1, '2-4', 5] } });
+    env.click(env.bookEphesians);
+    env.click(env.chapter3);
+    expect(env.versesShown).toEqual([1, 2, 3, 4, 5]);
+  }));
+
+  it('offers all verses through the last verse when the chapter text is unavailable', fakeAsync(() => {
+    env = new TestEnvironment();
+    env.click(env.bookEphesians);
+    env.click(env.chapter3);
+    expect(env.versesShown.length).toEqual(21);
+    expect(env.versesShown[20]).toEqual(21);
+  }));
+
+  it('end-selection chooser only offers the verses that exist in the chapter', fakeAsync(() => {
+    env = new TestEnvironment({
+      rangeStart: new VerseRef('EPH', '3', '3'),
+      versesInChapters: { 'EPH:3': [1, 2, 3, 5] }
+    });
+    flush();
+    env.fixture.detectChanges();
+    expect(env.versesShown).toEqual([3, 5]);
+  }));
+
   class TestEnvironment {
+    static readonly projectId = 'project01';
+
     fixture: ComponentFixture<ChildViewContainerComponent>;
     component: ScriptureChooserDialogComponent;
     dialogRef: MatDialogRef<ScriptureChooserDialogComponent>;
     dialogResult?: 'close' | VerseRef;
     closeIconName = 'close';
     backIconName = 'navigate_before';
+    readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
 
-    constructor(args?: { inputScriptureReference?: VerseRef; textsInProject?: TextInfo[]; rangeStart?: VerseRef }) {
+    constructor(args?: {
+      inputScriptureReference?: VerseRef;
+      textsInProject?: TextInfo[];
+      rangeStart?: VerseRef;
+      /** Verse numbers present in a chapter's text, keyed by book id and chapter, e.g. 'EPH:3' */
+      versesInChapters?: { [bookAndChapter: string]: (number | string)[] };
+    }) {
       this.fixture = TestBed.createComponent(ChildViewContainerComponent);
       const viewContainerRef = this.fixture.componentInstance.childViewContainer;
 
@@ -414,6 +471,14 @@ describe('ScriptureChooserDialog', () => {
         inputScriptureReference = args.inputScriptureReference;
         rangeStart = args.rangeStart;
       }
+
+      for (const [bookAndChapter, verses] of Object.entries(args?.versesInChapters ?? {})) {
+        const [bookId, chapter] = bookAndChapter.split(':');
+        this.addTextDoc(new TextDocId(TestEnvironment.projectId, Canon.bookIdToNumber(bookId), +chapter), verses);
+      }
+      when(mockedProjectService.getText(anything())).thenCall(id =>
+        this.realtimeService.subscribe(TextDoc.COLLECTION, id.toString())
+      );
 
       let textsInProject: TextInfo[] = [
         {
@@ -460,7 +525,12 @@ describe('ScriptureChooserDialog', () => {
 
       const config: MatDialogConfig<ScriptureChooserDialogData> = {
         viewContainerRef: viewContainerRef,
-        data: { input: inputScriptureReference, booksAndChaptersToShow: booksAndChaptersToShow, rangeStart: rangeStart }
+        data: {
+          input: inputScriptureReference,
+          booksAndChaptersToShow: booksAndChaptersToShow,
+          rangeStart: rangeStart,
+          projectId: args?.versesInChapters == null ? undefined : TestEnvironment.projectId
+        }
       };
       this.dialogRef = TestBed.inject(MatDialog).open(ScriptureChooserDialogComponent, config);
       this.dialogRef.afterClosed().subscribe(result => (this.dialogResult = result));
@@ -517,12 +587,37 @@ describe('ScriptureChooserDialog', () => {
       element!.nativeElement.click();
       this.fixture.detectChanges();
       flush();
+      // A click can start an async load (of the verses in a chapter), so render again once it settles
+      this.fixture.detectChanges();
     }
 
     buttonWithText(text: string): DebugElement {
       return this.fixture.debugElement
         .queryAll(By.css('button'))
         .find(button => button.nativeElement.innerText.trim() === text)!;
+    }
+
+    /** The verse numbers offered by the verse (or range end) chooser. */
+    get versesShown(): number[] {
+      return this.fixture.debugElement
+        .queryAll(By.css('#versePane button, #rangeEndPane button'))
+        .map(button => parseInt(button.nativeElement.innerText.trim(), 10))
+        .filter(verse => !isNaN(verse));
+    }
+
+    private addTextDoc(id: TextDocId, verses: (number | string)[]): void {
+      const delta = new Delta();
+      delta.insert({ chapter: { number: id.chapterNum.toString(), style: 'c' } });
+      delta.insert({ blank: true }, { segment: 'p_1' });
+      for (const verse of verses) {
+        delta.insert({ verse: { number: `${verse}`, style: 'v' } });
+        delta.insert(`chapter ${id.chapterNum}, verse ${verse}.`, { segment: `verse_${id.chapterNum}_${verse}` });
+      }
+      this.realtimeService.addSnapshot(TextDoc.COLLECTION, {
+        id: getTextDocId(id.projectId, id.bookNum, id.chapterNum),
+        type: RichText.type.name,
+        data: delta as TextData
+      });
     }
   }
 });
