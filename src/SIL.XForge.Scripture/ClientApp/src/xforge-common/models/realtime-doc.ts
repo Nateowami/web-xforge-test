@@ -251,7 +251,15 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     const offlineData = await this.realtimeService.offlineStore.get<RealtimeOfflineData>(this.collection, this.id);
     if (offlineData != null) {
       if (offlineData.v == null) {
-        void this.adapter.create(offlineData.data, offlineData.type).then(() => this.updateOfflineData(true));
+        if (this.isLoaded) {
+          // The doc has already been loaded, so the create it records has been committed. This happens when another
+          // tab, which shares this browser's offline store, has just created the doc: it stores the doc without a
+          // version until its create op is acknowledged. Creating the doc again would fail with
+          // "Document already exists", so replace the stale record with the current state instead.
+          void this.updateOfflineData(true);
+        } else {
+          void this.adapter.create(offlineData.data, offlineData.type).then(() => this.updateOfflineData(true));
+        }
       } else {
         await this.adapter.ingestSnapshot(offlineData);
         this.offlineSnapshotVersion = this.adapter.version;
