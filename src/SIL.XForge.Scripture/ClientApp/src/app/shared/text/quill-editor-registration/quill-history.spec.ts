@@ -84,7 +84,7 @@ describe('Quill history', () => {
     interface TestCase {
       name: string;
       input: Delta;
-      expectedAttrs: Record<string, any>;
+      expectedAttrs: Record<string, any> | undefined;
     }
 
     const testCases: TestCase[] = [
@@ -121,6 +121,19 @@ describe('Quill history', () => {
         expectedAttrs: {
           'commenter-selection': true
         }
+      },
+      {
+        name: 'embed formatting removal, keeping para-contents',
+        input: new Delta().insert(
+          { verse: { number: '4', style: 'v' } },
+          { 'para-contents': true, 'commenter-selection': true }
+        ),
+        expectedAttrs: { 'para-contents': true }
+      },
+      {
+        name: 'embed without para-contents',
+        input: new Delta().insert({ chapter: { number: '1', style: 'c' } }, { 'commenter-selection': true }),
+        expectedAttrs: undefined
       }
     ];
 

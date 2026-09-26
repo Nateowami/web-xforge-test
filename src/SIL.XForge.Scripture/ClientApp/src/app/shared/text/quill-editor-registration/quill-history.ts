@@ -77,9 +77,10 @@ export function removeObsoleteSegmentAttrs(delta: Delta): Delta {
       }
       if (typeof modelOp.insert === 'object') {
         // clear the formatting attributes on embeds to prevent dom elements from being corrupted,
-        // excluding blanks, since empty segments do not have texts with formatting to reference
+        // excluding blanks, since empty segments do not have texts with formatting to reference.
+        // Keep para-contents, otherwise the view model restores it as a user change that gets recorded as an undo step.
         if (modelOp.insert.blank == null) {
-          modelOp.attributes = undefined;
+          modelOp.attributes = modelOp.attributes?.['para-contents'] != null ? { 'para-contents': true } : undefined;
         }
       }
       (updatedDelta as any).push(modelOp);
