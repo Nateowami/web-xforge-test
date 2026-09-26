@@ -518,6 +518,11 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     return this.textDocService.isUsfmValidForText(this.text, this.chapter);
   }
 
+  /** Extra material books (introductions, glossaries, etc.) are always read-only, see usx-sf.xsd. */
+  get isExtraMaterialBook(): boolean {
+    return this.bookNum != null && Canon.isExtraMaterial(this.bookNum);
+  }
+
   invalidTags(): string[] {
     return [...this._unsupportedTags]?.map(tag => '\\' + tag) ?? [];
   }

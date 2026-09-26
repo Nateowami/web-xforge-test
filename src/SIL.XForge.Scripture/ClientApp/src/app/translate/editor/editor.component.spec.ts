@@ -881,6 +881,27 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('explains that extra material books cannot be edited', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject({
+        texts: [
+          {
+            bookNum: Canon.bookIdToNumber('XXB'),
+            chapters: [{ number: 1, lastVerse: 3, isValid: false, permissions: { user01: TextInfoPermission.Write } }],
+            hasSource: false,
+            permissions: { user01: TextInfoPermission.Write }
+          }
+        ]
+      });
+      env.addTextDoc(new TextDocId('project01', Canon.bookIdToNumber('XXB'), 1));
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'XXB' });
+      env.wait();
+      expect(env.component.canEdit).toBe(false);
+      expect(env.invalidWarning.nativeElement.textContent).toContain('Extra material books');
+      env.dispose();
+    }));
+
     it('first chapter is missing', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setupProject();

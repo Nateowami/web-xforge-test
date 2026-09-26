@@ -126,16 +126,17 @@
                       [banner]="targetCopyrightBanner"
                     ></app-copyright-banner>
                   }
-                  @if (!isUsfmValid && hasEditRight && invalidTags().length === 0) {
+                  @if (!isUsfmValid && hasEditRight) {
                     <app-notice mode="fill-dark" type="warning" icon="warning" class="formatting-invalid-warning">
-                      {{ t("cannot_edit_chapter_formatting_invalid") }}
-                    </app-notice>
-                  }
-                  @if (!isUsfmValid && hasEditRight && invalidTags().length > 0) {
-                    <app-notice mode="fill-dark" type="warning" icon="warning" class="formatting-invalid-warning">
-                      <span
-                        [innerHTML]="t('cannot_edit_chapter_unsupported_usfm', { tags: invalidTags().join(', ') })"
-                      ></span>
+                      @if (isExtraMaterialBook) {
+                        {{ t("cannot_edit_extra_material_book") }}
+                      } @else if (invalidTags().length === 0) {
+                        {{ t("cannot_edit_chapter_formatting_invalid") }}
+                      } @else {
+                        <span
+                          [innerHTML]="t('cannot_edit_chapter_unsupported_usfm', { tags: invalidTags().join(', ') })"
+                        ></span>
+                      }
                     </app-notice>
                   }
                   @if (!dataInSync && hasEditRight) {
