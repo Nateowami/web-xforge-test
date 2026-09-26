@@ -6685,6 +6685,8 @@ public class ParatextServiceTests
         );
         SyncMetricInfo expected = new SyncMetricInfo { Updated = 1 };
         Assert.AreEqual(expected, actual);
+        env.ProjectFileManager.Received(1)
+            .SetXml(Arg.Any<PermissionManager.InternalProjectUserAccessData>(), ProjectPermissionManager.fileName);
     }
 
     private class TestEnvironment : IDisposable

@@ -1899,6 +1899,17 @@ public class ParatextService : DisposableBase, IParatextService
             }
         }
 
+        // SetPermission only changes the permissions in memory, so they must be saved to ProjectUserAccess.xml.
+        // This is based on ParatextData.ImportSfmText.GrantBookPermissions()
+        if (
+            writeToParatext
+            && syncMetricInfo.Updated > 0
+            && scrText.Permissions is ProjectPermissionManager permissions
+        )
+        {
+            permissions.Save();
+        }
+
         return syncMetricInfo;
     }
 
