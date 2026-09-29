@@ -900,9 +900,11 @@ public partial class MachineApiService(
             // Return the build id so it can be logged
             return buildId;
         }
-        catch (ServalApiException e) when (e.StatusCode == StatusCodes.Status404NotFound)
+        catch (ServalApiException e)
+            when (e.StatusCode is StatusCodes.Status204NoContent or StatusCodes.Status404NotFound)
         {
-            // We do not mind if a 404 exception comes from Serval - we can assume the job is now cancelled
+            // We do not mind if a 204 (no active build) or 404 exception comes from Serval.
+            // We can assume the job is now cancelled, e.g. it was still queued in Hangfire when we deleted it above.
         }
         catch (ServalApiException e)
         {
