@@ -440,21 +440,28 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
     }
 
     if (this.settingChanged(newValue, 'lynxAssessmentsEnabled')) {
-      this.updateSetting(newValue, 'lynxAssessmentsEnabled');
-
       // When 'assessments' is checked, auto-enable punctuation checker
       if (newValue.lynxAssessmentsEnabled) {
+        this.updateSetting(newValue, 'lynxAssessmentsEnabled');
         this.lynxPunctuationCheckerEnabled.setValue(true, { emitEvent: false });
         this.updateSetting({ ...newValue, lynxPunctuationCheckerEnabled: true }, 'lynxPunctuationCheckerEnabled');
-      } else {
-        // When 'assessments' is unchecked, auto-disable children
+      } else if (this.projectDoc != null) {
+        // When 'assessments' is unchecked, auto-disable children in the same update. The children are hidden, so
+        // they must not keep a write status that would show up when they are displayed again.
         this.lynxPunctuationCheckerEnabled.setValue(false, { emitEvent: false });
-        this.updateSetting({ ...newValue, lynxPunctuationCheckerEnabled: false }, 'lynxPunctuationCheckerEnabled');
         this.lynxAllowedCharacterCheckerEnabled.setValue(false, { emitEvent: false });
-        this.updateSetting(
-          { ...newValue, lynxAllowedCharacterCheckerEnabled: false },
-          'lynxAllowedCharacterCheckerEnabled'
+        const settings: SFProjectSettings = {
+          lynxAssessmentsEnabled: false,
+          lynxPunctuationCheckerEnabled: false,
+          lynxAllowedCharacterCheckerEnabled: false
+        };
+        this.checkUpdateStatus(
+          'lynxAssessmentsEnabled',
+          this.projectService.onlineUpdateSettings(this.projectDoc.id, settings)
         );
+        this.controlStates.set('lynxPunctuationCheckerEnabled', ElementState.InSync);
+        this.controlStates.set('lynxAllowedCharacterCheckerEnabled', ElementState.InSync);
+        this.previousFormValues = { ...newValue, ...settings };
       }
     } else {
       // If both child settings are disabled, auto-disable assessments (parent setting)

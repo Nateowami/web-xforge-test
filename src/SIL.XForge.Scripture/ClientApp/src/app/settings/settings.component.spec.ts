@@ -370,6 +370,39 @@ describe('SettingsComponent', () => {
       }));
     });
 
+    describe('Insights options', () => {
+      it('does not show a stale status on the checkers after re-enabling assessments', fakeAsync(() => {
+        const env = new TestEnvironment();
+        env.setupProject();
+        env.wait();
+        env.clickElement(env.inputElement(env.lynxAssessmentsCheckbox));
+        env.wait();
+        expect(env.inputElement(env.lynxAssessmentsCheckbox).checked).toBe(true);
+        expect(env.statusDone(env.lynxPunctuationCheckerStatus)).not.toBeNull();
+        expect(env.statusDone(env.lynxAllowedCharacterCheckerStatus)).toBeNull();
+
+        env.clickElement(env.inputElement(env.lynxAssessmentsCheckbox));
+        env.wait();
+        expect(env.lynxAllowedCharacterCheckerCheckbox).toBeNull();
+        verify(
+          mockedSFProjectService.onlineUpdateSettings(
+            'project01',
+            deepEqual({
+              lynxAssessmentsEnabled: false,
+              lynxPunctuationCheckerEnabled: false,
+              lynxAllowedCharacterCheckerEnabled: false
+            })
+          )
+        ).once();
+
+        env.clickElement(env.inputElement(env.lynxAssessmentsCheckbox));
+        env.wait();
+        expect(env.inputElement(env.lynxAllowedCharacterCheckerCheckbox).checked).toBe(false);
+        expect(env.statusDone(env.lynxAllowedCharacterCheckerStatus)).toBeNull();
+        expect(env.statusDone(env.lynxPunctuationCheckerStatus)).not.toBeNull();
+      }));
+    });
+
     describe('Biblical Terms options', () => {
       it('Biblical Terms should be disabled if a message is present', fakeAsync(() => {
         const env = new TestEnvironment();
@@ -895,6 +928,22 @@ class TestEnvironment {
 
   get viewersShareStatus(): DebugElement {
     return this.fixture.debugElement.query(By.css('#viewers-share-status'));
+  }
+
+  get lynxAssessmentsCheckbox(): DebugElement {
+    return this.fixture.debugElement.query(By.css('#checkbox-lynx-assessments'));
+  }
+
+  get lynxPunctuationCheckerStatus(): DebugElement {
+    return this.fixture.debugElement.query(By.css('#lynx-punctuation-checker-status'));
+  }
+
+  get lynxAllowedCharacterCheckerCheckbox(): DebugElement {
+    return this.fixture.debugElement.query(By.css('#checkbox-lynx-allowed-character-checker'));
+  }
+
+  get lynxAllowedCharacterCheckerStatus(): DebugElement {
+    return this.fixture.debugElement.query(By.css('#lynx-allowed-character-checker-status'));
   }
 
   makeProjectHaveTextAudio(): void {
