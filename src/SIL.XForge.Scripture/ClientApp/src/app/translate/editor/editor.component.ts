@@ -759,13 +759,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           this.projectDoc.data.translateConfig.draftConfig?.draftedScriptureRange
         );
         this.books = Array.from(new Set([...projectTexts, ...draftedBooks])).sort((a, b) => a - b);
-        this.text = this.projectDoc.data.texts.find(t => t.bookNum === bookNum);
-
-        const allChapters: number = Math.max(
-          this.text?.chapters[this.text.chapters.length - 1]?.number ?? 1,
-          expectedBookChapters(Canon.bookNumberToId(bookNum))
-        );
-        this.chapters = Array.from({ length: allChapters }, (_, i) => i + 1);
+        this.setText(bookNum);
 
         this.updateVerseNumber();
 
@@ -778,6 +772,17 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         if (this.projectDoc.id !== prevProjectId) {
           this.projectDataChangesSub?.unsubscribe();
           this.projectDataChangesSub = this.projectDoc.remoteChanges$.subscribe(async () => {
+            // The open book may have been added to the project by another user, e.g. by applying a draft
+            const openBookNum: number | undefined = this._bookNum;
+            if (
+              this.text == null &&
+              openBookNum != null &&
+              this.projectDoc?.data?.texts.some(t => t.bookNum === openBookNum) === true
+            ) {
+              this.setText(openBookNum);
+              await this.changeText();
+            }
+
             let sourceId: TextDocId | undefined;
             if (this.hasSource && this.chapter != null) {
               sourceId = new TextDocId(
@@ -1595,6 +1600,16 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   private async updateNoteReadRefs(noteId: string): Promise<void> {
     if (this.projectUserConfigDoc?.data == null || this.projectUserConfigDoc.data.noteRefsRead.includes(noteId)) return;
     await this.projectUserConfigDoc.submitJson0Op(op => op.add(puc => puc.noteRefsRead, noteId));
+  }
+
+  private setText(bookNum: number): void {
+    this.text = this.projectDoc?.data?.texts.find(t => t.bookNum === bookNum);
+
+    const allChapters: number = Math.max(
+      this.text?.chapters[this.text.chapters.length - 1]?.number ?? 1,
+      expectedBookChapters(Canon.bookNumberToId(bookNum))
+    );
+    this.chapters = Array.from({ length: allChapters }, (_, i) => i + 1);
   }
 
   private async changeText(): Promise<void> {

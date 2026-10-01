@@ -25,8 +25,8 @@ import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scri
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { TextAnchor } from 'realtime-server/lib/esm/scriptureforge/models/text-anchor';
 import { StringMap } from 'rich-text';
-import { fromEvent, ReplaySubject, Subject, Subscription, timer } from 'rxjs';
-import { takeUntil, tap } from 'rxjs/operators';
+import { fromEvent, race, ReplaySubject, Subject, Subscription, timer } from 'rxjs';
+import { filter, take, takeUntil, tap } from 'rxjs/operators';
 import { LocalPresence, Presence } from 'sharedb/lib/sharedb';
 import tinyColor from 'tinycolor2';
 import { WINDOW } from 'xforge-common/browser-globals';
@@ -1203,6 +1203,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       return;
     }
     this.loadingState = 'loading';
+    this.onCreateSub?.unsubscribe();
 
     this.viewModel.unbind();
     await this.dismissPresences();
@@ -2030,9 +2031,26 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       this.project != null &&
       SF_PROJECT_RIGHTS.hasRight(this.project, this.userService.currentUserId, SFProjectDomain.Texts, Operation.View)
     ) {
-      const textDoc = await this.projectService.getText(this._id);
+      const id: TextDocId = this._id;
+      const textDoc = await this.projectService.getText(id);
+      const profileDoc: SFProjectProfileDoc = await this.projectService.getProfile(id.projectId);
+      if (!isEqual(this._id, id)) return;
       this.onCreateSub?.unsubscribe();
-      this.onCreateSub = textDoc.create$.subscribe(() => this.bindQuill());
+      // The project's book and chapter info can be updated after the text document is created (e.g. during a sync),
+      // so also rebind once the project has the chapter
+      this.onCreateSub = race(
+        textDoc.create$,
+        profileDoc.remoteChanges$.pipe(
+          filter(
+            () =>
+              profileDoc.data?.texts.some(
+                t => t.bookNum === id.bookNum && t.chapters.some(c => c.number === id.chapterNum)
+              ) === true
+          )
+        )
+      )
+        .pipe(take(1))
+        .subscribe(() => this.bindQuill());
     }
   }
 

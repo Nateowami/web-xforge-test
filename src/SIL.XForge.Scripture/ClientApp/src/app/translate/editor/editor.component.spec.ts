@@ -340,6 +340,29 @@ describe('EditorComponent', () => {
     expect(env.component.chapters.length).toEqual(50);
   }));
 
+  it('loads the open book when another user adds it to the project', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupProject({ translateConfig: { draftConfig: { draftedScriptureRange: 'GEN' } } });
+    env.routeWithParams({ projectId: 'project01', bookId: 'GEN' });
+    env.wait();
+    expect(env.component.hasEditRight).toBe(false);
+
+    env.getProjectDoc('project01').submitJson0Op(
+      op =>
+        op.add(p => p.texts, {
+          bookNum: 1,
+          chapters: [{ number: 1, lastVerse: 3, isValid: true, permissions: { user01: TextInfoPermission.Write } }],
+          hasSource: false,
+          permissions: { user01: TextInfoPermission.Write }
+        }),
+      false
+    );
+    env.wait();
+    expect(env.component.hasEditRight).toBe(true);
+    expect(env.component.isUsfmValid).toBe(true);
+    env.dispose();
+  }));
+
   describe('Show editor tabs in single pane setting', () => {
     it('shows the source tab if showEditorTabsInSinglePane is undefined', fakeAsync(() => {
       const navigationParams: Params = { projectId: 'project01', bookId: 'MRK' };

@@ -252,6 +252,37 @@ describe('TextComponent', () => {
     expect(env.component.placeholder).toEqual('text.loading');
   }));
 
+  it('loads a chapter that is added to the project after its text doc is created', fakeAsync(() => {
+    when(mockedUserService.currentUserId).thenReturn('user01');
+    const env = new TestEnvironment();
+    env.id = env.notPresentTextDocId;
+    env.waitForEditor();
+    expect(env.component.placeholder).toEqual('text.this_book_does_not_exist');
+
+    // During a sync, the text doc is created before the book is added to the project
+    const textDoc: TextDoc = env.realtimeService.get<TextDoc>(TextDoc.COLLECTION, env.notPresentTextDocId.toString());
+    void textDoc.create(getTextDoc(env.notPresentTextDocId), RichText.type.name);
+    env.waitForEditor();
+    expect(env.component.placeholder).toEqual('text.this_book_does_not_exist');
+
+    const projectDoc: SFProjectProfileDoc = env.realtimeService.get<SFProjectProfileDoc>(
+      SFProjectProfileDoc.COLLECTION,
+      'project01'
+    );
+    projectDoc.submitJson0Op(
+      op =>
+        op.add(p => p.texts, {
+          bookNum: env.notPresentTextDocId.bookNum,
+          chapters: [{ number: 1, lastVerse: 3, isValid: true, permissions: {} }],
+          hasSource: false,
+          permissions: {}
+        }),
+      false
+    );
+    env.waitForEditor();
+    expect(env.component.editor?.getText()).toContain('chapter 1, verse 1.');
+  }));
+
   it('does not apply right to left for placeholder message', fakeAsync(() => {
     const env = new TestEnvironment();
     env.hostComponent.isTextRightToLeft = true;
