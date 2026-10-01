@@ -13,6 +13,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MongoDB.Bson;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 using Serval.Client;
 using SIL.Converters.Usj;
 using SIL.Machine.Corpora;
@@ -2103,11 +2104,36 @@ public partial class MachineApiService(
             {
                 Id = TextData.GetTextDocId(sfProjectId, bookNum, chapter.Number),
                 Version = 0,
-                Data = new TextData(chapter.Delta),
+                Data = new TextData(RemoveBookHeading(chapter)),
             }
         );
 
         return snapshots;
+    }
+
+    /// <summary>
+    /// Removes the book heading (i.e. the \id paragraph) from the delta of a chapter that is not the first chapter.
+    /// </summary>
+    /// <param name="chapterDelta">The chapter delta.</param>
+    /// <returns>The delta for the chapter.</returns>
+    /// <remarks>
+    /// If the first chapter of a book was not drafted, the USFM for the book will start with the \id paragraph
+    /// followed by the first drafted chapter, and <see cref="IDeltaUsxMapper.ToChapterDeltas"/> will place that
+    /// heading in the delta for the first drafted chapter. Only the first chapter of a book has the book heading, so
+    /// it is removed here so the draft matches the shape of the chapter it is displayed alongside, or applied to.
+    /// </remarks>
+    private static Delta RemoveBookHeading(ChapterDelta chapterDelta)
+    {
+        if (chapterDelta.Number <= 1)
+        {
+            return chapterDelta.Delta;
+        }
+
+        // Get the position of the chapter marker, as everything before it is the book heading
+        int chapterIndex = chapterDelta.Delta.Ops.FindIndex(op =>
+            op[Delta.InsertType] is JObject insert && insert["chapter"] is not null
+        );
+        return chapterIndex <= 0 ? chapterDelta.Delta : new Delta(chapterDelta.Delta.Ops.Skip(chapterIndex));
     }
 
     /// <summary>

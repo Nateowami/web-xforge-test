@@ -3115,6 +3115,70 @@ public class MachineApiServiceTests
     }
 
     [Test]
+    public async Task GetPreTranslationDeltaAsync_RemovesTheBookHeadingFromChaptersAfterTheFirst()
+    {
+        // Set up test environment where the book heading (the \id paragraph) precedes the second chapter,
+        // as it does when the first chapter of the book was not drafted.
+        var env = new TestEnvironment();
+        JToken bookText = JToken.Parse(
+            "{\"insert\": \"- Source Project\", \"attributes\": { \"segment\": \"id_1\" } }"
+        );
+        JToken bookEnd = JToken.Parse(
+            "{\"insert\": \"\\n\", \"attributes\": { \"book\": { \"code\": \"MAT\", \"style\": \"id\" } } }"
+        );
+        JToken chapter = JToken.Parse("{\"insert\": { \"chapter\": { \"number\": \"2\", \"style\": \"c\" } } }");
+        JToken verse = JToken.Parse("{\"insert\": { \"verse\": { \"number\": \"1\", \"style\": \"v\" } } }");
+        Delta delta = new Delta([bookText, bookEnd, chapter, verse]);
+        env.DeltaUsxMapper.ToChapterDeltas(Arg.Any<XDocument>()).Returns([new ChapterDelta(2, 1, true, delta)]);
+
+        // SUT
+        Dictionary<string, Snapshot<TextData>> actual = await env.Service.GetPreTranslationDeltaAsync(
+            User01,
+            Project01,
+            40,
+            0,
+            false,
+            DateTime.UtcNow,
+            null,
+            CancellationToken.None
+        );
+        Assert.AreEqual(2, actual["2"].Data.Ops.Count);
+        Assert.AreEqual(chapter, actual["2"].Data.Ops[0]);
+        Assert.AreEqual(verse, actual["2"].Data.Ops[1]);
+        Assert.AreEqual(TextData.GetTextDocId(Project01, "MAT", 2), actual["2"].Id);
+    }
+
+    [Test]
+    public async Task GetPreTranslationDeltaAsync_RetainsTheBookHeadingInTheFirstChapter()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+        JToken bookText = JToken.Parse(
+            "{\"insert\": \"- Source Project\", \"attributes\": { \"segment\": \"id_1\" } }"
+        );
+        JToken bookEnd = JToken.Parse(
+            "{\"insert\": \"\\n\", \"attributes\": { \"book\": { \"code\": \"MAT\", \"style\": \"id\" } } }"
+        );
+        JToken chapter = JToken.Parse("{\"insert\": { \"chapter\": { \"number\": \"1\", \"style\": \"c\" } } }");
+        Delta delta = new Delta([bookText, bookEnd, chapter]);
+        env.DeltaUsxMapper.ToChapterDeltas(Arg.Any<XDocument>()).Returns([new ChapterDelta(1, 1, true, delta)]);
+
+        // SUT
+        Dictionary<string, Snapshot<TextData>> actual = await env.Service.GetPreTranslationDeltaAsync(
+            User01,
+            Project01,
+            40,
+            0,
+            false,
+            DateTime.UtcNow,
+            null,
+            CancellationToken.None
+        );
+        Assert.AreEqual(3, actual["1"].Data.Ops.Count);
+        Assert.AreEqual(bookText, actual["1"].Data.Ops[0]);
+    }
+
+    [Test]
     public async Task GetPreTranslationDeltaAsync_SuccessSpecificConfig()
     {
         // Set up test environment
