@@ -305,6 +305,11 @@ export class NoteThreadEmbed extends QuillEmbedBlot {
 
   static create(value: NoteThread): HTMLElement {
     const node = super.create(value) as HTMLElement;
+    // The icon is drawn with a ::before pseudo-element, so Quill's embed content node holds nothing. Without this
+    // the browser puts the caret inside the embed, where Quill maps every position back to the index in front of
+    // the icon: arrow keys stop moving the caret, and the next character typed is inserted into the embed's DOM
+    // and then discarded, leaving the caret after the icon.
+    node.contentEditable = 'false';
     node.setAttribute('style', value.iconsrc);
     node.setAttribute('title', value.preview);
     node.setAttribute(customAttributeName('thread-id'), value.threadid);

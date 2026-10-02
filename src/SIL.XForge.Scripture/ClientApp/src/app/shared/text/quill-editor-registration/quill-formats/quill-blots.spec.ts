@@ -452,6 +452,17 @@ describe('Quill blots', () => {
       expect(node.getAttribute('data-thread-id')).toBe('thread1');
     });
 
+    it('should not be editable, so the caret cannot land inside the icon', () => {
+      const value = {
+        iconsrc: 'icon.png',
+        preview: 'Preview text',
+        threadid: 'thread1'
+      };
+      const node = NoteThreadEmbed.create(value) as HTMLElement;
+
+      expect(node.contentEditable).toBe('false');
+    });
+
     it('should handle highlight formatting', () => {
       const value = {
         iconsrc: 'icon.png',
