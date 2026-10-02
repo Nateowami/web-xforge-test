@@ -5,7 +5,7 @@ import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { SFProjectProfileDoc } from '../../../core/models/sf-project-profile-doc';
 import { SFProjectService } from '../../../core/sf-project.service';
 import { TextComponent } from '../../../shared/text/text.component';
-import { formatFontSizeToRems } from '../../../shared/utils';
+import { formatFontSizeToRems, scaleFontSize } from '../../../shared/utils';
 import { CopyrightBannerComponent } from '../../../shared/copyright-banner/copyright-banner.component';
 import { TextDocIdPipe } from '../../../shared/text/text-doc-id.pipe';
 @Component({
@@ -20,11 +20,12 @@ export class EditorResourceComponent implements AfterViewInit, OnChanges {
   @Input() chapter?: number;
   @Input() segmentRef?: string;
   @Input() highlightSegment?: boolean;
+  @Input() textScale: number = 1;
 
   @ViewChild(TextComponent) resourceText!: TextComponent;
 
   isRightToLeft = false;
-  fontSize?: string;
+  projectFontSize?: string;
   font?: string;
   hasCopyrightBanner: boolean = false;
   copyrightBanner?: string;
@@ -37,6 +38,10 @@ export class EditorResourceComponent implements AfterViewInit, OnChanges {
     private readonly projectService: SFProjectService,
     private readonly fontService: FontService
   ) {}
+
+  get fontSize(): string | undefined {
+    return scaleFontSize(this.projectFontSize, this.textScale);
+  }
 
   ngOnChanges(): void {
     this.inputChanged$.next();
@@ -63,7 +68,7 @@ export class EditorResourceComponent implements AfterViewInit, OnChanges {
         this.copyrightBanner = projectDoc.data?.copyrightBanner ?? '';
         this.copyrightNotice = projectDoc.data?.copyrightNotice;
         this.isRightToLeft = projectDoc.data?.isRightToLeft ?? false;
-        this.fontSize = formatFontSizeToRems(projectDoc.data?.defaultFontSize);
+        this.projectFontSize = formatFontSizeToRems(projectDoc.data?.defaultFontSize);
         this.font = this.fontService.getFontFamilyFromProject(projectDoc);
       });
   }

@@ -34,6 +34,8 @@
             <mat-icon>settings</mat-icon>
           </button>
         }
+        <div class="toolbar-separator">&nbsp;</div>
+        <app-font-size (apply)="applyTextSize($event)"></app-font-size>
         @if (canShare) {
           <div class="toolbar-separator">&nbsp;</div>
           <app-share-button [defaultRole]="defaultShareRole"></app-share-button>
@@ -88,6 +90,7 @@
                   [chapter]="chapter"
                   [segmentRef]="target?.segmentRef"
                   [highlightSegment]="targetFocused"
+                  [textScale]="textScale"
                 ></app-editor-resource>
               }
               @case ("project-source") {

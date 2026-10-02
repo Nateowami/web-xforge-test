@@ -113,6 +113,7 @@ import { TabGroupComponent } from '../../shared/sf-tab-group/tab-group.component
 import { TabHeaderDirective } from '../../shared/sf-tab-group/tab-header/tab-header.directive';
 import { TabComponent } from '../../shared/sf-tab-group/tab/tab.component';
 import { ShareButtonComponent } from '../../shared/share/share-button.component';
+import { FontSizeComponent } from '../../checking/checking/font-size/font-size.component';
 import { getRetainCount } from '../../shared/text/quill-util';
 import { Segment } from '../../shared/text/segment';
 import { TextDocIdPipe } from '../../shared/text/text-doc-id.pipe';
@@ -127,6 +128,7 @@ import {
   booksFromScriptureRange,
   canInsertNote,
   formatFontSizeToRems,
+  scaleFontSize,
   getUnsupportedTags,
   threadIdFromMouseEvent,
   XmlUtils
@@ -243,12 +245,15 @@ const UNSUPPORTED_LANGUAGE_CODES = [
     EditorDraftComponent,
     EditorHistoryComponent,
     EditorResourceComponent,
+    FontSizeComponent,
     LynxInsightsPanelComponent,
     TextDocIdPipe
   ]
 })
 export class EditorComponent extends DataLoadingComponent implements OnDestroy, OnInit, AfterViewInit {
   addingMobileNote: boolean = false;
+  /** User-chosen multiplier applied on top of the projects' font sizes. */
+  textScale: number = 1;
   books: number[] = [];
   chapters: number[] = [];
   text?: TextInfo;
@@ -489,11 +494,16 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   get fontSize(): string | undefined {
-    return formatFontSizeToRems(this.projectDoc?.data?.defaultFontSize);
+    return scaleFontSize(formatFontSizeToRems(this.projectDoc?.data?.defaultFontSize), this.textScale);
   }
 
   get sourceFontSize(): string | undefined {
-    return formatFontSizeToRems(this.sourceProjectDoc?.data?.defaultFontSize);
+    return scaleFontSize(formatFontSizeToRems(this.sourceProjectDoc?.data?.defaultFontSize), this.textScale);
+  }
+
+  /** The font size component emits sizes relative to 1rem, which serve as a scale factor. */
+  applyTextSize(size: string): void {
+    this.textScale = parseFloat(size);
   }
 
   get projectTextNotEditable(): boolean {

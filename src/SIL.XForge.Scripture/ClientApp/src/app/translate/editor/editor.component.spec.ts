@@ -811,6 +811,22 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('scales source and target font sizes by the chosen text size', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject({ defaultFontSize: 18 });
+      env.setProjectUserConfig();
+      env.wait();
+      const defaultTargetSize = parseFloat(getComputedStyle(env.targetTextEditor).fontSize);
+      const defaultSourceSize = parseFloat(getComputedStyle(env.sourceTextEditor).fontSize);
+
+      env.component.applyTextSize('1.5rem');
+      env.wait();
+
+      expect(parseFloat(getComputedStyle(env.targetTextEditor).fontSize)).toBeCloseTo(defaultTargetSize * 1.5);
+      expect(parseFloat(getComputedStyle(env.sourceTextEditor).fontSize)).toBeCloseTo(defaultSourceSize * 1.5);
+      env.dispose();
+    }));
+
     it('user has no resource access', fakeAsync(() => {
       when(mockedSFProjectService.getProfile('resource01')).thenResolve({
         id: 'resource01',

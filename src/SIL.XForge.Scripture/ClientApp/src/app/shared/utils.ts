@@ -138,6 +138,11 @@ export function formatFontSizeToRems(fontSize: number | undefined): string | und
   return fontSize == null ? undefined : `${fontSize / 12}rem`;
 }
 
+/** Multiplies a CSS font size by a user-chosen scale, treating an unset size as 1rem. */
+export function scaleFontSize(fontSize: string | undefined, scale: number): string | undefined {
+  return scale === 1 ? fontSize : `calc(${fontSize ?? '1rem'} * ${scale})`;
+}
+
 export function canInsertNote(project: SFProjectProfile, userId: string): boolean {
   return SF_PROJECT_RIGHTS.hasRight(project, userId, SFProjectDomain.SFNoteThreads, Operation.Create);
 }

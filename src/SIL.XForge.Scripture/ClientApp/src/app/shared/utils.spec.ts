@@ -17,6 +17,7 @@ import {
   isBadDelta,
   parseDate,
   projectLabel,
+  scaleFontSize,
   XmlUtils
 } from './utils';
 import { getVerseNumbers } from './verse-utils';
@@ -280,6 +281,18 @@ describe('shared utils', () => {
           insert: { note: { contents: { ops: [{ attributes: { 'invalid-inline': true, char: { style: 'bad' } } }] } } }
         })
       ).toEqual(['bad']);
+    });
+  });
+
+  describe('scaleFontSize', () => {
+    it('leaves the font size unchanged at a scale of 1', () => {
+      expect(scaleFontSize('1.5rem', 1)).toBe('1.5rem');
+      expect(scaleFontSize(undefined, 1)).toBeUndefined();
+    });
+
+    it('multiplies the font size by the scale', () => {
+      expect(scaleFontSize('1.5rem', 1.2)).toBe('calc(1.5rem * 1.2)');
+      expect(scaleFontSize(undefined, 1.2)).toBe('calc(1rem * 1.2)');
     });
   });
 
