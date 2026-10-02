@@ -10,6 +10,7 @@ import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge
 import { of } from 'rxjs';
 import { anything, mock, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { L10nPercentPipe } from 'xforge-common/l10n-percent.pipe';
 import { UserDoc } from 'xforge-common/models/user-doc';
 import { NoticeService } from 'xforge-common/notice.service';
@@ -73,6 +74,17 @@ describe('TranslateOverviewComponent', () => {
     env.expectContainsTextProgress(1, 'Mark', '10 of 20 segments');
     env.expectContainsTextProgress(2, 'Luke', '10 of 20 segments');
     env.expectContainsTextProgress(3, 'John', '10 of 20 segments');
+
+    discardPeriodicTasks();
+  }));
+
+  it('should not report an error if the user loses access to the project while progress is loading', fakeAsync(() => {
+    const env = new TestEnvironment();
+    when(mockedProgressService.getProgress(anything(), anything())).thenReject(
+      new CommandError(CommandErrorCode.Forbidden, 'The user does not have permission to perform this operation.')
+    );
+    expect(() => env.wait()).not.toThrow();
+    expect(env.component.projectProgress).toBeUndefined();
 
     discardPeriodicTasks();
   }));

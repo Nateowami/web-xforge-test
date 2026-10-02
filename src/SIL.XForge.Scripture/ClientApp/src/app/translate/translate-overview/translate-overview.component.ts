@@ -21,6 +21,7 @@ import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scri
 import { isParatextRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { asyncScheduler, Subscription } from 'rxjs';
 import { filter, map, throttleTime } from 'rxjs/operators';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DonutChartComponent } from 'xforge-common/donut-chart/donut-chart.component';
 import { I18nService } from 'xforge-common/i18n.service';
@@ -112,14 +113,7 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
         this.projectDoc = await this.projectService.getProfile(projectId);
 
         // Update the overview now if we are online, or when we are next online
-        void this.onlineStatusService.online.then(async () => {
-          this.loadingStarted();
-          try {
-            this.projectProgress = await this.progressService.getProgress(this.projectId!, { maxStalenessMs: 30_000 });
-          } finally {
-            this.loadingFinished();
-          }
-        });
+        void this.onlineStatusService.online.then(() => this.updateProgress(projectId));
 
         if (this.projectDataChangesSub != null) {
           this.projectDataChangesSub.unsubscribe();
@@ -130,16 +124,7 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
             // TODO Find a better solution than merely throttling remote changes
             throttleTime(1000, asyncScheduler, { leading: true, trailing: true })
           )
-          .subscribe(async () => {
-            this.loadingStarted();
-            try {
-              this.projectProgress = await this.progressService.getProgress(this.projectId!, {
-                maxStalenessMs: 30_000
-              });
-            } finally {
-              this.loadingFinished();
-            }
-          });
+          .subscribe(() => this.updateProgress(projectId));
       });
   }
 
@@ -157,5 +142,23 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
       return 0;
     }
     return this.bookTranslatedSegments(bookProgress) / bookProgress.verseSegments;
+  }
+
+  private async updateProgress(projectId: string): Promise<void> {
+    this.loadingStarted();
+    try {
+      this.projectProgress = await this.progressService.getProgress(projectId, { maxStalenessMs: 30_000 });
+    } catch (error) {
+      // The user was removed from the project, or it was deleted, while the progress was loading. The app already
+      // tells the user the project is no longer accessible, so there is nothing more to report here.
+      if (
+        !(error instanceof CommandError) ||
+        (error.code !== CommandErrorCode.Forbidden && error.code !== CommandErrorCode.NotFound)
+      ) {
+        throw error;
+      }
+    } finally {
+      this.loadingFinished();
+    }
   }
 }
