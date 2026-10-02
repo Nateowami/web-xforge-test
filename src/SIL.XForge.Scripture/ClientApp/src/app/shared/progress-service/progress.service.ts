@@ -1,6 +1,10 @@
 import { Injectable } from '@angular/core';
 import { Canon } from '@sillsdev/scripture';
+import { TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import { NoticeService } from 'xforge-common/notice.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
+import { TextDocId } from '../../core/models/text-doc';
 import { SFProjectService } from '../../core/sf-project.service';
 
 /** The expected number of verses per book, calculated from the libpalaso versification files. */
@@ -316,11 +320,31 @@ export function bookAppearsCompleteForTrainingAutoSelection(bookProgress: BookPr
   );
 }
 
+/**
+ * Counts the verse segments and blank verse segments in a chapter's text, the same way the backend's
+ * GetProjectProgressAsync does.
+ */
+export function countChapterVerseSegments(text: TextData | undefined): {
+  verseSegments: number;
+  blankVerseSegments: number;
+} {
+  let verseSegments = 0;
+  let blankVerseSegments = 0;
+  for (const op of text?.ops ?? []) {
+    const segment: unknown = op.attributes?.segment;
+    if (typeof segment !== 'string' || !segment.startsWith('verse_')) continue;
+    verseSegments++;
+    if (typeof op.insert === 'object' && op.insert?.blank === true) blankVerseSegments++;
+  }
+  return { verseSegments, blankVerseSegments };
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProgressService {
   constructor(
     readonly noticeService: NoticeService,
-    private readonly projectService: SFProjectService
+    private readonly projectService: SFProjectService,
+    private readonly onlineStatusService: OnlineStatusService
   ) {}
 
   // Alongside its age, every cache entry and in-flight request records the project's last-sync date string from
@@ -345,12 +369,17 @@ export class ProgressService {
    * equality, never parsed or compared against the clock, so server/client clock skew cannot break this. The age
    * window exists for what a last-sync date string can't see: progress drift from live editing in Scripture Forge
    * itself.
+   *
+   * When offline, progress is instead calculated from the chapters stored on this device, and is not cached.
    */
   async getProgressWithChapterProgress(
     projectId: string,
     options: { maxStalenessMs: number }
   ): Promise<ProjectProgressWithChapterProgress> {
     const projectDoc = await this.projectService.getProfile(projectId);
+    if (!this.onlineStatusService.isOnline) {
+      return await this.calculateOfflineProgress(projectDoc);
+    }
     const lastSyncDateString: string | undefined = projectDoc.data?.sync?.dateLastSuccessfulSync;
     // Compared for equality, not parsed and compared chronologically: dateLastSuccessfulSync is set by the server,
     // so a "newer than" comparison against Date.now() (client time) would be vulnerable to server/client clock
@@ -400,5 +429,32 @@ export class ProgressService {
 
   async getProgress(projectId: string, options: { maxStalenessMs: number }): Promise<ProjectProgress> {
     return await this.getProgressWithChapterProgress(projectId, options);
+  }
+
+  /** Calculates progress from the chapters stored on this device. Chapters not stored locally are left out. */
+  private async calculateOfflineProgress(projectDoc: SFProjectProfileDoc): Promise<ProjectProgressWithChapterProgress> {
+    const texts = [...(projectDoc.data?.texts ?? [])].sort((a, b) => a.bookNum - b.bookNum);
+    const books: (BookProgressWithChapterProgress | undefined)[] = await Promise.all(
+      texts.map(async text => {
+        const chapterData = await Promise.all(
+          text.chapters.map(chapter =>
+            this.projectService.getOfflineTextData(new TextDocId(projectDoc.id, text.bookNum, chapter.number))
+          )
+        );
+        const chapters: BookProgressWithChapterProgress['chapters'] = [];
+        text.chapters.forEach((chapter, index) => {
+          if (chapterData[index] == null) return;
+          chapters.push({ chapterNumber: chapter.number, ...countChapterVerseSegments(chapterData[index]) });
+        });
+        if (chapters.length === 0) return undefined;
+        return {
+          bookId: Canon.bookNumberToId(text.bookNum),
+          verseSegments: chapters.reduce((acc, chapter) => acc + chapter.verseSegments, 0),
+          blankVerseSegments: chapters.reduce((acc, chapter) => acc + chapter.blankVerseSegments, 0),
+          chapters
+        };
+      })
+    );
+    return new ProjectProgressWithChapterProgress(books.filter(book => book != null));
   }
 }

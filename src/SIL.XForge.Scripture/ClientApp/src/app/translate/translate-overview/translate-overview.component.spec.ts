@@ -8,7 +8,7 @@ import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { of } from 'rxjs';
-import { anything, mock, when } from 'ts-mockito';
+import { anything, mock, resetCalls, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
 import { L10nPercentPipe } from 'xforge-common/l10n-percent.pipe';
 import { UserDoc } from 'xforge-common/models/user-doc';
@@ -47,18 +47,17 @@ describe('TranslateOverviewComponent', () => {
     ]
   }));
 
-  it('should display a notice if offline', fakeAsync(() => {
+  it('should show progress when offline and reload it when back online', fakeAsync(() => {
     const env = new TestEnvironment();
+    env.isOnline = false;
     env.wait();
 
-    // Verify message hidden if offline
-    expect(env.offlineNotice).toBeNull();
     expect(env.booksCard).toBeTruthy();
+    expect(env.component.projectProgress?.books.length).toEqual(4);
+    verify(mockedProgressService.getProgress('project01', anything())).once();
 
-    // Go offline
-    env.isOnline = false;
-    expect(env.offlineNotice).toBeTruthy();
-    expect(env.booksCard).toBeNull();
+    env.isOnline = true;
+    verify(mockedProgressService.getProgress('project01', anything())).twice();
 
     discardPeriodicTasks();
   }));
@@ -101,16 +100,13 @@ class TestEnvironment {
       ])
     );
 
+    resetCalls(mockedProgressService);
     this.setCurrentUser();
 
     this.fixture = TestBed.createComponent(TranslateOverviewComponent);
     this.component = this.fixture.componentInstance;
     this.setupProjectData();
     this.setupUserData();
-  }
-
-  get offlineNotice(): HTMLElement {
-    return this.fixture.nativeElement.querySelector('app-notice[icon="cloud_off"]');
   }
 
   get booksCard(): DebugElement {

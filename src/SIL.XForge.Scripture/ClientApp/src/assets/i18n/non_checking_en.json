@@ -993,7 +993,6 @@
   },
   "translate_overview": {
     "progress": "Progress",
-    "progress_not_available_offline": "Translation progress is not available when offline.",
     "translate_overview": "Translate Overview",
     "translated_segments": "{{ translatedSegments }} of {{ total }} segments"
   },

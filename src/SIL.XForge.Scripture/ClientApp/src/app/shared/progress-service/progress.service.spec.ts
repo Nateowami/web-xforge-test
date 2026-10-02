@@ -1,11 +1,14 @@
 import { fakeAsync, flushMicrotasks } from '@angular/core/testing';
 import { anything, instance, mock, reset, verify, when } from 'ts-mockito';
 import { NoticeService } from 'xforge-common/notice.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
+import { TextDocId } from '../../core/models/text-doc';
 import { SFProjectService } from '../../core/sf-project.service';
 import {
   BookProgress,
   BookProgressWithChapterProgress,
+  countChapterVerseSegments,
   estimatedActualBookProgress,
   ProgressService,
   ProjectProgress,
@@ -14,12 +17,87 @@ import {
 
 const mockedNoticeService = mock(NoticeService);
 const mockedProjectService = mock(SFProjectService);
+const mockedOnlineStatusService = mock(OnlineStatusService);
 
 describe('ProgressService', () => {
   beforeEach(() => {
     reset(mockedNoticeService);
     reset(mockedProjectService);
+    reset(mockedOnlineStatusService);
+    when(mockedOnlineStatusService.isOnline).thenReturn(true);
   });
+
+  it('calculates progress from locally stored chapters when offline', fakeAsync(() => {
+    const env = new TestEnvironment();
+    when(mockedOnlineStatusService.isOnline).thenReturn(false);
+    env.setTexts('project1', [
+      { bookNum: 40, chapters: [{ number: 1 }, { number: 2 }] },
+      { bookNum: 1, chapters: [{ number: 1 }] },
+      { bookNum: 41, chapters: [{ number: 1 }] }
+    ]);
+    when(mockedProjectService.getOfflineTextData(anything())).thenCall((id: TextDocId) => {
+      switch (id.toString()) {
+        case 'project1:MAT:1:target':
+          return Promise.resolve({
+            ops: [
+              { insert: 'text', attributes: { segment: 'verse_1_1' } },
+              { insert: { blank: true }, attributes: { segment: 'verse_1_2' } }
+            ]
+          });
+        case 'project1:MAT:2:target':
+          return Promise.resolve({ ops: [{ insert: { blank: true }, attributes: { segment: 'verse_2_1' } }] });
+        case 'project1:GEN:1:target':
+          return Promise.resolve({ ops: [{ insert: 'text', attributes: { segment: 'verse_1_1' } }] });
+        default:
+          // Mark 1 has not been downloaded to this device
+          return Promise.resolve(undefined);
+      }
+    });
+
+    let result: ProjectProgressWithChapterProgress | undefined;
+    env.service.getProgressWithChapterProgress('project1', { maxStalenessMs: 1000 }).then(r => (result = r));
+    flushMicrotasks();
+
+    expect(result?.books).toEqual([
+      {
+        bookId: 'GEN',
+        verseSegments: 1,
+        blankVerseSegments: 0,
+        chapters: [{ chapterNumber: 1, verseSegments: 1, blankVerseSegments: 0 }]
+      },
+      {
+        bookId: 'MAT',
+        verseSegments: 3,
+        blankVerseSegments: 2,
+        chapters: [
+          { chapterNumber: 1, verseSegments: 2, blankVerseSegments: 1 },
+          { chapterNumber: 2, verseSegments: 1, blankVerseSegments: 1 }
+        ]
+      }
+    ]);
+    expect(result?.translatedVerseSegments).toBe(2);
+    verify(mockedProjectService.getProjectProgress(anything())).never();
+  }));
+
+  it('fetches progress from the server when back online instead of reusing offline progress', fakeAsync(() => {
+    const env = new TestEnvironment();
+    const serverBooks: BookProgressWithChapterProgress[] = [
+      { bookId: 'GEN', verseSegments: 100, blankVerseSegments: 20, chapters: [] }
+    ];
+    when(mockedProjectService.getProjectProgress('project1')).thenResolve(serverBooks);
+    when(mockedOnlineStatusService.isOnline).thenReturn(false);
+
+    let offlineResult: ProjectProgress | undefined;
+    env.service.getProgress('project1', { maxStalenessMs: 10000 }).then(r => (offlineResult = r));
+    flushMicrotasks();
+    expect(offlineResult?.books).toEqual([]);
+
+    when(mockedOnlineStatusService.isOnline).thenReturn(true);
+    let onlineResult: ProjectProgress | undefined;
+    env.service.getProgress('project1', { maxStalenessMs: 10000 }).then(r => (onlineResult = r));
+    flushMicrotasks();
+    expect(onlineResult?.books).toEqual(serverBooks);
+  }));
 
   it('should get fresh progress data', fakeAsync(() => {
     const env = new TestEnvironment();
@@ -345,20 +423,54 @@ class TestEnvironment {
   readonly service: ProgressService;
   /** sync.dateLastSuccessfulSync per project; change a project's value to simulate a completed sync. */
   private readonly lastSyncDateStrings = new Map<string, string>();
+  private readonly texts = new Map<string, unknown[]>();
 
   constructor() {
     when(mockedProjectService.getProfile(anything())).thenCall((projectId: string) =>
       Promise.resolve({
-        data: { sync: { dateLastSuccessfulSync: this.lastSyncDateStrings.get(projectId) ?? 'initial-sync' } }
+        id: projectId,
+        data: {
+          texts: this.texts.get(projectId) ?? [],
+          sync: { dateLastSuccessfulSync: this.lastSyncDateStrings.get(projectId) ?? 'initial-sync' }
+        }
       } as unknown as SFProjectProfileDoc)
     );
-    this.service = new ProgressService(instance(mockedNoticeService), instance(mockedProjectService));
+    this.service = new ProgressService(
+      instance(mockedNoticeService),
+      instance(mockedProjectService),
+      instance(mockedOnlineStatusService)
+    );
+  }
+
+  setTexts(projectId: string, texts: { bookNum: number; chapters: { number: number }[] }[]): void {
+    this.texts.set(projectId, texts);
   }
 
   setLastSyncDateString(projectId: string, dateString: string): void {
     this.lastSyncDateStrings.set(projectId, dateString);
   }
 }
+
+describe('countChapterVerseSegments', () => {
+  it('counts verse segment ops and blank verse segment ops, ignoring other segments', () => {
+    expect(
+      countChapterVerseSegments({
+        ops: [
+          { insert: 'Heading', attributes: { segment: 's_1' } },
+          { insert: { blank: true }, attributes: { segment: 's_2' } },
+          { insert: { verse: { number: '1' } } },
+          { insert: 'text', attributes: { segment: 'verse_1_1' } },
+          { insert: { blank: true }, attributes: { segment: 'verse_1_2' } },
+          { insert: '\n' }
+        ]
+      })
+    ).toEqual({ verseSegments: 2, blankVerseSegments: 1 });
+  });
+
+  it('returns zero counts for a chapter without ops', () => {
+    expect(countChapterVerseSegments({})).toEqual({ verseSegments: 0, blankVerseSegments: 0 });
+  });
+});
 
 describe('ProjectProgress', () => {
   it('should calculate totals correctly with multiple books', () => {

@@ -14,10 +14,12 @@ import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scri
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { getSFProjectUserConfigDocId } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
 import { TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
+import { TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import { DraftUsfmConfig } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
 import { Subject } from 'rxjs';
 import { CommandService } from 'xforge-common/command.service';
 import { LocationService } from 'xforge-common/location.service';
+import { RealtimeOfflineData } from 'xforge-common/models/realtime-offline-data';
 import { RealtimeQuery } from 'xforge-common/models/realtime-query';
 import { ProjectService } from 'xforge-common/project.service';
 import { QueryParameters, QueryResults } from 'xforge-common/query-parameters';
@@ -162,6 +164,18 @@ export class SFProjectService extends ProjectService<SFProject, SFProjectDoc> {
 
   getText(textId: TextDocId | string): Promise<TextDoc> {
     return this.realtimeService.subscribe(TextDoc.COLLECTION, textId instanceof TextDocId ? textId.toString() : textId);
+  }
+
+  /**
+   * Gets the text data stored for offline use, without contacting the server. Resolves to undefined if the chapter has
+   * not been downloaded to this device.
+   */
+  async getOfflineTextData(textId: TextDocId): Promise<TextData | undefined> {
+    const offlineData = await this.realtimeService.offlineStore.get<RealtimeOfflineData>(
+      TextDoc.COLLECTION,
+      textId.toString()
+    );
+    return offlineData?.data;
   }
 
   getNoteThread(threadDataId: string): Promise<NoteThreadDoc> {

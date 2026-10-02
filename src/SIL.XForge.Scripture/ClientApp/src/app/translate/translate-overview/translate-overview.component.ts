@@ -20,7 +20,7 @@ import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-proj
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { isParatextRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { asyncScheduler, Subscription } from 'rxjs';
-import { filter, map, throttleTime } from 'rxjs/operators';
+import { distinctUntilChanged, filter, map, throttleTime } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DonutChartComponent } from 'xforge-common/donut-chart/donut-chart.component';
 import { I18nService } from 'xforge-common/i18n.service';
@@ -33,7 +33,6 @@ import { UserService } from 'xforge-common/user.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SFProjectService } from '../../core/sf-project.service';
-import { NoticeComponent } from '../../shared/notice/notice.component';
 import { BookProgress, ProgressService, ProjectProgress } from '../../shared/progress-service/progress.service';
 import { FontUnsupportedMessageComponent } from '../font-unsupported-message/font-unsupported-message.component';
 const TEXT_PATH_TEMPLATE = obj<SFProject>().pathTemplate(p => p.texts[ANY_INDEX]);
@@ -59,7 +58,6 @@ const TEXT_PATH_TEMPLATE = obj<SFProject>().pathTemplate(p => p.texts[ANY_INDEX]
     MatListItemTitle,
     MatListItemLine,
     MatListItemMeta,
-    NoticeComponent,
     L10nNumberPipe,
     L10nPercentPipe
   ]
@@ -68,6 +66,8 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
   projectProgress?: ProjectProgress;
   private projectDoc?: SFProjectProfileDoc;
   private projectDataChangesSub?: Subscription;
+  private onlineStatusSub?: Subscription;
+  private progressRequestCount = 0;
 
   constructor(
     private readonly activatedRoute: ActivatedRoute,
@@ -90,10 +90,6 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
     );
   }
 
-  get isOnline(): boolean {
-    return this.onlineStatusService.isOnline;
-  }
-
   get projectId(): string | undefined {
     return this.projectDoc?.id;
   }
@@ -111,15 +107,11 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
       .subscribe(async projectId => {
         this.projectDoc = await this.projectService.getProfile(projectId);
 
-        // Update the overview now if we are online, or when we are next online
-        void this.onlineStatusService.online.then(async () => {
-          this.loadingStarted();
-          try {
-            this.projectProgress = await this.progressService.getProgress(this.projectId!, { maxStalenessMs: 30_000 });
-          } finally {
-            this.loadingFinished();
-          }
-        });
+        // Progress is calculated from local data while offline, so recalculate whenever the online status changes
+        this.onlineStatusSub?.unsubscribe();
+        this.onlineStatusSub = this.onlineStatusService.onlineStatus$
+          .pipe(distinctUntilChanged(), quietTakeUntilDestroyed(this.destroyRef))
+          .subscribe(() => void this.updateProgress());
 
         if (this.projectDataChangesSub != null) {
           this.projectDataChangesSub.unsubscribe();
@@ -130,22 +122,25 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
             // TODO Find a better solution than merely throttling remote changes
             throttleTime(1000, asyncScheduler, { leading: true, trailing: true })
           )
-          .subscribe(async () => {
-            this.loadingStarted();
-            try {
-              this.projectProgress = await this.progressService.getProgress(this.projectId!, {
-                maxStalenessMs: 30_000
-              });
-            } finally {
-              this.loadingFinished();
-            }
-          });
+          .subscribe(() => void this.updateProgress());
       });
   }
 
   getBookNameFromId(bookId: string): string {
     const bookNum = Canon.bookIdToNumber(bookId);
     return this.i18n.localizeBook(bookNum);
+  }
+
+  private async updateProgress(): Promise<void> {
+    // Online and offline results can resolve out of order, so only the latest request may set the progress
+    const requestNumber = ++this.progressRequestCount;
+    this.loadingStarted();
+    try {
+      const progress = await this.progressService.getProgress(this.projectId!, { maxStalenessMs: 30_000 });
+      if (requestNumber === this.progressRequestCount) this.projectProgress = progress;
+    } finally {
+      this.loadingFinished();
+    }
   }
 
   bookTranslatedSegments(bookProgress: BookProgress): number {
