@@ -584,21 +584,21 @@
                               bookConfidence of row.report.buildConfidences.bookConfidences;
                               track bookConfidence.bookNum
                             ) {
+                              @let draftedChapters = getDraftedChapters(row, bookConfidence);
+                              @let bookLabel =
+                                ("canon.book_names." + getBookId(bookConfidence) | transloco) +
+                                (draftedChapters != null ? " " + draftedChapters : "");
                               <div class="book-confidence">
                                 @if (hasLowConfidence(row, getBookId(bookConfidence))) {
                                   <div class="detail-keyvalue">
-                                    <span class="detail-key">
-                                      {{ "canon.book_names." + getBookId(bookConfidence) | transloco }}
-                                    </span>
+                                    <span class="detail-key">{{ bookLabel }}</span>
                                     <span class="detail-value">
                                       <app-display-confidence [showIconAndText]="true"></app-display-confidence>
                                     </span>
                                   </div>
                                 }
                                 <div class="detail-keyvalue">
-                                  <span class="detail-key">
-                                    {{ "canon.book_names." + getBookId(bookConfidence) | transloco }} - Confidence
-                                  </span>
+                                  <span class="detail-key">{{ bookLabel }} - Confidence</span>
                                   <span class="detail-value">{{ bookConfidence.confidence.toFixed(4) }}</span>
                                 </div>
                               </div>

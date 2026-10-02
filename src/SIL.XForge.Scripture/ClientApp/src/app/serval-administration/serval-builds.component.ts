@@ -445,6 +445,16 @@ export class ServalBuildsComponent extends DataLoadingComponent implements OnIni
     return Canon.bookNumberToId(bookConfidence.bookNum);
   }
 
+  /** Returns the drafted chapters of the book (e.g. "2-5"), or undefined if the whole book was drafted. */
+  protected getDraftedChapters(row: ServalBuildRow, bookConfidence: BookConfidence): string | undefined {
+    const bookId: string = this.getBookId(bookConfidence);
+    const chapters: number[] = row.translationBooks
+      .flatMap(projectBooks => projectBooks.booksAndChapters)
+      .filter(entry => entry.bookId === bookId)
+      .flatMap(entry => entry.chapters ?? []);
+    return chapters.length > 0 ? new ChapterSet(chapters).toStringForDisplay() : undefined;
+  }
+
   /** Returns the requested phase of the build.  */
   protected getPhase(report: ServalBuildReportDto, stage: 'Train' | 'Inference'): Phase | undefined {
     return report.timeline.phases?.find((phase: Phase) => phase.stage === stage);

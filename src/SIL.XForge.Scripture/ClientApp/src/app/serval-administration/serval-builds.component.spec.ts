@@ -101,6 +101,25 @@ describe('ServalBuildsComponent', () => {
     }));
   });
 
+  describe('drafted chapters', () => {
+    it('returns the chapter range of a partially drafted book', () => {
+      const env = new TestEnvironment();
+      const row = env.createRow({
+        translationBooks: [
+          {
+            sfProjectId: 'project-1',
+            projectDisplayName: 'ABC',
+            booksAndChapters: [{ bookId: 'GEN', chapters: [2, 3, 4, 5, 7] }, { bookId: 'EXO' }]
+          }
+        ]
+      });
+
+      expect(env.component['getDraftedChapters'](row, { bookNum: 1, confidence: 0.5 })).toBe('2-5, 7');
+      expect(env.component['getDraftedChapters'](row, { bookNum: 2, confidence: 0.5 })).toBeUndefined();
+      expect(env.component['getDraftedChapters'](row, { bookNum: 3, confidence: 0.5 })).toBeUndefined();
+    });
+  });
+
   describe('search', () => {
     it('filters rows by SF project ID', fakeAsync(() => {
       const env = new TestEnvironment();
