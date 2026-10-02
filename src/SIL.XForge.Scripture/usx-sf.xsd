@@ -409,22 +409,32 @@
       <xs:enumeration value="tc1"/>
       <xs:enumeration value="thr1"/>
       <xs:enumeration value="tcr1"/>
+      <xs:enumeration value="thc1"/>
+      <xs:enumeration value="tcc1"/>
       <xs:enumeration value="th2"/>
       <xs:enumeration value="tc2"/>
       <xs:enumeration value="thr2"/>
       <xs:enumeration value="tcr2"/>
+      <xs:enumeration value="thc2"/>
+      <xs:enumeration value="tcc2"/>
       <xs:enumeration value="th3"/>
       <xs:enumeration value="tc3"/>
       <xs:enumeration value="thr3"/>
       <xs:enumeration value="tcr3"/>
+      <xs:enumeration value="thc3"/>
+      <xs:enumeration value="tcc3"/>
       <xs:enumeration value="th4"/>
       <xs:enumeration value="tc4"/>
       <xs:enumeration value="thr4"/>
       <xs:enumeration value="tcr4"/>
+      <xs:enumeration value="thc4"/>
+      <xs:enumeration value="tcc4"/>
       <xs:enumeration value="th5"/>
       <xs:enumeration value="tc5"/>
       <xs:enumeration value="thr5"/>
       <xs:enumeration value="tcr5"/>
+      <xs:enumeration value="thc5"/>
+      <xs:enumeration value="tcc5"/>
       <xs:enumeration value="rem"/>
     </xs:restriction>
   </xs:simpleType>

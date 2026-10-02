@@ -3363,6 +3363,40 @@ public class DeltaUsxMapperTests
     }
 
     [Test]
+    public void ToDelta_TableWithCenterAlignedCells()
+    {
+        XDocument usxDoc = Usx(
+            "NUM",
+            Chapter("1"),
+            Table(
+                Row(Cell("th1", "start", "Tribe"), Cell("thc2", "center", "Number")),
+                Row(Cell("tc1", "start", Verse("1"), "Reuben"), Cell("tcc2", "center", "46,500"))
+            )
+        );
+
+        var mapper = new DeltaUsxMapper(_mapperGuidService, _logger, _exceptionHandler);
+        List<ChapterDelta> chapterDeltas = [.. mapper.ToChapterDeltas(usxDoc)];
+
+        var expected = Delta
+            .New()
+            .InsertBook("NUM")
+            .InsertChapter("1")
+            .InsertText("Tribe", "cell_1_1_1")
+            .InsertCell(1, 1, "th1", "start")
+            .InsertText("Number", "cell_1_1_2")
+            .InsertCell(1, 1, "thc2", "center")
+            .InsertBlank("cell_1_2_1")
+            .InsertVerse("1")
+            .InsertText("Reuben", "verse_1_1")
+            .InsertCell(1, 2, "tc1", "start")
+            .InsertText("46,500", "cell_1_2_2")
+            .InsertCell(1, 2, "tcc2", "center");
+
+        Assert.That(chapterDeltas[0].IsValid, Is.True);
+        Assert.IsTrue(chapterDeltas[0].Delta.DeepEquals(expected));
+    }
+
+    [Test]
     public void ToDelta_InvalidTable()
     {
         XDocument usxDoc = Usx(
