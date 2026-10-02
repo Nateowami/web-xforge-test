@@ -272,6 +272,8 @@
                   [isRightToLeft]="isTargetRightToLeft"
                   [fontSize]="fontSize"
                   [timestamp]="draftTimestamp"
+                  [selectedRevisionTimestamp]="tab.selectedRevisionTimestamp"
+                  (revisionSelect)="tab.selectedRevisionTimestamp = $event.timestamp"
                 >
                 </app-editor-draft>
               }

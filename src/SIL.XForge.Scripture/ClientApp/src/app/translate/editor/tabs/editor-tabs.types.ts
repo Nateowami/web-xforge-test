@@ -18,7 +18,7 @@ export interface EditorTabInfo extends TabInfo<EditorTabType> {
   projectId?: string;
 
   /**
-   * The timestamp of the revision selected in a history tab. Moving a tab to another tab group recreates its
+   * The timestamp of the revision selected in a history or draft tab. Moving a tab to another tab group recreates its
    * component, so this is kept on the tab in order to restore the selection.
    */
   selectedRevisionTimestamp?: string;

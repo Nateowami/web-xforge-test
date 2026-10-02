@@ -1,5 +1,15 @@
 import { AsyncPipe, NgClass } from '@angular/common';
-import { AfterViewInit, Component, DestroyRef, Input, OnChanges, ViewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  DestroyRef,
+  EventEmitter,
+  Input,
+  OnChanges,
+  Output,
+  SimpleChanges,
+  ViewChild
+} from '@angular/core';
 import { MatOption } from '@angular/material/autocomplete';
 import { MatButton } from '@angular/material/button';
 import { MatFormField } from '@angular/material/form-field';
@@ -96,6 +106,10 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
   @Input() isRightToLeft!: boolean;
   @Input() fontSize?: string;
   @Input() timestamp?: Date;
+
+  /** The timestamp of the draft revision to select when the drafts load. Defaults to the one closest to `timestamp`. */
+  @Input() selectedRevisionTimestamp?: string;
+  @Output() revisionSelect = new EventEmitter<Revision>();
 
   @ViewChild(TextComponent) draftText!: TextComponent;
 
@@ -254,7 +268,12 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
     return this._draftRevisions;
   }
 
-  ngOnChanges(): void {
+  ngOnChanges(changes: SimpleChanges): void {
+    // The selected revision is only read when the drafts load, so changing it must not reload them
+    if (changes.selectedRevisionTimestamp != null && Object.keys(changes).length === 1) {
+      return;
+    }
+
     if (this.projectId == null || this.bookNum == null || this.chapter == null) {
       throw new Error('projectId, bookNum, or chapter is null');
     }
@@ -278,6 +297,7 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
   onSelectionChanged(e: MatSelectChange): void {
     this.selectedRevision = e.value;
     this.selectedRevisionSubject.next(this.selectedRevision);
+    this.revisionSelect.emit(e.value);
   }
 
   populateDraftTextInit(): void {
@@ -302,9 +322,15 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
                     this.draftRevisions = [...revisions].sort((a, b) => {
                       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
                     });
+                    // Restore the previously selected revision, if it is still available. This component is
+                    // recreated when its tab is moved to another tab group, and the selection would otherwise be lost.
+                    const restoredRevision: Revision | undefined =
+                      this.selectedRevision == null
+                        ? this.draftRevisions.find(r => r.timestamp === this.selectedRevisionTimestamp)
+                        : undefined;
                     const date = this.timestamp ?? new Date();
                     // Don't emit this.selectedRevision$, as the merge will handle this
-                    this.selectedRevision = this.findClosestRevision(date, this.draftRevisions);
+                    this.selectedRevision = restoredRevision ?? this.findClosestRevision(date, this.draftRevisions);
                     return { textDocId, timestamp: this.selectedRevision?.timestamp };
                   } else {
                     return { textDocId };
