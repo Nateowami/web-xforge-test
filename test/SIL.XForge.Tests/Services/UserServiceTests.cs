@@ -104,6 +104,26 @@ public class UserServiceTests
     }
 
     [Test]
+    public async Task UpdateUserFromProfileAsync_NewTransparentAuthenticationUser_EmailNameKept()
+    {
+        var env = new TestEnvironment();
+
+        JObject userProfile = TestEnvironment.CreateUserProfile("user03", "auth03", env.IssuedAt);
+        userProfile["name"] = "usernew@example.com";
+        userProfile["nickname"] = "6dteanstmq_nqodb";
+        userProfile["identities"] = new JArray(
+            new JObject(
+                new JProperty("connection", "Transparent-Authentication"),
+                new JProperty("user_id", "6dteanstmq_nqodb")
+            )
+        );
+        await env.Service.UpdateUserFromProfileAsync("user03", userProfile.ToString());
+        User user3 = env.GetUser("user03");
+        Assert.That(user3.DisplayName, Is.EqualTo("usernew@example.com"));
+        Assert.That(user3.IsDisplayNameConfirmed, Is.True);
+    }
+
+    [Test]
     public async Task UpdateUserFromProfileAsync_Metadata_AvatarSet()
     {
         var env = new TestEnvironment();

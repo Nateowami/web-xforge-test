@@ -70,8 +70,10 @@ public class UserService : IUserService
                     new User
                     {
                         AuthId = (string)userProfile["user_id"],
+                        // A name entered when joining via a share link is kept even if it looks like an
+                        // email address, since the nickname of a generated account is its random username
                         DisplayName =
-                            string.IsNullOrWhiteSpace(name) || emailRegex.IsMatch(name)
+                            string.IsNullOrWhiteSpace(name) || (!displayNameSetAtSignup && emailRegex.IsMatch(name))
                                 ? (string)userProfile["nickname"]
                                 : name,
                         IsDisplayNameConfirmed = displayNameSetAtSignup,
