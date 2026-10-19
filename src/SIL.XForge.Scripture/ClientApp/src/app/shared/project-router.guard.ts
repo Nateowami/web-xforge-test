@@ -3,7 +3,7 @@ import { ActivatedRouteSnapshot, CanDeactivate, Router, RouterStateSnapshot } fr
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { from, Observable, of } from 'rxjs';
-import { map, switchMap } from 'rxjs/operators';
+import { map, switchMap, tap } from 'rxjs/operators';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
@@ -81,9 +81,29 @@ export class NmtDraftAuthGuard extends RouterGuard {
   constructor(
     authGuard: AuthGuard,
     projectService: SFProjectService,
-    private userService: UserService
+    private userService: UserService,
+    private router: Router
   ) {
     super(authGuard, projectService);
+  }
+
+  override canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
+    const projectId: string = next.params['projectId'];
+    return this.authGuard.canActivate(next, state).pipe(
+      switchMap(isLoggedIn => {
+        if (!isLoggedIn) {
+          return of(false);
+        }
+        return this.allowTransition(projectId).pipe(
+          tap(allowed => {
+            // Refusing the first navigation after a page load would otherwise leave a blank page
+            if (!allowed) {
+              void this.router.navigate(['/projects', projectId], { replaceUrl: true });
+            }
+          })
+        );
+      })
+    );
   }
 
   check(projectDoc: SFProjectProfileDoc): boolean {

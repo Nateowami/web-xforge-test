@@ -1,21 +1,30 @@
 import { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
-import { mock, when } from 'ts-mockito';
+import { firstValueFrom, of } from 'rxjs';
+import { anything, deepEqual, mock, verify, when } from 'ts-mockito';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { SFProjectService } from '../core/sf-project.service';
-import { DraftNavigationAuthGuard, SettingsAuthGuard, SyncAuthGuard, UsersAuthGuard } from './project-router.guard';
+import {
+  DraftNavigationAuthGuard,
+  NmtDraftAuthGuard,
+  SettingsAuthGuard,
+  SyncAuthGuard,
+  UsersAuthGuard
+} from './project-router.guard';
 
 const mockedAuthGuard = mock(AuthGuard);
 const mockedAuthService = mock(AuthService);
 const mockedProjectService = mock(SFProjectService);
 const mockedUserService = mock(UserService);
+const mockedRouter = mock(Router);
 
 describe('DraftNavigationAuthGuard', () => {
   configureTestingModule(() => ({
@@ -100,6 +109,41 @@ describe('SyncAuthGuard', () => {
   });
 });
 
+describe('NmtDraftAuthGuard', () => {
+  configureTestingModule(() => ({
+    providers: [
+      { provide: AuthGuard, useMock: mockedAuthGuard },
+      { provide: SFProjectService, useMock: mockedProjectService },
+      { provide: UserService, useMock: mockedUserService },
+      { provide: Router, useMock: mockedRouter }
+    ]
+  }));
+
+  it('allows translators to open drafting', async () => {
+    const env = new NmtDraftTestEnvironment(SFProjectRole.ParatextTranslator);
+    expect(await env.canActivate()).toBe(true);
+    verify(mockedRouter.navigate(anything(), anything())).never();
+  });
+
+  it('redirects to the project when the user cannot edit texts', async () => {
+    const env = new NmtDraftTestEnvironment(SFProjectRole.ParatextConsultant);
+    expect(await env.canActivate()).toBe(false);
+    verify(mockedRouter.navigate(deepEqual(['/projects', 'project01']), deepEqual({ replaceUrl: true }))).once();
+  });
+
+  it('does not redirect when checking access for the navigation menu', async () => {
+    const env = new NmtDraftTestEnvironment(SFProjectRole.ParatextConsultant);
+    expect(await firstValueFrom(env.service.allowTransition('project01'))).toBe(false);
+    verify(mockedRouter.navigate(anything(), anything())).never();
+  });
+
+  it('does not redirect when the user is logged out', async () => {
+    const env = new NmtDraftTestEnvironment(SFProjectRole.ParatextConsultant, false);
+    expect(await env.canActivate()).toBe(false);
+    verify(mockedRouter.navigate(anything(), anything())).never();
+  });
+});
+
 // SettingsAuthGuard and UsersAuthGuard share the same access rule
 for (const guardType of [SettingsAuthGuard, UsersAuthGuard]) {
   describe(guardType.name, () => {
@@ -145,6 +189,25 @@ class DraftNavigationTestEnvironment {
   service: DraftNavigationAuthGuard;
   constructor() {
     this.service = TestBed.inject(DraftNavigationAuthGuard);
+  }
+}
+
+class NmtDraftTestEnvironment {
+  service: NmtDraftAuthGuard;
+  constructor(role: SFProjectRole, isLoggedIn: boolean = true) {
+    this.service = TestBed.inject(NmtDraftAuthGuard);
+    when(mockedUserService.currentUserId).thenReturn('user01');
+    when(mockedAuthGuard.canActivate(anything(), anything())).thenReturn(of(isLoggedIn));
+    when(mockedAuthGuard.allowTransition()).thenReturn(of(isLoggedIn));
+    when(mockedProjectService.getProfile('project01')).thenResolve({
+      id: 'project01',
+      data: createTestProjectProfile({ userRoles: { user01: role } })
+    } as SFProjectProfileDoc);
+  }
+
+  canActivate(): Promise<boolean> {
+    const route = { params: { projectId: 'project01' } } as unknown as ActivatedRouteSnapshot;
+    return firstValueFrom(this.service.canActivate(route, {} as RouterStateSnapshot));
   }
 }
 
