@@ -874,6 +874,16 @@ public partial class MachineApiService(
             )
         )
         {
+            // Associate the cancellation with its draft generation request, as there may be no Serval build to do so
+            string? queuedDraftGenerationRequestId = projectSecret.ServalData?.PreTranslationDraftGenerationRequestId;
+            if (!string.IsNullOrEmpty(queuedDraftGenerationRequestId))
+            {
+                Activity.Current?.AddTag(
+                    MachineProjectService.DraftGenerationRequestIdKey,
+                    queuedDraftGenerationRequestId
+                );
+            }
+
             // Cancel the Hangfire job
             if (projectSecret.ServalData?.PreTranslationJobId is not null)
             {
@@ -887,6 +897,7 @@ public partial class MachineApiService(
                 {
                     u.Unset(p => p.ServalData!.PreTranslationJobId);
                     u.Unset(p => p.ServalData!.PreTranslationQueuedAt);
+                    u.Unset(p => p.ServalData!.PreTranslationDraftGenerationRequestId);
                 },
                 cancellationToken: cancellationToken
             );
@@ -918,7 +929,7 @@ public partial class MachineApiService(
             string? draftGenerationRequestId = await GetDraftGenerationRequestIdForBuildAsync(sfProjectId, buildId);
             if (!string.IsNullOrEmpty(draftGenerationRequestId))
             {
-                Activity.Current?.AddTag(MachineProjectService.DraftGenerationRequestIdKey, draftGenerationRequestId);
+                Activity.Current?.SetTag(MachineProjectService.DraftGenerationRequestIdKey, draftGenerationRequestId);
             }
 
             // Return the build id so it can be logged
@@ -1773,8 +1784,15 @@ public partial class MachineApiService(
                     bool hasBuildProject = groupEvents.Any(e =>
                         e.EventType == nameof(MachineProjectService.BuildProjectAsync)
                     );
-                    DraftGenerationBuildStatus status = hasBuildProject
-                        ? DraftGenerationBuildStatus.SubmittedToServal
+                    // A request cancelled before it was submitted to Serval never gets a Serval build
+                    EventMetric? cancelEvent = hasBuildProject
+                        ? null
+                        : groupEvents.FirstOrDefault(e =>
+                            e.EventType == nameof(CancelPreTranslationBuildAsync) && e.Exception is null
+                        );
+                    DraftGenerationBuildStatus status =
+                        hasBuildProject ? DraftGenerationBuildStatus.SubmittedToServal
+                        : cancelEvent != null ? DraftGenerationBuildStatus.Canceled
                         : DraftGenerationBuildStatus.UserRequested;
 
                     EventMetric? startEvent = groupEvents.FirstOrDefault(e =>
@@ -1784,6 +1802,10 @@ public partial class MachineApiService(
                     DateTimeOffset? sfUserRequested =
                         startEvent != null
                             ? new DateTimeOffset(startEvent.TimeStamp, TimeSpan.Zero).ToUniversalTime()
+                            : null;
+                    DateTimeOffset? sfUserCancelled =
+                        cancelEvent != null
+                            ? new DateTimeOffset(cancelEvent.TimeStamp, TimeSpan.Zero).ToUniversalTime()
                             : null;
 
                     // We could add more details to the report if we are finding that it is often occurring to have build requests that
@@ -1802,18 +1824,22 @@ public partial class MachineApiService(
                             Timeline = new BuildReportTimeline
                             {
                                 SFUserRequested = sfUserRequested,
+                                SFUserCancelled = sfUserCancelled,
                                 RequestTime = sfUserRequested,
                             },
                             Config = new BuildReportConfig(),
                             Problems =
-                            [
-                                new BuildReportProblem
-                                {
-                                    Source = BuildReportProblemSource.Local,
-                                    Severity = BuildReportProblemSeverity.Error,
-                                    Message = "No Serval build was reported for this draft generation request.",
-                                },
-                            ],
+                                cancelEvent != null
+                                    ? []
+                                    :
+                                    [
+                                        new BuildReportProblem
+                                        {
+                                            Source = BuildReportProblemSource.Local,
+                                            Severity = BuildReportProblemSeverity.Error,
+                                            Message = "No Serval build was reported for this draft generation request.",
+                                        },
+                                    ],
                             DraftGenerationRequestId = requestId,
                             RequesterSFUserId = startEvent?.UserId,
                             Status = status,
@@ -3263,6 +3289,7 @@ public partial class MachineApiService(
                 u =>
                 {
                     u.Set(p => p.ServalData!.PreTranslationQueuedAt, DateTime.UtcNow);
+                    u.Set(p => p.ServalData!.PreTranslationDraftGenerationRequestId, draftGenerationRequestId);
                     u.Unset(p => p.ServalData!.PreTranslationJobId);
                 },
                 cancellationToken: cancellationToken

@@ -110,6 +110,16 @@ public class ServalData
     public DateTime? PreTranslationQueuedAt { get; set; }
 
     /// <summary>
+    /// Gets or sets the SF draft generation request identifier of the queued pre-translation build.
+    /// </summary>
+    /// <remarks>
+    /// This is set when the build is queued, and is only meaningful while <see cref="PreTranslationQueuedAt"/> or
+    /// <see cref="PreTranslationJobId"/> is set. It lets a cancellation before the build reaches Serval be associated
+    /// with its draft generation request.
+    /// </remarks>
+    public string? PreTranslationDraftGenerationRequestId { get; set; }
+
+    /// <summary>
     /// Gets or sets a value indicating whether the pre-translations have been retrieved.
     /// </summary>
     /// <value>

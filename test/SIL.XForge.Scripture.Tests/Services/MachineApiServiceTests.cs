@@ -690,18 +690,63 @@ public class MachineApiServiceTests
     {
         // Set up test environment
         var env = new TestEnvironment();
+        const string draftGenerationRequestId = "1234";
         await env.QueueBuildAsync(Project01, dateTime: DateTime.UtcNow);
+        await env.ProjectSecrets.UpdateAsync(
+            Project01,
+            u => u.Set(p => p.ServalData!.PreTranslationDraftGenerationRequestId, draftGenerationRequestId)
+        );
         env.TranslationEnginesClient.CancelBuildAsync(TranslationEngine01, CancellationToken.None)
             .Throws(ServalApiExceptions.NoContent);
 
-        // SUT
-        string? actual = await env.Service.CancelPreTranslationBuildAsync(User01, Project01, CancellationToken.None);
-        Assert.IsNull(actual);
+        using (new Activity("TestActivity").Start())
+        {
+            // SUT
+            string? actual = await env.Service.CancelPreTranslationBuildAsync(
+                User01,
+                Project01,
+                CancellationToken.None
+            );
+            Assert.IsNull(actual);
+
+            // The cancel event must be tagged so it is grouped with the draft generation request it cancelled
+            Assert.AreEqual(
+                draftGenerationRequestId,
+                Activity.Current!.GetTagItem(MachineProjectService.DraftGenerationRequestIdKey)
+            );
+        }
 
         await env.TranslationEnginesClient.Received(1).CancelBuildAsync(TranslationEngine01, CancellationToken.None);
         env.BackgroundJobClient.Received(1).ChangeState(HangfireJobId, Arg.Any<DeletedState>(), null); // Same as Delete()
         Assert.IsNull(env.ProjectSecrets.Get(Project01).ServalData!.PreTranslationJobId);
         Assert.IsNull(env.ProjectSecrets.Get(Project01).ServalData!.PreTranslationQueuedAt);
+        Assert.IsNull(env.ProjectSecrets.Get(Project01).ServalData!.PreTranslationDraftGenerationRequestId);
+        Assert.IsFalse(env.Projects.Get(Project01).TranslateConfig.DraftConfig.DraftInProgress);
+    }
+
+    [Test]
+    public async Task CancelPreTranslationBuildAsync_NothingQueuedAndNoServalBuild()
+    {
+        // A repeat cancel, or a cancel after the build finished, finds nothing to cancel. That is not an error.
+        var env = new TestEnvironment();
+        env.TranslationEnginesClient.CancelBuildAsync(TranslationEngine01, CancellationToken.None)
+            .Throws(ServalApiExceptions.NoContent);
+
+        using (new Activity("TestActivity").Start())
+        {
+            // SUT
+            string? actual = await env.Service.CancelPreTranslationBuildAsync(
+                User01,
+                Project01,
+                CancellationToken.None
+            );
+            Assert.IsNull(actual);
+            Assert.IsNull(Activity.Current!.GetTagItem(MachineProjectService.DraftGenerationRequestIdKey));
+        }
+
+        await env.TranslationEnginesClient.Received(1).CancelBuildAsync(TranslationEngine01, CancellationToken.None);
+        env.BackgroundJobClient.DidNotReceive()
+            .ChangeState(Arg.Any<string>(), Arg.Any<DeletedState>(), Arg.Any<string?>());
         Assert.IsFalse(env.Projects.Get(Project01).TranslateConfig.DraftConfig.DraftInProgress);
     }
 
@@ -2086,6 +2131,78 @@ public class MachineApiServiceTests
         Assert.AreEqual(DraftGenerationBuildStatus.UserRequested, reports[0].Status);
         Assert.AreEqual("orphan-request-1", reports[0].DraftGenerationRequestId);
         Assert.AreEqual(User01, reports[0].RequesterSFUserId);
+    }
+
+    [Test]
+    public async Task GetBuildsSinceAsync_EventsOnlyReportForRequestCancelledBeforeServal()
+    {
+        // A draft generation request cancelled before it was submitted to Serval has no Serval build. It should be
+        // reported as cancelled, not as a request that is still waiting or has a problem.
+
+        // Set up test environment
+        var env = new TestEnvironment();
+        DateTimeOffset beginning = DateTimeOffset.UtcNow.AddDays(-7);
+        DateTime requested = DateTime.UtcNow.AddMinutes(-5);
+        DateTime cancelled = requested.AddSeconds(9);
+        env.TranslationBuildsClient.GetAllBuildsCreatedAfterAsync(beginning, CancellationToken.None)
+            .Returns(Task.FromResult<IList<TranslationBuild>>([]));
+        env.EventMetricService.GetEventMetricsAsync(
+                Arg.Any<string?>(),
+                Arg.Any<EventScope[]?>(),
+                Arg.Any<string[]>(),
+                Arg.Any<DateTime?>(),
+                Arg.Any<DateTime?>(),
+                Arg.Any<int>(),
+                Arg.Any<int>()
+            )
+            .Returns(
+                Task.FromResult(
+                    new QueryResults<EventMetric>
+                    {
+                        Results =
+                        [
+                            new EventMetric
+                            {
+                                EventType = nameof(MachineApiService.StartPreTranslationBuildAsync),
+                                ProjectId = Project01,
+                                UserId = User01,
+                                TimeStamp = requested,
+                                Tags = new Dictionary<string, BsonValue>
+                                {
+                                    { MachineProjectService.DraftGenerationRequestIdKey, "cancelled-request-1" },
+                                },
+                            },
+                            new EventMetric
+                            {
+                                EventType = nameof(MachineApiService.CancelPreTranslationBuildAsync),
+                                ProjectId = Project01,
+                                UserId = User01,
+                                TimeStamp = cancelled,
+                                Tags = new Dictionary<string, BsonValue>
+                                {
+                                    { MachineProjectService.DraftGenerationRequestIdKey, "cancelled-request-1" },
+                                },
+                            },
+                        ],
+                        UnpagedCount = 2,
+                    }
+                )
+            );
+
+        // SUT
+        IReadOnlyList<ServalBuildReportDto> reports = await env.Service.GetBuildsSinceAsync(
+            User01,
+            beginning,
+            isServalAdmin: true,
+            CancellationToken.None
+        );
+
+        Assert.AreEqual(1, reports.Count);
+        Assert.IsNull(reports[0].Build);
+        Assert.AreEqual(DraftGenerationBuildStatus.Canceled, reports[0].Status);
+        Assert.AreEqual("cancelled-request-1", reports[0].DraftGenerationRequestId);
+        Assert.AreEqual(new DateTimeOffset(cancelled, TimeSpan.Zero), reports[0].Timeline.SFUserCancelled);
+        Assert.IsEmpty(reports[0].Problems);
     }
 
     [Test]
@@ -5203,6 +5320,31 @@ public class MachineApiServiceTests
         Assert.IsEmpty(env.Projects.Get(Project01).TranslateConfig.DraftConfig.LastSelectedTranslationScriptureRanges);
         // The client did not report the available files, so the record stays null (rather than an empty list)
         Assert.IsNull(env.Projects.Get(Project01).TranslateConfig.DraftConfig.LastAvailableTrainingDataFiles);
+    }
+
+    [Test]
+    public async Task StartPreTranslationBuildAsync_StoresDraftGenerationRequestId()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+
+        using (new Activity("TestActivity").Start())
+        {
+            // SUT
+            await env.Service.StartPreTranslationBuildAsync(
+                User01,
+                new BuildConfig { ProjectId = Project01 },
+                CancellationToken.None
+            );
+
+            // The stored id lets a cancellation before the build reaches Serval be tagged with the same request
+            object? requestId = Activity.Current!.GetTagItem(MachineProjectService.DraftGenerationRequestIdKey);
+            Assert.IsNotNull(requestId);
+            Assert.AreEqual(
+                requestId,
+                env.ProjectSecrets.Get(Project01).ServalData!.PreTranslationDraftGenerationRequestId
+            );
+        }
     }
 
     [Test]
