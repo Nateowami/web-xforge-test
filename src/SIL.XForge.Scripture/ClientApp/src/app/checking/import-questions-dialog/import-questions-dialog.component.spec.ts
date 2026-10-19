@@ -417,6 +417,21 @@ describe('ImportQuestionsDialogComponent', () => {
     expect(question.verseRef).toEqual(jasmine.objectContaining({ bookNum: 40, chapterNum: 1, verseNum: 1 }));
   }));
 
+  it('prefers an active question over an archived one when both match a question from a CSV file', fakeAsync(() => {
+    const text = 'Who is mentioned in this verse?';
+    const verseRef = { bookNum: 40, chapterNum: 1, verseNum: 1 };
+    const archivedQuestion = { data: { text, verseRef, isArchived: true } } as QuestionDoc;
+    const activeQuestion = { data: { text, verseRef, isArchived: false } } as QuestionDoc;
+    const env = new TestEnvironment({ existingQuestions: [archivedQuestion, activeQuestion] });
+
+    env.selectFileWithContents([
+      ['Reference', 'Questions'],
+      ['MAT 1:1', text]
+    ]);
+
+    expect(env.component.filteredList[0].sfVersionOfQuestion).toBe(activeQuestion);
+  }));
+
   it('does not import from a CSV file with unknown columns', fakeAsync(() => {
     const env = new TestEnvironment();
 
@@ -679,11 +694,7 @@ describe('ImportQuestionsDialogComponent', () => {
           ]
         }
       ];
-      const preexistingQuestion = TestEnvironment.createQuestionDocWithSource(
-        'note-1',
-        new VerseRef('MAT 1:1'),
-        'text'
-      );
+      const preexistingQuestion = TestEnvironment.createQuestionDocFromNote('note-1', new VerseRef('MAT 1:1'), 'text');
       const env = new TestEnvironment({ existingQuestions: [preexistingQuestion], paratextNotes: notes });
       env.setParatextNotes(env.component, notes);
       env.setParatextTagOptions(env.component, env.collectParatextTagOptions(env.component, notes));
@@ -759,6 +770,29 @@ describe('ImportQuestionsDialogComponent', () => {
 
       expect(env.component.filteredList[0].sfVersionOfQuestion).toBe(movedNoteQuestion);
       expect(env.component.filteredList[1].sfVersionOfQuestion).toBeUndefined();
+    }));
+
+    it('prefers an active question over an archived one imported from the same note', fakeAsync(() => {
+      const tagQuestions: ParatextNoteTag = { id: 7, name: 'Questions' };
+      const notes: ParatextNote[] = [
+        {
+          id: 'note-1',
+          verseRef: 'MAT 1:1',
+          comments: [{ verseRef: 'MAT 1:1', content: '<p>Question</p>', tag: tagQuestions }]
+        }
+      ];
+      const activeQuestion = TestEnvironment.createQuestionDocFromNote('note-1', new VerseRef('MAT 1:1'), 'text');
+      const archivedQuestion = { ...activeQuestion, data: { ...activeQuestion.data, isArchived: true } } as QuestionDoc;
+      const env = new TestEnvironment({ existingQuestions: [archivedQuestion, activeQuestion], paratextNotes: notes });
+      env.setParatextNotes(env.component, notes);
+      env.component.selectedParatextTagId = tagQuestions.id;
+      env.component.questionSource = 'paratext';
+
+      void env.component.confirmParatextTagSelection();
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.component.filteredList[0].sfVersionOfQuestion).toBe(activeQuestion);
     }));
 
     it('shows an error when no Paratext project can be found', fakeAsync(() => {
@@ -1084,10 +1118,10 @@ class TestEnvironment {
     return (component as unknown as { paratextTagOptions: ParatextNoteTag[] }).paratextTagOptions;
   }
 
-  static createQuestionDocWithSource(sourceId: string, verse: VerseRef, text: string): QuestionDoc {
+  static createQuestionDocFromNote(noteId: string, verse: VerseRef, text: string): QuestionDoc {
     return {
       data: {
-        transceleratorQuestionId: sourceId,
+        paratextNoteId: noteId,
         verseRef: fromVerseRef(verse),
         text,
         answers: [] as Answer[]

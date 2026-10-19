@@ -87,6 +87,8 @@ interface DialogListItem {
   sfVersionOfQuestion?: QuestionDoc;
 }
 
+type QuestionSource = 'transcelerator' | 'csv_file' | 'paratext';
+
 type DialogErrorState =
   | 'update_transcelerator'
   | 'file_import_errors'
@@ -150,7 +152,7 @@ type DialogStatus =
   ]
 })
 export class ImportQuestionsDialogComponent implements OnDestroy {
-  questionSource: null | 'transcelerator' | 'csv_file' | 'paratext' = null;
+  questionSource: QuestionSource | null = null;
 
   questionList: DialogListItem[] = [];
   filteredList: DialogListItem[] = [];
@@ -336,24 +338,19 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     }
   }
 
-  async setUpQuestionList(questions: SourceQuestion[], useQuestionIds: boolean): Promise<void> {
+  async setUpQuestionList(questions: SourceQuestion[], source: QuestionSource): Promise<void> {
     const questionQuery = await this.promiseForQuestionDocQuery;
 
     questions.sort((a, b) => a.verseRef.BBBCCCVVV - b.verseRef.BBBCCCVVV);
 
     for (const question of questions.filter(q => this.data.textsByBookId[q.verseRef.book] != null)) {
-      // Questions imported from Transcelerator are considered duplicates if the ID and verse ref is the same. The
-      // version in SF should be updated if the text is different from the version being imported. Transcelerator does
-      // not allow changing the reference for a question, as of 2021-03-09
-      // Questions imported from a file should be skipped only if they are exactly the same as what is currently in SF.
-      // Questions imported from Paratext notes are matched by note ID alone, as the note may have been moved.
-      const sfVersionOfQuestion: QuestionDoc | undefined = questionQuery.docs.find(
-        doc =>
-          doc.data != null &&
-          (((useQuestionIds ? doc.data.transceleratorQuestionId === question.id : doc.data.text === question.text) &&
-            toVerseRef(doc.data.verseRef).equals(question.verseRef)) ||
-            (useQuestionIds && doc.data.paratextNoteId === question.id))
+      const matchingQuestions: QuestionDoc[] = questionQuery.docs.filter(
+        doc => doc.data != null && this.isSfVersionOfQuestion(doc.data, question, source)
       );
+      // A question can match both an archived and an active question, e.g. when it was imported, archived, and
+      // imported again. Prefer the active one, as that is the question the user sees and would expect to be updated.
+      const sfVersionOfQuestion: QuestionDoc | undefined =
+        matchingQuestions.find(doc => doc.data?.isArchived !== true) ?? matchingQuestions[0];
 
       this.questionList.push({
         question,
@@ -363,6 +360,23 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
       });
     }
     this.updateListOfFilteredQuestions();
+  }
+
+  private isSfVersionOfQuestion(sfQuestion: Question, question: SourceQuestion, source: QuestionSource): boolean {
+    const sameReference: boolean = toVerseRef(sfQuestion.verseRef).equals(question.verseRef);
+    switch (source) {
+      // Questions imported from Transcelerator are considered duplicates if the ID and verse ref is the same. The
+      // version in SF should be updated if the text is different from the version being imported. Transcelerator
+      // does not allow changing the reference for a question, as of 2021-03-09
+      case 'transcelerator':
+        return sfQuestion.transceleratorQuestionId === question.id && sameReference;
+      // Questions imported from Paratext notes are matched by note ID alone, as the note may have been moved.
+      case 'paratext':
+        return sfQuestion.paratextNoteId === question.id;
+      // Questions imported from a file should be skipped only if they are exactly the same as what is currently in SF.
+      case 'csv_file':
+        return sfQuestion.text === question.text && sameReference;
+    }
   }
 
   referenceForDisplay(q: SourceQuestion): string {
@@ -505,7 +519,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
           id: q.id
         };
       });
-      await this.setUpQuestionList(sourceQuestions, true);
+      await this.setUpQuestionList(sourceQuestions, 'transcelerator');
     }
     this.questionSource = 'transcelerator';
     this.loading = false;
@@ -576,7 +590,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     this.errorState = undefined;
 
     const questions = this.convertParatextCommentsToQuestions(this.paratextNotes, tagId);
-    await this.setUpQuestionList(questions, true);
+    await this.setUpQuestionList(questions, 'paratext');
 
     this.loading = false;
   }
@@ -747,7 +761,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
       this.invalidRows = invalidRows;
     }
 
-    await this.setUpQuestionList(questions, false);
+    await this.setUpQuestionList(questions, 'csv_file');
     this.questionSource = 'csv_file';
     this.loading = false;
   }
