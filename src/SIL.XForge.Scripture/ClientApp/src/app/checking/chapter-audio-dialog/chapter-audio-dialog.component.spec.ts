@@ -511,6 +511,48 @@ describe('ChapterAudioDialogComponent', () => {
     expect(env.numberOfTimesDialogClosed).withContext('saving should occur and close dialog when online').toEqual(1);
   }));
 
+  it('does not allow changing the files while the audio is uploading', fakeAsync(() => {
+    let resolveUpload!: (url: string) => void;
+    when(
+      mockedFileService.tryOnlineUploadFile(
+        FileType.Audio,
+        anything(),
+        TextAudioDoc.COLLECTION,
+        anything(),
+        anything(),
+        anything(),
+        true
+      )
+    ).thenReturn(new Promise<string>(resolve => (resolveUpload = resolve)));
+    let result: ChapterAudioDialogResult | undefined;
+    env.dialogRef.afterClosed().subscribe(r => (result = r));
+    env.onlineStatus = true;
+    env.component.audioUpdate(env.audioFile);
+    tick();
+    env.component.prepareTimingFileUpload(env.timingFile);
+    tick();
+    env.fixture.detectChanges();
+    expect(env.wrapperAudio.querySelector('.delete')).not.toBeNull();
+    expect(env.wrapperTiming.querySelector('.delete')).not.toBeNull();
+
+    env.component.save();
+    tick();
+    env.fixture.detectChanges();
+    expect(env.wrapperAudio.querySelector('.delete')).toBeNull();
+    expect(env.wrapperTiming.querySelector('.delete')).toBeNull();
+    expect(env.fileUploadElement.disabled).toBe(true);
+
+    // Deleting while uploading previously closed the dialog with no timing data
+    env.component.deleteTimingData();
+    env.component.deleteAudioData();
+    resolveUpload('audio url');
+    tick();
+    flush();
+
+    expect(result?.audioUrl).toEqual('audio url');
+    expect(result?.timingData.length).toEqual(2);
+  }));
+
   it('will allow saving when fields are empty if they began filled', fakeAsync(() => {
     env.component.book = 1;
     env.component.chapter = 2;

@@ -91,6 +91,8 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   }
 
   deleteTrainingData(): void {
+    // The file is still needed to create the training data record once the upload finishes
+    if (this.isUploading) return;
     this._showFilenameExists = false;
     this.trainingDataFile = undefined;
     this.fileDropzone!.nativeElement.value = '';
@@ -172,6 +174,7 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   }
 
   private processUploadedFiles(files: FileList): void {
+    if (this.isUploading) return;
     for (let index = 0; index < files.length; index++) {
       const file: File | null = files.item(index);
       if (file == null) {

@@ -224,11 +224,14 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   deleteAudioData(): void {
+    if (this.isLoadingAudio) return;
     this.audio = undefined;
     if (this.fileDropzone) this.fileDropzone.nativeElement.value = '';
   }
 
   deleteTimingData(): void {
+    // The timing data is saved with the audio once the upload finishes
+    if (this.isLoadingAudio) return;
     this.timing = [];
     this.timing_processed = [];
     this._timingErrorKey = undefined;
@@ -578,6 +581,7 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   private processUploadedFiles(files: FileList): void {
+    if (this.isLoadingAudio) return;
     for (let index = 0; index < files.length; index++) {
       const file: File | null = files.item(index);
       if (file == null) {

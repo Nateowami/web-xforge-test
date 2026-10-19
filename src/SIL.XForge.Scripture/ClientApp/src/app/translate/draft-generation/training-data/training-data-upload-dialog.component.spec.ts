@@ -162,6 +162,44 @@ describe('TrainingDataUploadDialogComponent', () => {
     expect(result.dataId).not.toEqual('');
   });
 
+  it('does not allow deleting the file while it is uploading', async () => {
+    const env = new TestEnvironment();
+    let resolveUpload!: (url: string) => void;
+    when(
+      mockedFileService.onlineUploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).thenReturn(new Promise<string>(resolve => (resolveUpload = resolve)));
+    let result: TrainingData | undefined;
+    env.dialogRef.afterClosed().subscribe((_result: TrainingData) => {
+      result = _result;
+    });
+    env.component.updateTrainingData(env.trainingDataFile);
+    await env.wait();
+    expect(env.deleteIcon).not.toBeNull();
+
+    const savePromise: Promise<void> = env.component.save();
+    await env.wait();
+    expect(env.deleteIcon).toBeNull();
+    expect(env.fileUploadElement.disabled).toBe(true);
+
+    // Deleting while uploading previously threw when creating the training data record
+    env.component.deleteTrainingData();
+    resolveUpload('training data file url');
+    await savePromise;
+    await env.wait();
+
+    expect(result?.title).toEqual('test.csv');
+    expect(result?.fileUrl).toEqual('training data file url');
+    verify(mockedDialogService.message(anything())).never();
+  });
+
   it('can drag and drop to initiate an upload', async () => {
     const env = new TestEnvironment();
     const dataTransfer = new DataTransfer();
@@ -253,6 +291,10 @@ class TestEnvironment {
 
   get fileUploadElement(): HTMLInputElement {
     return this.dropzoneElement.querySelector('input[type=file]') as HTMLInputElement;
+  }
+
+  get deleteIcon(): HTMLElement | null {
+    return this.wrapperTrainingDataFile.querySelector('.delete');
   }
 
   get fileNameExistsWarning(): HTMLElement {
