@@ -150,6 +150,9 @@
 
 .filter-references {
   margin-top: 0.4em;
+  // The touch target of the "to" reference chooser button extends past the edge of the dialog content, which would
+  // otherwise add a horizontal scrollbar
+  overflow-x: clip;
   @include breakpoints.media-breakpoint-up(sm) {
     display: flex;
     ::ng-deep {

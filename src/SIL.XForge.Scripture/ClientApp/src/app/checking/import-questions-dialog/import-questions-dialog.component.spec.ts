@@ -512,6 +512,29 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('shows all questions again when show all is clicked after scrolling a filtered list', fakeAsync(() => {
+    const questions: TransceleratorQuestion[] = Array.from(Array(200), (_, i) => ({
+      book: 'MAT',
+      startChapter: '1',
+      startVerse: i + 1 + '',
+      text: 'Question for verse ' + (i + 1),
+      id: 'id_' + (i + 1)
+    }));
+    const env = new TestEnvironment({ transceleratorQuestions: questions });
+    env.click(env.importFromTransceleratorButton);
+    expect(env.tableRows.length).toBe(100);
+
+    env.setControlValue(env.component.filterControl, 'unknown word');
+    expect(env.tableRows.length).toBe(0);
+    // Scrolling (e.g. horizontally) while no questions match the filter
+    env.scrollDialogContentBodyToBottom();
+
+    env.click(env.showAllButton);
+    expect(env.component.filterControl.value).toBe('');
+    expect(env.tableRows.length).toBe(100);
+    env.click(env.backButton);
+  }));
+
   it('does not try to load transcelerator questions when the user is online', fakeAsync(() => {
     const env = new TestEnvironment({ offline: true });
     expect(env.importFromTransceleratorButton.disabled).toBe(true);
