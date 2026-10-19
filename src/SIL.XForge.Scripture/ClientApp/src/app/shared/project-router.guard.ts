@@ -1,5 +1,5 @@
-import { Injectable } from '@angular/core';
-import { ActivatedRouteSnapshot, CanDeactivate, Router, RouterStateSnapshot } from '@angular/router';
+import { inject, Injectable } from '@angular/core';
+import { ActivatedRouteSnapshot, CanDeactivate, Router, RouterStateSnapshot, UrlTree } from '@angular/router';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { from, Observable, of } from 'rxjs';
@@ -11,14 +11,27 @@ import { PermissionsService } from '../core/permissions.service';
 import { SFProjectService } from '../core/sf-project.service';
 
 export abstract class RouterGuard {
+  private readonly router = inject(Router);
+
   constructor(
     protected readonly authGuard: AuthGuard,
     protected readonly projectService: SFProjectService
   ) {}
 
-  canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
+  canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean | UrlTree> {
     const projectId = 'projectId' in next.params ? next.params['projectId'] : '';
-    return this.authGuard.canActivate(next, state).pipe(switchMap(() => this.allowTransition(projectId)));
+    return this.authGuard.canActivate(next, state).pipe(
+      switchMap(isLoggedIn => {
+        if (!isLoggedIn) {
+          // AuthGuard has already started the login redirect
+          return of(false);
+        }
+        // Send users without access to the project's home page rather than leave them on a blank page
+        return this.allowTransition(projectId).pipe(
+          map(allowed => allowed || this.router.createUrlTree(['/projects', projectId]))
+        );
+      })
+    );
   }
 
   allowTransition(projectId: string): Observable<boolean> {
@@ -107,18 +120,13 @@ export class CheckingAuthGuard extends RouterGuard {
   constructor(
     authGuard: AuthGuard,
     projectService: SFProjectService,
-    private router: Router,
     private readonly permissions: PermissionsService
   ) {
     super(authGuard, projectService);
   }
 
   check(projectDoc: SFProjectProfileDoc): boolean {
-    if (this.permissions.canAccessCommunityChecking(projectDoc)) {
-      return true;
-    }
-    void this.router.navigate(['/projects', projectDoc.id], { replaceUrl: true });
-    return false;
+    return this.permissions.canAccessCommunityChecking(projectDoc);
   }
 }
 
@@ -129,18 +137,13 @@ export class TranslateAuthGuard extends RouterGuard {
   constructor(
     authGuard: AuthGuard,
     projectService: SFProjectService,
-    private router: Router,
     private readonly permissions: PermissionsService
   ) {
     super(authGuard, projectService);
   }
 
   check(projectDoc: SFProjectProfileDoc): boolean {
-    if (this.permissions.canAccessTranslate(projectDoc)) {
-      return true;
-    }
-    void this.router.navigate(['/projects', projectDoc.id], { replaceUrl: true });
-    return false;
+    return this.permissions.canAccessTranslate(projectDoc);
   }
 }
 
