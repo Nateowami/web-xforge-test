@@ -7,6 +7,7 @@ import { of } from 'rxjs';
 import { anything, mock, when } from 'ts-mockito';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
+import { DialogService } from 'xforge-common/dialog.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
@@ -17,6 +18,7 @@ const mockedAuthGuard = mock(AuthGuard);
 const mockedAuthService = mock(AuthService);
 const mockedProjectService = mock(SFProjectService);
 const mockedUserService = mock(UserService);
+const mockedDialogService = mock(DialogService);
 
 describe('EventMetricsAuthGuard', () => {
   const project01 = 'project01';
@@ -27,7 +29,8 @@ describe('EventMetricsAuthGuard', () => {
       { provide: AuthGuard, useMock: mockedAuthGuard },
       { provide: AuthService, useMock: mockedAuthService },
       { provide: SFProjectService, useMock: mockedProjectService },
-      { provide: UserService, useMock: mockedUserService }
+      { provide: UserService, useMock: mockedUserService },
+      { provide: DialogService, useMock: mockedDialogService }
     ]
   }));
 

@@ -42,7 +42,12 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     this.updateOfflineDataSub = merge(this.adapter.remoteChanges$, this.adapter.idle$, this.adapter.create$).subscribe(
       async () => {
         if (this.subscribePromise != null) {
-          await this.subscribePromise;
+          try {
+            await this.subscribePromise;
+          } catch {
+            // A failed subscription has already been reported to whoever called subscribe()
+            return;
+          }
         }
         void this.updateOfflineData();
       }
@@ -111,7 +116,11 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
    * @returns {Promise<void>} Resolves when successfully subscribed to remote changes.
    */
   async subscribe(): Promise<void> {
-    this.subscribePromise ??= this.subscribeToChanges();
+    this.subscribePromise ??= this.subscribeToChanges().catch(error => {
+      // Allow a later call to try again, e.g. after the user has joined the project that this doc belongs to
+      this.subscribePromise = undefined;
+      throw error;
+    });
     return this.subscribePromise;
   }
 

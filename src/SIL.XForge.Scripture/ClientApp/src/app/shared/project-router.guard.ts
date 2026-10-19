@@ -1,16 +1,20 @@
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { ActivatedRouteSnapshot, CanDeactivate, Router, RouterStateSnapshot } from '@angular/router';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
-import { from, Observable, of } from 'rxjs';
-import { map, switchMap } from 'rxjs/operators';
+import { from, Observable, of, throwError } from 'rxjs';
+import { catchError, map, switchMap } from 'rxjs/operators';
 import { AuthGuard } from 'xforge-common/auth.guard';
+import { DialogService } from 'xforge-common/dialog.service';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { PermissionsService } from '../core/permissions.service';
 import { SFProjectService } from '../core/sf-project.service';
 
 export abstract class RouterGuard {
+  protected readonly router = inject(Router);
+  private readonly dialogService = inject(DialogService);
+
   constructor(
     protected readonly authGuard: AuthGuard,
     protected readonly projectService: SFProjectService
@@ -18,7 +22,16 @@ export abstract class RouterGuard {
 
   canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
     const projectId = 'projectId' in next.params ? next.params['projectId'] : '';
-    return this.authGuard.canActivate(next, state).pipe(switchMap(() => this.allowTransition(projectId)));
+    return this.authGuard.canActivate(next, state).pipe(
+      switchMap(() => this.allowTransition(projectId)),
+      catchError(error => {
+        if (!isReadPermissionDenied(error)) return throwError(() => error);
+        // The user is not a member of the project, so the realtime server refused to send it
+        void this.router.navigateByUrl('/projects', { replaceUrl: true });
+        void this.dialogService.message('app.not_a_project_member');
+        return of(false);
+      })
+    );
   }
 
   allowTransition(projectId: string): Observable<boolean> {
@@ -33,6 +46,29 @@ export abstract class RouterGuard {
   }
 
   abstract check(project: SFProjectProfileDoc): boolean;
+}
+
+function isReadPermissionDenied(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith('403: Permission denied (read)');
+}
+
+@Injectable({
+  providedIn: 'root'
+})
+export class ProjectAuthGuard extends RouterGuard {
+  constructor(authGuard: AuthGuard, projectService: SFProjectService) {
+    super(authGuard, projectService);
+  }
+
+  canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean> {
+    // Old sharing links are opened before joining, so leave them for ProjectComponent to redirect to the join page
+    if (next.queryParams['sharing'] === 'true') return this.authGuard.canActivate(next, state);
+    return super.canActivate(next, state);
+  }
+
+  check(_: SFProjectProfileDoc): boolean {
+    return true;
+  }
 }
 
 @Injectable({
@@ -107,7 +143,6 @@ export class CheckingAuthGuard extends RouterGuard {
   constructor(
     authGuard: AuthGuard,
     projectService: SFProjectService,
-    private router: Router,
     private readonly permissions: PermissionsService
   ) {
     super(authGuard, projectService);
@@ -129,7 +164,6 @@ export class TranslateAuthGuard extends RouterGuard {
   constructor(
     authGuard: AuthGuard,
     projectService: SFProjectService,
-    private router: Router,
     private readonly permissions: PermissionsService
   ) {
     super(authGuard, projectService);
