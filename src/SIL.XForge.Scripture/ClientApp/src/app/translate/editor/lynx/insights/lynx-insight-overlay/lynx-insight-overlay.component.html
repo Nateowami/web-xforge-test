@@ -2,6 +2,11 @@
   @if (focusedInsight != null) {
     <div class="main-section focused" [ngClass]="focusedInsight.type">
       <h1>
+        @if (insights.length > 1) {
+          <mat-icon [matTooltip]="t('tooltip_back')" class="back-icon" (click)="unfocusInsight()">{{
+            i18n.direction === "rtl" ? "arrow_forward" : "arrow_back"
+          }}</mat-icon>
+        }
         <span class="description">{{ focusedInsight.description }}</span>
 
         @if (focusedInsight.moreInfo != null) {

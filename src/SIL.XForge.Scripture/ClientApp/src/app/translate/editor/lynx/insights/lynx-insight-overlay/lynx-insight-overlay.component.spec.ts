@@ -1,10 +1,11 @@
-import { Component, ViewChild } from '@angular/core';
+import { Component, DebugElement, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { anything, instance, mock, verify, when } from 'ts-mockito';
 import { I18nService } from 'xforge-common/i18n.service';
 import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
 import { TextDocId } from '../../../../../core/models/text-doc';
+import { provideCustomIcons } from '../../../../../shared/custom-icons';
 import { LynxEditor, LynxTextModelConverter } from '../lynx-editor';
 import { EDITOR_INSIGHT_DEFAULTS, LynxInsight, LynxInsightAction, LynxInsightConfig } from '../lynx-insight';
 import { LynxInsightOverlayService } from '../lynx-insight-overlay.service';
@@ -53,7 +54,8 @@ describe('LynxInsightOverlayComponent', () => {
       { provide: LynxInsightOverlayService, useMock: mockLynxInsightOverlayService },
       { provide: LynxWorkspaceService, useMock: mockLynxWorkspaceService },
       { provide: I18nService, useMock: mockedI18nService },
-      { provide: EDITOR_INSIGHT_DEFAULTS, useValue: defaultInsightConfig }
+      { provide: EDITOR_INSIGHT_DEFAULTS, useValue: defaultInsightConfig },
+      provideCustomIcons()
     ]
   }));
 
@@ -82,28 +84,108 @@ describe('LynxInsightOverlayComponent', () => {
     const menuTrigger = env.fixture.debugElement.query(By.css('.action-menu-trigger'));
     expect(menuTrigger.nativeElement.getAttribute('dir')).toBe('ltr');
   }));
+
+  it('should not show back button when there is only one insight', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    expect(env.focusedSection).not.toBeNull();
+    expect(env.backButton).toBeNull();
+  }));
+
+  it('should go back to the insight list from a focused insight', fakeAsync(() => {
+    const env = new TestEnvironment(2);
+    const focusEmits: (LynxInsight | undefined)[] = [];
+    const hoverEmits: (LynxInsight | null)[] = [];
+    env.component.insightFocus.subscribe(insight => focusEmits.push(insight));
+    env.component.insightHover.subscribe(insight => hoverEmits.push(insight));
+    expect(env.insightListItems.length).toBe(2);
+    expect(env.backButton).toBeNull();
+
+    env.clickInsightListItem(1);
+    expect(env.focusedSection).not.toBeNull();
+    expect(env.focusedDescription).toBe('Test insight description 2');
+    expect(env.backButton).not.toBeNull();
+
+    env.clickBackButton();
+    expect(env.focusedSection).toBeNull();
+    expect(env.insightListItems.length).toBe(2);
+    expect(env.component.primaryAction).toBeUndefined();
+    expect(env.component.menuActions).toEqual([]);
+    expect(focusEmits).toEqual([env.insights[1], undefined]);
+    expect(hoverEmits).toEqual([null]);
+
+    env.clickInsightListItem(0);
+    expect(env.focusedDescription).toBe('Test insight description 1');
+    expect(env.component.primaryAction?.insight).toBe(env.insights[0]);
+  }));
+
+  it('should ignore actions that resolve after going back to the insight list', fakeAsync(() => {
+    const env = new TestEnvironment(2);
+
+    env.clickInsightListItem(0, false);
+    env.clickBackButton();
+    flush();
+
+    expect(env.component.primaryAction).toBeUndefined();
+    expect(env.component.menuActions).toEqual([]);
+  }));
 });
 
 class TestEnvironment {
   fixture: ComponentFixture<HostComponent>;
   hostComponent: HostComponent;
   component: LynxInsightOverlayComponent;
+  insights: LynxInsight[] = [];
 
-  constructor() {
+  constructor(insightCount: number = 1) {
     // Setup the test environment
     this.fixture = TestBed.createComponent(HostComponent);
     this.hostComponent = this.fixture.componentInstance;
-    this.setupEditor();
+    this.setupEditor(insightCount);
     this.component = this.hostComponent.component;
   }
 
-  private setupEditor(): void {
+  get focusedSection(): DebugElement | null {
+    return this.fixture.debugElement.query(By.css('.main-section.focused'));
+  }
+
+  get focusedDescription(): string | undefined {
+    return this.focusedSection?.query(By.css('.description')).nativeElement.textContent.trim();
+  }
+
+  get backButton(): DebugElement | null {
+    return this.fixture.debugElement.query(By.css('.back-icon'));
+  }
+
+  get insightListItems(): DebugElement[] {
+    return this.fixture.debugElement.queryAll(By.css('.main-section.list .insight-item'));
+  }
+
+  clickInsightListItem(index: number, resolveActions: boolean = true): void {
+    this.insightListItems[index].triggerEventHandler('click');
+    this.fixture.detectChanges();
+    if (resolveActions) {
+      flush();
+      this.fixture.detectChanges();
+    }
+  }
+
+  clickBackButton(): void {
+    this.backButton!.triggerEventHandler('click');
+    this.fixture.detectChanges();
+  }
+
+  private setupEditor(insightCount: number): void {
     const editor = instance(mockLynxEditor);
     const textModelConverter = instance(mockTextModelConverter);
 
-    const insight = this.createTestInsight();
-    const primaryAction = this.createTestAction(insight, true);
-    const secondaryAction = this.createTestAction(insight, false);
+    for (let i = 1; i <= insightCount; i++) {
+      this.insights.push(
+        insightCount === 1
+          ? this.createTestInsight()
+          : this.createTestInsight({ id: `test-insight-${i}`, description: `Test insight description ${i}` })
+      );
+    }
 
     // Set up mocks for the editor root element
     const mockRoot = document.createElement('div');
@@ -111,9 +193,11 @@ class TestEnvironment {
     when(mockLynxEditor.focus()).thenReturn();
     when(mockLynxEditor.updateContents(anything(), anything())).thenReturn();
     when(mockTextModelConverter.dataDeltaToEditorDelta(anything())).thenCall(delta => delta);
-    when(mockLynxWorkspaceService.getActions(anything())).thenResolve([primaryAction, secondaryAction]);
+    when(mockLynxWorkspaceService.getActions(anything())).thenCall((insight: LynxInsight) =>
+      Promise.resolve([this.createTestAction(insight, true), this.createTestAction(insight, false)])
+    );
 
-    this.hostComponent.insights = [insight];
+    this.hostComponent.insights = this.insights;
     this.hostComponent.editor = editor;
     this.hostComponent.textModelConverter = textModelConverter;
     this.fixture.detectChanges();

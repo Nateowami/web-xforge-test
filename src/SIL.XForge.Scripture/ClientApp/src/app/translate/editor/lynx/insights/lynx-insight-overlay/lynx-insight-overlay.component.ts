@@ -58,8 +58,11 @@ export class LynxInsightOverlayComponent implements OnInit {
   /** Emits when insight is dismissed by user. */
   @Output() insightDismiss = new EventEmitter<LynxInsight>();
 
-  /** Emits when overlay goes to single insight mode. */
-  @Output() insightFocus = new EventEmitter<LynxInsight>();
+  /**
+   * Emits the focused insight when overlay goes to single insight mode.
+   * Emits `undefined` when overlay goes back to the multi-insight selection list.
+   */
+  @Output() insightFocus = new EventEmitter<LynxInsight | undefined>();
 
   /** Emits hovered insight when overlay displays multi-insight selection list. Emits `null` when hover ceases. */
   @Output() insightHover = new EventEmitter<LynxInsight | null>();
@@ -122,6 +125,20 @@ export class LynxInsightOverlayComponent implements OnInit {
   }
 
   /**
+   * Return from the focused insight to the multi-insight selection list.
+   */
+  unfocusInsight(): void {
+    this.focusedInsight = undefined;
+    this.primaryAction = undefined;
+    this.menuActions = [];
+    this.showMoreInfo = false;
+    this.insightFocus.emit(undefined);
+
+    // Restore highlight of all insights in the list
+    this.highlightInsight(null);
+  }
+
+  /**
    * Highlight the specified insight.  Brings lower severity insights to the front.  `null` means hover ceased.
    */
   highlightInsight(insight: LynxInsight | null): void {
@@ -162,7 +179,13 @@ export class LynxInsightOverlayComponent implements OnInit {
     }
 
     void this.lynxWorkspaceService.getActions(insight).then(actions => {
+      // Ignore actions for an insight that is no longer focused
+      if (this.focusedInsight !== insight) {
+        return;
+      }
+
       const menuActions: LynxInsightAction[] = [];
+      this.primaryAction = undefined;
 
       for (const action of actions) {
         if (action.isPrimary) {
