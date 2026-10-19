@@ -107,6 +107,7 @@ public interface IMachineApiService
         CancellationToken cancellationToken
     );
 
+    [LogEventMetric(EventScope.Drafting, nameof(curUserId), nameof(sfProjectId), captureReturnValue: false)]
     Task<Dictionary<string, Snapshot<TextData>>> GetPreTranslationDeltaAsync(
         string curUserId,
         string sfProjectId,
@@ -147,6 +148,8 @@ public interface IMachineApiService
         DraftUsfmConfig? draftUsfmConfig,
         CancellationToken cancellationToken
     );
+
+    [LogEventMetric(EventScope.Drafting, nameof(curUserId), nameof(sfProjectId), captureReturnValue: false)]
     Task<IUsj> GetPreTranslationUsjAsync(
         string curUserId,
         string sfProjectId,
@@ -157,6 +160,8 @@ public interface IMachineApiService
         DraftUsfmConfig? draftUsfmConfig,
         CancellationToken cancellationToken
     );
+
+    [LogEventMetric(EventScope.Drafting, nameof(curUserId), nameof(sfProjectId), captureReturnValue: false)]
     Task<string> GetPreTranslationUsxAsync(
         string curUserId,
         string sfProjectId,

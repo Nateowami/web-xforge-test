@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Reflection;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -3074,6 +3075,22 @@ public class MachineApiServiceTests
         Assert.IsNotNull(actual);
         Assert.AreEqual(MachineApi.GetBuildHref(Project01, ServalBuildId02), actual!.Href);
         Assert.AreEqual(ServalBuildId02, actual.Id.Split('.')[1]);
+    }
+
+    [TestCase(nameof(IMachineApiService.GetPreTranslationDeltaAsync))]
+    [TestCase(nameof(IMachineApiService.GetPreTranslationUsjAsync))]
+    [TestCase(nameof(IMachineApiService.GetPreTranslationUsxAsync))]
+    public void GetPreTranslationAsync_LogsEventMetric(string methodName)
+    {
+        // Retrieving a draft is recorded so that viewing a draft can be distinguished from never opening it
+        MethodInfo method = typeof(IMachineApiService).GetMethod(methodName)!;
+        LogEventMetricAttribute? attribute = method.GetCustomAttribute<LogEventMetricAttribute>();
+        Assert.IsNotNull(attribute);
+        Assert.AreEqual(EventScope.Drafting, attribute!.Scope);
+        Assert.IsFalse(attribute.CaptureReturnValue);
+        string?[] parameterNames = [.. method.GetParameters().Select(p => p.Name)];
+        Assert.Contains(attribute.UserId, parameterNames);
+        Assert.Contains(attribute.ProjectId, parameterNames);
     }
 
     [Test]
