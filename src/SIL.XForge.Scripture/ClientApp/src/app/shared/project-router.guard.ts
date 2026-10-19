@@ -26,7 +26,9 @@ export abstract class RouterGuard {
           // AuthGuard has already started the login redirect
           return of(false);
         }
-        // Send users without access to the project's home page rather than leave them on a blank page
+        // Send users without access to the project's home page rather than leave them on a blank page.
+        // A plain UrlTree, not RedirectCommand with replaceUrl: the router already replaces the history entry of
+        // a URL typed in the address bar, and forcing it would drop the page the user came from on in-app links.
         return this.allowTransition(projectId).pipe(
           map(allowed => allowed || this.router.createUrlTree(['/projects', projectId]))
         );
