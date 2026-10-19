@@ -260,6 +260,31 @@ describe('ScriptureChooserDialog', () => {
     expect(env.dialogResult).toEqual('close');
   }));
 
+  it('only shows verses if providing end-selection when project has only one book', fakeAsync(() => {
+    const texts: TextInfo[] = [
+      {
+        bookNum: 8,
+        chapters: [
+          { number: 1, lastVerse: 22, isValid: true, permissions: {} },
+          { number: 2, lastVerse: 23, isValid: true, permissions: {} }
+        ],
+        hasSource: false,
+        permissions: {}
+      }
+    ];
+    env = new TestEnvironment({ textsInProject: texts, rangeStart: new VerseRef('RUT', '1', '20') });
+
+    expect(env.component.showing).toEqual('rangeEnd');
+    expect(env.reference).toContain('Ruth 1');
+    expect(env.dialogText).toContain(env.closeIconName);
+    expect(env.dialogText).not.toContain(env.backIconName);
+    expect(env.buttonWithText('19')).toBeUndefined();
+    expect(env.buttonWithText('23')).toBeUndefined();
+
+    env.click(env.buttonWithText('22'));
+    expect(env.dialogResult!.toString()).toEqual('RUT 1:22');
+  }));
+
   it('ignores rangeStart if book not in texts', fakeAsync(() => {
     const texts: TextInfo[] = [
       {

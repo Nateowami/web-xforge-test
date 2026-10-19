@@ -85,6 +85,7 @@ export class ScriptureChooserDialogComponent implements OnInit {
           this.selection.book = this.data.rangeStart.book;
           this.selection.chapter = this.data.rangeStart.chapter;
           this.showRangeEndSelection();
+          return;
         }
       }
     }
