@@ -242,6 +242,7 @@ export class NoteDialogComponent implements OnInit {
       this.canInsertNote &&
       this.threadDoc.canUserResolveThread(this.userService.currentUserId, userRole, this.noteTags) &&
       this.threadDataId != null &&
+      this.threadDoc.data?.notes.some(n => !n.deleted) === true &&
       !this.isThreadResolved
     );
   }

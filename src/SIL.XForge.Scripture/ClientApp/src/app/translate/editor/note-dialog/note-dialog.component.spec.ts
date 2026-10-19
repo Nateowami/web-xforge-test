@@ -582,6 +582,22 @@ describe('NoteDialogComponent', () => {
     }
   }));
 
+  it('hides save options trigger when every note in the thread is deleted', fakeAsync(() => {
+    // the biblical terms panel reopens a thread whose notes were all deleted, to add a new note to it
+    const biblicalTerm = TestEnvironment.defaultBiblicalTerm;
+    const noteThread: NoteThread = TestEnvironment.getNoteThread();
+    noteThread.biblicalTermId = biblicalTerm.dataId;
+    noteThread.notes.forEach(n => (n.deleted = true));
+    env = new TestEnvironment({ noteThread, biblicalTerm });
+    expect(env.component.notesToDisplay.length).toEqual(0);
+    expect(env.saveButton.nativeElement.textContent).toEqual('Save');
+    expect(env.saveOptionsButton).toBeNull();
+    const content = 'new note';
+    env.enterNoteContent(content);
+    env.submit();
+    expect(env.dialogResult).toEqual({ noteContent: content, noteDataId: undefined });
+  }));
+
   it('show notes in correct date order', fakeAsync(() => {
     const noteThread = TestEnvironment.getNoteThread();
     const currentTime = new Date('2023-03-14T23:00:00Z').getTime();
