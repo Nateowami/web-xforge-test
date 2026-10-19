@@ -93,10 +93,14 @@
     top: 0;
     left: 0;
     cursor: pointer;
+
+    &:disabled {
+      cursor: default;
+    }
   }
 
   &:hover {
-    button {
+    button:not(:disabled) {
       background-color: var(--sf-chapter-audio-dialog-browse-button-hover-background-color);
       color: var(--sf-chapter-audio-dialog-browse-button-hover-color);
     }

@@ -16,7 +16,9 @@
           [matTooltip]="t('browse_files_tooltip')"
         />
         <label>{{ t("drag_and_drop_files") }}</label>
-        <button mat-flat-button color="primary" type="submit">{{ t("browse_files") }}</button>
+        <button mat-flat-button color="primary" type="submit" [disabled]="isLoadingAudio">
+          {{ t("browse_files") }}
+        </button>
       </div>
       <div class="data-blocks">
         <div class="wrapper wrapper-audio" [ngClass]="{ valid: isAudioUploaded, invalid: isAudioInvalid }">

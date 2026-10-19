@@ -99,13 +99,16 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   }
 
   ngAfterViewInit(): void {
-    this.dropzone?.nativeElement.addEventListener('dragover', _ => {
+    // Prevent the default drop handling, as the browser will open the file if the file input is disabled
+    this.dropzone?.nativeElement.addEventListener('dragover', (e: DragEvent) => {
+      e.preventDefault();
       this.dropzone?.nativeElement.classList.add('dragover');
     });
     this.dropzone?.nativeElement.addEventListener('dragleave', _ => {
       this.dropzone?.nativeElement.classList.remove('dragover');
     });
     this.dropzone?.nativeElement.addEventListener('drop', (e: DragEvent) => {
+      e.preventDefault();
       this.dropzone?.nativeElement.classList.remove('dragover');
       if (e?.dataTransfer?.files == null) {
         return;
@@ -115,8 +118,8 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   }
 
   async save(): Promise<void> {
-    // We cannot save a file if it has not been uploaded
-    if (!this.hasBeenUploaded) {
+    // We cannot save a file if it has not been uploaded, or save it twice
+    if (!this.hasBeenUploaded || this.isUploading) {
       return;
     }
 

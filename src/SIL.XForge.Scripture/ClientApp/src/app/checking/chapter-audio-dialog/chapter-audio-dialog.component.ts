@@ -320,6 +320,8 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   async save(): Promise<void> {
+    // The Save button stays enabled during the upload so that its spinner remains visible
+    if (this.isLoadingAudio) return;
     let canSave = false;
     if (this.allFieldsValid) {
       canSave = true;

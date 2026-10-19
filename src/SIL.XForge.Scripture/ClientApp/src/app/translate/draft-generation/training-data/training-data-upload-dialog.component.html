@@ -10,7 +10,7 @@
         [disabled]="isUploading"
       />
       <label>{{ t("drag_and_drop_files") }}<br />- {{ t("drag_and_drop_or_browse") }} -</label>
-      <button mat-flat-button color="primary" type="submit">{{ t("browse_files") }}</button>
+      <button mat-flat-button color="primary" type="submit" [disabled]="isUploading">{{ t("browse_files") }}</button>
     </div>
     <div class="data-blocks">
       <div class="wrapper valid">
@@ -44,7 +44,14 @@
     <button mat-button [mat-dialog-close]="'close'" type="button" id="upload-cancel-btn">
       {{ t("cancel") }}
     </button>
-    <button mat-flat-button color="primary" type="submit" (click)="save()" id="upload-save-btn">
+    <button
+      mat-flat-button
+      color="primary"
+      type="submit"
+      (click)="save()"
+      id="upload-save-btn"
+      [disabled]="isUploading"
+    >
       {{ t("save") }}
     </button>
   </mat-dialog-actions>

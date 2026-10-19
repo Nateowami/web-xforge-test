@@ -188,9 +188,20 @@ describe('TrainingDataUploadDialogComponent', () => {
     await env.wait();
     expect(env.deleteIcon).toBeNull();
     expect(env.fileUploadElement.disabled).toBe(true);
+    expect(env.browseButton.disabled).toBe(true);
+    expect(env.saveButton.disabled).toBe(true);
 
     // Deleting while uploading previously threw when creating the training data record
     env.component.deleteTrainingData();
+    // A second save would upload the file again, orphaning one of the uploaded files
+    await env.component.save();
+    // The disabled file input does not accept the drop, so the dropzone must prevent the browser opening the file
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File([], 'other.csv'));
+    const dropEvent = new DragEvent('drop', { dataTransfer, cancelable: true });
+    env.dropzoneElement.dispatchEvent(dropEvent);
+    expect(dropEvent.defaultPrevented).toBe(true);
+    expect(env.wrapperTrainingDataFile.textContent).toContain('test.csv');
     resolveUpload('training data file url');
     await savePromise;
     await env.wait();
@@ -198,6 +209,17 @@ describe('TrainingDataUploadDialogComponent', () => {
     expect(result?.title).toEqual('test.csv');
     expect(result?.fileUrl).toEqual('training data file url');
     verify(mockedDialogService.message(anything())).never();
+    verify(
+      mockedFileService.onlineUploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).once();
   });
 
   it('can drag and drop to initiate an upload', async () => {
@@ -206,10 +228,14 @@ describe('TrainingDataUploadDialogComponent', () => {
     for (const file of TestEnvironment.uploadFiles) {
       dataTransfer.items.add(file);
     }
-    const dropEvent = new DragEvent('drop', { dataTransfer });
+    const dragOverEvent = new DragEvent('dragover', { dataTransfer, cancelable: true });
+    env.dropzoneElement.dispatchEvent(dragOverEvent);
+    const dropEvent = new DragEvent('drop', { dataTransfer, cancelable: true });
     env.dropzoneElement.dispatchEvent(dropEvent);
     await env.wait();
 
+    expect(dragOverEvent.defaultPrevented).toBe(true);
+    expect(dropEvent.defaultPrevented).toBe(true);
     expect(env.wrapperTrainingDataFile.classList.contains('valid')).toBe(true);
   });
 
@@ -291,6 +317,14 @@ class TestEnvironment {
 
   get fileUploadElement(): HTMLInputElement {
     return this.dropzoneElement.querySelector('input[type=file]') as HTMLInputElement;
+  }
+
+  get browseButton(): HTMLButtonElement {
+    return this.dropzoneElement.querySelector('button') as HTMLButtonElement;
+  }
+
+  get saveButton(): HTMLButtonElement {
+    return this.overlayContainerElement.querySelector('#upload-save-btn') as HTMLButtonElement;
   }
 
   get deleteIcon(): HTMLElement | null {

@@ -8,7 +8,7 @@ import { getTextAudioId, TextAudio } from 'realtime-server/lib/esm/scriptureforg
 import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio-test-data';
 import { Chapter, TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { firstValueFrom } from 'rxjs';
-import { anything, mock, spy, when } from 'ts-mockito';
+import { anything, mock, spy, verify, when } from 'ts-mockito';
 import { CsvService } from 'xforge-common/csv-service.service';
 import { FileService } from 'xforge-common/file.service';
 import { FileOfflineData, FileType } from 'xforge-common/models/file-offline-data';
@@ -541,16 +541,31 @@ describe('ChapterAudioDialogComponent', () => {
     expect(env.wrapperAudio.querySelector('.delete')).toBeNull();
     expect(env.wrapperTiming.querySelector('.delete')).toBeNull();
     expect(env.fileUploadElement.disabled).toBe(true);
+    expect(env.browseButton.disabled).toBe(true);
 
     // Deleting while uploading previously closed the dialog with no timing data
     env.component.deleteTimingData();
     env.component.deleteAudioData();
+    // A second save would upload the audio again, orphaning one of the uploaded files
+    env.component.save();
+    tick();
     resolveUpload('audio url');
     tick();
     flush();
 
     expect(result?.audioUrl).toEqual('audio url');
     expect(result?.timingData.length).toEqual(2);
+    verify(
+      mockedFileService.tryOnlineUploadFile(
+        FileType.Audio,
+        anything(),
+        TextAudioDoc.COLLECTION,
+        anything(),
+        anything(),
+        anything(),
+        true
+      )
+    ).once();
   }));
 
   it('will allow saving when fields are empty if they began filled', fakeAsync(() => {
@@ -765,6 +780,10 @@ class TestEnvironment {
 
   get fileUploadElement(): HTMLInputElement {
     return this.overlayContainerElement.querySelector('input[type=file]') as HTMLInputElement;
+  }
+
+  get browseButton(): HTMLButtonElement {
+    return this.overlayContainerElement.querySelector('.browse-container button') as HTMLButtonElement;
   }
 
   get dropzoneElement(): HTMLElement {
