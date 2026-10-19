@@ -686,6 +686,26 @@ public class MachineApiServiceTests
     }
 
     [Test]
+    public async Task CancelPreTranslationBuildAsync_JobQueuedButNoServalBuild()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+        await env.QueueBuildAsync(Project01, dateTime: DateTime.UtcNow);
+        env.TranslationEnginesClient.CancelBuildAsync(TranslationEngine01, CancellationToken.None)
+            .Throws(ServalApiExceptions.NoContent);
+
+        // SUT
+        string? actual = await env.Service.CancelPreTranslationBuildAsync(User01, Project01, CancellationToken.None);
+        Assert.IsNull(actual);
+
+        await env.TranslationEnginesClient.Received(1).CancelBuildAsync(TranslationEngine01, CancellationToken.None);
+        env.BackgroundJobClient.Received(1).ChangeState(HangfireJobId, Arg.Any<DeletedState>(), null); // Same as Delete()
+        Assert.IsNull(env.ProjectSecrets.Get(Project01).ServalData!.PreTranslationJobId);
+        Assert.IsNull(env.ProjectSecrets.Get(Project01).ServalData!.PreTranslationQueuedAt);
+        Assert.IsFalse(env.Projects.Get(Project01).TranslateConfig.DraftConfig.DraftInProgress);
+    }
+
+    [Test]
     public async Task CancelPreTranslationBuildAsync_Success()
     {
         // Set up test environment
