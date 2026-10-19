@@ -64,16 +64,15 @@ public class UserService : IUserService
         await using (IConnection conn = await _realtimeService.ConnectAsync(curUserId))
         {
             string name = (string)userProfile["name"];
+            // Avoid showing an email address as the display name, unless the user typed it as their name when joining
+            bool useNickname = string.IsNullOrWhiteSpace(name) || (!displayNameSetAtSignup && emailRegex.IsMatch(name));
             IDocument<User> userDoc = await conn.FetchOrCreateAsync<User>(
                 curUserId,
                 () =>
                     new User
                     {
                         AuthId = (string)userProfile["user_id"],
-                        DisplayName =
-                            string.IsNullOrWhiteSpace(name) || emailRegex.IsMatch(name)
-                                ? (string)userProfile["nickname"]
-                                : name,
+                        DisplayName = useNickname ? (string)userProfile["nickname"] : name,
                         IsDisplayNameConfirmed = displayNameSetAtSignup,
                     },
                 source: null
