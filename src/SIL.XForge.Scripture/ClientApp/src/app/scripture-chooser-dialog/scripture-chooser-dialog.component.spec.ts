@@ -264,7 +264,7 @@ describe('ScriptureChooserDialog', () => {
     expect(env.reference).toEqual('Ephesians');
   }));
 
-  it('only shows verses if providing end-selection and project has only one book', fakeAsync(() => {
+  it('only shows verses if providing end-selection, even when project has only one book', fakeAsync(() => {
     const texts: TextInfo[] = [
       {
         bookNum: 49,
@@ -277,6 +277,7 @@ describe('ScriptureChooserDialog', () => {
     expect(env.component.showing).toEqual('rangeEnd');
     expect(env.reference).toEqual('Ephesians 3');
     expect(env.dialogText).toContain('Choose end verse');
+    expect(env.dialogText).not.toContain(env.backIconName);
     expect(env.dialogText).not.toContain('14');
     expect(env.dialogText).toContain('15');
 
