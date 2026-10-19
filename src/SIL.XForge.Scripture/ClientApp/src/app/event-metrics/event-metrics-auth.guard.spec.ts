@@ -1,10 +1,10 @@
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { ActivatedRouteSnapshot, Router, RouterStateSnapshot } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { of } from 'rxjs';
-import { anything, mock, when } from 'ts-mockito';
+import { anything, deepEqual, mock, verify, when } from 'ts-mockito';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
@@ -17,6 +17,7 @@ const mockedAuthGuard = mock(AuthGuard);
 const mockedAuthService = mock(AuthService);
 const mockedProjectService = mock(SFProjectService);
 const mockedUserService = mock(UserService);
+const mockedRouter = mock(Router);
 
 describe('EventMetricsAuthGuard', () => {
   const project01 = 'project01';
@@ -27,7 +28,8 @@ describe('EventMetricsAuthGuard', () => {
       { provide: AuthGuard, useMock: mockedAuthGuard },
       { provide: AuthService, useMock: mockedAuthService },
       { provide: SFProjectService, useMock: mockedProjectService },
-      { provide: UserService, useMock: mockedUserService }
+      { provide: UserService, useMock: mockedUserService },
+      { provide: Router, useMock: mockedRouter }
     ]
   }));
 
@@ -69,6 +71,7 @@ describe('EventMetricsAuthGuard', () => {
     });
 
     env.wait();
+    verify(mockedRouter.navigate(anything(), anything())).never();
   }));
 
   it('cannot activate if user is logged in but does not have any administrator role', fakeAsync(() => {
@@ -79,6 +82,7 @@ describe('EventMetricsAuthGuard', () => {
     });
 
     env.wait();
+    verify(mockedRouter.navigate(deepEqual(['/projects', project02]), deepEqual({ replaceUrl: true }))).once();
   }));
 
   class TestEnvironment {

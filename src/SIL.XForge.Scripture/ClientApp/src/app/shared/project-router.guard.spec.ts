@@ -15,8 +15,10 @@ import { SFProjectService } from '../core/sf-project.service';
 import {
   DraftNavigationAuthGuard,
   NmtDraftAuthGuard,
+  RouterGuard,
   SettingsAuthGuard,
   SyncAuthGuard,
+  TranslateAuthGuard,
   UsersAuthGuard
 } from './project-router.guard';
 
@@ -120,26 +122,50 @@ describe('NmtDraftAuthGuard', () => {
   }));
 
   it('allows translators to open drafting', async () => {
-    const env = new NmtDraftTestEnvironment(SFProjectRole.ParatextTranslator);
+    const env = new CanActivateTestEnvironment(NmtDraftAuthGuard, SFProjectRole.ParatextTranslator);
     expect(await env.canActivate()).toBe(true);
     verify(mockedRouter.navigate(anything(), anything())).never();
   });
 
   it('redirects to the project when the user cannot edit texts', async () => {
-    const env = new NmtDraftTestEnvironment(SFProjectRole.ParatextConsultant);
+    const env = new CanActivateTestEnvironment(NmtDraftAuthGuard, SFProjectRole.ParatextConsultant);
     expect(await env.canActivate()).toBe(false);
     verify(mockedRouter.navigate(deepEqual(['/projects', 'project01']), deepEqual({ replaceUrl: true }))).once();
   });
 
   it('does not redirect when checking access for the navigation menu', async () => {
-    const env = new NmtDraftTestEnvironment(SFProjectRole.ParatextConsultant);
+    const env = new CanActivateTestEnvironment(NmtDraftAuthGuard, SFProjectRole.ParatextConsultant);
     expect(await firstValueFrom(env.service.allowTransition('project01'))).toBe(false);
     verify(mockedRouter.navigate(anything(), anything())).never();
   });
 
   it('does not redirect when the user is logged out', async () => {
-    const env = new NmtDraftTestEnvironment(SFProjectRole.ParatextConsultant, false);
+    const env = new CanActivateTestEnvironment(NmtDraftAuthGuard, SFProjectRole.ParatextConsultant, false);
     expect(await env.canActivate()).toBe(false);
+    verify(mockedRouter.navigate(anything(), anything())).never();
+  });
+});
+
+describe('TranslateAuthGuard', () => {
+  configureTestingModule(() => ({
+    providers: [
+      { provide: AuthGuard, useMock: mockedAuthGuard },
+      { provide: AuthService, useMock: mockedAuthService },
+      { provide: SFProjectService, useMock: mockedProjectService },
+      { provide: UserService, useMock: mockedUserService },
+      { provide: Router, useMock: mockedRouter }
+    ]
+  }));
+
+  it('redirects to the project when the user cannot access translate', async () => {
+    const env = new CanActivateTestEnvironment(TranslateAuthGuard, SFProjectRole.CommunityChecker);
+    expect(await env.canActivate()).toBe(false);
+    verify(mockedRouter.navigate(deepEqual(['/projects', 'project01']), deepEqual({ replaceUrl: true }))).once();
+  });
+
+  it('does not redirect from check', async () => {
+    const env = new CanActivateTestEnvironment(TranslateAuthGuard, SFProjectRole.CommunityChecker);
+    expect(env.service.check(await mockedProjectService.getProfile('project01'))).toBe(false);
     verify(mockedRouter.navigate(anything(), anything())).never();
   });
 });
@@ -152,9 +178,17 @@ for (const guardType of [SettingsAuthGuard, UsersAuthGuard]) {
         { provide: AuthGuard, useMock: mockedAuthGuard },
         { provide: AuthService, useMock: mockedAuthService },
         { provide: SFProjectService, useMock: mockedProjectService },
-        { provide: UserService, useMock: mockedUserService }
+        { provide: UserService, useMock: mockedUserService },
+        { provide: Router, useMock: mockedRouter }
       ]
     }));
+
+    it('redirects translators to the project', async () => {
+      const env = new CanActivateTestEnvironment(guardType, SFProjectRole.ParatextTranslator);
+      when(mockedAuthService.currentUserRoles).thenReturn([SystemRole.User]);
+      expect(await env.canActivate()).toBe(false);
+      verify(mockedRouter.navigate(deepEqual(['/projects', 'project01']), deepEqual({ replaceUrl: true }))).once();
+    });
 
     it('administrators can access', async () => {
       const env = new GuardTestEnvironment(guardType, false);
@@ -192,10 +226,10 @@ class DraftNavigationTestEnvironment {
   }
 }
 
-class NmtDraftTestEnvironment {
-  service: NmtDraftAuthGuard;
-  constructor(role: SFProjectRole, isLoggedIn: boolean = true) {
-    this.service = TestBed.inject(NmtDraftAuthGuard);
+class CanActivateTestEnvironment<T extends RouterGuard> {
+  service: T;
+  constructor(guardType: Type<T>, role: SFProjectRole, isLoggedIn: boolean = true) {
+    this.service = TestBed.inject(guardType);
     when(mockedUserService.currentUserId).thenReturn('user01');
     when(mockedAuthGuard.canActivate(anything(), anything())).thenReturn(of(isLoggedIn));
     when(mockedAuthGuard.allowTransition()).thenReturn(of(isLoggedIn));

@@ -1,4 +1,5 @@
 import { Injectable } from '@angular/core';
+import { Router } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { AuthGuard } from 'xforge-common/auth.guard';
@@ -16,9 +17,10 @@ export class EventMetricsAuthGuard extends RouterGuard {
     readonly authGuard: AuthGuard,
     private readonly authService: AuthService,
     readonly projectService: SFProjectService,
+    readonly router: Router,
     private readonly userService: UserService
   ) {
-    super(authGuard, projectService);
+    super(authGuard, projectService, router);
   }
 
   check(projectDoc: SFProjectProfileDoc): boolean {
