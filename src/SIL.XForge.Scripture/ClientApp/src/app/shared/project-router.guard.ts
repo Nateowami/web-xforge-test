@@ -49,6 +49,8 @@ export abstract class RouterGuard {
 }
 
 function isReadPermissionDenied(error: unknown): boolean {
+  // The realtime server denies reads through sharedb-access, which words the error this way (see its lib/index.js).
+  // If that wording changes, this check silently stops matching and non-members get a blank page again.
   return error instanceof Error && error.message.startsWith('403: Permission denied (read)');
 }
 
