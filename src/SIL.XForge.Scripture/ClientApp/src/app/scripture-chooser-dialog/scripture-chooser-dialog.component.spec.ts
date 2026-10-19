@@ -250,6 +250,40 @@ describe('ScriptureChooserDialog', () => {
     expect(env.dialogResult!.toString()).toEqual('EPH 3:21');
   }));
 
+  it('shows chapter chooser first if project has only one book', fakeAsync(() => {
+    const texts: TextInfo[] = [
+      {
+        bookNum: 49,
+        chapters: [{ number: 3, lastVerse: 21, isValid: true, permissions: {} }],
+        hasSource: false,
+        permissions: {}
+      }
+    ];
+    env = new TestEnvironment({ textsInProject: texts });
+    expect(env.component.showing).toEqual('chapters');
+    expect(env.reference).toEqual('Ephesians');
+  }));
+
+  it('only shows verses if providing end-selection and project has only one book', fakeAsync(() => {
+    const texts: TextInfo[] = [
+      {
+        bookNum: 49,
+        chapters: [{ number: 3, lastVerse: 21, isValid: true, permissions: {} }],
+        hasSource: false,
+        permissions: {}
+      }
+    ];
+    env = new TestEnvironment({ textsInProject: texts, rangeStart: new VerseRef('EPH', '3', '15') });
+    expect(env.component.showing).toEqual('rangeEnd');
+    expect(env.reference).toEqual('Ephesians 3');
+    expect(env.dialogText).toContain('Choose end verse');
+    expect(env.dialogText).not.toContain('14');
+    expect(env.dialogText).toContain('15');
+
+    env.click(env.verse21);
+    expect(env.dialogResult!.toString()).toEqual('EPH 3:21');
+  }));
+
   it('close button works for end-selection chooser', fakeAsync(() => {
     env = new TestEnvironment({
       rangeStart: new VerseRef('EPH', '3', '15')
