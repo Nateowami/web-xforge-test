@@ -2725,6 +2725,44 @@ describe('CheckingComponent', () => {
       discardPeriodicTasks();
     }));
 
+    it('hides chapter audio when project setting changes to show text', fakeAsync(() => {
+      const testProject: SFProject = TestEnvironment.generateTestProject();
+      testProject.checkingConfig.hideCommunityCheckingText = true;
+      const env = new TestEnvironment({ user: CHECKER_USER, testProject });
+      env.waitForSliderUpdate();
+      expect(env.component.showScriptureAudioPlayer).withContext('setup').toBe(true);
+
+      const changeOriginatesLocally: boolean = false;
+      env.component.projectDoc!.submitJson0Op(op => {
+        op.set(proj => proj.checkingConfig.hideCommunityCheckingText, false);
+      }, changeOriginatesLocally);
+      env.waitForSliderUpdate();
+
+      expect(env.component.showScriptureAudioPlayer).toBe(false);
+      expect(env.fixture.debugElement.query(By.css('app-checking-scripture-audio-player'))).toBeNull();
+      flush();
+      discardPeriodicTasks();
+    }));
+
+    it('keeps playing chapter audio when project setting changes to show text', fakeAsync(() => {
+      const testProject: SFProject = TestEnvironment.generateTestProject();
+      testProject.checkingConfig.hideCommunityCheckingText = true;
+      const env = new TestEnvironment({ user: CHECKER_USER, testProject });
+      env.waitForSliderUpdate();
+      const audio = env.mockScriptureAudioAndPlay();
+
+      const changeOriginatesLocally: boolean = false;
+      env.component.projectDoc!.submitJson0Op(op => {
+        op.set(proj => proj.checkingConfig.hideCommunityCheckingText, false);
+      }, changeOriginatesLocally);
+      tick();
+
+      expect(env.component.showScriptureAudioPlayer).toBe(true);
+      verify(audio.stop()).never();
+      flush();
+      discardPeriodicTasks();
+    }));
+
     it('can open chapter audio', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER });
       env.fixture.detectChanges();

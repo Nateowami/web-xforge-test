@@ -599,7 +599,12 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                 quietTakeUntilDestroyed(this.destroyRef)
               )
               .subscribe(() => {
-                if (this.hideChapterText) this.showScriptureAudioPlayer = true;
+                if (this.hideChapterText) {
+                  this.showScriptureAudioPlayer = true;
+                } else if (this.showScriptureAudioPlayer && !this.isAudioPlaying()) {
+                  // Text was shown again; don't interrupt a checker who is listening
+                  this.hideChapterAudio();
+                }
                 this.calculateScriptureSliderPosition();
               });
 
