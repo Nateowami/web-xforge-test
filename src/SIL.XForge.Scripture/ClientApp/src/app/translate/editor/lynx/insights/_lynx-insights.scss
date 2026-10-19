@@ -325,7 +325,7 @@ $iconTypes: list.append($insightTypes, 'checkmark');
   // Use instead of ':hover', as insights can be represented by multiple elements when
   // there are partially overlapping insight ranges.
   &.cursor-active {
-    // Darken the background color on hover of insight
+    // Emphasize the background color on hover of insight (darker in light mode, lighter in dark mode)
     background-color: var(--lynx-insights-#{$insight-type}-background-hover);
   }
 }
