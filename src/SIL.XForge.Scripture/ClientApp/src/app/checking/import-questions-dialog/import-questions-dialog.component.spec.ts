@@ -394,6 +394,29 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('imports questions from a CSV file that match existing questions only in text', fakeAsync(() => {
+    const text = 'Who is mentioned in this verse?';
+    const archivedQuestion = {
+      data: { text, verseRef: { bookNum: 7, chapterNum: 1, verseNum: 1 }, isArchived: true }
+    } as QuestionDoc;
+    const activeQuestion = { data: { text, verseRef: { bookNum: 8, chapterNum: 1, verseNum: 1 } } } as QuestionDoc;
+    const env = new TestEnvironment({ existingQuestions: [archivedQuestion, activeQuestion] });
+
+    env.selectFileWithContents([
+      ['Reference', 'Questions'],
+      ['MAT 1:1', text]
+    ]);
+
+    expect(env.component.filteredList[0].sfVersionOfQuestion).toBeUndefined();
+    env.selectQuestion(env.tableRows[0]);
+    verify(mockedDialogService.openMatDialog(ImportQuestionsConfirmationDialogComponent, anything())).never();
+    expect(env.footerText).toBe('');
+    env.click(env.importSelectedQuestionsButton);
+    verify(mockedQuestionsService.createQuestion('project01', anything(), undefined, undefined)).once();
+    const question = capture(mockedQuestionsService.createQuestion).last()[1];
+    expect(question.verseRef).toEqual(jasmine.objectContaining({ bookNum: 40, chapterNum: 1, verseNum: 1 }));
+  }));
+
   it('does not import from a CSV file with unknown columns', fakeAsync(() => {
     const env = new TestEnvironment();
 
@@ -696,6 +719,46 @@ describe('ImportQuestionsDialogComponent', () => {
       expect(note3.question.id).toBe('note-3');
       expect(note3.question.text).toBe('Question 3');
       expect(note3.sfVersionOfQuestion).toBeUndefined();
+    }));
+
+    it('matches a note to its imported question by note id only', fakeAsync(() => {
+      const tagQuestions: ParatextNoteTag = { id: 7, name: 'Questions' };
+      const notes: ParatextNote[] = [
+        {
+          id: 'note-1',
+          verseRef: 'MAT 1:2',
+          comments: [{ verseRef: 'MAT 1:2', content: '<p>Moved question</p>', tag: tagQuestions }]
+        },
+        {
+          id: 'note-2',
+          verseRef: 'MAT 1:3',
+          comments: [{ verseRef: 'MAT 1:3', content: '<p>Same text</p>', tag: tagQuestions }]
+        }
+      ];
+      const movedNoteQuestion = {
+        data: {
+          paratextNoteId: 'note-1',
+          text: 'Moved question',
+          verseRef: { bookNum: 40, chapterNum: 1, verseNum: 1 }
+        }
+      } as QuestionDoc;
+      const sameTextQuestion = {
+        data: { text: 'Same text', verseRef: { bookNum: 40, chapterNum: 1, verseNum: 3 } }
+      } as QuestionDoc;
+      const env = new TestEnvironment({
+        existingQuestions: [movedNoteQuestion, sameTextQuestion],
+        paratextNotes: notes
+      });
+      env.setParatextNotes(env.component, notes);
+      env.component.selectedParatextTagId = tagQuestions.id;
+      env.component.questionSource = 'paratext';
+
+      void env.component.confirmParatextTagSelection();
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.component.filteredList[0].sfVersionOfQuestion).toBe(movedNoteQuestion);
+      expect(env.component.filteredList[1].sfVersionOfQuestion).toBeUndefined();
     }));
 
     it('shows an error when no Paratext project can be found', fakeAsync(() => {

@@ -346,12 +346,13 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
       // version in SF should be updated if the text is different from the version being imported. Transcelerator does
       // not allow changing the reference for a question, as of 2021-03-09
       // Questions imported from a file should be skipped only if they are exactly the same as what is currently in SF.
+      // Questions imported from Paratext notes are matched by note ID alone, as the note may have been moved.
       const sfVersionOfQuestion: QuestionDoc | undefined = questionQuery.docs.find(
         doc =>
-          (doc.data != null &&
-            (useQuestionIds ? doc.data.transceleratorQuestionId === question.id : doc.data.text === question.text) &&
+          doc.data != null &&
+          (((useQuestionIds ? doc.data.transceleratorQuestionId === question.id : doc.data.text === question.text) &&
             toVerseRef(doc.data.verseRef).equals(question.verseRef)) ||
-          (useQuestionIds ? doc.data?.paratextNoteId === question.id : doc.data?.text === question.text)
+            (useQuestionIds && doc.data.paratextNoteId === question.id))
       );
 
       this.questionList.push({
