@@ -78,6 +78,11 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
     return this._isUploading;
   }
 
+  get canSave(): boolean {
+    // A file with the same name would show up as an indistinguishable second entry in the training data list
+    return this.hasBeenUploaded && !this.showFilenameExists && !this.isUploading;
+  }
+
   get showFilenameExists(): boolean {
     return this._showFilenameExists;
   }
@@ -113,8 +118,8 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   }
 
   async save(): Promise<void> {
-    // We cannot save a file if it has not been uploaded
-    if (!this.hasBeenUploaded) {
+    // We cannot save a file if it has not been uploaded, or if a file with that name already exists
+    if (!this.canSave) {
       return;
     }
 

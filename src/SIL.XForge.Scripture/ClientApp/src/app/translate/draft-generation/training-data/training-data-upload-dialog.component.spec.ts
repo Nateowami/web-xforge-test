@@ -206,6 +206,82 @@ describe('TrainingDataUploadDialogComponent', () => {
 
     expect(env.wrapperTrainingDataFile.classList.contains('valid')).toBe(true);
     expect(env.fileNameExistsWarning).not.toBeNull();
+    expect(env.saveButton.disabled).toBe(true);
+  });
+
+  it('cannot save when no file has been chosen', async () => {
+    const env = new TestEnvironment();
+    await env.wait();
+
+    expect(env.saveButton.disabled).toBe(true);
+    await env.component.save();
+    verify(
+      mockedFileService.onlineUploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).never();
+  });
+
+  it('cannot save a file with the same name as an existing file', async () => {
+    const existingFile = {
+      title: 'test.csv'
+    } as TrainingData;
+    const env = new TestEnvironment([existingFile]);
+    let closed: boolean = false;
+    env.dialogRef.afterClosed().subscribe(() => (closed = true));
+    const dataTransfer = new DataTransfer();
+    for (const file of TestEnvironment.uploadFiles) {
+      dataTransfer.items.add(file);
+    }
+    env.fileUploadElement.files = dataTransfer.files;
+    env.fileUploadElement.dispatchEvent(new Event('change'));
+    await env.wait();
+    expect(env.saveButton.disabled).toBe(true);
+
+    // SUT
+    await env.component.save();
+    await env.wait();
+
+    verify(
+      mockedFileService.onlineUploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).never();
+    expect(closed).toBe(false);
+  });
+
+  it('can save once a duplicate file is replaced with a differently named file', async () => {
+    const existingFile = {
+      title: 'test.csv'
+    } as TrainingData;
+    const env = new TestEnvironment([existingFile]);
+    const duplicateFile = new DataTransfer();
+    duplicateFile.items.add(new File([], 'test.csv'));
+    env.fileUploadElement.files = duplicateFile.files;
+    env.fileUploadElement.dispatchEvent(new Event('change'));
+    await env.wait();
+    expect(env.saveButton.disabled).toBe(true);
+
+    const differentFile = new DataTransfer();
+    differentFile.items.add(new File([], 'other.csv'));
+    env.fileUploadElement.files = differentFile.files;
+    env.fileUploadElement.dispatchEvent(new Event('change'));
+    await env.wait();
+
+    expect(env.fileNameExistsWarning).toBeNull();
+    expect(env.saveButton.disabled).toBe(false);
   });
 });
 
@@ -257,6 +333,10 @@ class TestEnvironment {
 
   get fileNameExistsWarning(): HTMLElement {
     return this.overlayContainerElement.querySelector('.wrapper-training-data-file app-info') as HTMLElement;
+  }
+
+  get saveButton(): HTMLButtonElement {
+    return this.overlayContainerElement.querySelector('#upload-save-btn') as HTMLButtonElement;
   }
 
   get wrapperTrainingDataFile(): HTMLElement {
