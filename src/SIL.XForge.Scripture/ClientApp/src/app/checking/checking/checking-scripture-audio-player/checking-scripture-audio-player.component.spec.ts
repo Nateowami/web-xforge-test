@@ -1,15 +1,15 @@
 import { Component, DebugElement, Input, NgZone, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { TranslocoTestingModule } from '@ngneat/transloco';
 import { CookieService } from 'ngx-cookie-service';
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
 import { BehaviorSubject } from 'rxjs';
 import { instance, mock } from 'ts-mockito';
-import { en, I18nService } from 'xforge-common/i18n.service';
+import { I18nService } from 'xforge-common/i18n.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
+import { getTestTranslocoModule } from 'xforge-common/test-utils';
 import { TextDocId } from '../../../core/models/text-doc';
 import { AudioPlayerComponent } from '../../../shared/audio/audio-player/audio-player.component';
 import { AudioPlayerStub, getAudioTimings, getAudioTimingWithHeadings } from '../../checking-test.utils';
@@ -293,16 +293,7 @@ class TestEnvironment {
 
     TestBed.configureTestingModule({
       imports: [
-        TranslocoTestingModule.forRoot({
-          langs: { en, es: { canon: { book_names: { GEN: 'Génesis' } } } },
-          translocoConfig: {
-            availableLangs: ['en', 'es'],
-            reRenderOnLangChange: true,
-            fallbackLang: 'en',
-            defaultLang: 'en'
-          },
-          preloadLangs: true
-        }),
+        getTestTranslocoModule(true, { es: { canon: { book_names: { GEN: 'Génesis' } } } }),
         HostComponent,
         CheckingScriptureAudioPlayerComponent,
         AudioPlayerStubComponent
