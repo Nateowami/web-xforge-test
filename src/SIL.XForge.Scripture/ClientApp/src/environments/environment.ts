@@ -23,5 +23,7 @@ export const environment = {
   realtimeUrl: '/',
   authDomain: 'sil-appbuilder.auth0.com',
   authClientId: 'aoAGb9Yx1H5WIsvCW6JJCteJhSa37ftH',
+  // Increment this in every environment file when the offline database's object stores or indexes change, so that
+  // existing offline databases are upgraded. sf-type-registry.spec.ts fails until this is done.
   offlineDBVersion: 9
 };

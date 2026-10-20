@@ -9,7 +9,9 @@ import { Snapshot } from './snapshot';
 export interface RealtimeDocConstructor {
   readonly COLLECTION: string;
 
-  // string is the legacy one column index format, the associative array corresponds to MongoDB's IndexSpecification
+  // string is the legacy one column index format, the associative array corresponds to MongoDB's IndexSpecification.
+  // These are also the IndexedDB indexes of the offline database, so a change here needs offlineDBVersion to be
+  // incremented in every environment file, or existing offline databases will not get the change.
   readonly INDEX_PATHS: (string | { [x: string]: number | string } | [string, unknown])[];
 
   new (realtimeService: RealtimeService, adapter: RealtimeDocAdapter): RealtimeDoc;
