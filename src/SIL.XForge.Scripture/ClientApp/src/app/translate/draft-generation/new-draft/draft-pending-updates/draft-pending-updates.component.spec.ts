@@ -1,5 +1,5 @@
 import { DestroyRef } from '@angular/core';
-import { fakeAsync, tick } from '@angular/core/testing';
+import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { Subject } from 'rxjs';
@@ -7,6 +7,7 @@ import { anything, instance, mock, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { getTestTranslocoModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectDoc } from '../../../../core/models/sf-project-doc';
 import { PermissionsService } from '../../../../core/permissions.service';
@@ -297,6 +298,32 @@ describe('DraftPendingUpdatesComponent', () => {
 
       expect(env.component.rows[0].syncState).toBe('syncing');
       verify(env.mockedProjectService.onlineSync('proj1')).once();
+    });
+  });
+
+  describe('template', () => {
+    it('disables Sync all and Retry while offline', async () => {
+      const env = new TestEnvironment(
+        [
+          makeProject('proj1', 'P1', SFProjectRole.ParatextAdministrator),
+          makeProject('proj2', 'P2', SFProjectRole.ParatextAdministrator)
+        ],
+        { render: true }
+      );
+      when(env.mockedOnlineStatusService.isOnline).thenReturn(false);
+      env.fixture!.detectChanges();
+      await env.fixture!.whenStable();
+      env.component.rows[0].syncState = 'failed';
+      env.fixture!.detectChanges();
+
+      expect(env.button('Retry').disabled).toBeTrue();
+      expect(env.button('Sync all').disabled).toBeTrue();
+
+      when(env.mockedOnlineStatusService.isOnline).thenReturn(true);
+      env.fixture!.detectChanges();
+
+      expect(env.button('Retry').disabled).toBeFalse();
+      expect(env.button('Sync all').disabled).toBeFalse();
     });
   });
 
@@ -633,7 +660,10 @@ class TestEnvironment {
   private readonly mockedUserService = mock(UserService);
   private readonly projectDocs = new Map<string, { data: any; remoteChanges$: Subject<void> }>();
 
-  constructor(projects: ProjectSpec[]) {
+  /** Set when constructed with `render`, so the template is rendered and can be queried. */
+  fixture?: ComponentFixture<DraftPendingUpdatesComponent>;
+
+  constructor(projects: ProjectSpec[], options: { render?: boolean } = {}) {
     when(this.mockedUserService.currentUserId).thenReturn(USER_ID);
     when(this.mockedOnlineStatusService.isOnline).thenReturn(true);
 
@@ -660,13 +690,27 @@ class TestEnvironment {
       instance(this.mockedProjectService)
     );
 
-    this.component = new DraftPendingUpdatesComponent(
-      instance(this.mockedProjectService),
-      permissionsService,
-      instance(this.mockedErrorReportingService),
-      instance(this.mockedOnlineStatusService),
-      this.destroyRef
-    );
+    if (options.render) {
+      TestBed.configureTestingModule({
+        imports: [getTestTranslocoModule()],
+        providers: [
+          { provide: SFProjectService, useValue: instance(this.mockedProjectService) },
+          { provide: PermissionsService, useValue: permissionsService },
+          { provide: ErrorReportingService, useValue: instance(this.mockedErrorReportingService) },
+          { provide: OnlineStatusService, useValue: instance(this.mockedOnlineStatusService) }
+        ]
+      });
+      this.fixture = TestBed.createComponent(DraftPendingUpdatesComponent);
+      this.component = this.fixture.componentInstance;
+    } else {
+      this.component = new DraftPendingUpdatesComponent(
+        instance(this.mockedProjectService),
+        permissionsService,
+        instance(this.mockedErrorReportingService),
+        instance(this.mockedOnlineStatusService),
+        this.destroyRef
+      );
+    }
     this.component.pendingProjects = projects.map(p => ({ projectId: p.projectId, name: p.name }));
   }
 
@@ -682,6 +726,13 @@ class TestEnvironment {
     const doc = this.projectDocs.get(projectId)!;
     doc.data.sync = { ...doc.data.sync, queuedCount: 0, lastSyncSuccessful: successful };
     doc.remoteChanges$.next();
+  }
+
+  button(label: string): HTMLButtonElement {
+    const buttons: HTMLButtonElement[] = Array.from(this.fixture!.nativeElement.querySelectorAll('button'));
+    const button = buttons.find(b => b.textContent?.trim().endsWith(label));
+    if (button == null) throw new Error(`No button labelled ${label}`);
+    return button;
   }
 
   /** Emit a remote change without altering sync state (e.g. an unrelated doc edit). */

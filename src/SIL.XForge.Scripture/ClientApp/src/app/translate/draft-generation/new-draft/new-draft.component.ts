@@ -165,7 +165,7 @@ export class NewDraftComponent {
       firstValueFrom(this.logicHandler.status$.pipe(filter(status => status === 'input' || status === 'abort')))
     ]);
     if (status === 'abort') {
-      this.handleAbort();
+      await this.handleAbort();
       return;
     }
     this.initData = {
@@ -205,7 +205,7 @@ export class NewDraftComponent {
         take(1),
         quietTakeUntilDestroyed(this.destroyRef)
       )
-      .subscribe(() => this.handleAbort());
+      .subscribe(() => void this.handleAbort());
   }
 
   /**
@@ -213,14 +213,17 @@ export class NewDraftComponent {
    * abort screen.
    * Unanticipated failures go to the app-wide error handler and navigate back so the user isn't stranded.
    */
-  private handleAbort(): void {
+  private async handleAbort(): Promise<void> {
     const mode = this.logicHandler.abortMode;
     if (mode === 'no_access' || mode === 'config_changed' || mode === 'project_syncing') {
       this.page = 'abort';
       return;
     }
     // Loading the wizard needs the server, so failing while offline is expected. Say so rather than reporting an error.
-    if (mode === 'init_failure' && !this.onlineStatusService.isOnline) {
+    // Right after a page load isOnline can still be true while the server is unreachable (the websocket hasn't reported
+    // failure yet), so also ping the server.
+    const online = this.onlineStatusService.isOnline && (await this.onlineStatusService.checkOnline());
+    if (mode === 'init_failure' && !online) {
       this.abortedOffline = true;
       this.page = 'abort';
       return;
