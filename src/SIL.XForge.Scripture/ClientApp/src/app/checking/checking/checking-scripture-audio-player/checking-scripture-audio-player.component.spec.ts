@@ -1,12 +1,15 @@
 import { Component, DebugElement, Input, NgZone, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { TranslocoTestingModule } from '@ngneat/transloco';
+import { CookieService } from 'ngx-cookie-service';
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
 import { BehaviorSubject } from 'rxjs';
+import { instance, mock } from 'ts-mockito';
+import { en, I18nService } from 'xforge-common/i18n.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
-import { getTestTranslocoModule } from 'xforge-common/test-utils';
 import { TextDocId } from '../../../core/models/text-doc';
 import { AudioPlayerComponent } from '../../../shared/audio/audio-player/audio-player.component';
 import { AudioPlayerStub, getAudioTimings, getAudioTimingWithHeadings } from '../../checking-test.utils';
@@ -14,6 +17,8 @@ import { CheckingScriptureAudioPlayerComponent } from './checking-scripture-audi
 
 const audioFile = 'test-audio-player.webm';
 const textDocId: TextDocId = new TextDocId('project01', 1, 1);
+// Only the book name the label shows, so the test can tell the two languages apart
+const es = { canon: { book_names: { GEN: 'Génesis' } } };
 
 describe('ScriptureAudioComponent', () => {
   it('can play and pause audio', fakeAsync(() => {
@@ -151,6 +156,16 @@ describe('ScriptureAudioComponent', () => {
     expect(env.verseLabel.nativeElement.textContent).toEqual('Genesis 1:2');
   }));
 
+  it('shows the book name in the new interface language when the language changes', fakeAsync(() => {
+    const env = new TestEnvironment();
+    expect(env.verseLabel.nativeElement.textContent).toEqual('Genesis 1:1');
+
+    env.setLocale('es');
+    env.wait();
+
+    expect(env.verseLabel.nativeElement.textContent).toEqual('Génesis 1:1');
+  }));
+
   it('pauses and emits on close', fakeAsync(() => {
     const env = new TestEnvironment();
 
@@ -278,12 +293,22 @@ class TestEnvironment {
 
     TestBed.configureTestingModule({
       imports: [
-        getTestTranslocoModule(),
+        TranslocoTestingModule.forRoot({
+          langs: { en, es },
+          translocoConfig: {
+            availableLangs: ['en', 'es'],
+            reRenderOnLangChange: true,
+            fallbackLang: 'en',
+            defaultLang: 'en'
+          },
+          preloadLangs: true
+        }),
         HostComponent,
         CheckingScriptureAudioPlayerComponent,
         AudioPlayerStubComponent
       ],
-      providers: [provideTestOnlineStatus()]
+      // Stop the real I18nService from writing the culture cookie, which would change the locale of later specs
+      providers: [provideTestOnlineStatus(), { provide: CookieService, useValue: instance(mock(CookieService)) }]
     });
     TestBed.overrideComponent(HostComponent, { set: { template: template } });
     TestBed.overrideComponent(CheckingScriptureAudioPlayerComponent, {
@@ -346,6 +371,10 @@ class TestEnvironment {
 
   clickPreviousRef(): void {
     this.previousRefButton.nativeElement.click();
+  }
+
+  setLocale(tag: string): void {
+    TestBed.inject(I18nService).setLocale(tag);
   }
 
   wait(): void {

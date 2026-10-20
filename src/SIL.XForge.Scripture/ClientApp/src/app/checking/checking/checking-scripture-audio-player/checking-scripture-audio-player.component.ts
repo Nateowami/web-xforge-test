@@ -31,8 +31,7 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
 
   @Input() set textDocId(value: TextDocId | undefined) {
     this._textDocId = value;
-    // set the verse label
-    this.verseLabel = this.currentVerseLabel;
+    this.updateVerseRef();
   }
 
   @Input() set timing(value: AudioTiming[]) {
@@ -48,7 +47,6 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     this._showSegment = value;
   }
 
-  verseLabel: string = this.emptyVerseLabel;
   audioSource?: string;
 
   protected _showSegment = false;
@@ -56,6 +54,7 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
   private _audioIsAvailable: boolean = false;
   private _timing: AudioTiming[] = [];
   private _textDocId?: TextDocId;
+  private verseRef?: VerseRef;
   private finishedSubscription?: Subscription;
   private verseChangeSubscription?: Subscription;
   private audioSubscription?: Subscription;
@@ -91,16 +90,9 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     return this._timing.length;
   }
 
-  private get currentVerseLabel(): string {
-    if (this._textDocId == null) return this.emptyVerseLabel;
-    const currentTime: number = this.audioPlayer?.audio?.currentTime ?? 0;
-    const currentVerseStr: string = this.getCurrentVerseStr(currentTime);
-    const verseRef = new VerseRef(
-      Canon.bookNumberToId(this._textDocId.bookNum),
-      this._textDocId.chapterNum.toString(),
-      currentVerseStr
-    );
-    return this.i18n.localizeReference(verseRef);
+  /** Localized when rendered, rather than cached, so the book name follows changes to the interface language. */
+  get verseLabel(): string {
+    return this.verseRef == null ? this.emptyVerseLabel : this.i18n.localizeReference(this.verseRef);
   }
 
   close(): void {
@@ -122,7 +114,7 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     } else {
       this.audioPlayer.audio.currentTime = this.getNextVerseRefTime(currentTimingIndex);
     }
-    this.verseLabel = this.currentVerseLabel;
+    this.updateVerseRef();
   }
 
   pause(): void {
@@ -152,11 +144,24 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     } else {
       this.audioPlayer.audio.currentTime = this.getPreviousVerseRefTime(currentTimingIndex);
     }
-    this.verseLabel = this.currentVerseLabel;
+    this.updateVerseRef();
   }
 
   stop(): void {
     this.audioPlayer?.audio?.stop();
+  }
+
+  private updateVerseRef(): void {
+    if (this._textDocId == null) {
+      this.verseRef = undefined;
+      return;
+    }
+    const currentTime: number = this.audioPlayer?.audio?.currentTime ?? 0;
+    this.verseRef = new VerseRef(
+      Canon.bookNumberToId(this._textDocId.bookNum),
+      this._textDocId.chapterNum.toString(),
+      this.getCurrentVerseStr(currentTime)
+    );
   }
 
   private getCurrentIndexInTimings(currentTime: number): number {
@@ -236,7 +241,7 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
       )
       .subscribe(() => {
         if (this._textDocId == null) return;
-        this.verseLabel = this.currentVerseLabel;
+        this.updateVerseRef();
         const audioTextRef: AudioTextRef | undefined = CheckingUtils.parseAudioRefByTime(
           this._timing,
           audio.currentTime
