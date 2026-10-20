@@ -14,7 +14,7 @@ import { ErrorReportingService } from './error-reporting.service';
 import { FeatureFlagService } from './feature-flags/feature-flag.service';
 import { NoticeService } from './notice.service';
 import { PwaService } from './pwa.service';
-import { COMMAND_API_NAMESPACE, PARATEXT_API_NAMESPACE } from './url-constants';
+import { COMMAND_API_NAMESPACE } from './url-constants';
 import { objectId } from './utils';
 
 export interface BreadcrumbSelector {
@@ -200,14 +200,9 @@ export class ExceptionHandlingService {
       error.statusText === 'Gateway Timeout' &&
       error.url != null
     ) {
-      // ignore 504 errors from ngsw-worker.js to machine-api, command-api, or paratext-api (the service worker returns
-      // a 504 when a request fails at the network level, such as when offline or just as the connection comes back)
+      // ignore 504 errors from ngsw-worker.js to machine-api or command-api (these happen when offline)
       const url = new URL(error.url);
-      if (
-        [MACHINE_API_BASE_URL, COMMAND_API_NAMESPACE, PARATEXT_API_NAMESPACE].some(api =>
-          url.pathname.startsWith('/' + api)
-        )
-      ) {
+      if (url.pathname.startsWith('/' + MACHINE_API_BASE_URL) || url.pathname.startsWith('/' + COMMAND_API_NAMESPACE)) {
         silently = true;
       }
     }

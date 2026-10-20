@@ -7,6 +7,7 @@ import { MatCheckbox } from '@angular/material/checkbox';
 import { MatDivider } from '@angular/material/divider';
 import { Router } from '@angular/router';
 import { TranslocoModule, TranslocoService } from '@ngneat/transloco';
+import { Subscription, timer } from 'rxjs';
 import { AuthService } from 'xforge-common/auth.service';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { I18nService } from 'xforge-common/i18n.service';
@@ -51,6 +52,7 @@ interface ConnectProjectFormValues {
 })
 export class ConnectProjectComponent extends DataLoadingComponent implements OnInit {
   static readonly errorAlreadyConnectedKey: string = 'error-already-connected';
+  static readonly projectListRetryDelayMs: number = 5000;
   readonly connectProjectForm = new FormGroup({
     settings: new FormGroup({
       sourceParatextId: new FormControl(undefined),
@@ -67,6 +69,7 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
   private _isAppOnline: boolean = false;
   private projectsFromParatext?: ParatextProject[];
   private projectMetadata?: SelectableProject;
+  private projectListRetry?: Subscription;
 
   constructor(
     private readonly authService: AuthService,
@@ -100,6 +103,10 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
 
   get showSettings(): boolean {
     return this.state === 'input';
+  }
+
+  get showOfflineMessage(): boolean {
+    return !this.isAppOnline || this.projectListRetry != null;
   }
 
   get submitDisabled(): boolean {
@@ -185,6 +192,8 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
 
   private async populateProjectList(): Promise<void> {
     this.state = 'input';
+    this.projectListRetry?.unsubscribe();
+    this.projectListRetry = undefined;
     this.loadingStarted();
 
     try {
@@ -195,12 +204,26 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
     } catch (error: any) {
       if (error instanceof HttpErrorResponse && error.status === 401) {
         this.authService.requestParatextCredentialUpdate(() => this.router.navigate(['/projects']));
+      } else if (error instanceof HttpErrorResponse && (error.status === 0 || error.status === 504)) {
+        // The browser can report being online before requests get through. The request then fails at the network
+        // level, which the service worker turns into a 504. Nothing else will retry, so try again shortly.
+        this.retryPopulateProjectList();
       } else {
         throw error;
       }
     } finally {
       this.loadingFinished();
     }
+  }
+
+  private retryPopulateProjectList(): void {
+    this.projectListRetry = timer(ConnectProjectComponent.projectListRetryDelayMs)
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.projectListRetry = undefined;
+        // If offline, the onlineStatus$ subscription will load the list when the app is back online
+        if (this.isAppOnline && this.projectsFromParatext == null) void this.populateProjectList();
+      });
   }
 
   private async fetchResources(): Promise<void> {

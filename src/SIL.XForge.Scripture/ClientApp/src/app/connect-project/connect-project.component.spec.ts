@@ -274,6 +274,48 @@ describe('ConnectProjectComponent', () => {
     verify(mockedAuthService.requestParatextCredentialUpdate(anything())).once();
     expect(env.component.state).toEqual('input');
   }));
+
+  it('retries loading projects when the request fails at the network level', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupDefaultProjectData();
+    // The service worker answers a request that fails at the network level with a 504
+    when(mockedParatextService.getProjects())
+      .thenReject(new HttpErrorResponse({ status: 504, statusText: 'Gateway Timeout' }))
+      .thenResolve(env.paratextProjects);
+    env.waitForProjectsResponse();
+
+    verify(mockedParatextService.getProjects()).once();
+    expect(env.offlineMessage).not.toBeNull();
+    expect(env.submitButton.nativeElement.disabled).toBe(true);
+
+    tick(ConnectProjectComponent.projectListRetryDelayMs);
+    env.waitForProjectsResponse();
+
+    verify(mockedParatextService.getProjects()).twice();
+    expect(env.offlineMessage).toBeNull();
+    expect(env.component.projects.length).toEqual(env.paratextProjects.length);
+    expect(env.submitButton.nativeElement.disabled).toBe(false);
+  }));
+
+  it('waits until back online to retry loading projects', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupDefaultProjectData();
+    when(mockedParatextService.getProjects())
+      .thenReject(new HttpErrorResponse({ status: 0 }))
+      .thenResolve(env.paratextProjects);
+    env.waitForProjectsResponse();
+    env.onlineStatus = false;
+
+    tick(ConnectProjectComponent.projectListRetryDelayMs);
+    env.waitForProjectsResponse();
+    verify(mockedParatextService.getProjects()).once();
+
+    env.onlineStatus = true;
+    env.waitForProjectsResponse();
+    verify(mockedParatextService.getProjects()).twice();
+    expect(env.offlineMessage).toBeNull();
+    expect(env.component.projects.length).toEqual(env.paratextProjects.length);
+  }));
 });
 
 class TestEnvironment {
