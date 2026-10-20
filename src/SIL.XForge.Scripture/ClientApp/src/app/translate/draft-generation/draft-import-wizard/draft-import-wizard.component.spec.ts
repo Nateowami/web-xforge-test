@@ -135,6 +135,55 @@ describe('DraftImportWizardComponent', () => {
     env.component.close();
   }));
 
+  it('returns to project selection when going back after joining an existing project', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.wait();
+
+    // Connect the target project, which already exists on Scripture Forge
+    env.selectProject('paratext05');
+    env.clickNextButton(1);
+    env.clickNextButton(2);
+    verify(mockProjectService.onlineAddCurrentUser('project05')).once();
+
+    // Joining an existing project goes straight on to book selection, so go back to the "connected" step first
+    env.clickNextButton(4, 'back');
+
+    // Going back skips the connect step, as the user is now a member of the project
+    env.clickNextButton(3, 'back');
+    env.isStepVisible(1);
+    expect(env.component.needsConnection).toBe(false);
+    expect(env.component.projects.find(p => p.paratextId === 'paratext05')?.isConnected).toBe(true);
+
+    // Advancing again does not ask to connect the project again
+    env.clickNextButton(1);
+    env.isStepVisible(4);
+    verify(mockProjectService.onlineAddCurrentUser(anything())).once();
+    verify(mockProjectService.onlineCreate(anything())).never();
+    env.component.close();
+  }));
+
+  it('removes the connection steps however the user returns to project selection after connecting', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.wait();
+
+    // Connect the target project, which continues to book selection
+    env.selectProject('paratext05');
+    env.clickNextButton(1);
+    env.clickNextButton(2);
+    env.isStepVisible(4);
+
+    // Return to project selection without the "connected" step's back button, e.g. via a step header
+    env.selectStep(0);
+    env.isStepVisible(1);
+    expect(env.component.needsConnection).toBe(false);
+
+    // Advancing again does not ask to connect the project again
+    env.clickNextButton(1);
+    env.isStepVisible(4);
+    verify(mockProjectService.onlineAddCurrentUser(anything())).once();
+    env.component.close();
+  }));
+
   it('shows the overwrite confirmation when existing text is only found when advancing', fakeAsync(() => {
     configureDraft('GEN', false);
     const env = new TestEnvironment();
@@ -443,6 +492,16 @@ class TestEnvironment {
         shortName: 'P04',
         projectId: 'project04',
         isConnected: true
+      } as ParatextProject,
+      // Target project that is on Scripture Forge, but the user is not a member of
+      {
+        paratextId: 'paratext05',
+        name: 'Project 05',
+        shortName: 'P05',
+        projectId: 'project05',
+        isConnected: false,
+        isConnectable: true,
+        role: 'pt_administrator'
       } as ParatextProject
     ]);
 
@@ -453,6 +512,10 @@ class TestEnvironment {
     this.realtimeService.addSnapshot<SFProjectProfile>(SFProjectProfileDoc.COLLECTION, {
       id: 'project03',
       data: createTestProjectProfile({}, 3)
+    });
+    this.realtimeService.addSnapshot<SFProjectProfile>(SFProjectProfileDoc.COLLECTION, {
+      id: 'project05',
+      data: createTestProjectProfile({}, 5)
     });
     this.realtimeService.addSnapshot<SFProjectProfile>(SFProjectProfileDoc.COLLECTION, {
       id: 'project04',
@@ -508,6 +571,12 @@ class TestEnvironment {
 
     // Click the button
     nextButton.nativeElement.click();
+    this.wait();
+  }
+
+  selectStep(index: number): void {
+    const stepper: MatStepper = this.fixture.debugElement.query(By.directive(MatStepper)).componentInstance;
+    stepper.selectedIndex = index;
     this.wait();
   }
 

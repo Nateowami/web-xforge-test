@@ -243,13 +243,12 @@ export class DraftImportWizardComponent implements OnInit {
   }
 
   /**
-   * Returns from the "connected" step to project selection. The project is connected now, so the connection steps are
-   * removed from the wizard instead of being shown again.
+   * Returns from the "connected" step to project selection, skipping the "connect" step before it, as the project is
+   * connected now. onStepSelectionChange() then removes the connection steps.
    */
   backToProjectSelection(): void {
     if (this.stepper == null) return;
     this.stepper.selectedIndex = 0;
-    this.needsConnection = false;
   }
 
   /** Records the connection in the project list, so selecting the project again does not ask to connect it again. */
@@ -283,6 +282,10 @@ export class DraftImportWizardComponent implements OnInit {
   }
 
   onStepSelectionChange(event: StepperSelectionEvent): void {
+    // However the user got back to project selection, a project connected since does not need the connection steps
+    if (event.selectedIndex === 0 && this.selectedParatextProject?.isConnected === true) {
+      this.needsConnection = false;
+    }
     if (event.selectedStep === this.importStep && !this.importStepTriggered) {
       this.importStepTriggered = true;
       void this.startImport();
