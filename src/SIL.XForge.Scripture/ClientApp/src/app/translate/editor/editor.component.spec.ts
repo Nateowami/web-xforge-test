@@ -350,12 +350,12 @@ describe('EditorComponent', () => {
     env.wait();
 
     // Exodus is neither in the project nor drafted
-    env.navigateThenRouteWithParams({ projectId: 'project01', bookId: 'EXO', chapter: '1' });
+    env.routeWithParams({ projectId: 'project01', bookId: 'EXO', chapter: '1' });
     env.wait();
     expect(env.location.path()).toEqual('/projects/project01/translate');
 
     // Unknown book ID
-    env.navigateThenRouteWithParams({ projectId: 'project01', bookId: 'XYZ' });
+    env.routeWithParams({ projectId: 'project01', bookId: 'XYZ' });
     env.wait();
     expect(env.location.path()).toEqual('/projects/project01/translate');
 
@@ -3780,7 +3780,7 @@ describe('EditorComponent', () => {
         env.setProjectUserConfig({
           editorTabsOpen: [{ tabType: 'project-resource', groupId: 'target', projectId: absentProjectId }]
         });
-        env.routeWithParams({ projectId: 'project01', bookId: 'GEN', chapter: '1' });
+        env.routeWithParams({ projectId: 'project01', bookId: 'MAT', chapter: '1' });
         env.wait();
 
         const tabs = await firstValueFrom(env.component.tabState.tabs$);
@@ -5015,19 +5015,10 @@ class TestEnvironment {
     this.ngZone.run(() => {
       // Need to both update ActivatedRoute params and navigate route because ActivatedRoute
       // provided by the RouterTestingModule is not the same instance that the component under test injects.
-      this.params$.next(params);
-
       // ActivatedProjectService checks router event, not ActivatedRoute,
       // so trigger route change in addition to ActivatedRoute change.
-      this.router.navigateByUrl(`/projects/${params.projectId}/translate/${params.bookId}/${params.chapter ?? ''}`);
-    });
-
-    this.fixture.detectChanges();
-  }
-
-  /** Like routeWithParams, but emits the params after the navigation, as happens in the app. */
-  navigateThenRouteWithParams(params: Params): void {
-    this.ngZone.run(() => {
+      // Navigate before emitting the params, as happens in the app, so that a navigation the component makes in
+      // response to the params (such as a redirect) is not overridden by this one.
       this.router.navigateByUrl(`/projects/${params.projectId}/translate/${params.bookId}/${params.chapter ?? ''}`);
       this.params$.next(params);
     });
