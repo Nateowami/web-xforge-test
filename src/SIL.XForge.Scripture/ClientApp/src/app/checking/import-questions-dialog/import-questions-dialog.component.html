@@ -156,15 +156,20 @@
             <table mat-table [dataSource]="invalidRowsForDisplay">
               <ng-container matColumnDef="rowNumber">
                 <th mat-header-cell *matHeaderCellDef>{{ t("row") }}</th>
-                <td mat-cell *matCellDef="let element">{{ element[0] }}</td>
+                <td mat-cell *matCellDef="let element">{{ element.rowNumber }}</td>
               </ng-container>
               <ng-container matColumnDef="reference">
                 <th mat-header-cell *matHeaderCellDef>{{ t("reference") }}</th>
-                <td mat-cell *matCellDef="let element">{{ element[1] }}</td>
+                <td mat-cell *matCellDef="let element">
+                  {{ element.reference }}
+                  @if (element.notInProjectText) {
+                    <div class="not-in-project-text">{{ t("reference_not_in_project_text") }}</div>
+                  }
+                </td>
               </ng-container>
               <ng-container matColumnDef="question">
                 <th mat-header-cell *matHeaderCellDef>{{ t("question") }}</th>
-                <td mat-cell *matCellDef="let element">{{ element[2] }}</td>
+                <td mat-cell *matCellDef="let element">{{ element.question }}</td>
               </ng-container>
               <tr mat-header-row *matHeaderRowDef="['rowNumber', 'reference', 'question']"></tr>
               <tr mat-row *matRowDef="let row; columns: ['rowNumber', 'reference', 'question']"></tr>

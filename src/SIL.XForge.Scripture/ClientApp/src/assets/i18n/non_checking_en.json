@@ -671,6 +671,7 @@
     "reference_from": "Reference from",
     "reference_to": "Reference to",
     "reference": "Reference",
+    "reference_not_in_project_text": "This verse is not in the project's text",
     "row": "Row",
     "select_all": "Select All",
     "select_questions": "Select questions to import",

@@ -456,14 +456,22 @@ describe('ImportQuestionsDialogComponent', () => {
       ['MAT 1:6', 'Question for a verse past the end of the chapter'],
       ['MAT 1:4-6', 'Question for a range past the end of the chapter'],
       ['MAT 2:1', 'Question for a chapter not in the project'],
+      ['MAT 1:4-2', 'Question for a range that ends before it starts'],
       ['GEN 1:1', 'Question for a book not in the project']
     ]);
 
     const invalidRows = env.tableRows;
-    expect(invalidRows.length).toBe(3);
-    expect(env.getColumnTwoText(invalidRows[0])).toEqual('MAT 1:6');
-    expect(env.getColumnTwoText(invalidRows[1])).toEqual('MAT 1:4-6');
-    expect(env.getColumnTwoText(invalidRows[2])).toEqual('MAT 2:1');
+    expect(invalidRows.length).toBe(4);
+    const notInProjectText = "This verse is not in the project's text";
+    expect(env.getColumnTwoText(invalidRows[0])).toContain('MAT 1:6');
+    expect(env.getNotInProjectTextMessage(invalidRows[0])).toEqual(notInProjectText);
+    expect(env.getColumnTwoText(invalidRows[1])).toContain('MAT 1:4-6');
+    expect(env.getNotInProjectTextMessage(invalidRows[1])).toEqual(notInProjectText);
+    expect(env.getColumnTwoText(invalidRows[2])).toContain('MAT 2:1');
+    expect(env.getNotInProjectTextMessage(invalidRows[2])).toEqual(notInProjectText);
+    // A range that ends before it starts is a mistake in the file, whatever the project's text
+    expect(env.getColumnTwoText(invalidRows[3])).toEqual('MAT 1:4-2');
+    expect(env.getNotInProjectTextMessage(invalidRows[3])).toBeUndefined();
 
     env.click(env.continueImportButton);
 
@@ -979,7 +987,11 @@ class TestEnvironment {
   }
 
   getColumnTwoText(row: HTMLElement): string {
-    return row.querySelector('td:nth-child(2)')?.textContent || '';
+    return row.querySelector('td:nth-child(2)')?.textContent?.trim() || '';
+  }
+
+  getNotInProjectTextMessage(row: HTMLElement): string | undefined {
+    return row.querySelector('.not-in-project-text')?.textContent?.trim();
   }
 
   selectQuestion(row: HTMLElement): void {

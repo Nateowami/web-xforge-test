@@ -91,6 +91,14 @@ interface DialogListItem {
   sfVersionOfQuestion?: QuestionDoc;
 }
 
+interface InvalidCsvRow {
+  rowNumber: string;
+  reference?: string;
+  question?: string;
+  /** The reference is well-formed, but the verse is not in the project's text */
+  notInProjectText?: boolean;
+}
+
 type DialogErrorState =
   | 'update_transcelerator'
   | 'file_import_errors'
@@ -158,7 +166,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
 
   questionList: DialogListItem[] = [];
   filteredList: DialogListItem[] = [];
-  invalidRows: string[][] = [];
+  invalidRows: InvalidCsvRow[] = [];
   errorState?: DialogErrorState;
   transceleratorOutdated = false;
   loading = false;
@@ -284,7 +292,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     return environment.issueEmail;
   }
 
-  get invalidRowsForDisplay(): string[][] {
+  get invalidRowsForDisplay(): InvalidCsvRow[] {
     return this.invalidRows.slice(0, this.maxListItemsToDisplay);
   }
 
@@ -716,7 +724,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
       return;
     }
 
-    const invalidRows: string[][] = [];
+    const invalidRows: InvalidCsvRow[] = [];
     const questions: SourceQuestion[] = [];
 
     for (const [index, row] of result.entries()) {
@@ -728,7 +736,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
       const reference: string | undefined = row[referenceColumn]?.trim();
       const questionText: string | undefined = row[questionColumn]?.trim();
       if (row.length < 2 || reference === '' || questionText === '') {
-        invalidRows.push([rowNumber, reference, questionText]);
+        invalidRows.push({ rowNumber, reference, question: questionText });
         continue;
       }
       try {
@@ -738,13 +746,17 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
         const fullReference: string =
           refStartsWithBook || defaultBookId == null ? reference : defaultBookId + ' ' + reference;
         const verseRef: VerseRef = new VerseRef(fullReference);
+        if (!this.isRangeInOrder(verseRef)) {
+          invalidRows.push({ rowNumber, reference, question: questionText });
+          continue;
+        }
         if (!this.isReferenceInProjectText(verseRef)) {
-          invalidRows.push([rowNumber, reference, questionText]);
+          invalidRows.push({ rowNumber, reference, question: questionText, notInProjectText: true });
           continue;
         }
         questions.push({ verseRef: verseRef, text: questionText });
       } catch {
-        invalidRows.push([rowNumber, reference, questionText]);
+        invalidRows.push({ rowNumber, reference, question: questionText });
       }
     }
 
@@ -755,6 +767,16 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     await this.setUpQuestionList(questions, false);
     this.questionSource = 'csv_file';
     this.loading = false;
+  }
+
+  /** Checks that a verse range is in one chapter and does not end before it starts, as the question dialog requires. */
+  private isRangeInOrder(verseRef: VerseRef): boolean {
+    const { startVerseRef, endVerseRef } = toStartAndEndVerseRefs(verseRef);
+    const referenceForm = new FormGroup({
+      scriptureStart: new FormControl(startVerseRef.toString()),
+      scriptureEnd: new FormControl(endVerseRef?.toString() ?? '')
+    });
+    return SFValidators.verseStartBeforeEnd(referenceForm) == null;
   }
 
   /**
