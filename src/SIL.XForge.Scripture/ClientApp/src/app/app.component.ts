@@ -114,6 +114,7 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   private _selectedProjectDoc?: SFProjectProfileDoc;
   private selectedProjectDeleteSub?: Subscription;
   private selectedProjectChangedSub?: Subscription;
+  private isProjectDeletedDialogOpen = false;
   private _isDrawerPermanent: boolean = true;
 
   constructor(
@@ -504,11 +505,19 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   }
 
   private async showProjectDeletedDialog(): Promise<void> {
-    await this.userService.setCurrentProjectId(this.currentUserDoc!, undefined);
-    // Leave the project before telling the user about it. If we wait for the dialog to be dismissed, the project's
-    // components stay alive behind it and keep polling the API for a project that no longer exists.
-    await this.navigateToStart();
-    await this.dialogService.message('app.project_has_been_deleted');
+    // Removing a user from a project arrives as several remote changes (e.g. their role, then their permissions), each
+    // of which is detected as a removal. Show the dialog only once, so that one click on Close dismisses it.
+    if (this.isProjectDeletedDialogOpen) return;
+    this.isProjectDeletedDialogOpen = true;
+    try {
+      await this.userService.setCurrentProjectId(this.currentUserDoc!, undefined);
+      // Leave the project before telling the user about it. If we wait for the dialog to be dismissed, the project's
+      // components stay alive behind it and keep polling the API for a project that no longer exists.
+      await this.navigateToStart();
+      await this.dialogService.message('app.project_has_been_deleted');
+    } finally {
+      this.isProjectDeletedDialogOpen = false;
+    }
   }
 
   private navigateToStart(): Promise<boolean> {

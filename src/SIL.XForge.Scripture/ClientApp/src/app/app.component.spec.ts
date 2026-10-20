@@ -372,6 +372,19 @@ describe('AppComponent', () => {
     expect(env.location.path()).toEqual('/projects');
   }));
 
+  it('shows the removed from project dialog once when the removal arrives as several changes', fakeAsync(() => {
+    const env = new TestEnvironment();
+    when(mockedDialogService.message(anything())).thenReturn(new Promise<void>(() => {}));
+    env.navigate(['/projects', 'project01']);
+    env.init();
+    env.setUserPermissions('project01', ['questions.create', 'questions.edit']);
+
+    env.removeUserRoleAndPermissionsFromProject('project01');
+    tick();
+    expect(env.location.path()).toEqual('/projects');
+    verify(mockedDialogService.message(anything())).once();
+  }));
+
   it('response to remote project change for serval admin', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setCurrentUser('user05');
@@ -1012,6 +1025,20 @@ class TestEnvironment {
   removeUserFromProject(projectId: string): void {
     const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, projectId);
     projectDoc.submitJson0Op(op => op.unset<string>(p => p.userRoles['user01']), false);
+    this.wait();
+  }
+
+  setUserPermissions(projectId: string, permissions: string[]): void {
+    const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, projectId);
+    projectDoc.submitJson0Op(op => op.set<string[]>(p => p.userPermissions['user01'], permissions), false);
+    this.wait();
+  }
+
+  /** Like the backend, removes the role and the permissions in separate ops, which arrive before any navigation. */
+  removeUserRoleAndPermissionsFromProject(projectId: string): void {
+    const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, projectId);
+    projectDoc.submitJson0Op(op => op.unset<string>(p => p.userRoles['user01']), false);
+    projectDoc.submitJson0Op(op => op.unset<string[]>(p => p.userPermissions['user01']), false);
     this.wait();
   }
 
