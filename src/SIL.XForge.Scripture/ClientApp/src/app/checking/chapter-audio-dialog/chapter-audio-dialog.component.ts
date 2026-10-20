@@ -341,18 +341,35 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     if (!this.onlineStatusService.isOnline) return;
 
     this._loadingAudio = true;
-    const audioUrl: string | undefined = await this.fileService.tryOnlineUploadFile(
-      FileType.Audio,
-      this.data.projectId,
-      TextAudioDoc.COLLECTION,
-      objectId(),
-      this.audio!.blob!,
-      this.audio!.fileName!,
-      true
-    );
+    let audioUrl: string | undefined;
+    try {
+      audioUrl = await this.fileService.tryOnlineUploadFile(
+        FileType.Audio,
+        this.data.projectId,
+        TextAudioDoc.COLLECTION,
+        objectId(),
+        this.audio!.blob!,
+        this.audio!.fileName!,
+        true
+      );
+      if (audioUrl != null) {
+        // Save the timing data before closing, so that the user keeps their files if the connection drops
+        await this.projectService.onlineCreateAudioTimingData(
+          this.data.projectId,
+          this.book,
+          this.chapter,
+          this.timing_processed,
+          audioUrl
+        );
+      }
+    } catch {
+      // The file was uploaded, but the timing data could not be saved
+      audioUrl = undefined;
+    } finally {
+      this._loadingAudio = false;
+    }
 
     // if the upload fails, we need to show an error and not close the dialog
-    this._loadingAudio = false;
     if (audioUrl == null) {
       void this.dialogService.message('chapter_audio_dialog.upload_failed');
       return;
