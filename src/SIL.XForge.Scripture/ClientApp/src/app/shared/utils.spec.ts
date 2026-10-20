@@ -216,6 +216,25 @@ describe('shared utils', () => {
       expect(XmlUtils.convertXmlToHtml('<bold>https://example.com</bold> &lt;https://example.com/x&gt;')).toEqual(
         '<b>' + link('https://example.com') + '</b> &lt;' + link('https://example.com/x') + '&gt;'
       );
+      expect(
+        XmlUtils.convertXmlToHtml('[https://example.com/a] {https://example.com/b} https://example.com/[c]')
+      ).toEqual(
+        `[${link('https://example.com/a')}] {${link('https://example.com/b')}} ${link('https://example.com/[c]')}`
+      );
+      // Quotes and non-ascii punctuation after a url are not part of it
+      expect(XmlUtils.convertXmlToHtml('“https://example.com/clip.mp3” «https://example.com/fr»')).toEqual(
+        `“${link('https://example.com/clip.mp3')}” «${link('https://example.com/fr')}»`
+      );
+      expect(XmlUtils.convertXmlToHtml('请看https://example.com/clip.mp3。谢谢「www.example.com」')).toEqual(
+        `请看${link('https://example.com/clip.mp3')}。谢谢「${link('https://www.example.com', 'www.example.com')}」`
+      );
+      expect(XmlUtils.convertXmlToHtml('\'https://example.com/a\' "https://example.com/b"')).toEqual(
+        `'${link('https://example.com/a')}' "${link('https://example.com/b')}"`
+      );
+      // Non-ascii letters are part of a url
+      expect(XmlUtils.convertXmlToHtml('https://zh.wikipedia.org/wiki/圣经。')).toEqual(
+        link('https://zh.wikipedia.org/wiki/圣经') + '。'
+      );
       // Not links
       expect(XmlUtils.convertXmlToHtml('ftp://example.com javascript:alert(1) https:// www. awww.example.com')).toEqual(
         'ftp://example.com javascript:alert(1) https:// www. awww.example.com'

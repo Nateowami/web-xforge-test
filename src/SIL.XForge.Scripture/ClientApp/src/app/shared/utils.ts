@@ -243,7 +243,10 @@ export class XmlUtils {
   private static encodeTextAndLinkUrls(text: string): string {
     let html = '';
     let textIndex = 0;
-    for (const match of text.matchAll(/\b(?:https?:\/\/|www\.)[\p{L}\p{N}][^\s<>"]*/giu)) {
+    // A url is printable ascii other than "<>, or non-ascii other than punctuation, spaces and controls. Stopping at
+    // non-ascii punctuation ends the url at e.g. ” » 」 。 ， which are often written straight after it.
+    const urlRegex = /\b(?:https?:\/\/|www\.)[\p{L}\p{N}](?:[!#-;=?-~]|[^\x00-\x7f\p{P}\p{Z}\p{C}])*/giu;
+    for (const match of text.matchAll(urlRegex)) {
       const url: string = this.trimUrlEnd(match[0]);
       const href: string = /^www\./i.test(url) ? 'https://' + url : url;
       html += this.encodeForHtml(text.substring(textIndex, match.index));
@@ -256,13 +259,16 @@ export class XmlUtils {
 
   /**
    * Removes punctuation that ends the sentence rather than the url, e.g. "See https://example.com." or
-   * "(https://example.com)", while keeping a closing parenthesis that the url itself opened.
+   * "(https://example.com)", while keeping a closing bracket that the url itself opened.
    */
   private static trimUrlEnd(url: string): string {
+    const openingBrackets: { [closing: string]: string } = { ')': '(', ']': '[', '}': '{' };
     while (true) {
       const lastChar: string = url[url.length - 1];
-      const isUnbalancedParenthesis: boolean = lastChar === ')' && url.split(')').length > url.split('(').length;
-      if (!".,;:!?'".includes(lastChar) && !isUnbalancedParenthesis) return url;
+      const openingBracket: string | undefined = openingBrackets[lastChar];
+      const isUnbalancedBracket: boolean =
+        openingBracket != null && url.split(lastChar).length > url.split(openingBracket).length;
+      if (!".,;:!?'".includes(lastChar) && !isUnbalancedBracket) return url;
       url = url.substring(0, url.length - 1);
     }
   }
