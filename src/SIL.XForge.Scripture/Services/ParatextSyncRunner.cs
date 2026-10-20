@@ -1754,7 +1754,8 @@ public class ParatextSyncRunner : IParatextSyncRunner
         LogMetric("Completing sync");
         bool updateRoles = true;
         IReadOnlyDictionary<string, string> ptUserRoles;
-        if (!successful || _paratextService.IsResource(_projectDoc.Data.ParatextId) || token.IsCancellationRequested)
+        bool isResource = _paratextService.IsResource(_projectDoc.Data.ParatextId);
+        if (!successful || isResource || token.IsCancellationRequested)
         {
             // Do not update permissions on sync, if this is a resource project, as then,
             // permission updates will be performed when a target project is synchronized.
@@ -1971,8 +1972,9 @@ public class ParatextSyncRunner : IParatextSyncRunner
                             userIdsAdded.Add(updatedSFUserId);
                         }
 
+                        // Resources have no members in the registry, so keep the role the user was added with
                         string paratextRole = ptUserInRegistry?.Role ?? SFProjectRole.None;
-                        if (paratextRole != existingUser.Role)
+                        if (!isResource && paratextRole != existingUser.Role)
                         {
                             op.Set(pd => pd.ParatextUsers[index].Role, paratextRole);
                         }
