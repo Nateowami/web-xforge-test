@@ -1,5 +1,5 @@
 import { KeyValuePipe } from '@angular/common';
-import { Component, DestroyRef, EventEmitter, OnInit } from '@angular/core';
+import { Component, DestroyRef, EventEmitter, OnInit, QueryList, ViewChildren } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { MatCard, MatCardActions, MatCardContent, MatCardHeader, MatCardTitle } from '@angular/material/card';
 import { MatDivider } from '@angular/material/divider';
@@ -77,6 +77,8 @@ export interface ProjectStatus {
 export class ConfigureSourcesComponent extends DataLoadingComponent implements OnInit, ConfirmOnLeave {
   // Expose ElementState enum to template.
   ElementState = ElementState;
+
+  @ViewChildren(ProjectSelectComponent) projectSelects?: QueryList<ProjectSelectComponent>;
 
   trainingSources: (SelectableProjectWithLanguageCode | undefined)[] = [];
   trainingTargets: SFProjectProfile[] = [];
@@ -360,7 +362,9 @@ export class ConfigureSourcesComponent extends DataLoadingComponent implements O
     const definedReferences: SelectableProjectWithLanguageCode[] = this.trainingSources.filter(notNull);
 
     let messageKey: I18nKeyForComponent<'draft_sources'> | undefined;
-    if (definedSources.length === 0 && definedReferences.length === 0) {
+    if (this.projectSelects?.some(select => select.paratextIdControl.invalid)) {
+      messageKey = 'invalid_project_selection';
+    } else if (definedSources.length === 0 && definedReferences.length === 0) {
       messageKey = 'select_at_least_one_source_and_reference';
     } else if (definedSources.length === 0) messageKey = 'select_at_least_one_source';
     else if (definedReferences.length === 0) messageKey = 'select_at_least_one_reference';
