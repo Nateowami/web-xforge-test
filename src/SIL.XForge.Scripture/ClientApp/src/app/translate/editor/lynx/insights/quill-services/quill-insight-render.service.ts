@@ -177,8 +177,9 @@ export class QuillInsightRenderService extends InsightRenderService implements O
       const overlayAnchorInsight: LynxInsight | undefined = getMostNestedInsight(insights);
 
       if (leadingInsight != null && overlayAnchorInsight != null) {
-        // Scroll to the first occurring active insight in the editor
-        editor.setSelection(leadingInsight.range.index, 'api');
+        // Scroll to the first occurring active insight in the editor.
+        // Insight ranges are in data model coordinates, so adjust for editor-only embeds (e.g. note icons).
+        editor.setSelection(textModelConverter.dataRangeToEditorRange(leadingInsight.range).index, 'api');
 
         const overlayAnchor: HTMLElement | null = this.getInsightElements(editor, overlayAnchorInsight.id)[0];
 
