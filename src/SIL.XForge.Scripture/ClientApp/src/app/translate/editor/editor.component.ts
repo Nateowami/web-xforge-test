@@ -759,6 +759,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           this.projectDoc.data.translateConfig.draftConfig?.draftedScriptureRange
         );
         this.books = Array.from(new Set([...projectTexts, ...draftedBooks])).sort((a, b) => a - b);
+        if (!this.books.includes(bookNum)) {
+          // The URL is for a book that is not in the project (or is not a valid book ID at all)
+          this.loadingFinished();
+          void this.router.navigateByUrl(`/projects/${projectId}/translate`, { replaceUrl: true });
+          return;
+        }
         this.text = this.projectDoc.data.texts.find(t => t.bookNum === bookNum);
 
         const allChapters: number = Math.max(

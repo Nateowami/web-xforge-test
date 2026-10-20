@@ -340,6 +340,33 @@ describe('EditorComponent', () => {
     expect(env.component.chapters.length).toEqual(50);
   }));
 
+  it('redirects to the translate overview when the book is not in the project', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupProject({
+      texts: [{ bookNum: 40, chapters: [{ number: 1 }] }],
+      translateConfig: { draftConfig: { draftedScriptureRange: 'GEN' } }
+    });
+    env.setProjectUserConfig();
+    env.wait();
+
+    // Exodus is neither in the project nor drafted
+    env.navigateThenRouteWithParams({ projectId: 'project01', bookId: 'EXO', chapter: '1' });
+    env.wait();
+    expect(env.location.path()).toEqual('/projects/project01/translate');
+
+    // Unknown book ID
+    env.navigateThenRouteWithParams({ projectId: 'project01', bookId: 'XYZ' });
+    env.wait();
+    expect(env.location.path()).toEqual('/projects/project01/translate');
+
+    // A drafted book is not redirected even though it is not in the project texts
+    env.routeWithParams({ projectId: 'project01', bookId: 'GEN', chapter: '1' });
+    env.wait();
+    expect(env.location.path()).toEqual('/projects/project01/translate/GEN/1');
+    expect(env.bookName).toEqual('Genesis');
+    env.dispose();
+  }));
+
   describe('Show editor tabs in single pane setting', () => {
     it('shows the source tab if showEditorTabsInSinglePane is undefined', fakeAsync(() => {
       const navigationParams: Params = { projectId: 'project01', bookId: 'MRK' };
@@ -4993,6 +5020,16 @@ class TestEnvironment {
       // ActivatedProjectService checks router event, not ActivatedRoute,
       // so trigger route change in addition to ActivatedRoute change.
       this.router.navigateByUrl(`/projects/${params.projectId}/translate/${params.bookId}/${params.chapter ?? ''}`);
+    });
+
+    this.fixture.detectChanges();
+  }
+
+  /** Like routeWithParams, but emits the params after the navigation, as happens in the app. */
+  navigateThenRouteWithParams(params: Params): void {
+    this.ngZone.run(() => {
+      this.router.navigateByUrl(`/projects/${params.projectId}/translate/${params.bookId}/${params.chapter ?? ''}`);
+      this.params$.next(params);
     });
 
     this.fixture.detectChanges();
