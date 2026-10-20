@@ -319,6 +319,7 @@ describe('AppComponent', () => {
     // SUT
     env.deleteProject('project01', false);
     verify(mockedDialogService.closeAll()).once();
+    verify(mockedDialogService.closeAll()).calledBefore(mockedDialogService.message(anything()));
     verify(mockedDialogService.message(anything())).once();
     verify(mockedUserService.setCurrentProjectId(anything(), undefined)).once();
     // Get past setTimeout to navigation
@@ -367,21 +368,12 @@ describe('AppComponent', () => {
 
     expect(env.selectedProjectId).toEqual('project01');
     env.removeUserFromProject('project01');
+    verify(mockedDialogService.closeAll()).once();
+    verify(mockedDialogService.closeAll()).calledBefore(mockedDialogService.message(anything()));
     verify(mockedDialogService.message(anything())).once();
     // Get past setTimeout to navigation
     tick();
     expect(env.location.path()).toEqual('/projects');
-  }));
-
-  it('closes open dialogs before showing the message when removed from project', fakeAsync(() => {
-    const env = new TestEnvironment();
-    env.navigate(['/projects', 'project01']);
-    env.init();
-
-    env.removeUserFromProject('project01');
-    tick();
-    verify(mockedDialogService.closeAll()).once();
-    verify(mockedDialogService.closeAll()).calledBefore(mockedDialogService.message(anything()));
   }));
 
   it('response to remote project change for serval admin', fakeAsync(() => {
@@ -443,6 +435,7 @@ describe('AppComponent', () => {
     when(mockedLocationService.pathname).thenReturn('/projects/project01/translate');
     env.changeUserRole('project01', 'user04', SFProjectRole.CommunityChecker);
     expect(env.location.path()).toEqual('/projects/project01');
+    verify(mockedDialogService.closeAll()).once();
     env.wait();
     discardPeriodicTasks();
   }));
@@ -457,6 +450,19 @@ describe('AppComponent', () => {
     when(mockedLocationService.pathname).thenReturn('/projects/project01/checking');
     env.changeUserRole('project01', 'user02', SFProjectRole.Viewer);
     expect(env.location.path()).toEqual('/projects/project01');
+    verify(mockedDialogService.closeAll()).once();
+    discardPeriodicTasks();
+  }));
+
+  it('does not close dialogs when a project role change keeps access to the current area', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.navigate(['/projects', 'project01']);
+    env.setCurrentUser('user02');
+    env.init();
+
+    when(mockedLocationService.pathname).thenReturn('/projects/project01/checking');
+    env.changeUserRole('project01', 'user02', SFProjectRole.ParatextConsultant);
+    verify(mockedDialogService.closeAll()).never();
     discardPeriodicTasks();
   }));
 

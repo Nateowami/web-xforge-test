@@ -380,14 +380,20 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
               // The user has been removed from the project
               void this.showProjectDeletedDialog();
               void this.projectService.localDelete(this._selectedProjectDoc.id);
+              return;
             }
 
-            checkAppAccess(
+            const leftArea = checkAppAccess(
               this._selectedProjectDoc,
               this.currentUserDoc.id,
               this.locationService.pathname,
               this.router
             );
+            if (leftArea) {
+              // Dialogs opened from the area the user can no longer access would otherwise stay open over the
+              // project overview (see showProjectDeletedDialog).
+              this.dialogService.closeAll();
+            }
           }
         });
 

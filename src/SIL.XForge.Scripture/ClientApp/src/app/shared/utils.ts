@@ -67,26 +67,33 @@ export function attributeFromMouseEvent(event: MouseEvent, nodeName: string, att
   return undefined;
 }
 
+/**
+ * Navigates to the project overview if the user can no longer access the translate or community checking area they
+ * are in.
+ * @returns Whether the user was navigated away.
+ */
 export function checkAppAccess(
   projectDoc: SFProjectProfileDoc,
   userId: string,
   pathname: string,
   router: Router
-): void {
-  if (projectDoc.data == null) return;
+): boolean {
+  if (projectDoc.data == null) return false;
   const projectRole = projectDoc.data.userRoles[userId] as SFProjectRole;
   const route = '/projects/' + projectDoc.id;
 
   if (pathname.includes('translate') && !roleCanAccessTranslate(projectRole)) {
     void router.navigateByUrl(route, { replaceUrl: true });
-    return;
+    return true;
   }
   if (
     pathname.includes('checking') &&
     (!projectDoc.data.checkingConfig.checkingEnabled || !roleCanAccessCommunityChecking(projectRole))
   ) {
     void router.navigateByUrl(route, { replaceUrl: true });
+    return true;
   }
+  return false;
 }
 
 export function projectLabel(project: SelectableProject | DraftSource | undefined): string {

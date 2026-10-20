@@ -327,50 +327,50 @@ describe('shared utils', () => {
 
     it('leaves the community checking area when checking is disabled', () => {
       const router = mock(Router);
-      checkAppAccess(
+      const leftArea = checkAppAccess(
         createProjectDoc(SFProjectRole.ParatextAdministrator, false),
         userId,
         `${projectRoute}/checking`,
         instance(router)
       );
       verify(router.navigateByUrl(projectRoute, anything())).once();
-      expect().nothing();
+      expect(leftArea).toBe(true);
     });
 
     it('stays in the community checking area when checking is enabled', () => {
       const router = mock(Router);
-      checkAppAccess(
+      const leftArea = checkAppAccess(
         createProjectDoc(SFProjectRole.ParatextAdministrator, true),
         userId,
         `${projectRoute}/checking`,
         instance(router)
       );
       verify(router.navigateByUrl(anything(), anything())).never();
-      expect().nothing();
+      expect(leftArea).toBe(false);
     });
 
     it('leaves the community checking area when the role cannot access checking', () => {
       const router = mock(Router);
-      checkAppAccess(
+      const leftArea = checkAppAccess(
         createProjectDoc(SFProjectRole.Commenter, true),
         userId,
         `${projectRoute}/checking`,
         instance(router)
       );
       verify(router.navigateByUrl(projectRoute, anything())).once();
-      expect().nothing();
+      expect(leftArea).toBe(true);
     });
 
     it('stays in the translate area when checking is disabled', () => {
       const router = mock(Router);
-      checkAppAccess(
+      const leftArea = checkAppAccess(
         createProjectDoc(SFProjectRole.ParatextAdministrator, false),
         userId,
         `${projectRoute}/translate/MAT/1`,
         instance(router)
       );
       verify(router.navigateByUrl(anything(), anything())).never();
-      expect().nothing();
+      expect(leftArea).toBe(false);
     });
   });
 });
