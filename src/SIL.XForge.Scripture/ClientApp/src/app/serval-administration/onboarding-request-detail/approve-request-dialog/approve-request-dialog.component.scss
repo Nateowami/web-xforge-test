@@ -41,6 +41,22 @@ app-notice {
   margin-top: 1em;
 }
 
+.unconnected-projects-notice {
+  margin: 0 0 16px;
+
+  h4 {
+    margin-top: 0;
+  }
+
+  ul {
+    margin-bottom: 0;
+  }
+
+  .paratext-id {
+    font-family: monospace;
+  }
+}
+
 .same-language-notice {
   h4 {
     margin-top: 0;

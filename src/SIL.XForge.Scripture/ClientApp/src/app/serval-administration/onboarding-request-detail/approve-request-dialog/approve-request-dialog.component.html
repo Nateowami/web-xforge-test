@@ -1,6 +1,19 @@
 <h1 mat-dialog-title>Approve &amp; enable drafting</h1>
 <mat-dialog-content>
   <p class="dialog-subtitle">Configure sources for {{ data.targetProject.name }}</p>
+  @if (data.unconnectedProjects.length > 0) {
+    <app-notice type="warning" mode="outline" class="unconnected-projects-notice">
+      <h4>Some projects in this request are not connected to Scripture Forge</h4>
+      <p>They can't be configured as sources until someone connects them, so they aren't listed below.</p>
+      <ul>
+        @for (project of data.unconnectedProjects; track project.paratextId) {
+          <li>
+            {{ project.requestedAs.join(", ") }}: <span class="paratext-id">{{ project.paratextId }}</span>
+          </li>
+        }
+      </ul>
+    </app-notice>
+  }
   <form [formGroup]="form">
     <h3>Drafting source</h3>
     <mat-radio-group formControlName="draftingSource" class="source-options">
@@ -45,6 +58,9 @@
           Enabling will set {{ data.targetProject.name }} as the drafting and training source for the back translation.
         }
       </p>
+    }
+    @if (approveAttempted && draftingSource.hasError("required")) {
+      <app-notice type="error" mode="outline" class="drafting-source-required">Select a drafting source.</app-notice>
     }
     @if (form.hasError("languageCodesDiffer")) {
       <app-notice type="error" mode="outline">All source projects must be in the same language.</app-notice>

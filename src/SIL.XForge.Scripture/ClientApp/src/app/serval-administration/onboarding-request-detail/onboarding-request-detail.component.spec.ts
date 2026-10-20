@@ -6,7 +6,7 @@ import { MatDialogRef } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { of } from 'rxjs';
-import { anything, deepEqual, instance, mock, verify, when } from 'ts-mockito';
+import { anything, capture, deepEqual, instance, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -23,7 +23,10 @@ import {
 } from '../../translate/draft-generation/onboarding-request.service';
 import { OnboardingRequestDetailComponent } from '../onboarding-request-detail/onboarding-request-detail.component';
 import { ServalAdministrationService } from '../serval-administration.service';
-import { ApproveRequestDialogResult } from './approve-request-dialog/approve-request-dialog.component';
+import {
+  ApproveRequestDialogData,
+  ApproveRequestDialogResult
+} from './approve-request-dialog/approve-request-dialog.component';
 
 const mockedActivatedRoute = mock(ActivatedRoute);
 const mockedDialogService = mock(DialogService);
@@ -183,6 +186,42 @@ describe('OnboardingRequestDetailComponent', () => {
       verify(mockedProjectService.onlineSetDraftSources(anything(), anything(), anything())).never();
       verify(mockedOnboardingRequestService.approveRequest(anything())).never();
       expect().nothing();
+    }));
+
+    it('tells the dialog which requested projects are not connected', fakeAsync(() => {
+      const defaultSubmission = createTestRequest().submission;
+      const env = new TestEnvironment({
+        mainProjectDoc,
+        request: {
+          submission: {
+            ...defaultSubmission,
+            formData: {
+              ...defaultSubmission.formData,
+              sourceProjectB: 'training_source_pt',
+              backTranslationProject: BT_PARATEXT_ID
+            }
+          }
+        },
+        projectDocsByParatextId: new Map([
+          ['drafting_source_pt', createProjectDoc('drafting_source_sf', 'drafting_source_pt', 'DRFT')]
+        ]),
+        approveDialogResult: null
+      });
+      env.wait();
+
+      void env.component.approveRequest();
+      flush();
+
+      const [, config] = capture(mockedDialogService.openMatDialog as any).last();
+      const data = (config as { data: ApproveRequestDialogData }).data;
+      expect(data.draftingSourceOptions.map(o => o.paratextId)).toEqual(['drafting_source_pt']);
+      expect(data.defaultDraftingSource).toBe('drafting_source_pt');
+      expect(data.defaultTrainingSource).toBe('training_source_pt');
+      expect(data.backTranslation).toBeUndefined();
+      expect(data.unconnectedProjects).toEqual([
+        { paratextId: 'training_source_pt', requestedAs: ['First reference project', 'Second reference project'] },
+        { paratextId: BT_PARATEXT_ID, requestedAs: ['Back translation project'] }
+      ]);
     }));
 
     it('configures drafting sources and approves the request when the dialog is confirmed', fakeAsync(() => {

@@ -51,7 +51,8 @@ import {
   ApproveRequestDialogData,
   ApproveRequestDialogResult,
   BackTranslationInfo,
-  SourceOption
+  SourceOption,
+  UnconnectedProject
 } from './approve-request-dialog/approve-request-dialog.component';
 import { formatBookListForSILNLP } from './draft-request-detail-utils';
 
@@ -508,12 +509,30 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
       languageCode: mainData.writingSystem.tag
     };
 
+    // Labels match the ones used for these fields on the request detail page
+    const requestedProjects: [string | null | undefined, string][] = [
+      [onboardingRequestFormData.draftingSourceProject, 'Draft source project'],
+      [onboardingRequestFormData.sourceProjectA, 'First reference project'],
+      [onboardingRequestFormData.sourceProjectB, 'Second reference project'],
+      [onboardingRequestFormData.sourceProjectC, 'Third reference project'],
+      [btParatextId, 'Back translation project']
+    ];
+    const unconnectedProjects = new Map<string, UnconnectedProject>();
+    for (const [paratextId, requestedAs] of requestedProjects) {
+      if (!isPopulatedString(paratextId) || this.projectDocs.get(paratextId)?.data != null) continue;
+      const project = unconnectedProjects.get(paratextId) ?? { paratextId, requestedAs: [] };
+      project.requestedAs.push(requestedAs);
+      unconnectedProjects.set(paratextId, project);
+    }
+
     return {
       targetProject,
       draftingSourceOptions,
       trainingSourceOptions,
+      defaultDraftingSource: onboardingRequestFormData.draftingSourceProject,
       defaultTrainingSource: onboardingRequestFormData.sourceProjectA,
-      backTranslation
+      backTranslation,
+      unconnectedProjects: [...unconnectedProjects.values()]
     };
   }
 
