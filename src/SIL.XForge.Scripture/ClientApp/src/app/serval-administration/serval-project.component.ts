@@ -32,12 +32,12 @@ import {
   distinctUntilChanged,
   filter,
   firstValueFrom,
-  from,
   lastValueFrom,
   Observable,
   of,
   Subscription,
   switchMap,
+  tap,
   throwError
 } from 'rxjs';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
@@ -305,13 +305,18 @@ export class ServalProjectComponent extends DataLoadingComponent implements OnIn
       });
 
     combineLatest([
-      this.activatedProjectService.projectId$.pipe(filterNullish()),
+      this.activatedProjectService.projectId$.pipe(
+        filterNullish(),
+        distinctUntilChanged(),
+        // Drop the previous project's link, even if offline. Going offline alone keeps the link.
+        tap(() => this.setOnboardingRequest(undefined))
+      ),
       this.onlineStatusService.onlineStatus$.pipe(distinctUntilChanged())
     ])
       .pipe(
         // The lookup needs the server, so load it (again) whenever the page is online
         filter(([, isOnline]) => isOnline),
-        switchMap(([projectId]) => from(this.fetchOnboardingRequest(projectId))),
+        switchMap(([projectId]) => this.fetchOnboardingRequest(projectId)),
         quietTakeUntilDestroyed(this.destroyRef)
       )
       .subscribe(request => this.setOnboardingRequest(request));

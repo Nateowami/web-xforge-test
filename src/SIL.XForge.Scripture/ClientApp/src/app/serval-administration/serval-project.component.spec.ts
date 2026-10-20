@@ -120,6 +120,37 @@ describe('ServalProjectComponent', () => {
       expect(env.onboardingRequestLink!.textContent).toContain('In Progress');
       expect(env.onboardingRequestLink!.disabled).toBe(false);
     }));
+
+    it("removes the previous project's onboarding request link when the project changes while offline", fakeAsync(() => {
+      const env = new TestEnvironment({ preTranslate: true, onboardingRequest: {} });
+      expect(env.onboardingRequestLink).not.toBeNull();
+
+      env.onlineStatus = false;
+      env.switchProject('project02');
+      expect(env.onboardingRequestLink).toBeNull();
+      verify(mockOnboardingRequestService.getOpenOnboardingRequest('project02')).never();
+    }));
+
+    it("removes the previous project's onboarding request link while the new project's lookup is pending", fakeAsync(() => {
+      const env = new TestEnvironment({ preTranslate: true, onboardingRequest: {} });
+      expect(env.onboardingRequestLink).not.toBeNull();
+
+      let resolveLookup: (request: OpenOnboardingRequest | null) => void = () => {};
+      when(mockOnboardingRequestService.getOpenOnboardingRequest('project02')).thenReturn(
+        new Promise(resolve => (resolveLookup = resolve))
+      );
+      env.switchProject('project02');
+      expect(env.onboardingRequestLink).toBeNull();
+
+      resolveLookup(env.createOnboardingRequest({ id: 'request02' }));
+      tick();
+      env.fixture.detectChanges();
+      expect(env.component.onboardingRequestLink).toEqual([
+        '/serval-administration',
+        'onboarding-requests',
+        'request02'
+      ]);
+    }));
   });
 
   describe('pre-translation drafting checkbox', () => {
@@ -406,9 +437,9 @@ describe('ServalProjectComponent', () => {
     ) as TestOnlineStatusService;
 
     mockProjectId = 'project01';
+    readonly mockProjectId$ = new BehaviorSubject<string>(this.mockProjectId);
 
     constructor(args: TestEnvironmentArgs = { preTranslate: true }) {
-      const mockProjectId$ = new BehaviorSubject<string>(this.mockProjectId);
       const mockProjectDoc = {
         id: this.mockProjectId,
         data: createTestProjectProfile({
@@ -465,7 +496,7 @@ describe('ServalProjectComponent', () => {
       const mockProjectDoc$ = new BehaviorSubject<SFProjectProfileDoc>(mockProjectDoc);
 
       when(mockActivatedProjectService.projectId).thenReturn(this.mockProjectId);
-      when(mockActivatedProjectService.projectId$).thenReturn(mockProjectId$);
+      when(mockActivatedProjectService.projectId$).thenReturn(this.mockProjectId$);
       when(mockActivatedProjectService.projectDoc).thenReturn(mockProjectDoc);
       when(mockActivatedProjectService.projectDoc$).thenReturn(mockProjectDoc$);
 
@@ -509,17 +540,25 @@ describe('ServalProjectComponent', () => {
 
     setOnboardingRequest(onboardingRequest: Partial<OpenOnboardingRequest> | undefined): void {
       when(mockOnboardingRequestService.getOpenOnboardingRequest(this.mockProjectId)).thenResolve(
-        onboardingRequest == null
-          ? null
-          : {
-              id: 'request01',
-              submittedAt: '2026-08-01T00:00:00Z',
-              submittedBy: { name: 'User One', email: 'user01@example.com' },
-              status: 'new',
-              contactEmail: null,
-              ...onboardingRequest
-            }
+        onboardingRequest == null ? null : this.createOnboardingRequest(onboardingRequest)
       );
+    }
+
+    createOnboardingRequest(onboardingRequest: Partial<OpenOnboardingRequest>): OpenOnboardingRequest {
+      return {
+        id: 'request01',
+        submittedAt: '2026-08-01T00:00:00Z',
+        submittedBy: { name: 'User One', email: 'user01@example.com' },
+        status: 'new',
+        contactEmail: null,
+        ...onboardingRequest
+      };
+    }
+
+    switchProject(projectId: string): void {
+      this.mockProjectId$.next(projectId);
+      tick();
+      this.fixture.detectChanges();
     }
 
     get preTranslateCheckbox(): HTMLInputElement {
