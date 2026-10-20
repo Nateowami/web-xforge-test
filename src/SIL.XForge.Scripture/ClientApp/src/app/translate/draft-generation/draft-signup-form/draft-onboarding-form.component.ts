@@ -136,6 +136,9 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
 
   uiState: OnboardingFormUiState = 'editing';
 
+  /** Whether the "request already submitted" check was skipped because the app was offline. */
+  private alreadySubmittedCheckSkipped = false;
+
   readonly responseDays = DRAFT_SIGNUP_RESPONSE_DAYS;
 
   constructor(
@@ -181,8 +184,10 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
     // Load available projects and resources
     void this.loadProjectsAndResources();
 
-    // OnPush change detection does not notice connectivity changes on its own
-    this.onlineStatus.onlineStatus$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(() => {
+    this.onlineStatus.onlineStatus$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(isOnline => {
+      // Warn as soon as the app reconnects, rather than after the user has filled in the form and clicked Submit
+      if (isOnline && this.alreadySubmittedCheckSkipped) void this.checkAndWarnIfAlreadySubmitted();
+      // OnPush change detection does not notice connectivity changes on its own
       this.cd.markForCheck();
     });
 
@@ -353,8 +358,10 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
    * Otherwise, resolves to false
    */
   private async checkAndWarnIfAlreadySubmitted(): Promise<boolean> {
-    // The check needs the server; onSubmit re-runs it, and submitting is blocked until the app is back online
-    if (this.activatedProject.projectId == null || !this.isOnline) return false;
+    if (this.activatedProject.projectId == null) return false;
+    // The check needs the server. It is re-run when the app comes back online, and submitting is blocked until then.
+    this.alreadySubmittedCheckSkipped = !this.isOnline;
+    if (this.alreadySubmittedCheckSkipped) return false;
 
     if ((await this.onboardingRequestService.getOpenOnboardingRequest(this.activatedProject.projectId)) == null) {
       return false;
