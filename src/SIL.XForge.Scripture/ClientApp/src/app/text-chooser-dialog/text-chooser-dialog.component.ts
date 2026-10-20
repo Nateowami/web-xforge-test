@@ -77,6 +77,8 @@ export class TextChooserDialogComponent {
   private selectedVerses?: VerseRefData;
   private selectionChanged = false;
   private readonly verseSegmentSelector = 'usx-segment[data-segment^=verse_]';
+  // Notes and alternate verse numbers (\va) are not part of the scripture text
+  private readonly ignoredElementSelector = 'usx-note, usx-char[data-style~=va]';
 
   constructor(
     private readonly dialogRef: MatDialogRef<TextChooserDialogComponent>,
@@ -225,12 +227,11 @@ export class TextChooserDialogComponent {
    */
   textContent(mainNode: Node, dividingNode?: Node, offset?: number, afterDivider?: boolean): string {
     let includeText = dividingNode == null || afterDivider === false;
-    const ignoredTags = ['usx-note'];
     let text = '';
     for (const node of Array.from(mainNode.childNodes)) {
       const isTextNode = node.nodeType === node.TEXT_NODE;
       const tagName = node.nodeType === node.ELEMENT_NODE ? (node as Element).tagName.toLowerCase() : '';
-      const ignore = ignoredTags.includes(tagName);
+      const ignore = tagName !== '' && (node as Element).matches(this.ignoredElementSelector);
 
       if (dividingNode != null && node.contains(dividingNode)) {
         if (!ignore && node.isSameNode(dividingNode)) {

@@ -298,6 +298,23 @@ describe('TextChooserDialogComponent', () => {
     env.closeDialog();
   }));
 
+  it('excludes alternate verse numbers from text content', fakeAsync(() => {
+    const env = new TestEnvironment();
+    const element = env.elementFromHtml(
+      '<usx-segment data-segment="verse_1_1">name was <usx-char data-style="va">3</usx-char> Elimelech</usx-segment>'
+    );
+    expect(env.component.textContent(element)).toEqual('name was  Elimelech');
+    const dividingNode = element.childNodes[2];
+    expect(env.component.textContent(element, dividingNode, 2, false)).toEqual('name was  E');
+    expect(env.component.textContent(element, dividingNode, 2, true)).toEqual('limelech');
+
+    const otherCharStyle = env.elementFromHtml(
+      '<usx-segment data-segment="verse_1_1">name was <usx-char data-style="it">Elimelech</usx-char></usx-segment>'
+    );
+    expect(env.component.textContent(otherCharStyle)).toEqual('name was Elimelech');
+    env.closeDialog();
+  }));
+
   it('calculates range offsets correctly', fakeAsync(() => {
     const env = new TestEnvironment();
     let element = env.elementFromHtml(
