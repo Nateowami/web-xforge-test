@@ -1626,9 +1626,10 @@ describe('TextComponent', () => {
     tick();
     env.fixture.detectChanges();
 
-    const note = env.quillEditor.querySelector('usx-note') as HTMLElement;
-    expect(note).not.toBeNull();
-    note.click();
+    // Click the caller inside the note, as a user does, so the click bubbles up to the note
+    const caller = env.quillEditor.querySelector('usx-note > span') as HTMLElement;
+    expect(caller).not.toBeNull();
+    caller.click();
     env.quillEditor.querySelector('usx-segment')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 
     const [, config] = capture(mockedDialogService.openMatDialog as any).last();
