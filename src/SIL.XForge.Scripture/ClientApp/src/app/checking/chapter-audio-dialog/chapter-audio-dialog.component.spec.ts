@@ -8,8 +8,10 @@ import { getTextAudioId, TextAudio } from 'realtime-server/lib/esm/scriptureforg
 import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio-test-data';
 import { Chapter, TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { firstValueFrom } from 'rxjs';
-import { anything, mock, spy, when } from 'ts-mockito';
+import { anything, deepEqual, mock, spy, verify, when } from 'ts-mockito';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { CsvService } from 'xforge-common/csv-service.service';
+import { DialogService } from 'xforge-common/dialog.service';
 import { FileService } from 'xforge-common/file.service';
 import { FileOfflineData, FileType } from 'xforge-common/models/file-offline-data';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -28,6 +30,7 @@ import { QuestionDoc } from '../../core/models/question-doc';
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextAudioDoc } from '../../core/models/text-audio-doc';
 import { TextsByBookId } from '../../core/models/texts-by-book-id';
+import { SFProjectService } from '../../core/sf-project.service';
 import { AudioAttachment } from '../checking/checking-audio-player/checking-audio-player.component';
 import {
   ChapterAudioDialogComponent,
@@ -37,6 +40,7 @@ import {
 
 const mockedCsvService = mock(CsvService);
 const mockedFileService = mock(FileService);
+const mockedDialogService = mock(DialogService);
 
 describe('ChapterAudioDialogComponent', () => {
   configureTestingModule(() => ({
@@ -46,6 +50,7 @@ describe('ChapterAudioDialogComponent', () => {
       provideTestRealtime(SF_TYPE_REGISTRY),
       { provide: CsvService, useMock: mockedCsvService },
       { provide: FileService, useMock: mockedFileService },
+      { provide: DialogService, useMock: mockedDialogService },
       { provide: OnlineStatusService, useClass: TestOnlineStatusService }
     ]
   }));
@@ -79,6 +84,63 @@ describe('ChapterAudioDialogComponent', () => {
       expect(row.to).not.toEqual(0);
     }
     expect(env.component.timingErrorMessageKey).toEqual('');
+  }));
+
+  it('saves timing data before closing', fakeAsync(async () => {
+    await env.component.audioUpdate(env.audioFile);
+    await env.component.prepareTimingFileUpload(env.timingFile);
+    await env.component.save();
+    await env.wait();
+
+    verify(
+      env.projectServiceSpy.onlineCreateAudioTimingData(
+        'project01',
+        env.component.book,
+        env.component.chapter,
+        deepEqual(env.component['timing_processed']),
+        'audio url'
+      )
+    ).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
+  }));
+
+  it('keeps the dialog and files if the connection drops while saving timing data', fakeAsync(async () => {
+    when(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenReject(new CommandError(CommandErrorCode.Other, 'Http failure response for command-api/projects: 0'));
+    await env.component.audioUpdate(env.audioFile);
+    await env.component.prepareTimingFileUpload(env.timingFile);
+
+    // SUT
+    await env.component.save();
+    await env.wait();
+
+    verify(mockedDialogService.message('chapter_audio_dialog.upload_failed')).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(0);
+    expect(env.component.isLoadingAudio).toBe(false);
+    expect(env.component.isAudioUploaded).toBe(true);
+    expect(env.component.isTimingUploaded).toBe(true);
+
+    // The user can try again once the connection is back
+    when(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenResolve();
+    await env.component.save();
+    await env.wait();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
+  }));
+
+  it('does not hide errors other than network failures when saving timing data', fakeAsync(async () => {
+    when(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenReject(new CommandError(CommandErrorCode.Forbidden, 'Forbidden'));
+    await env.component.audioUpdate(env.audioFile);
+    await env.component.prepareTimingFileUpload(env.timingFile);
+
+    await expectAsync(env.component.save()).toBeRejectedWithError(CommandError);
+    verify(mockedDialogService.message(anything())).never();
+    expect(env.numberOfTimesDialogClosed).toEqual(0);
+    expect(env.component.isLoadingAudio).toBe(false);
   }));
 
   it('should default selection to first chapter with question and no audio', fakeAsync(() => {
@@ -514,8 +576,7 @@ describe('ChapterAudioDialogComponent', () => {
   it('will allow saving when fields are empty if they began filled', fakeAsync(() => {
     env.component.book = 1;
     env.component.chapter = 2;
-    const projectServiceSpy = spy(env.component['projectService']);
-    when(projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).thenResolve();
+    when(env.projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).thenResolve();
 
     env.component['checkForPreexistingAudio'];
 
@@ -646,6 +707,7 @@ class TestEnvironment {
   readonly testOnlineStatusService: TestOnlineStatusService = TestBed.inject(
     OnlineStatusService
   ) as TestOnlineStatusService;
+  readonly projectServiceSpy: SFProjectService;
   private numTimesClosedFired: number;
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
 
@@ -679,6 +741,10 @@ class TestEnvironment {
         true
       )
     ).thenResolve('audio url');
+    this.projectServiceSpy = spy(TestBed.inject(SFProjectService));
+    when(
+      this.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenResolve();
 
     this.audioFile = {
       status: 'uploaded',

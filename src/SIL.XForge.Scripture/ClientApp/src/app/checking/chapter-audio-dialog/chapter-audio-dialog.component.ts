@@ -20,6 +20,7 @@ import { Chapter, TextInfo } from 'realtime-server//lib/esm/scriptureforge/model
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
 import { getTextAudioId } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { filter } from 'rxjs/operators';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { CsvService } from 'xforge-common/csv-service.service';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ExternalUrlService } from 'xforge-common/external-url.service';
@@ -352,10 +353,27 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     );
 
     // if the upload fails, we need to show an error and not close the dialog
-    this._loadingAudio = false;
     if (audioUrl == null) {
+      this._loadingAudio = false;
       void this.dialogService.message('chapter_audio_dialog.upload_failed');
       return;
+    }
+
+    // Save the timing data before closing, so that if the connection drops the user still has their files to retry
+    try {
+      await this.projectService.onlineCreateAudioTimingData(
+        this.data.projectId,
+        this.book,
+        this.chapter,
+        this.timing_processed,
+        audioUrl
+      );
+    } catch (error) {
+      if (!(error instanceof CommandError) || error.code !== CommandErrorCode.Other) throw error;
+      void this.dialogService.message('chapter_audio_dialog.upload_failed');
+      return;
+    } finally {
+      this._loadingAudio = false;
     }
 
     this.dialogRef.close({
