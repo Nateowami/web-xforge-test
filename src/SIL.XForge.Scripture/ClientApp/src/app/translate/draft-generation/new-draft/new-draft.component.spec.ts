@@ -1,19 +1,21 @@
 import { DestroyRef, ErrorHandler } from '@angular/core';
-import { fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Canon } from '@sillsdev/scripture';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { TrainingData } from 'realtime-server/lib/esm/scriptureforge/models/training-data';
-import { BehaviorSubject, filter, firstValueFrom, Observable, of, Subject } from 'rxjs';
-import { anything, capture, deepEqual, instance, mock, reset, resetCalls, verify, when } from 'ts-mockito';
+import { BehaviorSubject, filter, firstValueFrom, Observable, of, Subject, throwError } from 'rxjs';
+import { anything, capture, deepEqual, instance, mock, reset, resetCalls, spy, verify, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { createTestFeatureFlag, FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
 import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
+import { getTestTranslocoModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { ParatextProject } from '../../../core/models/paratext-project';
 import { SFProjectProfileDoc } from '../../../core/models/sf-project-profile-doc';
@@ -897,15 +899,55 @@ describe('NewDraftComponent', () => {
       expect(env.component.page).not.toEqual('abort');
     }));
 
-    it('shows the offline abort screen instead of an error when initialization fails offline', fakeAsync(() => {
-      const env = new TestEnvironment(testState, { progressError: true, offline: true });
-      tick();
+    describe('rendered', () => {
+      beforeEach(() => {
+        TestBed.configureTestingModule({
+          imports: [getTestTranslocoModule()],
+          providers: [
+            { provide: ActivatedProjectService, useFactory: () => instance(mockedActivatedProjectService) },
+            { provide: DraftSourcesService, useFactory: () => instance(mockedDraftSourcesService) },
+            { provide: DraftGenerationService, useFactory: () => instance(mockedDraftGenerationService) },
+            { provide: DraftProgressService, useFactory: () => instance(mockedProgressService) },
+            { provide: I18nService, useFactory: () => instance(mockedI18nService) },
+            { provide: FeatureFlagService, useFactory: () => instance(mockedFeatureFlagService) },
+            { provide: OnlineStatusService, useExisting: TestOnlineStatusService },
+            { provide: UserService, useFactory: () => instance(mockedUserService) },
+            { provide: DialogService, useFactory: () => instance(mockedDialogService) },
+            { provide: Router, useFactory: () => instance(mockedRouter) },
+            { provide: NllbLanguageService, useFactory: () => instance(mockedNllbLanguageService) },
+            { provide: ParatextService, useFactory: () => instance(mockedParatextService) },
+            { provide: ErrorReportingService, useFactory: () => instance(mockedErrorReportingService) },
+            { provide: ErrorHandler, useFactory: () => instance(mockedErrorHandler) },
+            { provide: TrainingDataService, useFactory: () => instance(mockedTrainingDataService) },
+            { provide: SFProjectService, useFactory: () => instance(mockedSFProjectService) },
+            { provide: PermissionsService, useFactory: () => instance(mockedPermissionsService) }
+          ]
+        });
+      });
 
-      verify(mockedErrorHandler.handleError(anything())).never();
-      verify(mockedRouter.navigate(anything())).never();
-      expect(env.component.page).toEqual('abort');
-      expect(env.component.abortedOffline).toBe(true);
-    }));
+      it('shows the offline message instead of an error when initialization fails offline', fakeAsync(() => {
+        const env = new TestEnvironment(testState, { progressError: true, offline: true, render: true });
+        tick();
+        env.fixture!.detectChanges();
+
+        verify(mockedErrorHandler.handleError(anything())).never();
+        verify(mockedRouter.navigate(anything())).never();
+        expect(env.abortScreenText).toContain('Draft generation is not available offline.');
+        expect(env.abortScreenText).not.toContain('could not be accessed');
+      }));
+
+      it('shows the offline message when initialization fails before the app notices the server is unreachable', fakeAsync(() => {
+        // The browser reports a network connection and the websocket hasn't failed yet, but the server can't be reached.
+        const env = new TestEnvironment(testState, { progressError: true, serverUnreachable: true, render: true });
+        expect(env.onlineStatusService.isOnline).toBe(true);
+        tick();
+        env.fixture!.detectChanges();
+
+        verify(mockedErrorHandler.handleError(anything())).never();
+        verify(mockedRouter.navigate(anything())).never();
+        expect(env.abortScreenText).toContain('Draft generation is not available offline.');
+      }));
+    });
   });
 
   describe('onPendingUpdatesComplete', () => {
@@ -1205,6 +1247,7 @@ function makeParatextProject(
 
 class TestEnvironment {
   component: NewDraftComponent;
+  fixture?: ComponentFixture<NewDraftComponent>;
   readonly onlineStatusService = TestBed.inject(TestOnlineStatusService);
 
   /** Mutable sync-state profile docs (target + sources) the sync watcher subscribes to, keyed by project id. */
@@ -1238,6 +1281,10 @@ class TestEnvironment {
       trainingData$?: Observable<TrainingData[]>;
       /** When true, the target project is already syncing on entry (baseline for the sync watcher). */
       targetSyncing?: boolean;
+      /** When true, the browser reports being online but pinging the server fails. */
+      serverUnreachable?: boolean;
+      /** When true, the component is created through TestBed so its template renders into `fixture`. */
+      render?: boolean;
     } = {}
   ) {
     const project = createTestProjectProfile({
@@ -1357,12 +1404,20 @@ class TestEnvironment {
     when(mockedNllbLanguageService.isNllbLanguageAsync(anything())).thenResolve(options.trainingOptional === true);
     // Set the online state before the component is constructed so init()'s online check sees it.
     this.onlineStatusService.setIsOnline(!options.offline);
+    if (options.serverUnreachable) {
+      when(spy(this.onlineStatusService.httpClient).get('ping', anything())).thenReturn(throwError(() => 'error'));
+    }
     if (options.getProjectsError) {
       when(mockedParatextService.getProjects()).thenReject(new Error('network error'));
     } else {
       when(mockedParatextService.getProjects()).thenResolve(options.projects);
     }
 
+    if (options.render) {
+      this.fixture = TestBed.createComponent(NewDraftComponent);
+      this.component = this.fixture.componentInstance;
+      return;
+    }
     this.component = new NewDraftComponent(
       instance(mockedActivatedProjectService),
       instance(mockedDraftSourcesService),
@@ -1383,6 +1438,10 @@ class TestEnvironment {
       instance(mockedPermissionsService),
       { onDestroy: () => () => {} } as unknown as DestroyRef
     );
+  }
+
+  get abortScreenText(): string {
+    return this.fixture!.nativeElement.querySelector('.abort-screen')?.textContent ?? '';
   }
 
   async waitForInit(): Promise<void> {
