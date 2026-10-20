@@ -45,7 +45,11 @@ import { getTextDoc } from '../../shared/test-utils';
 import { provideQuillRegistrations } from '../../shared/text/quill-editor-registration/quill-providers';
 import { EDITOR_READY_TIMEOUT } from '../../shared/text/text.component';
 import { AudioAttachment } from '../checking/checking-audio-player/checking-audio-player.component';
-import { QuestionDialogComponent, QuestionDialogData } from './question-dialog.component';
+import {
+  QuestionDialogComponent,
+  QuestionDialogComponentData,
+  QuestionDialogResult
+} from './question-dialog.component';
 
 const mockedAuthService = mock(AuthService);
 const mockedNoticeService = mock(NoticeService);
@@ -98,6 +102,46 @@ describe('QuestionDialogComponent', () => {
     env.clickElement(env.cancelButton);
     flush();
     expect(env.afterCloseCallback).toHaveBeenCalledWith('close');
+  }));
+
+  it('stays open and shows that it is saving until the question is saved', fakeAsync(() => {
+    env = new TestEnvironment();
+    flush();
+    let finishSaving!: () => void;
+    env.saveQuestion.and.returnValue(new Promise<void>(resolve => (finishSaving = resolve)));
+    env.inputValue(env.scriptureStartInput, 'LUK 1:1');
+    env.inputValue(env.questionInput, 'Who is Theophilus?');
+
+    env.clickElement(env.saveButton);
+    expect(env.saveQuestion).toHaveBeenCalledTimes(1);
+    expect(env.saveQuestion.calls.mostRecent().args[0].text).toEqual('Who is Theophilus?');
+    expect(env.afterCloseCallback).not.toHaveBeenCalled();
+    expect(env.saveButton.disabled).toBe(true);
+    expect(env.saveButton.querySelector('mat-spinner')).not.toBeNull();
+    expect(env.cancelButton.disabled).toBe(true);
+
+    finishSaving();
+    flush();
+    expect(env.afterCloseCallback).toHaveBeenCalledWith(
+      jasmine.objectContaining({ text: 'Who is Theophilus?', verseRef: new VerseRef('LUK 1:1') })
+    );
+  }));
+
+  it('stays open if saving fails', fakeAsync(() => {
+    env = new TestEnvironment();
+    flush();
+    env.saveQuestion.and.rejectWith(new Error('save failed'));
+    env.inputValue(env.scriptureStartInput, 'LUK 1:1');
+    env.inputValue(env.questionInput, 'Who is Theophilus?');
+
+    let error: unknown;
+    env.component.submit().catch(e => (error = e));
+    flush();
+    env.fixture.detectChanges();
+    expect(error).toEqual(new Error('save failed'));
+    expect(env.afterCloseCallback).not.toHaveBeenCalled();
+    expect(env.saveButton.disabled).toBe(false);
+    expect(env.saveButton.querySelector('mat-spinner')).toBeNull();
   }));
 
   it('should not allow Save without required fields', fakeAsync(() => {
@@ -583,6 +627,7 @@ class TestEnvironment {
   readonly component: QuestionDialogComponent;
   readonly dialogRef: MatDialogRef<QuestionDialogComponent>;
   readonly afterCloseCallback: jasmine.Spy;
+  readonly saveQuestion: jasmine.Spy<(result: QuestionDialogResult) => Promise<void>>;
   readonly dialogServiceSpy: DialogService;
 
   readonly mockedScriptureChooserMatDialogRef = mock(MatDialogRef);
@@ -630,8 +675,10 @@ class TestEnvironment {
       data: createTestProjectProfile({ texts: Object.values(textsByBookId) })
     });
     const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, 'project01');
-    const config: MatDialogConfig<QuestionDialogData> = {
+    this.saveQuestion = jasmine.createSpy('saveQuestion').and.resolveTo();
+    const config: MatDialogConfig<QuestionDialogComponentData> = {
       data: {
+        saveQuestion: this.saveQuestion,
         questionDoc,
         projectDoc,
         textsByBookId,

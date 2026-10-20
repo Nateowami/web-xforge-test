@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { MatDialogRef } from '@angular/material/dialog';
+import { MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
 import { VerseRef } from '@sillsdev/scripture';
 import {
   getQuestionDocId,
@@ -11,7 +11,7 @@ import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { fromVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
-import { of } from 'rxjs';
+import { from, of, Subject } from 'rxjs';
 import { anything, instance, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { FileService } from 'xforge-common/file.service';
@@ -27,7 +27,12 @@ import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextsByBookId } from '../../core/models/texts-by-book-id';
 import { SFProjectService } from '../../core/sf-project.service';
 import { CheckingQuestionsService } from '../checking/checking-questions.service';
-import { QuestionDialogComponent, QuestionDialogData, QuestionDialogResult } from './question-dialog.component';
+import {
+  QuestionDialogComponent,
+  QuestionDialogComponentData,
+  QuestionDialogData,
+  QuestionDialogResult
+} from './question-dialog.component';
 import { QuestionDialogService } from './question-dialog.service';
 
 const mockedDialogService = mock(DialogService);
@@ -58,15 +63,38 @@ describe('QuestionDialogService', () => {
       verseRef: new VerseRef('MAT 1:3'),
       audio: {}
     };
-    when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
+    env.closeDialogWith(result);
     await env.service.questionDialog(env.getQuestionDialogData());
     verify(mockedQuestionsService.createQuestion(env.PROJECT01, anything(), undefined, undefined)).once();
     expect().nothing();
   });
 
+  it('saves the question while the dialog is still open and returns it', async () => {
+    const env = new TestEnvironment();
+    const result: QuestionDialogResult = {
+      text: 'question added',
+      verseRef: new VerseRef('MAT 1:3'),
+      audio: { fileName: 'someFileName.mp3', blob: new Blob() }
+    };
+    const createdQuestionDoc = env.addQuestion(env.getNewQuestion());
+    when(mockedQuestionsService.createQuestion(env.PROJECT01, anything(), anything(), anything())).thenResolve(
+      createdQuestionDoc
+    );
+    const afterClosed$ = new Subject<QuestionDialogResult>();
+    when(env.mockedDialogRef.afterClosed()).thenReturn(afterClosed$);
+    const questionDialogPromise = env.service.questionDialog(env.getQuestionDialogData());
+    // Nothing is saved until the dialog asks for it
+    verify(mockedQuestionsService.createQuestion(anything(), anything(), anything(), anything())).never();
+    await env.dialogData!.saveQuestion(result);
+    verify(mockedQuestionsService.createQuestion(env.PROJECT01, anything(), 'someFileName.mp3', anything())).once();
+    afterClosed$.next(result);
+    afterClosed$.complete();
+    expect(await questionDialogPromise).toBe(createdQuestionDoc);
+  });
+
   it('should not add a question if cancelled', async () => {
     const env = new TestEnvironment();
-    when(env.mockedDialogRef.afterClosed()).thenReturn(of('close'));
+    env.closeDialogWith('close');
     await env.service.questionDialog(env.getQuestionDialogData());
     verify(mockedQuestionsService.createQuestion(env.PROJECT01, anything())).never();
     expect().nothing();
@@ -79,7 +107,7 @@ describe('QuestionDialogService', () => {
       verseRef: new VerseRef('MAT 1:3'),
       audio: {}
     };
-    when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
+    env.closeDialogWith(result);
     env.updateUserRole(SFProjectRole.CommunityChecker);
     await env.service.questionDialog(env.getQuestionDialogData());
     verify(mockedQuestionsService.createQuestion(env.PROJECT01, anything())).never();
@@ -94,7 +122,7 @@ describe('QuestionDialogService', () => {
       verseRef: new VerseRef('MAT 1:3'),
       audio: { fileName: 'someFileName.mp3', blob: new Blob() }
     };
-    when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
+    env.closeDialogWith(result);
     await env.service.questionDialog(env.getQuestionDialogData());
     verify(mockedQuestionsService.createQuestion(env.PROJECT01, anything(), 'someFileName.mp3', anything())).once();
     expect().nothing();
@@ -107,7 +135,7 @@ describe('QuestionDialogService', () => {
       verseRef: new VerseRef('MAT 1:3'),
       audio: {}
     };
-    when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
+    env.closeDialogWith(result);
     const questionDoc = env.addQuestion(env.getNewQuestion());
     expect(questionDoc!.data!.text).toBe('question to be edited');
     await env.service.questionDialog(env.getQuestionDialogData(questionDoc));
@@ -121,7 +149,7 @@ describe('QuestionDialogService', () => {
       verseRef: new VerseRef('MAT 1:3'),
       audio: { fileName: 'someFileName.mp3', blob: new Blob() }
     };
-    when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
+    env.closeDialogWith(result);
     when(
       mockedFileService.uploadFile(
         FileType.Audio,
@@ -146,7 +174,7 @@ describe('QuestionDialogService', () => {
       verseRef: new VerseRef('MAT 1:3'),
       audio: { status: 'reset' }
     };
-    when(env.mockedDialogRef.afterClosed()).thenReturn(of(result));
+    env.closeDialogWith(result);
     const audioUrl = 'anAudioFile.mp3';
     const questionDoc = env.addQuestion(env.getNewQuestion(audioUrl));
     expect(questionDoc!.data!.audioUrl).toBe(audioUrl);
@@ -180,6 +208,8 @@ class TestEnvironment {
   readonly PROJECT01: string = 'project01';
   adminUser: UserInfo = { id: 'user01', role: SFProjectRole.ParatextAdministrator };
 
+  dialogData?: QuestionDialogComponentData;
+
   private testProjectProfile: SFProjectProfile = createTestProjectProfile({
     texts: [this.matthewText],
     userRoles: {
@@ -201,10 +231,22 @@ class TestEnvironment {
       this.PROJECT01
     );
 
-    when(mockedDialogService.openMatDialog(anything(), anything())).thenReturn(instance(this.mockedDialogRef));
+    when(mockedDialogService.openMatDialog(anything(), anything())).thenCall(
+      (_component, config: MatDialogConfig<QuestionDialogComponentData>) => {
+        this.dialogData = config.data ?? undefined;
+        return instance(this.mockedDialogRef);
+      }
+    );
     when(mockedUserService.currentUserId).thenReturn(this.adminUser.id);
     when(mockedProjectService.getProfile(anything())).thenCall(id =>
       this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, id)
+    );
+  }
+
+  /** Simulates the dialog closing. When saving, the dialog closes only after the question has been saved. */
+  closeDialogWith(result: QuestionDialogResult | 'close'): void {
+    when(this.mockedDialogRef.afterClosed()).thenCall(() =>
+      result === 'close' ? of(result) : from(this.dialogData!.saveQuestion(result).then(() => result))
     );
   }
 
