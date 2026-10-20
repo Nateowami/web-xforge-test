@@ -128,6 +128,93 @@ describe('ChapterAudioDialogComponent', () => {
     await env.component.save();
     await env.wait();
     expect(env.numberOfTimesDialogClosed).toEqual(1);
+    // The audio file uploaded by the first attempt is reused rather than uploaded again
+    verify(
+      mockedFileService.tryOnlineUploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        true
+      )
+    ).once();
+  }));
+
+  it('uploads a newly chosen audio file after saving timing data failed', fakeAsync(async () => {
+    when(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenReject(new CommandError(CommandErrorCode.Other, 'Http failure response for command-api/projects: 0'));
+    await env.component.audioUpdate(env.audioFile);
+    await env.component.prepareTimingFileUpload(env.timingFile);
+    await env.component.save();
+    await env.wait();
+
+    when(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenResolve();
+    when(
+      mockedFileService.tryOnlineUploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        true
+      )
+    ).thenResolve('second audio url');
+    await env.component.audioUpdate({ ...env.audioFile });
+    await env.component.save();
+    await env.wait();
+
+    verify(
+      mockedFileService.tryOnlineUploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        true
+      )
+    ).twice();
+    verify(
+      env.projectServiceSpy.onlineCreateAudioTimingData(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        'second audio url'
+      )
+    ).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
+  }));
+
+  it('cannot be closed or saved again while a save is in progress', fakeAsync(async () => {
+    let finishCreate: () => void = () => {};
+    when(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenReturn(new Promise<void>(resolve => (finishCreate = resolve)));
+    await env.component.audioUpdate(env.audioFile);
+    await env.component.prepareTimingFileUpload(env.timingFile);
+
+    // SUT
+    const firstSave: Promise<void> = env.component.save();
+    await env.wait();
+    expect(env.dialogRef.disableClose).toBe(true);
+    expect(env.saveButton.disabled).toBe(true);
+    expect(env.cancelButton.disabled).toBe(true);
+    await env.component.save();
+
+    finishCreate();
+    await firstSave;
+    await env.wait();
+    verify(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
   }));
 
   it('does not hide errors other than network failures when saving timing data', fakeAsync(async () => {
@@ -141,6 +228,24 @@ describe('ChapterAudioDialogComponent', () => {
     verify(mockedDialogService.message(anything())).never();
     expect(env.numberOfTimesDialogClosed).toEqual(0);
     expect(env.component.isLoadingAudio).toBe(false);
+  }));
+
+  it('keeps the dialog open if the connection drops while deleting audio', fakeAsync(async () => {
+    env.component.book = 1;
+    env.component.chapter = 2;
+    env.component['_selectionHasAudioAlready'] = true;
+    when(env.projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).thenReject(
+      new CommandError(CommandErrorCode.Other, 'Http failure response for command-api/projects: 0')
+    );
+
+    // SUT
+    await env.component.save();
+    await env.wait();
+
+    verify(mockedDialogService.message('chapter_audio_dialog.delete_failed')).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(0);
+    expect(env.component.isLoadingAudio).toBe(false);
+    expect(env.dialogRef.disableClose).toBe(false);
   }));
 
   it('should default selection to first chapter with question and no audio', fakeAsync(() => {
@@ -805,6 +910,10 @@ class TestEnvironment {
 
   get saveButton(): HTMLButtonElement {
     return this.fetchElement('#audio-save-btn') as HTMLButtonElement;
+  }
+
+  get cancelButton(): HTMLButtonElement {
+    return this.fetchElement('#audio-cancel-btn') as HTMLButtonElement;
   }
 
   get offlineError(): HTMLElement {

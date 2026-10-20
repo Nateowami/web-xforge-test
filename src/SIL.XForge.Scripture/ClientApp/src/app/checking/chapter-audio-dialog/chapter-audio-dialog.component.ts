@@ -43,6 +43,15 @@ import { SingleButtonAudioPlayerComponent } from '../checking/single-button-audi
 
 const TIMING_FILE_EXTENSION_REGEX = /.(tsv|csv|txt)$/i;
 
+/**
+ * Whether the error is a failed HTTP request rather than an error returned by the server. CommandService reports any
+ * HTTP failure that is not a JSON-RPC error (no connection, gateway errors, 5xx) as CommandErrorCode.Other. These are
+ * worth retrying, so the dialog stays open with the user's files; other errors still go to the global error handler.
+ */
+function isRequestFailure(error: unknown): boolean {
+  return error instanceof CommandError && error.code === CommandErrorCode.Other;
+}
+
 export interface ChapterAudioDialogData {
   projectId: string;
   textsByBookId: TextsByBookId;
@@ -101,6 +110,8 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   private _timingErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _timingParseErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _loadingAudio: boolean = false;
+  /** The audio file uploaded by the last save attempt, so that retrying after a failure does not upload it again. */
+  private uploadedAudio?: { attachment: AudioAttachment; url: string };
 
   constructor(
     private readonly destroyRef: DestroyRef,
@@ -318,11 +329,22 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   async save(): Promise<void> {
+    if (this._loadingAudio) return;
+
     let canSave = false;
     if (this.allFieldsValid) {
       canSave = true;
     } else if (!this.isAudioUploaded && !this.isTimingUploaded && this._selectionHasAudioAlready) {
-      await this.projectService.onlineDeleteAudioTimingData(this.data.projectId, this.book, this.chapter);
+      this.setSaving(true);
+      try {
+        await this.projectService.onlineDeleteAudioTimingData(this.data.projectId, this.book, this.chapter);
+      } catch (error) {
+        if (!isRequestFailure(error)) throw error;
+        void this.dialogService.message('chapter_audio_dialog.delete_failed');
+        return;
+      } finally {
+        this.setSaving(false);
+      }
       this.dialogRef.close();
       return;
     }
@@ -341,47 +363,54 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     // going offline just after clicking Save.
     if (!this.onlineStatusService.isOnline) return;
 
-    this._loadingAudio = true;
-    const audioUrl: string | undefined = await this.fileService.tryOnlineUploadFile(
-      FileType.Audio,
-      this.data.projectId,
-      TextAudioDoc.COLLECTION,
-      objectId(),
-      this.audio!.blob!,
-      this.audio!.fileName!,
-      true
-    );
-
-    // if the upload fails, we need to show an error and not close the dialog
-    if (audioUrl == null) {
-      this._loadingAudio = false;
-      void this.dialogService.message('chapter_audio_dialog.upload_failed');
-      return;
-    }
-
-    // Save the timing data before closing, so that if the connection drops the user still has their files to retry
+    this.setSaving(true);
     try {
-      await this.projectService.onlineCreateAudioTimingData(
-        this.data.projectId,
-        this.book,
-        this.chapter,
-        this.timing_processed,
-        audioUrl
-      );
-    } catch (error) {
-      if (!(error instanceof CommandError) || error.code !== CommandErrorCode.Other) throw error;
-      void this.dialogService.message('chapter_audio_dialog.upload_failed');
-      return;
-    } finally {
-      this._loadingAudio = false;
-    }
+      // If an earlier attempt uploaded this audio but then failed to save the timing data, reuse that upload. The
+      // uploaded file is not tied to a book or chapter, so only a different audio file needs a new upload.
+      let audioUrl: string | undefined =
+        this.uploadedAudio?.attachment === this.audio ? this.uploadedAudio?.url : undefined;
+      if (audioUrl == null) {
+        audioUrl = await this.fileService.tryOnlineUploadFile(
+          FileType.Audio,
+          this.data.projectId,
+          TextAudioDoc.COLLECTION,
+          objectId(),
+          this.audio!.blob!,
+          this.audio!.fileName!,
+          true
+        );
+        // if the upload fails, we need to show an error and not close the dialog
+        if (audioUrl == null) {
+          void this.dialogService.message('chapter_audio_dialog.upload_failed');
+          return;
+        }
+        this.uploadedAudio = { attachment: this.audio!, url: audioUrl };
+      }
 
-    this.dialogRef.close({
-      timingData: this.timing_processed,
-      book: this.book,
-      chapter: this.chapter,
-      audioUrl
-    });
+      // Save the timing data before closing, so that if the connection drops the user still has their files to retry
+      try {
+        await this.projectService.onlineCreateAudioTimingData(
+          this.data.projectId,
+          this.book,
+          this.chapter,
+          this.timing_processed,
+          audioUrl
+        );
+      } catch (error) {
+        if (!isRequestFailure(error)) throw error;
+        void this.dialogService.message('chapter_audio_dialog.upload_failed');
+        return;
+      }
+
+      this.dialogRef.close({
+        timingData: this.timing_processed,
+        book: this.book,
+        chapter: this.chapter,
+        audioUrl
+      });
+    } finally {
+      this.setSaving(false);
+    }
   }
 
   uploadedFiles(e: Event): void {
@@ -390,6 +419,12 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
       return;
     }
     this.processUploadedFiles(el.files);
+  }
+
+  /** Shows the spinner and keeps the dialog from being dismissed while a save is talking to the server. */
+  private setSaving(saving: boolean): void {
+    this._loadingAudio = saving;
+    this.dialogRef.disableClose = saving;
   }
 
   private parseAdobeAuditionStyleTimingFile(data: string[][]): AudioTiming[] {
