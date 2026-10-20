@@ -859,6 +859,25 @@ describe('NewDraftComponent', () => {
       verify(mockedParatextService.getProjects()).once();
     }));
 
+    it('loads nothing and stays put if left while offline and then reconnected', fakeAsync(() => {
+      resetCalls(mockedProgressService);
+      reset(mockedRouter);
+      reset(mockedErrorHandler);
+      // progressError makes any load that did run abort with init_failure, which would report the error and navigate
+      const env = new TestEnvironment(testState, { offline: true, progressError: true });
+      tick();
+
+      env.destroyRef.destroy();
+      env.onlineStatusService.setIsOnline(true);
+      tick();
+
+      verify(mockedParatextService.getProjects()).never();
+      verify(mockedProgressService.getChaptersWithContent(anything())).never();
+      verify(mockedErrorHandler.handleError(anything())).never();
+      verify(mockedRouter.navigate(anything())).never();
+      expect(env.component.page).toEqual('loading');
+    }));
+
     it('proceeds to the preface page when getProjects fails', fakeAsync(() => {
       const env = new TestEnvironment(testState, { getProjectsError: true });
       tick();
@@ -1206,9 +1225,26 @@ function makeParatextProject(
   };
 }
 
+/** A DestroyRef that a test can destroy, to simulate the user leaving the wizard. */
+class FakeDestroyRef implements DestroyRef {
+  destroyed = false;
+  private readonly callbacks = new Set<() => void>();
+
+  onDestroy(callback: () => void): () => void {
+    this.callbacks.add(callback);
+    return () => this.callbacks.delete(callback);
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+    for (const callback of this.callbacks) callback();
+  }
+}
+
 class TestEnvironment {
   component: NewDraftComponent;
   readonly onlineStatusService = TestBed.inject(TestOnlineStatusService);
+  readonly destroyRef = new FakeDestroyRef();
 
   /** Mutable sync-state profile docs (target + sources) the sync watcher subscribes to, keyed by project id. */
   private readonly syncDocs = new Map<string, { data: { sync: { queuedCount: number } }; changes$: Subject<void> }>();
@@ -1384,7 +1420,7 @@ class TestEnvironment {
       instance(mockedTrainingDataService),
       instance(mockedSFProjectService),
       instance(mockedPermissionsService),
-      { onDestroy: () => () => {} } as unknown as DestroyRef
+      this.destroyRef
     );
   }
 

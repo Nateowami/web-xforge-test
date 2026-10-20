@@ -68,8 +68,11 @@ const mockedDialogService = mock(DialogService);
 const mockedAuthService = mock(AuthService);
 
 interface StoryArgs {
-  /** Application online state. Offline disables Generate and skips the pending-updates pre-step. */
+  /** Application online state once the wizard has loaded (i.e. the connection dropped after loading). Offline disables
+   * Generate. */
   online: boolean;
+  /** The wizard is opened while offline, so it waits on its loading screen for a connection. */
+  openedOffline: boolean;
   /** Enables the developer-tools feature flag (adds the Fast Training / Echo cards on the summary). */
   developerTools: boolean;
   /** Gives the sources copyright banners, shown on the preface. */
@@ -88,6 +91,7 @@ interface StoryArgs {
 
 const defaultArgs: StoryArgs = {
   online: true,
+  openedOffline: false,
   developerTools: false,
   withCopyright: false,
   withTrainingDataFiles: false,
@@ -266,8 +270,9 @@ function setUpMocks(args: StoryArgs): void {
 
   when(mockedFeatureFlagService.showDeveloperTools).thenReturn(createTestFeatureFlag(args.developerTools));
 
-  when(mockedOnlineStatusService.isOnline).thenReturn(args.online);
-  when(mockedOnlineStatusService.onlineStatus$).thenReturn(of(args.online));
+  // The wizard only loads once online, so unless it is opened offline, report online first and then `args.online`.
+  when(mockedOnlineStatusService.isOnline).thenReturn(args.online && !args.openedOffline);
+  when(mockedOnlineStatusService.onlineStatus$).thenReturn(args.openedOffline ? of(false) : of(true, args.online));
 
   when(mockedUserService.getCurrentUser()).thenResolve({
     data: { email: 'translator@example.com' }
@@ -375,6 +380,16 @@ export const Loading: Story = {
   args: { neverLoad: true },
   play: async ({ canvasElement }) => {
     await waitFor(() => expect(canvasElement.querySelector('.loading-indicator')).not.toBeNull());
+  }
+};
+
+/** The wizard opened while offline: it waits for a connection, showing why instead of a loading spinner. */
+export const LoadingOffline: Story = {
+  args: { openedOffline: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByText('Draft generation is not available offline.');
+    expect(canvasElement.querySelector('.loading-indicator')).toBeNull();
   }
 };
 

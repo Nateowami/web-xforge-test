@@ -49,7 +49,8 @@ import {
   DraftingBookExclusionReason,
   NewDraftAbortMode,
   NewDraftLogicHandler,
-  scriptureRangeToBookListWithoutChapterDetail
+  scriptureRangeToBookListWithoutChapterDetail,
+  waitUntilOnlineOrDestroyed
 } from './new-draft-logic-handler';
 import { defaultSelectedTrainingDataFiles } from './training-data-file-selection';
 import { formatTrainingBooksSummary } from './training-data-summary';
@@ -154,17 +155,20 @@ export class NewDraftComponent {
 
   async init(): Promise<void> {
     // Like the logic handler's loading, pending-update detection needs a connection. Waiting here means it runs once the
-    // user is back online instead of being skipped for a wizard that was opened offline.
-    await this.onlineStatusService.online;
+    // user is back online instead of being skipped for a wizard that was opened offline. If the user leaves the wizard
+    // before then, nothing is loaded.
+    if (!(await waitUntilOnlineOrDestroyed(this.onlineStatusService, this.destroyRef))) return;
     // Fetching the Paratext project list (for pending-update detection) doesn't depend on the project doc, so start it
-    // now to overlap with the init work below. The fetch is best-effort: offline (or any failure) resolves to
-    // undefined and detection is simply skipped.
+    // now to overlap with the init work below. The fetch is best-effort: if it fails (e.g. the connection drops again)
+    // it resolves to undefined and detection is skipped.
     const projectsPromise = this.fetchProjectsForPendingUpdates();
 
     const [, status] = await Promise.all([
       this.userService.getCurrentUser().then(doc => (this.currentUserDoc = doc)),
       firstValueFrom(this.logicHandler.status$.pipe(filter(status => status === 'input' || status === 'abort')))
     ]);
+    // A wizard the user has already left must not report errors or navigate (handleAbort calls goBack()).
+    if (this.destroyRef.destroyed) return;
     if (status === 'abort') {
       this.handleAbort();
       return;
