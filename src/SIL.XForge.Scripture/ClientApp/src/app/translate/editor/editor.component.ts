@@ -778,6 +778,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         if (this.projectDoc.id !== prevProjectId) {
           this.projectDataChangesSub?.unsubscribe();
           this.projectDataChangesSub = this.projectDoc.remoteChanges$.subscribe(async () => {
+            // The source project may have been changed, so the source font, copyright and permissions must be
+            // taken from the new source project
+            if (this.sourceProjectDoc?.id !== this.sourceProjectId) {
+              this.sourceProjectDoc = await this.getSourceProjectDoc();
+            }
+
             let sourceId: TextDocId | undefined;
             if (this.hasSource && this.chapter != null) {
               sourceId = new TextDocId(
@@ -1316,7 +1322,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         const tab: EditorTabInfo | undefined = this.tabState.getTabGroup(existingSourceTab.groupId)?.tabs[
           existingSourceTab.index
         ];
-        if (tab != null && (tab.projectId !== projectSource.projectRef || tab.tooltip !== projectSource.name)) {
+        if (tab != null) {
           tab.projectId = projectSource.projectRef;
           tab.headerText$ = of(projectSource.shortName);
           tab.tooltip = projectSource.name;

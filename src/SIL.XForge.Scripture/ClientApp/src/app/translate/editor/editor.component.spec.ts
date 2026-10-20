@@ -98,7 +98,7 @@ import {
 import { getCombinedVerseTextDoc, paratextUsersFromRoles } from '../../shared/test-utils';
 import { provideQuillRegistrations } from '../../shared/text/quill-editor-registration/quill-providers';
 import { PRESENCE_EDITOR_ACTIVE_TIMEOUT } from '../../shared/text/text.component';
-import { XmlUtils } from '../../shared/utils';
+import { formatFontSizeToRems, XmlUtils } from '../../shared/utils';
 import { BiblicalTermsComponent } from '../biblical-terms/biblical-terms.component';
 import { DraftGenerationService } from '../draft-generation/draft-generation.service';
 import { DraftNotificationService } from '../draft-generation/draft-notification.service';
@@ -3688,6 +3688,51 @@ describe('EditorComponent', () => {
         discardPeriodicTasks();
         env.dispose();
       }));
+
+      it('should update the source tab when only the source short name is changed', fakeAsync(() => {
+        const env = new TestEnvironment();
+        env.wait();
+        env.component['tabStateInitialized$'].next(true);
+        env.wait();
+
+        const source: TranslateSource = env.getProjectDoc('project01').data!.translateConfig.source!;
+        env.changeSourceProject('project01', { ...source, shortName: 'RENAMED' });
+
+        const sourceTabHeader: string = env.fixture.nativeElement
+          .querySelector('#source-text-area .tab-header-content')
+          .textContent.trim();
+        expect(sourceTabHeader).toContain('RENAMED');
+        discardPeriodicTasks();
+        env.dispose();
+      }));
+
+      it('should use the new source project settings when the source project is changed', fakeAsync(() => {
+        const env = new TestEnvironment();
+        env.wait();
+        env.component['tabStateInitialized$'].next(true);
+        env.wait();
+        expect(env.component.sourceProjectDoc?.id).toEqual('project02');
+        expect(env.component.hasSourceCopyrightBanner).toBe(false);
+
+        env.changeSourceProject(
+          'project01',
+          {
+            paratextId: 'source03',
+            projectRef: 'project03',
+            name: 'new source',
+            shortName: 'NEW',
+            writingSystem: { tag: 'qaa' }
+          },
+          { defaultFontSize: 20, copyrightBanner: 'New source copyright' }
+        );
+
+        expect(env.component.sourceProjectDoc?.id).toEqual('project03');
+        expect(env.component.sourceFontSize).toEqual(formatFontSizeToRems(20));
+        expect(env.component.hasSourceCopyrightBanner).toBe(true);
+        expect(env.fixture.nativeElement.querySelector('#source-text-area app-copyright-banner')).not.toBeNull();
+        discardPeriodicTasks();
+        env.dispose();
+      }));
     });
 
     describe('initEditorTabs', () => {
@@ -4988,9 +5033,9 @@ class TestEnvironment {
   }
 
   /** Simulates an administrator changing the source project on the project settings page. */
-  changeSourceProject(projectId: string, source: TranslateSource): void {
+  changeSourceProject(projectId: string, source: TranslateSource, sourceData: RecursivePartial<SFProject> = {}): void {
     // Set up the new source project and its text
-    this.setupProject({}, source.projectRef);
+    this.setupProject(sourceData, source.projectRef);
     when(mockedSFProjectService.getProfile(source.projectRef)).thenCall(() =>
       this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, source.projectRef)
     );
