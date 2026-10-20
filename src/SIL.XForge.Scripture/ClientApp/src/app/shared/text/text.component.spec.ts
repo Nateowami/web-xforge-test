@@ -1610,6 +1610,31 @@ describe('TextComponent', () => {
     expect(segments.length).withContext('should be no matching segments when chapter does not match').toBe(0);
   }));
 
+  it('matches a combined verse segment for a verse in the middle of the combined verse', fakeAsync(() => {
+    const chapterNum = 1;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: '1', style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'Verse 1.', attributes: { segment: 'verse_1_1' } },
+      { insert: { verse: { number: '2-4', style: 'v' } } },
+      { insert: 'Verses 2 to 4.', attributes: { segment: 'verse_1_2-4' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } },
+      { insert: 'Verses 2 to 4, second paragraph.', attributes: { segment: 'verse_1_2-4/p_1' } },
+      { insert: { verse: { number: '5', style: 'v' } } },
+      { insert: 'Verse 5.', attributes: { segment: 'verse_1_5' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+
+    expect(env.component.getVerseSegments(new VerseRef('MAT 1:3'))).toEqual(['verse_1_2-4', 'verse_1_2-4/p_1']);
+    expect(env.component.getVerseSegments(new VerseRef('MAT 1:2'))).toEqual(['verse_1_2-4', 'verse_1_2-4/p_1']);
+    expect(env.component.getVerseSegments(new VerseRef('MAT 1:4'))).toEqual(['verse_1_2-4', 'verse_1_2-4/p_1']);
+    expect(env.component.getVerseSegments(new VerseRef('MAT 1:5'))).toEqual(['verse_1_5']);
+    const range = new VerseRef('MAT', '1', '3-5');
+    expect(env.component.getVerseSegments(range)).toEqual(['verse_1_2-4', 'verse_1_2-4/p_1', 'verse_1_5']);
+  }));
+
   it('does not match segments when verse ref is from a different book', fakeAsync(() => {
     const env = new TestEnvironment();
     env.id = new TextDocId('project01', 40, 1);
