@@ -79,6 +79,19 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('shows questions only from the chapters in the project', fakeAsync(() => {
+    const env = new TestEnvironment({
+      transceleratorQuestions: [
+        { book: 'MAT', startChapter: '1', startVerse: '1', text: 'Question in chapter 1', id: '1' },
+        { book: 'MAT', startChapter: '2', startVerse: '1', text: 'Question in chapter 2', id: '2' }
+      ]
+    });
+    env.click(env.importFromTransceleratorButton);
+    expect(env.tableRows.length).toBe(1);
+    expect(env.getRowReference(env.tableRows[0])).toBe('MAT 1:1');
+    env.click(env.backButton);
+  }));
+
   it('can select questions in the list', fakeAsync(() => {
     const env = new TestEnvironment();
     env.click(env.importFromTransceleratorButton);
@@ -392,6 +405,23 @@ describe('ImportQuestionsDialogComponent', () => {
       'Note: Some of the selected questions are exact duplicates of questions that are already part of your project. They will not be re-imported.'
     );
     env.click(env.backButton);
+  }));
+
+  it('does not import questions from a CSV file for chapters that are not in the project', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    env.selectFileWithContents([
+      ['Reference', 'Questions'],
+      ['MAT 1:1', 'Question for MAT 1:1'],
+      ['MAT 2:1', 'Question for MAT 2:1'],
+      ['MAT 121:2', 'Question for MAT 121:2']
+    ]);
+
+    expect(env.tableRows.length).toBe(1);
+    expect(env.getRowReference(env.tableRows[0])).toEqual('MAT 1:1');
+    env.clickSelectAll();
+    env.click(env.importSelectedQuestionsButton);
+    verify(mockedQuestionsService.createQuestion('project01', anything(), undefined, undefined)).once();
   }));
 
   it('does not import from a CSV file with unknown columns', fakeAsync(() => {
@@ -793,7 +823,12 @@ class TestEnvironment {
 
     const gen: TextInfo = {
       bookNum: 1,
-      chapters: [{ number: 41, lastVerse: 57, isValid: true, permissions: {} }],
+      chapters: [
+        { number: 1, lastVerse: 31, isValid: true, permissions: {} },
+        { number: 41, lastVerse: 57, isValid: true, permissions: {} },
+        { number: 42, lastVerse: 38, isValid: true, permissions: {} },
+        { number: 43, lastVerse: 34, isValid: true, permissions: {} }
+      ],
       hasSource: false,
       permissions: {}
     };
