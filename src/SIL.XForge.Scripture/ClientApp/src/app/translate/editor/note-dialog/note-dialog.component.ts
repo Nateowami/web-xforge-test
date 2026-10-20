@@ -1,6 +1,6 @@
 import { CdkScrollable } from '@angular/cdk/scrolling';
 import { NgClass, NgStyle } from '@angular/common';
-import { Component, Inject, OnInit } from '@angular/core';
+import { Component, DestroyRef, Inject, OnInit } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButton, MatIconButton } from '@angular/material/button';
 import { MatButtonToggle, MatButtonToggleGroup } from '@angular/material/button-toggle';
@@ -33,10 +33,12 @@ import { ParatextUserProfile } from 'realtime-server/lib/esm/scriptureforge/mode
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { isParatextRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { toVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
+import { merge } from 'rxjs';
 import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
 import { UserService } from 'xforge-common/user.service';
+import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { XFValidators } from 'xforge-common/xfvalidators';
 import { BiblicalTermDoc } from '../../../core/models/biblical-term-doc';
 import { defaultNoteThreadIcon, NoteThreadDoc } from '../../../core/models/note-thread-doc';
@@ -132,7 +134,8 @@ export class NoteDialogComponent implements OnInit {
     private readonly dialogService: DialogService,
     private readonly i18n: I18nService,
     private readonly projectService: SFProjectService,
-    private readonly userService: UserService
+    private readonly userService: UserService,
+    private readonly destroyRef: DestroyRef
   ) {}
 
   async ngOnInit(): Promise<void> {
@@ -165,6 +168,12 @@ export class NoteDialogComponent implements OnInit {
     }
     // extract note info and content for display
     await this.updateNotesToDisplayAsync();
+
+    if (this.threadDoc != null) {
+      merge(this.threadDoc.remoteChanges$, this.threadDoc.delete$)
+        .pipe(quietTakeUntilDestroyed(this.destroyRef))
+        .subscribe(() => this.onRemoteThreadChange());
+    }
   }
 
   get canViewAssignedUser(): boolean {
@@ -418,18 +427,34 @@ export class NoteDialogComponent implements OnInit {
     this.dialogRef.close(content);
   }
 
+  /** Keeps the dialog in step with notes edited or deleted by other users while it is open. */
+  private async onRemoteThreadChange(): Promise<void> {
+    if (this.threadDoc?.data == null || this.threadDoc.data.notes.every(n => n.deleted)) {
+      // There is nothing left to view or reply to
+      this.dialogRef.close({ deleted: true });
+      return;
+    }
+    await this.updateNotesToDisplayAsync();
+  }
+
   private async updateNotesToDisplayAsync(): Promise<void> {
     if (this.threadDoc?.data == null) return;
     const sortedNotes: Note[] = sortBy(
       this.threadDoc.data.notes.filter(n => !n.deleted),
       n => new Date(n.dateCreated)
     );
-    this.notesToDisplay = [];
-    if (sortedNotes.length === 0) return;
+    if (sortedNotes.length === 0) {
+      this.notesToDisplay = [];
+      return;
+    }
 
+    // Build the list locally so that overlapping refreshes (e.g. from remote changes) cannot interleave entries
+    const notesToDisplay: NoteDisplayInfo[] = [];
     const lastNoteId: string = sortedNotes[sortedNotes.length - 1].dataId;
     for (const note of sortedNotes) {
-      this.notesToDisplay.push({
+      // The note being edited is shown in the comment box instead
+      if (note.dataId === this.noteIdBeingEdited) continue;
+      notesToDisplay.push({
         note,
         content: this.contentForDisplay(note),
         icon: this.noteIcon(note),
@@ -442,6 +467,7 @@ export class NoteDialogComponent implements OnInit {
         reattachedText: this.reattachedText(note)
       });
     }
+    this.notesToDisplay = notesToDisplay;
   }
 
   /** What to display for note content. Will be transformed for display, especially for a conflict note. */

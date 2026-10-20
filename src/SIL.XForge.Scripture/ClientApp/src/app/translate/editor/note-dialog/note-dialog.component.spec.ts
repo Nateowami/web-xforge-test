@@ -9,6 +9,7 @@ import { cloneDeep } from 'lodash-es';
 import { Delta } from 'quill';
 import { UserProfile } from 'realtime-server/lib/esm/common/models/user';
 import { createTestUserProfile } from 'realtime-server/lib/esm/common/models/user-test-data';
+import { Json0OpBuilder } from 'realtime-server/lib/esm/common/utils/json0-op-builder';
 import { BiblicalTerm, getBiblicalTermDocId } from 'realtime-server/lib/esm/scriptureforge/models/biblical-term';
 import { Note, REATTACH_SEPARATOR } from 'realtime-server/lib/esm/scriptureforge/models/note';
 import { SF_TAG_ICON } from 'realtime-server/lib/esm/scriptureforge/models/note-tag';
@@ -534,6 +535,40 @@ describe('NoteDialogComponent', () => {
     verify(mockedDialogService.confirm(anything(), anything())).once();
     expect(threadDoc.data!.notes[0].deleted).toBe(true);
     expect(env.dialogResult).toEqual({ deleted: true });
+  }));
+
+  it('closes when another user deletes the last note in the thread', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.defaultNoteThread, currentUserId: 'user04' });
+    expect(env.notes.length).toEqual(1);
+    env.enterNoteContent('a reply to a note that is being deleted');
+    env.simulateRemoteChange('dataid01', op => op.set(nt => nt.notes[0].deleted, true));
+    expect(env.dialogResult).toEqual({ deleted: true });
+  }));
+
+  it('closes when another user deletes the note thread', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.defaultNoteThread, currentUserId: 'user04' });
+    expect(env.notes.length).toEqual(1);
+    void env.getNoteThreadDoc('dataid01').delete();
+    flush();
+    expect(env.dialogResult).toEqual({ deleted: true });
+  }));
+
+  it('hides a note deleted by another user while the thread still has notes', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread() });
+    expect(env.notes.length).toEqual(4);
+    env.simulateRemoteChange('dataid01', op => op.set(nt => nt.notes[4].deleted, true));
+    expect(env.notes.length).toEqual(3);
+    expect(env.dialogResult).toBeUndefined();
+  }));
+
+  it('keeps the note being edited out of the list when another user changes the thread', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread(undefined, undefined, true) });
+    env.clickEditNote();
+    expect(env.notes.length).toEqual(3);
+    env.simulateRemoteChange('dataid01', op => op.set(nt => nt.notes[0].deleted, true));
+    expect(env.notes.length).toEqual(2);
+    expect(env.component.currentNoteContent).toEqual('note05');
+    expect(env.dialogResult).toBeUndefined();
   }));
 
   it('resolves a thread', fakeAsync(() => {
@@ -1198,6 +1233,13 @@ class TestEnvironment {
   getNoteThreadDoc(threadDataId: string): NoteThreadDoc {
     const id: string = getNoteThreadDocId(TestEnvironment.PROJECT01, threadDataId);
     return this.realtimeService.get<NoteThreadDoc>(NoteThreadDoc.COLLECTION, id);
+  }
+
+  simulateRemoteChange(threadDataId: string, build: (op: Json0OpBuilder<NoteThread>) => void): void {
+    void this.getNoteThreadDoc(threadDataId).submitJson0Op(build, false);
+    tick();
+    this.fixture.detectChanges();
+    flush();
   }
 
   getProjectUserConfigDoc(projectId: string, userId: string): SFProjectUserConfigDoc {
