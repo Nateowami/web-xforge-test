@@ -228,6 +228,28 @@ describe('ConnectProjectComponent', () => {
     verify(mockedSFProjectService.onlineCreate(deepEqual(settings))).once();
   }));
 
+  it('should connect without a source when there are no projects to choose a source from', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupProjectsResources([], []);
+    env.waitForProjectsResponse();
+    expect(env.component.state).toEqual('input');
+    // The source project select is disabled, which Angular treats as neither valid nor invalid
+    expect(env.component.sourceProjectSelect?.isDisabled).toBe(true);
+    expect(env.component.sourceProjectSelect?.isValid).toBe(false);
+
+    env.clickElement(env.submitButton);
+    expect(env.component.state).toEqual('connecting');
+    env.setQueuedCount();
+    env.emitSyncComplete();
+
+    const settings: SFProjectCreateSettings = {
+      paratextId: 'pt01',
+      checkingEnabled: true,
+      sourceParatextId: null
+    };
+    verify(mockedSFProjectService.onlineCreate(deepEqual(settings))).once();
+  }));
+
   it('handles already connected error', fakeAsync(() => {
     // Another user might have _just_ connected this PT project. We could respond by joining this user to the
     // now-connected project. But the user may have made Translation or Checking selections on the Connect Project page

@@ -148,9 +148,11 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
     if (!this.connectProjectForm.valid || this.projectsFromParatext == null) {
       return;
     }
-    // Text that does not match a project or resource reaches the form as no source at all, so check the project select
-    // itself rather than connecting without the source the user tried to enter.
-    if (this.sourceProjectSelect?.isValid === false) {
+    // Text that does not match a project or resource reaches the form as no source at all, because ProjectSelectComponent
+    // is not a form validator (making it one would change validity in every form that uses it). So check the project
+    // select itself rather than connecting without the source the user tried to enter. This uses `invalid` rather than
+    // `isValid` because a disabled select (no projects to choose from) is neither valid nor invalid.
+    if (this.sourceProjectSelect?.paratextIdControl.invalid === true) {
       return;
     }
     const values: ConnectProjectFormValues = {
