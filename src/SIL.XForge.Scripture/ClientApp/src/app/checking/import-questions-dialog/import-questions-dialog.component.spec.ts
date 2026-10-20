@@ -407,15 +407,25 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
-  it('does not import questions from a CSV file for chapters that are not in the project', fakeAsync(() => {
+  it('reports and skips CSV rows for chapters that are not in the project', fakeAsync(() => {
     const env = new TestEnvironment();
 
     env.selectFileWithContents([
       ['Reference', 'Questions'],
       ['MAT 1:1', 'Question for MAT 1:1'],
       ['MAT 2:1', 'Question for MAT 2:1'],
+      ['GEN 1:1', 'Question for GEN 1:1'],
       ['MAT 121:2', 'Question for MAT 121:2']
     ]);
+
+    // Genesis is not in the project, so its row is skipped without being reported
+    expect(env.headerText).toBe('These rows in the CSV file were invalid and will be skipped.');
+    const invalidRows = env.tableRows;
+    expect(invalidRows.length).toBe(2);
+    expect(env.getColumnTwoText(invalidRows[0])).toEqual('MAT 2:1');
+    expect(env.getColumnTwoText(invalidRows[1])).toEqual('MAT 121:2');
+
+    env.click(env.continueImportButton);
 
     expect(env.tableRows.length).toBe(1);
     expect(env.getRowReference(env.tableRows[0])).toEqual('MAT 1:1');

@@ -728,19 +728,25 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
         invalidRows.push([rowNumber, reference, questionText]);
         continue;
       }
+      let verseRef: VerseRef;
       try {
         // if the reference doesn't start with a book id, and the file name includes the book id, prepend the book id to
         // the reference
         const refStartsWithBook: boolean = Canon.allBookIds.includes(reference.slice(0, 3)) && reference[3] === ' ';
         const fullReference: string =
           refStartsWithBook || defaultBookId == null ? reference : defaultBookId + ' ' + reference;
-        questions.push({
-          verseRef: new VerseRef(fullReference),
-          text: questionText
-        });
+        verseRef = new VerseRef(fullReference);
       } catch {
         invalidRows.push([rowNumber, reference, questionText]);
+        continue;
       }
+      // Rows for books the project does not have are skipped silently, as a file may cover more books than the project
+      // has. A row for a chapter missing from a book the project has is reported, so the user can see why it is skipped.
+      if (this.data.textsByBookId[verseRef.book] != null && !this.isInProject(verseRef)) {
+        invalidRows.push([rowNumber, reference, questionText]);
+        continue;
+      }
+      questions.push({ verseRef, text: questionText });
     }
 
     if (invalidRows.length > 0) {
