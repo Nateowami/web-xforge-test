@@ -197,6 +197,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
   private textAudioSub?: Subscription;
   private audioChangedSub?: Subscription;
   private projectRemoteChangesSub?: Subscription;
+  private projectTextsSub?: Subscription;
   private questionsRemoteChangesSub?: Subscription;
   private text?: TextInfo;
   private _scriptureAudioPlayer?: CheckingScriptureAudioPlayerComponent;
@@ -566,7 +567,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
               throw new Error('Project has no texts');
             }
 
-            this.books = this.projectDoc.data.texts.map(t => t.bookNum).sort((a, b) => a - b) ?? [];
+            this.updateBooksAndChapters();
             this.initQuestionFilters();
 
             this.projectUserConfigDoc = await this.projectService.getUserConfig(
@@ -607,6 +608,15 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
             this.projectDeleteSub = this.projectDoc.delete$
               .pipe(quietTakeUntilDestroyed(this.destroyRef))
               .subscribe(() => this.onRemovedFromProject());
+
+            // Books and chapters can be added or removed by a sync while the page is open
+            this.projectTextsSub?.unsubscribe();
+            this.projectTextsSub = this.projectDoc.changes$
+              .pipe(quietTakeUntilDestroyed(this.destroyRef))
+              .subscribe(() => {
+                this.updateBooksAndChapters();
+                this.changeDetector.markForCheck();
+              });
           }
 
           this.activeQuestionScope = routeScope;
@@ -1558,6 +1568,19 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
       ]);
     }, changeUpdateDelayMs);
     this.changeDetector.markForCheck();
+  }
+
+  private updateBooksAndChapters(): void {
+    const texts: TextInfo[] | undefined = this.projectDoc?.data?.texts;
+    if (texts == null) {
+      return;
+    }
+
+    this.books = texts.map(t => t.bookNum).sort((a, b) => a - b);
+    if (this.book != null) {
+      this.text = texts.find(t => t.bookNum === this.book);
+      this.chapters = this.text == null ? [] : this.text.chapters.map(c => c.number);
+    }
   }
 
   // Unbind this component from the data when a user is removed from the project, otherwise console

@@ -201,6 +201,35 @@ describe('CheckingComponent', () => {
       discardPeriodicTasks();
     }));
 
+    it('should show books and chapters added by a sync while open', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'book'
+      });
+      env.waitForSliderUpdate();
+      expect(env.component.books).toEqual([40, 43]);
+      expect(env.component.chapters).toEqual([1, 2]);
+
+      const projectDoc = env.component.projectDoc!;
+      const jhnIndex: number = projectDoc.data!.texts.findIndex(t => t.bookNum === 43);
+      projectDoc.submitJson0Op(op => {
+        op.add(p => p.texts, {
+          bookNum: 62,
+          hasSource: false,
+          chapters: [{ number: 1, lastVerse: 10, isValid: true, permissions: {} }],
+          permissions: {}
+        });
+        op.add(p => p.texts[jhnIndex].chapters, { number: 3, lastVerse: 36, isValid: true, permissions: {} });
+      }, false);
+      env.waitForSliderUpdate();
+
+      expect(env.component.books).toEqual([40, 43, 62]);
+      expect(env.component.chapters).toEqual([1, 2, 3]);
+      discardPeriodicTasks();
+    }));
+
     it('should re-calculate scripture slide position on drag end', fakeAsync(() => {
       const testProject: SFProject = TestEnvironment.generateTestProject();
       const env = new TestEnvironment({ user: CHECKER_USER, testProject });
