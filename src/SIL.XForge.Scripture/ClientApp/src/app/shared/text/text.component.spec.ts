@@ -1,5 +1,6 @@
 import { Component, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatDialogConfig } from '@angular/material/dialog';
 import { TranslocoService } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { QuillService } from 'ngx-quill';
@@ -15,7 +16,7 @@ import { TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-dat
 import * as RichText from 'rich-text';
 import { firstValueFrom } from 'rxjs';
 import { LocalPresence } from 'sharedb/lib/sharedb';
-import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { anything, capture, instance, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { MockConsole } from 'xforge-common/mock-console';
 import { UserDoc } from 'xforge-common/models/user-doc';
@@ -34,7 +35,7 @@ import { SFProjectService } from '../../core/sf-project.service';
 import { getCombinedVerseTextDoc, getEmptyChapterDoc, getPoetryVerseTextDoc, getTextDoc } from '../test-utils';
 import { provideQuillRegistrations } from './quill-editor-registration/quill-providers';
 import { getAttributesAtPosition } from './quill-util';
-import { TextNoteDialogComponent, TextNoteType } from './text-note-dialog/text-note-dialog.component';
+import { NoteDialogData, TextNoteDialogComponent, TextNoteType } from './text-note-dialog/text-note-dialog.component';
 import {
   EDITOR_READY_TIMEOUT,
   PRESENCE_EDITOR_ACTIVE_TIMEOUT,
@@ -1597,6 +1598,46 @@ describe('TextComponent', () => {
       note!.click();
     });
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
+  }));
+
+  it('can display footnote dialog when the contents are set without a text doc', fakeAsync(() => {
+    // The draft and history viewers display their text this way, with no text doc id
+    const env = new TestEnvironment();
+    env.waitForEditor();
+    env.component.setContents(
+      new Delta([
+        { insert: { chapter: { number: '1', style: 'c' } } },
+        { insert: { verse: { number: '1', style: 'v' } } },
+        { insert: 'quick brown', attributes: { segment: 'verse_1_1' } },
+        {
+          insert: {
+            note: {
+              caller: '+',
+              style: TextNoteType.Footnote,
+              contents: { ops: [{ insert: 'footnote text', attributes: { char: { style: 'ft' } } }] }
+            }
+          },
+          attributes: { segment: 'verse_1_1' }
+        },
+        { insert: ' fox', attributes: { segment: 'verse_1_1' } }
+      ]),
+      'api'
+    );
+    tick();
+    env.fixture.detectChanges();
+
+    const note = env.quillEditor.querySelector('usx-note') as HTMLElement;
+    expect(note).not.toBeNull();
+    note.click();
+    env.quillEditor.querySelector('usx-segment')!.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+
+    const [, config] = capture(mockedDialogService.openMatDialog as any).last();
+    expect((config as MatDialogConfig<NoteDialogData>).data).toEqual({
+      type: TextNoteType.Footnote,
+      text: 'footnote text',
+      isRightToLeft: false
+    });
+    verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).once();
   }));
 
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {

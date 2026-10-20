@@ -46,7 +46,6 @@ import { SFProjectService } from '../../core/sf-project.service';
 import { TextDocService } from '../../core/text-doc.service';
 import { LynxInsightEditorObjectsComponent } from '../../translate/editor/lynx/insights/lynx-insight-editor-objects/lynx-insight-editor-objects.component';
 import { MultiCursorViewer } from '../../translate/editor/multi-viewer/multi-viewer.component';
-import { attributeFromMouseEvent } from '../utils';
 import { getBaseVerse, getVerseRefFromSegmentRef, getVerseStrFromSegmentRef, VERSE_REGEX } from '../verse-utils';
 import { QuillFormatRegistryService } from './quill-editor-registration/quill-format-registry.service';
 import { getAttributesAtPosition, getRetainCount } from './quill-util';
@@ -150,7 +149,6 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   private cursorMoveKeyHoldTimeout?: any;
   private cursorMoveKeyHoldDelay: number = 500; // Press and hold ms delay before switching to system cursor
 
-  private clickSubs: Map<string, Subscription[]> = new Map<string, Subscription[]>();
   private _isReadOnly: boolean = true;
   private _editorStyles: any = { fontSize: '1rem' };
   private activePresenceSubscription?: Subscription;
@@ -698,6 +696,11 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     fromEvent(this.window, 'resize')
       .pipe(quietTakeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.setHighlightMarkerPosition());
+    // Listen on the editor root rather than on each note element, so that notes rendered after the text doc is bound,
+    // such as in contents set by setContents() (drafts, history) or re-created by an edit, can also be clicked.
+    fromEvent<MouseEvent>(this._editor.root, 'click')
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(event => this.showClickedNote(event));
     this.viewModel.editor = editor;
     void this.bindQuill(); // not awaited
     editor.container.addEventListener('beforeinput', (ev: Event) => this.onBeforeinput(ev));
@@ -1270,32 +1273,22 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
     this.loaded.emit(true);
     this.applyEditorStyles();
-    // These refer to footnotes, cross-references, and end notes and not actual notes
-    const elements = this.editor?.container.querySelectorAll('usx-note');
-    if (elements != null) {
-      this.clickSubs.get('notes')?.forEach(s => s.unsubscribe());
-      this.clickSubs.set(
-        'notes',
-        Array.from(elements).map((element: Element) =>
-          fromEvent<MouseEvent>(element, 'click')
-            .pipe(quietTakeUntilDestroyed(this.destroyRef))
-            .subscribe(event => {
-              const noteText = attributeFromMouseEvent(event, 'USX-NOTE', 'title');
-              const noteType = attributeFromMouseEvent(event, 'USX-NOTE', 'data-style');
-              this.dialogService.openMatDialog(TextNoteDialogComponent, {
-                width: '600px',
-                data: {
-                  type: noteType,
-                  text: noteText,
-                  isRightToLeft: this.isRtl
-                } as NoteDialogData
-              });
-            })
-        )
-      );
-    }
-
     this.createLocalCursor();
+  }
+
+  /** Shows the footnote, cross-reference, or end note that was clicked, if any. These are not Paratext notes. */
+  private showClickedNote(event: MouseEvent): void {
+    const note: HTMLElement | null =
+      event.target instanceof Element ? event.target.closest<HTMLElement>('usx-note') : null;
+    if (note == null) return;
+    this.dialogService.openMatDialog(TextNoteDialogComponent, {
+      width: '600px',
+      data: {
+        type: note.getAttribute('data-style'),
+        text: note.title,
+        isRightToLeft: this.isRtl
+      } as NoteDialogData
+    });
   }
 
   private createLocalCursor(): void {
