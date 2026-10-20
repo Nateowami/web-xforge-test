@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { isObjectLike } from 'lodash-es';
+import { isEqual, isObjectLike } from 'lodash-es';
 import { environment } from '../environments/environment';
 import { OfflineData, OfflineStore } from './offline-store';
 import { ObjectFilter, performQuery, PrimitiveType, QueryParameters, QueryResults } from './query-parameters';
@@ -25,25 +25,47 @@ function getKeyRange(filter: PrimitiveType | ObjectFilter): IDBKeyRange | undefi
   return IDBKeyRange.only(filter);
 }
 
-function createObjectStore(
-  db: IDBDatabase,
-  collection: string,
-  indexPaths?: (string | { [x: string]: number | string } | [string, unknown])[]
-): void {
+type IndexPath = string | { [x: string]: number | string } | [string, unknown];
+
+function getIndexes(indexPaths: IndexPath[]): Map<string, string | string[]> {
+  const indexes = new Map<string, string | string[]>();
+  for (const path of indexPaths) {
+    if (typeof path === 'string') {
+      indexes.set(path, `data.${path}`);
+    } else if (Array.isArray(path)) {
+      // Index options are not supported in IndexedDB, so we ignore them.
+      indexes.set(path[0], `data.${path[0]}`);
+    } else {
+      indexes.set(
+        Object.keys(path).join('_'),
+        Object.keys(path).map(key => `data.${key}`)
+      );
+    }
+  }
+  return indexes;
+}
+
+function createObjectStore(db: IDBDatabase, collection: string, indexPaths?: IndexPath[]): void {
   const objectStore = db.createObjectStore(collection, { keyPath: 'id' });
-  if (indexPaths != null) {
-    for (const path of indexPaths) {
-      if (typeof path === 'string') {
-        objectStore.createIndex(path, `data.${path}`);
-      } else if (Array.isArray(path)) {
-        // Index options are not supported in IndexedDB, so we ignore them.
-        objectStore.createIndex(path[0], `data.${path[0]}`);
-      } else {
-        objectStore.createIndex(
-          Object.keys(path).join('_'),
-          Object.keys(path).map(key => `data.${key}`)
-        );
-      }
+  updateIndexes(objectStore, indexPaths ?? []);
+}
+
+/**
+ * Brings the indexes of an object store into line with the specified index paths, so that a database created by an
+ * older version of the app gets new indexes without the user having to log out (which deletes the database).
+ * This can only be called while the database is being upgraded, i.e. when the offline DB version has been incremented.
+ */
+function updateIndexes(objectStore: IDBObjectStore, indexPaths: IndexPath[]): void {
+  const indexes = getIndexes(indexPaths);
+  for (const name of Array.from(objectStore.indexNames)) {
+    const keyPath = indexes.get(name);
+    if (keyPath == null || !isEqual(objectStore.index(name).keyPath, keyPath)) {
+      objectStore.deleteIndex(name);
+    }
+  }
+  for (const [name, keyPath] of indexes) {
+    if (!objectStore.indexNames.contains(name)) {
+      objectStore.createIndex(name, keyPath);
     }
   }
 }
@@ -192,6 +214,8 @@ export class IndexeddbOfflineStore extends OfflineStore {
         for (const docType of this.typeRegistry.docTypes) {
           if (!storeNames.contains(docType.COLLECTION)) {
             createObjectStore(db, docType.COLLECTION, docType.INDEX_PATHS);
+          } else {
+            updateIndexes(request.transaction!.objectStore(docType.COLLECTION), docType.INDEX_PATHS);
           }
         }
         for (const fileType of this.typeRegistry.fileTypes) {
