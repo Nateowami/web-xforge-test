@@ -1,14 +1,15 @@
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, fakeAsync, flush, inject, TestBed, tick } from '@angular/core/testing';
 import { MatDialog, MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
+import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
 import { ChildViewContainerComponent, configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
 import { DeleteProjectDialogComponent } from './delete-project-dialog.component';
 
 describe('DeleteProjectDialogComponent', () => {
   configureTestingModule(() => ({
     imports: [getTestTranslocoModule(), DeleteProjectDialogComponent],
-    providers: [provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+    providers: [provideTestOnlineStatus(), { provide: OnlineStatusService, useClass: TestOnlineStatusService }]
   }));
 
   let dialog: MatDialog;
@@ -36,6 +37,28 @@ describe('DeleteProjectDialogComponent', () => {
     expect(env.afterCloseCallback).toHaveBeenCalledWith('cancel');
   }));
 
+  it('should not allow deleting the project while offline', fakeAsync(() => {
+    const env = new TestEnvironment();
+    expect(env.offlineMessage).toBeNull();
+    env.inputValue(env.projectInput, 'project01');
+    expect(env.component.deleteDisabled).toBe(false);
+
+    // The dialog was opened while online and the connection dropped afterwards
+    env.setOnline(false);
+    expect(env.component.deleteDisabled).toBe(true);
+    expect(env.offlineMessage).not.toBeNull();
+    env.clickElement(env.deleteButton);
+    flush();
+    expect(env.afterCloseCallback).not.toHaveBeenCalled();
+
+    env.setOnline(true);
+    expect(env.component.deleteDisabled).toBe(false);
+    expect(env.offlineMessage).toBeNull();
+    env.clickElement(env.deleteButton);
+    flush();
+    expect(env.afterCloseCallback).toHaveBeenCalledWith('accept');
+  }));
+
   it('should allow user to cancel', fakeAsync(() => {
     const env = new TestEnvironment();
     env.clickElement(env.cancelButton);
@@ -49,6 +72,7 @@ describe('DeleteProjectDialogComponent', () => {
     dialogRef: MatDialogRef<DeleteProjectDialogComponent>;
 
     afterCloseCallback: jasmine.Spy;
+    readonly testOnlineStatusService = TestBed.inject(OnlineStatusService) as TestOnlineStatusService;
 
     constructor() {
       this.afterCloseCallback = jasmine.createSpy('afterClose callback');
@@ -72,6 +96,10 @@ describe('DeleteProjectDialogComponent', () => {
       return this.overlayContainerElement.querySelector('#cancel-btn') as HTMLElement;
     }
 
+    get offlineMessage(): HTMLElement | null {
+      return this.overlayContainerElement.querySelector('#offline-message');
+    }
+
     get projectInput(): HTMLElement {
       return this.overlayContainerElement.querySelector('#project-entry') as HTMLElement;
     }
@@ -82,6 +110,12 @@ describe('DeleteProjectDialogComponent', () => {
       inputElem.dispatchEvent(new Event('input'));
       this.fixture.detectChanges();
       tick();
+    }
+
+    setOnline(isOnline: boolean): void {
+      this.testOnlineStatusService.setIsOnline(isOnline);
+      tick();
+      this.fixture.detectChanges();
     }
 
     clickElement(element: HTMLElement): void {
