@@ -80,13 +80,34 @@ describe('ImportQuestionsDialogComponent', () => {
   }));
 
   it('shows questions only from the chapters in the project', fakeAsync(() => {
+    const env = new TestEnvironment({
+      transceleratorQuestions: [
+        { book: 'MAT', startChapter: '1', startVerse: '1', text: 'Question for Matthew 1:1', id: '1' },
+        { book: 'MAT', startChapter: '4', startVerse: '1', text: 'Question for Matthew 4:1', id: '2' }
+      ]
+    });
+    env.click(env.importFromTransceleratorButton);
+
+    expect(env.tableRows.length).toBe(1);
+    expect(env.getRowReference(env.tableRows[0])).toBe('MAT 1:1');
+    env.click(env.backButton);
+  }));
+
+  it('lists CSV rows for chapters not in the project as skipped', fakeAsync(() => {
     const env = new TestEnvironment();
 
     env.selectFileWithContents([
       ['Reference', 'Question'],
       ['MAT 1:1', 'Question for Matthew 1:1'],
-      ['MAT 4:1', 'Question for Matthew 4:1']
+      ['MAT 4:1', 'Question for Matthew 4:1'],
+      ['LUK 1:1', 'Question for Luke 1:1']
     ]);
+
+    expect(env.headerText).toBe('These rows in the CSV file were invalid and will be skipped.');
+    expect(env.tableRows.length).toBe(1);
+    expect(env.getColumnTwoText(env.tableRows[0])).toEqual('MAT 4:1');
+
+    env.click(env.continueImportButton);
 
     expect(env.tableRows.length).toBe(1);
     expect(env.getRowReference(env.tableRows[0])).toBe('MAT 1:1');

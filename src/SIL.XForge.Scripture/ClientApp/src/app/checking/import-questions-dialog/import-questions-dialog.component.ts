@@ -733,10 +733,13 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
         const refStartsWithBook: boolean = Canon.allBookIds.includes(reference.slice(0, 3)) && reference[3] === ' ';
         const fullReference: string =
           refStartsWithBook || defaultBookId == null ? reference : defaultBookId + ' ' + reference;
-        questions.push({
-          verseRef: new VerseRef(fullReference),
-          text: questionText
-        });
+        const verseRef = new VerseRef(fullReference);
+        // Rows for books the project doesn't have are left for setUpQuestionList to drop silently
+        if (this.data.textsByBookId[verseRef.book] != null && !this.isChapterInProject(verseRef)) {
+          invalidRows.push([rowNumber, reference, questionText]);
+          continue;
+        }
+        questions.push({ verseRef, text: questionText });
       } catch {
         invalidRows.push([rowNumber, reference, questionText]);
       }
