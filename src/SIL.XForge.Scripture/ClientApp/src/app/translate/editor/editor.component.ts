@@ -273,6 +273,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   private readonly sourceWordTokenizer: RangeTokenizer;
   private readonly targetWordTokenizer: RangeTokenizer;
   private bottomSheetRef?: MatBottomSheetRef;
+  /** Dialogs opened anywhere in the app while the editor is showing, and not closed yet. */
   private readonly openDialogRefs = new Set<MatDialogRef<unknown>>();
   private currentUserDoc?: UserDoc;
   projectDoc?: SFProjectProfileDoc;
@@ -669,6 +670,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   ngOnInit(): void {
+    this.dialogService.afterOpened$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(dialogRef => {
+      this.openDialogRefs.add(dialogRef);
+      dialogRef.afterClosed().subscribe(() => this.openDialogRefs.delete(dialogRef));
+    });
     this.activatedProject.projectDoc$
       .pipe(
         quietTakeUntilDestroyed(this.destroyRef),
@@ -879,6 +884,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     this.metricsSession?.dispose();
     this.onTargetDeleteSub?.unsubscribe();
     this.bottomSheet?.dismiss();
+    this.closeOpenDialogs();
     this.resizeObserver?.disconnect();
     this.noteThreadQuery?.dispose();
   }
@@ -1633,9 +1639,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     }
 
     this.onTargetDeleteSub = textDoc.delete$.subscribe(() => {
-      // Dialogs opened from the editor refer to the deleted text and would otherwise stay open after navigating away
-      this.openDialogRefs.forEach(dialogRef => dialogRef.close());
+      this.closeOpenDialogs();
       void this.dialogService.message(this.i18n.translate('editor.text_has_been_deleted')).then(() => {
+        // The message is also closed if the editor is left some other way, such as by the project being deleted
+        if (this.destroyRef.destroyed) return;
         void this.router.navigateByUrl('/projects/' + this.projectDoc!.id + '/translate', { replaceUrl: true });
       });
     });
@@ -1787,6 +1794,16 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   /**
+   * Closes the dialogs opened while the editor was showing. Router navigation does not trigger MatDialog's
+   * closeOnNavigation, so without this they would stay open over the page the user is taken to.
+   */
+  private closeOpenDialogs(): void {
+    for (const dialogRef of this.openDialogRefs) {
+      dialogRef.close();
+    }
+  }
+
+  /**
    * Opens a MAT dialog and records the current editor selection if one exists
    * and return the cursor to that position on dialog close.
    */
@@ -1797,8 +1814,6 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     const selection: Range | null | undefined = this.target?.editor?.getSelection();
     const targetScrollTop: number | undefined = this.targetScrollContainer?.scrollTop;
     const dialogRef: MatDialogRef<T, R> = this.dialogService.openMatDialog(component, dialogConfig);
-    this.openDialogRefs.add(dialogRef);
-    dialogRef.afterClosed().subscribe(() => this.openDialogRefs.delete(dialogRef));
 
     if (selection == null || !this.canEdit) {
       return dialogRef;
