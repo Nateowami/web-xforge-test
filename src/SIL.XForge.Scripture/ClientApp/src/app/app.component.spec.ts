@@ -40,6 +40,7 @@ import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
+import { environment } from '../environments/environment';
 import { AppComponent } from './app.component';
 import { SFProjectProfileDoc } from './core/models/sf-project-profile-doc';
 import { SFProjectUserConfigDoc } from './core/models/sf-project-user-config-doc';
@@ -525,6 +526,15 @@ describe('AppComponent', () => {
     env.init();
 
     expect(env.avatarIcon).toBeNull();
+  }));
+
+  it('sets the tab title to the site name even if not logged in', fakeAsync(() => {
+    document.title = 'Loading…';
+    when(mockedLocationService.host).thenReturn(new URL(environment.masterUrl).host);
+    const env = new TestEnvironment('online', false);
+    env.init();
+
+    expect(document.title).toEqual(environment.siteName);
   }));
 
   it('show avatar after user logs in', fakeAsync(() => {
