@@ -1,7 +1,7 @@
 import { DestroyRef } from '@angular/core';
 import { Canon } from '@sillsdev/scripture';
 import { mapValues } from 'lodash-es';
-import { BehaviorSubject, firstValueFrom, skip } from 'rxjs';
+import { BehaviorSubject, filter, firstValueFrom, map, skip, take } from 'rxjs';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { filterNullish, quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
@@ -54,6 +54,26 @@ function withoutExtraMaterialBooks(range: VerboseScriptureRange): VerboseScriptu
     }
   }
   return result;
+}
+
+/**
+ * Resolves to true once the app is online, or to false if `destroyRef` is destroyed first (including if it already
+ * has been). The new draft wizard's loading needs a connection, but a wizard opened offline may be left before one
+ * returns, and its loading must then never run.
+ */
+export function waitUntilOnlineOrDestroyed(
+  onlineStatusService: OnlineStatusService,
+  destroyRef: DestroyRef
+): Promise<boolean> {
+  return firstValueFrom(
+    onlineStatusService.onlineStatus$.pipe(
+      filter(isOnline => isOnline),
+      take(1),
+      map(() => true),
+      quietTakeUntilDestroyed(destroyRef, { logWarnings: false })
+    ),
+    { defaultValue: false }
+  );
 }
 
 /**
@@ -159,7 +179,7 @@ export class NewDraftLogicHandler {
   async init(): Promise<void> {
     // Progress data comes from an online-only API call, so wait for a connection rather than letting the request fail
     // and abort the wizard (e.g. when it is reopened with the browser's back/forward buttons while offline).
-    await this.onlineStatusService.online;
+    if (!(await waitUntilOnlineOrDestroyed(this.onlineStatusService, this.destroyRef))) return;
     try {
       const [bundle, sources] = await Promise.all([
         this.fetchProgressBundle(),

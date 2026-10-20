@@ -2,7 +2,7 @@ import { DestroyRef } from '@angular/core';
 import { Canon } from '@sillsdev/scripture';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { ProjectScriptureRange } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
-import { BehaviorSubject, filter, firstValueFrom, of } from 'rxjs';
+import { BehaviorSubject, filter, firstValueFrom, Observable, of } from 'rxjs';
 import { anything, instance, mock, resetCalls, verify, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -16,6 +16,22 @@ import { DraftProgressService } from './draft-progress.service';
 import { ExcludedDraftingBook, NewDraftLogicHandler } from './new-draft-logic-handler';
 
 const mockDestroyRef = { onDestroy: () => () => {}, destroyed: false } as unknown as DestroyRef;
+
+/** A DestroyRef that a test can destroy, to simulate the user leaving the wizard. */
+class FakeDestroyRef implements DestroyRef {
+  destroyed = false;
+  private readonly callbacks = new Set<() => void>();
+
+  onDestroy(callback: () => void): () => void {
+    this.callbacks.add(callback);
+    return () => this.callbacks.delete(callback);
+  }
+
+  destroy(): void {
+    this.destroyed = true;
+    for (const callback of this.callbacks) callback();
+  }
+}
 
 function allBooksExcept(excludedBooks: string[]): string {
   return new VerboseScriptureRange(
@@ -119,21 +135,38 @@ describe('NewDraftLogicHandler', () => {
     });
 
     it('waits until online before loading progress', async () => {
-      let goOnline!: () => void;
-      const online = new Promise<void>(resolve => (goOnline = resolve));
+      const onlineStatus$ = new BehaviorSubject<boolean>(false);
       resetCalls(mockedDraftProgressService);
-      const env = new TestEnvironment(teamStartingToTranslateGenesis, undefined, { online });
+      const env = new TestEnvironment(teamStartingToTranslateGenesis, undefined, { onlineStatus$ });
       await new Promise(resolve => setTimeout(resolve));
 
       // Offline, the progress request would fail and abort the wizard, so it must not be made yet
       verify(mockedDraftProgressService.getChaptersWithContent(anything())).never();
       expect(env.logicHandler.status$.getValue()).toBe('init');
 
-      goOnline();
+      onlineStatus$.next(true);
       await env.waitForInit();
 
       verify(mockedDraftProgressService.getChaptersWithContent('testProjectId')).once();
       expect(env.availableDraftingScriptureRange).toBe(teamStartingToTranslateGenesis.draftingSourceBooksChapters);
+    });
+
+    it('does not load anything if destroyed before coming online', async () => {
+      const onlineStatus$ = new BehaviorSubject<boolean>(false);
+      const destroyRef = new FakeDestroyRef();
+      resetCalls(mockedDraftProgressService);
+      resetCalls(mockedDraftSourcesService);
+      const env = new TestEnvironment(teamStartingToTranslateGenesis, undefined, { onlineStatus$, destroyRef });
+      await new Promise(resolve => setTimeout(resolve));
+
+      // The user leaves the wizard while offline, then reconnects
+      destroyRef.destroy();
+      onlineStatus$.next(true);
+      await new Promise(resolve => setTimeout(resolve));
+
+      verify(mockedDraftProgressService.getChaptersWithContent(anything())).never();
+      verify(mockedDraftSourcesService.getDraftProjectSources()).never();
+      expect(env.logicHandler.status$.getValue()).toBe('init');
     });
 
     it('initializes available ranges based on progress service', async () => {
@@ -1163,7 +1196,7 @@ class TestEnvironment {
   constructor(
     state: TestState,
     sources$?: BehaviorSubject<DraftSourcesAsArrays>,
-    options: { online?: Promise<void> } = {}
+    options: { onlineStatus$?: Observable<boolean>; destroyRef?: DestroyRef } = {}
   ) {
     const project = createTestProjectProfile({
       texts: (state.targetTextBooks ?? []).map(bookId => ({
@@ -1243,14 +1276,14 @@ class TestEnvironment {
       new Set(state.completeTargetBooks ?? [])
     );
 
-    when(mockedOnlineStatusService.online).thenReturn(options.online ?? Promise.resolve());
+    when(mockedOnlineStatusService.onlineStatus$).thenReturn(options.onlineStatus$ ?? of(true));
 
     this.logicHandler = new NewDraftLogicHandler(
       this.activatedProjectService,
       this.draftSourcesService,
       this.draftProgressService,
       this.onlineStatusService,
-      mockDestroyRef
+      options.destroyRef ?? mockDestroyRef
     );
   }
 
