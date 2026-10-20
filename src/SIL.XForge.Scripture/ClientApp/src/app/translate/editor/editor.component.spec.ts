@@ -2979,6 +2979,31 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('keeps the fab hidden after closing a note opened from a non-verse segment', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.addParatextNoteThread(7, 'LUK 1:0', 'for chapter', { start: 6, length: 11 }, ['user01']);
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      env.clickSegmentRef('verse_1_1');
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('visible');
+      env.clickSegmentRef('s_1');
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
+
+      // open and close the note on the title while the cursor is still in the title
+      env.getNoteThreadIconElement('s_1', 'dataid07')!.click();
+      env.wait();
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+      // the dialog returns focus to the editor on close, so the cursor is back in the title
+      env.targetEditor.setSelection(env.component.target!.getSegmentRange('s_1')!.index, 0, 'silent');
+      instance(mockedMatDialog).closeAll();
+      env.wait();
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
+      expect(env.getSegmentElement('verse_1_1')!.classList).not.toContain('commenter-selection');
+      env.dispose();
+    }));
+
     it('deselects a verse when bottom sheet is open and chapter changed', fakeAsync(() => {
       const env = new TestEnvironment();
       env.ngZone.run(() => {
