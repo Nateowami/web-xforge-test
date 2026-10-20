@@ -245,6 +245,7 @@
     "from_timing_past_to_timing": "One or more ending values end before their beginning values.",
     "help": "Help",
     "no_audio_file_uploaded": "No audio file uploaded",
+    "no_permission": "You do not have permission to manage audio in this project. Please contact the project's administrator.",
     "no_timing_data_uploaded": "No timing data uploaded",
     "not_upload_audio_offline": "Audio files cannot be uploaded without connecting to the internet.",
     "save": "Save",

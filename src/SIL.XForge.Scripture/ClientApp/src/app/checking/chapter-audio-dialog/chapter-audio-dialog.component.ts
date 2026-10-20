@@ -20,6 +20,7 @@ import { Chapter, TextInfo } from 'realtime-server//lib/esm/scriptureforge/model
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
 import { getTextAudioId } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { filter } from 'rxjs/operators';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { CsvService } from 'xforge-common/csv-service.service';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ExternalUrlService } from 'xforge-common/external-url.service';
@@ -99,7 +100,7 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   private _audioErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _timingErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _timingParseErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
-  private _loadingAudio: boolean = false;
+  private _isSaving: boolean = false;
 
   constructor(
     private readonly destroyRef: DestroyRef,
@@ -184,8 +185,8 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     return this.timing_processed.length;
   }
 
-  get isLoadingAudio(): boolean {
-    return this._loadingAudio;
+  get isSaving(): boolean {
+    return this._isSaving;
   }
 
   get timingErrorMessageKey(): string {
@@ -317,11 +318,24 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   async save(): Promise<void> {
+    // Ignore clicks while a save is in progress or the dialog is closing, so the audio is not deleted or uploaded twice
+    if (this._isSaving) return;
+
     let canSave = false;
     if (this.allFieldsValid) {
       canSave = true;
     } else if (!this.isAudioUploaded && !this.isTimingUploaded && this._selectionHasAudioAlready) {
-      await this.projectService.onlineDeleteAudioTimingData(this.data.projectId, this.book, this.chapter);
+      this._isSaving = true;
+      try {
+        await this.projectService.onlineDeleteAudioTimingData(this.data.projectId, this.book, this.chapter);
+      } catch (error) {
+        this._isSaving = false;
+        if (error instanceof CommandError && error.code === CommandErrorCode.Forbidden) {
+          void this.dialogService.message('chapter_audio_dialog.no_permission');
+          return;
+        }
+        throw error;
+      }
       this.dialogRef.close();
       return;
     }
@@ -340,7 +354,7 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     // going offline just after clicking Save.
     if (!this.onlineStatusService.isOnline) return;
 
-    this._loadingAudio = true;
+    this._isSaving = true;
     const audioUrl: string | undefined = await this.fileService.tryOnlineUploadFile(
       FileType.Audio,
       this.data.projectId,
@@ -352,8 +366,8 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     );
 
     // if the upload fails, we need to show an error and not close the dialog
-    this._loadingAudio = false;
     if (audioUrl == null) {
+      this._isSaving = false;
       void this.dialogService.message('chapter_audio_dialog.upload_failed');
       return;
     }

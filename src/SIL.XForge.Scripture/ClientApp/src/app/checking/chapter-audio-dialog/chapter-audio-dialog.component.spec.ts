@@ -8,7 +8,8 @@ import { getTextAudioId, TextAudio } from 'realtime-server/lib/esm/scriptureforg
 import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio-test-data';
 import { Chapter, TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { firstValueFrom } from 'rxjs';
-import { anything, mock, spy, when } from 'ts-mockito';
+import { anything, mock, spy, verify, when } from 'ts-mockito';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { CsvService } from 'xforge-common/csv-service.service';
 import { FileService } from 'xforge-common/file.service';
 import { FileOfflineData, FileType } from 'xforge-common/models/file-offline-data';
@@ -536,6 +537,78 @@ describe('ChapterAudioDialogComponent', () => {
     env.fixture.detectChanges();
     flush();
     expect(env.numberOfTimesDialogClosed).withContext('saving should occur and close dialog when online').toEqual(1);
+  }));
+
+  it('deletes existing audio only once when save is clicked again before the delete finishes', fakeAsync(() => {
+    env.component.book = 1;
+    env.component.chapter = 2;
+    const projectServiceSpy = spy(env.component['projectService']);
+    let resolveDelete!: () => void;
+    when(projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).thenReturn(
+      new Promise<void>(resolve => (resolveDelete = resolve))
+    );
+
+    // SUT
+    env.component.save();
+    tick();
+    env.component.save();
+    tick();
+    resolveDelete();
+    tick();
+    env.component.save();
+    env.fixture.detectChanges();
+    flush();
+
+    verify(projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
+  }));
+
+  it('uploads audio only once when save is clicked again before the upload finishes', fakeAsync(() => {
+    env.component.audioUpdate(env.audioFile);
+    tick();
+    env.component.prepareTimingFileUpload(env.timingFile);
+    tick();
+
+    // SUT
+    env.component.save();
+    env.component.save();
+    tick();
+    env.fixture.detectChanges();
+    flush();
+
+    verify(
+      mockedFileService.tryOnlineUploadFile(
+        FileType.Audio,
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        true
+      )
+    ).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
+  }));
+
+  it('shows a permission message if the user can no longer delete audio', fakeAsync(() => {
+    env.component.book = 1;
+    env.component.chapter = 2;
+    const projectServiceSpy = spy(env.component['projectService']);
+    const dialogServiceSpy = spy(env.component['dialogService']);
+    when(dialogServiceSpy.message(anything())).thenResolve();
+    when(projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).thenReject(
+      new CommandError(CommandErrorCode.Forbidden, 'The user does not have permission to perform this operation.')
+    );
+
+    // SUT
+    env.component.save();
+    tick();
+    env.fixture.detectChanges();
+    flush();
+
+    verify(dialogServiceSpy.message('chapter_audio_dialog.no_permission')).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(0);
+    expect(env.component.isSaving).toBe(false);
   }));
 
   it('disables save button if offline, shows message', fakeAsync(async () => {
