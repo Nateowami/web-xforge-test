@@ -1246,6 +1246,31 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('embeds chapter number note at start of first verse when chapter has no paragraph before it', fakeAsync(() => {
+      const env = new TestEnvironment(env => {
+        const delta = new Delta();
+        delta.insert({ chapter: { number: '2', style: 'c' } });
+        delta.insert({ verse: { number: '1', style: 'v' } });
+        delta.insert('target: chapter 2, verse 1.', { segment: 'verse_2_1' });
+        delta.insert({ verse: { number: '2', style: 'v' } });
+        delta.insert({ blank: true }, { segment: 'verse_2_2' });
+        delta.insert('\n');
+        env.addTextDocFromDelta(new TextDocId('project01', 40, 2, 'target'), delta);
+      });
+      env.addParatextNoteThread(7, 'MAT 2:0', '', { start: 0, length: 0 }, ['user01']);
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'MAT', chapter: '2' });
+      env.wait();
+
+      const verse1Segment: HTMLElement = env.getSegmentElement('verse_2_1')!;
+      expect(verse1Segment.classList).toContain('note-thread-segment');
+      expect(env.getNoteThreadIconElement('verse_2_1', 'dataid07')).not.toBeNull();
+      const contents = env.targetEditor.getContents();
+      expect(contents.ops![2].attributes!['threadid']).toEqual('dataid07');
+      expect(contents.ops![3].insert).toEqual('target: chapter 2, verse 1.');
+      env.dispose();
+    }));
+
     it('handles text doc updates with note embed offset', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_2' });
@@ -5267,6 +5292,14 @@ class TestEnvironment {
     this.realtimeService.addSnapshot<SFProjectUserConfig>(SFProjectUserConfigDoc.COLLECTION, {
       id: getSFProjectUserConfigDocId('project01', userConfig.ownerRef),
       data: userConfig
+    });
+  }
+
+  addTextDocFromDelta(id: TextDocId, delta: Delta): void {
+    this.realtimeService.addSnapshot(TextDoc.COLLECTION, {
+      id: id.toString(),
+      type: RichText.type.name,
+      data: delta
     });
   }
 

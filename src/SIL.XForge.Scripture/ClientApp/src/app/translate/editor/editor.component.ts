@@ -1825,7 +1825,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     if (numberOfNotes > 1) {
       preview += '\n' + this.i18n.translateStatic('editor.more_notes', { count: numberOfNotes - 1 });
     }
-    const verseRef: VerseRef | undefined = threadDoc.currentVerseRef();
+    const verseRef: VerseRef | undefined = this.getNoteThreadEmbedVerseRef(threadDoc.currentVerseRef());
     if (threadDoc.data == null || verseRef == null) {
       return undefined;
     }
@@ -2206,6 +2206,26 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         nt.data.biblicalTermId == null &&
         nt.data.notes[0].type !== NoteType.Conflict
     );
+  }
+
+  /**
+   * Gets the verse whose segments hold the icon of a note thread on the specified verse. A note on the chapter
+   * number (verse 0) normally goes in the segments before verse 1, but a chapter that starts directly with a verse
+   * (e.g. "\c 2 \v 1" with no paragraph marker between them) has none, so the icon goes at the start of the first
+   * verse instead.
+   */
+  private getNoteThreadEmbedVerseRef(verseRef: VerseRef | undefined): VerseRef | undefined {
+    if (
+      verseRef?.verseNum !== 0 ||
+      this.target?.id?.chapterNum !== verseRef.chapterNum ||
+      this.target.getVerseSegments(verseRef).length > 0
+    ) {
+      return verseRef;
+    }
+    const firstSegmentRef: string | undefined = this.target.segments.next().value?.[0];
+    return firstSegmentRef == null
+      ? verseRef
+      : (getVerseRefFromSegmentRef(verseRef.bookNum, firstSegmentRef) ?? verseRef);
   }
 
   private embedNoteThread(featured: FeaturedVerseRefInfo, role: string): string | undefined {
