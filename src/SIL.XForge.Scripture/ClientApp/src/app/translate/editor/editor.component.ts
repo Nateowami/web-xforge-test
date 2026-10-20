@@ -1542,6 +1542,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
 
     const currentVerseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
     this.setNoteFabVisibility('hidden');
+    // On mobile, the bottom sheet must not stay open underneath the note dialog. Remember whether a new note was
+    // being written in it, so that it can be restored with the unsaved text once the dialog closes.
+    const wasAddingMobileNote: boolean = this.addingMobileNote;
+    const wasShowingBottomSheet: boolean = this.bottomSheetRef?.containerInstance != null;
+    this.addingMobileNote = false;
+    this.bottomSheet.dismiss();
     const result: NoteDialogResult | undefined = await lastValueFrom(dialogRef.afterClosed());
 
     if (result != null) {
@@ -1556,7 +1562,18 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       }
       this.toggleNoteThreadVerseRefs$.next();
     }
-    if (this.isInsertNoteFabEnabled) {
+    if (wasAddingMobileNote && this.TemplateBottomSheet != null) {
+      this.addingMobileNote = true;
+      this.setNoteFabVisibility('hidden');
+      // The dialog returned focus to the editor, and restoring it there when the sheet closes would move the
+      // selection out of the selected verse
+      this.bottomSheetRef = this.bottomSheet.open(this.TemplateBottomSheet, {
+        hasBackdrop: false,
+        restoreFocus: false
+      });
+    } else if (wasShowingBottomSheet) {
+      this.showAddCommentButton = true;
+    } else if (this.isInsertNoteFabEnabled) {
       this.setNoteFabVisibility('visible');
       this.positionInsertNoteFab();
     }

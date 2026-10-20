@@ -3032,6 +3032,78 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('hides the bottom sheet while a note dialog is open and restores the unsaved note on mobile viewport', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_1' });
+      env.setCurrentUser('user04');
+      env.wait();
+
+      // Allow check for mobile viewports to return TRUE
+      env.breakpointObserver.matchedResult = true;
+      env.clickSegmentRef('verse_1_3');
+      env.insertNoteFab.nativeElement.click();
+      env.wait();
+      env.component.mobileNoteControl.setValue('unsaved mobile note');
+
+      env.getNoteThreadIconElement('verse_1_3', 'dataid02')!.click();
+      env.wait();
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+      expect(env.mobileNoteTextArea).toBeFalsy();
+      expect(env.bottomSheetVerseReference).toBeFalsy();
+
+      env.mockNoteDialogRef.close();
+      env.wait();
+      expect(env.mobileNoteTextArea).toBeTruthy();
+      expect(env.component.mobileNoteControl.value).toEqual('unsaved mobile note');
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
+
+      // The restored bottom sheet works as before, and the fab is shown again for the still selected verse
+      env.saveMobileNoteButton!.click();
+      env.wait();
+      expect(env.mobileNoteTextArea).toBeFalsy();
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('visible');
+      verify(mockedSFProjectService.createNoteThread('project01', anything())).once();
+
+      env.dispose();
+    }));
+
+    it('hides the bottom sheet while a note dialog is open for commenters on mobile viewport', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.breakpointObserver.matchedResult = true;
+      env.addParatextNoteThread(
+        6,
+        'MAT 1:1',
+        '',
+        { start: 0, length: 0 },
+        ['user01'],
+        NoteStatus.Todo,
+        undefined,
+        true
+      );
+      env.setCommenterUser();
+      env.wait();
+
+      env.clickSegmentRef('verse_1_3');
+      env.wait();
+      expect(env.insertNoteFabMobile).toBeTruthy();
+      env.getNoteThreadIconElement('verse_1_1', 'dataid06')!.click();
+      env.wait();
+      expect(env.bottomSheetVerseReference).toBeFalsy();
+
+      env.mockNoteDialogRef.close();
+      env.wait();
+      // The verse is still selected, so the bottom sheet should be showing its add comment button again
+      expect(env.bottomSheetVerseReference?.textContent).toEqual('Matthew 1:3');
+      expect(env.insertNoteFabMobile).toBeTruthy();
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
+
+      // clean up
+      env.clickSegmentRef('verse_1_3');
+      env.wait();
+      env.dispose();
+    }));
+
     it('shows the correct combined verse ref for a new note', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
