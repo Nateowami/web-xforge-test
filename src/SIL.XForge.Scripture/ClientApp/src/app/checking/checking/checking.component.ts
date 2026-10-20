@@ -535,7 +535,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
             routeBookId === 'all' ? 'all' : queryParams['scope']?.toLowerCase();
 
           // Handle 'ALL' scope being passed as book param
-          const routeBookNum: number | undefined =
+          let routeBookNum: number | undefined =
             routeBookId != null && routeBookId !== 'all' ? Canon.bookIdToNumber(routeBookId) : undefined;
 
           const prevProjectId: string = this.projectDoc == null ? '' : this.projectDoc.id;
@@ -586,6 +586,15 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                     this.onRemovedFromProject();
                   } else if (!this.permissions.canAccessCommunityChecking(this.projectDoc)) {
                     this.onRemovedFromProject();
+                  } else {
+                    this.books = this.projectDoc.data.texts.map(t => t.bookNum).sort((a, b) => a - b);
+                    if (this.book != null && !this.books.includes(this.book)) {
+                      // The current book was removed from the project, e.g. deleted in Paratext. Routing to the
+                      // book without a chapter lets the route handler choose another book.
+                      this.navigateBookChapter(this.projectDoc.id, this.activeQuestionScope!, this.book, undefined, {
+                        replaceUrl: true
+                      });
+                    }
                   }
                 }
               });
@@ -610,6 +619,11 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
           }
 
           this.activeQuestionScope = routeScope;
+
+          // Ignore a route book that is not in the project (e.g. deleted in Paratext) so another book is suggested
+          if (routeBookNum != null && !this.books.includes(routeBookNum)) {
+            routeBookNum = undefined;
+          }
 
           // If book/chapter is specified in route, use routed book/chapter even if it contains no questions
           if (routeBookNum != null && routeChapterNum != null) {
@@ -1688,8 +1702,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
         : undefined;
     let suggestedBookChapter: BookChapter | undefined;
 
-    // Suggest book/chapter from last user selected question
-    if (lastSelected?.bookNum != null && lastSelected.chapterNum != null) {
+    // Suggest book/chapter from last user selected question, unless that book is no longer in the project
+    if (lastSelected?.bookNum != null && lastSelected.chapterNum != null && this.books.includes(lastSelected.bookNum)) {
       // If route book is provided, don't use stored question from a different book
       if (routeBookNum == null || routeBookNum === lastSelected.bookNum) {
         suggestedBookChapter = lastSelected;

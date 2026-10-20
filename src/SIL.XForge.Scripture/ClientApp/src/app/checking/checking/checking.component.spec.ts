@@ -236,6 +236,40 @@ describe('CheckingComponent', () => {
       expect(env.router.url).toContain('MAT/1?scope=book');
     }));
 
+    it('reroutes when the route book is not in the project', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'RUT',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+
+      expect(env.router.url).toContain('MAT/1?scope=chapter');
+    }));
+
+    it('reroutes when the current book is removed from the project', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+      env.component.projectUserConfigDoc!.submitJson0Op(op => {
+        op.set<number>(puc => puc.selectedBookNum!, 43);
+        op.set<number>(puc => puc.selectedChapterNum!, 2);
+      });
+
+      // Remove JHN, as a sync does when the book is deleted in Paratext
+      env.component.projectDoc!.submitJson0Op(op => op.remove(p => p.texts, 0), false);
+      tick();
+      expect(env.component.books).toEqual([40]);
+      expect(env.router.url).toEqual('/projects/project01/checking/JHN?scope=chapter');
+
+      // The last selected book/chapter is in the removed book, so it is not used
+      env.setBookRoute('JHN');
+      expect(env.router.url).toEqual('/projects/project01/checking/MAT/1?scope=chapter');
+    }));
+
     describe('Prev/Next question buttons', () => {
       it('can navigate using next button', fakeAsync(() => {
         const env = new TestEnvironment({ user: ADMIN_USER });
@@ -3418,6 +3452,12 @@ class TestEnvironment {
   setBookChapter(bookId: string, chapter: number): void {
     this.setRouteSnapshot(bookId, chapter.toString(), this.queryParams$.value.scope);
     this.params$.next({ projectId: 'project01', bookId, chapter: chapter.toString() });
+    tick();
+  }
+
+  setBookRoute(bookId: string): void {
+    this.setRouteSnapshot(bookId, undefined, this.queryParams$.value.scope);
+    this.params$.next({ projectId: 'project01', bookId });
     tick();
   }
 
