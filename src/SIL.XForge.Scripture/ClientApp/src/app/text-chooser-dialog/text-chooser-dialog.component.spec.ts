@@ -166,6 +166,14 @@ describe('TextChooserDialogComponent', () => {
     env.closeDialog();
   }));
 
+  it('expands a Japanese selection that starts partway through a word to the whole word', fakeAsync(async () => {
+    // Select '饉', which starts partway through the word '飢饉'
+    const env = new TestEnvironment({ start: 16, end: 17 }, 'verse_1_11', 'verse_1_11');
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('…飢饉… (Matthew 1:11)');
+    env.closeDialog();
+  }));
+
   it('indicates when not all segments of the end verse were selected', fakeAsync(async () => {
     const env = new TestEnvironment({ start: 3, end: TestEnvironment.segmentLen(4) }, 'verse_1_3', 'verse_1_4');
     env.fireSelectionChange();

@@ -77,6 +77,7 @@ export class TextChooserDialogComponent {
   private selectedVerses?: VerseRefData;
   private selectionChanged = false;
   private readonly verseSegmentSelector = 'usx-segment[data-segment^=verse_]';
+  private wordSegmenter: Intl.Segmenter | undefined;
 
   constructor(
     private readonly dialogRef: MatDialogRef<TextChooserDialogComponent>,
@@ -437,7 +438,8 @@ export class TextChooserDialogComponent {
     if (typeof Intl.Segmenter !== 'function') {
       return [];
     }
-    const segments = new Intl.Segmenter(undefined, { granularity: 'word' }).segment(text);
+    this.wordSegmenter ??= new Intl.Segmenter(undefined, { granularity: 'word' });
+    const segments = this.wordSegmenter.segment(text);
     return [...Array.from(segments, segment => segment.index), text.length];
   }
 
