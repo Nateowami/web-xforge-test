@@ -77,8 +77,8 @@ export class TextChooserDialogComponent {
   private selectedVerses?: VerseRefData;
   private selectionChanged = false;
   private readonly verseSegmentSelector = 'usx-segment[data-segment^=verse_]';
-  // Notes and alternate verse numbers (\va) are not part of the scripture text
-  private readonly ignoredElementSelector = 'usx-note, usx-char[data-style~=va]';
+  // Notes, alternate verse numbers (\va) and published verse numbers (\vp) are not part of the scripture text
+  private readonly ignoredElementSelector = 'usx-note, usx-char[data-style~=va], usx-char[data-style~=vp]';
 
   constructor(
     private readonly dialogRef: MatDialogRef<TextChooserDialogComponent>,
@@ -257,6 +257,7 @@ export class TextChooserDialogComponent {
    * - Determines whether the start and end verses were clipped, so that e.g. ellipses can be displayed at the start
    *   and/or end the selection. If only white space was clipped it is not counted as being clipped.
    * - Normalizes whitespace between segments to a single space.
+   * - Collapses the double spaces left where ignored elements (e.g. notes) were removed from the text.
    */
   private expandSelection(
     selection: Selection,
@@ -363,6 +364,9 @@ export class TextChooserDialogComponent {
     result = result
       .substring(startOffset + startTrimLength, result.length - endNodeText.length + endOffset - endTrimLength)
       .trim();
+    // Only now, because the offsets above are positions in the uncollapsed segment text. Only plain spaces are
+    // collapsed, so that e.g. a no-break space is kept.
+    result = result.replace(/ {2,}/g, ' ');
 
     // We want to be able to show ellipses at the start or end of the selection if the selection doesn't start at the
     // beginning or end at the end of a verse. First determine whether the selection, after being trimmed/expanded,

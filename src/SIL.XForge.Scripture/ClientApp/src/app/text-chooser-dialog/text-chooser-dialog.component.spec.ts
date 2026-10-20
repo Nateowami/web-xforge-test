@@ -298,7 +298,7 @@ describe('TextChooserDialogComponent', () => {
     env.closeDialog();
   }));
 
-  it('excludes alternate verse numbers from text content', fakeAsync(() => {
+  it('excludes alternate and published verse numbers from text content', fakeAsync(() => {
     const env = new TestEnvironment();
     const element = env.elementFromHtml(
       '<usx-segment data-segment="verse_1_1">name was <usx-char data-style="va">3</usx-char> Elimelech</usx-segment>'
@@ -308,11 +308,30 @@ describe('TextChooserDialogComponent', () => {
     expect(env.component.textContent(element, dividingNode, 2, false)).toEqual('name was  E');
     expect(env.component.textContent(element, dividingNode, 2, true)).toEqual('limelech');
 
+    const publishedVerseNumber = env.elementFromHtml(
+      '<usx-segment data-segment="verse_1_1">name was <usx-char data-style="vp">3b</usx-char> Elimelech</usx-segment>'
+    );
+    expect(env.component.textContent(publishedVerseNumber)).toEqual('name was  Elimelech');
+
     const otherCharStyle = env.elementFromHtml(
       '<usx-segment data-segment="verse_1_1">name was <usx-char data-style="it">Elimelech</usx-char></usx-segment>'
     );
     expect(env.component.textContent(otherCharStyle)).toEqual('name was Elimelech');
     env.closeDialog();
+  }));
+
+  it('leaves single spaces where alternate and published verse numbers are excluded', fakeAsync(async () => {
+    const env = new TestEnvironment({ start: 0, end: 4 }, 'verse_1_11', 'verse_1_12');
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('name was Elimelech of Bethlehem. next… (Matthew 1:11-12)');
+    env.click(env.saveButton);
+    expect(await env.resultPromise).toEqual({
+      verses: { bookNum: 40, chapterNum: 1, verseNum: 11, verse: '11-12' },
+      text: 'name was Elimelech of Bethlehem. next',
+      startClipped: false,
+      endClipped: true
+    });
+    flush();
   }));
 
   it('calculates range offsets correctly', fakeAsync(() => {
@@ -586,6 +605,14 @@ class TestEnvironment {
     delta.insert({ blank: true }, { segment: 'verse_1_9' });
     delta.insert({ verse: { number: '10', style: 'v' } });
     delta.insert('verse ten', { segment: 'verse_1_10' });
+    delta.insert({ verse: { number: '11', style: 'v' } });
+    delta.insert('name was ', { segment: 'verse_1_11' });
+    delta.insert('3', { segment: 'verse_1_11', char: { style: 'va' } });
+    delta.insert(' Elimelech ', { segment: 'verse_1_11' });
+    delta.insert('11b', { segment: 'verse_1_11', char: { style: 'vp' } });
+    delta.insert(' of Bethlehem.', { segment: 'verse_1_11' });
+    delta.insert({ verse: { number: '12', style: 'v' } });
+    delta.insert('next verse', { segment: 'verse_1_12' });
     return delta;
   }
 
