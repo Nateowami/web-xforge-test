@@ -820,6 +820,71 @@ public class MachineApiServiceTests
     }
 
     [Test]
+    public async Task CancelPreTranslationBuildAsync_DoesNotAddDraftGenerationRequestIdTagWhenNoDraftInProgress()
+    {
+        // Set up test environment with no queued build and no draft in progress, e.g. the last draft has finished
+        var env = new TestEnvironment();
+        env.TranslationEnginesClient.CancelBuildAsync(TranslationEngine01, CancellationToken.None)
+            .Throws(ServalApiExceptions.NoContent);
+
+        using (new Activity("TestActivity").Start())
+        {
+            // SUT
+            await Assert.ThrowsAsync<DataNotFoundException>(() =>
+                env.Service.CancelPreTranslationBuildAsync(User01, Project01, CancellationToken.None)
+            );
+
+            // The latest request may have finished, so the cancellation must not be attributed to it
+            Assert.IsNull(Activity.Current!.GetTagItem(MachineProjectService.DraftGenerationRequestIdKey));
+        }
+
+        await env
+            .EventMetricService.DidNotReceive()
+            .GetEventMetricsAsync(
+                Arg.Any<string?>(),
+                Arg.Any<EventScope[]?>(),
+                Arg.Is<string[]>(t => t.Contains(nameof(MachineApiService.StartPreTranslationBuildAsync))),
+                Arg.Any<DateTime?>(),
+                Arg.Any<DateTime?>(),
+                Arg.Any<int>(),
+                Arg.Any<int>()
+            );
+    }
+
+    [Test]
+    public async Task CancelPreTranslationBuildAsync_CancelsWhenDraftGenerationRequestLookupFails()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+        await env.QueueBuildAsync(Project01, dateTime: DateTime.UtcNow);
+        env.TranslationEnginesClient.CancelBuildAsync(TranslationEngine01, CancellationToken.None)
+            .Throws(ServalApiExceptions.NotFound);
+        env.EventMetricService.GetEventMetricsAsync(
+                Project01,
+                Arg.Any<EventScope[]?>(),
+                Arg.Is<string[]>(t => t.Contains(nameof(MachineApiService.StartPreTranslationBuildAsync))),
+                Arg.Any<DateTime?>(),
+                Arg.Any<DateTime?>(),
+                Arg.Any<int>(),
+                Arg.Any<int>()
+            )
+            .ThrowsAsync(new TimeoutException());
+
+        // SUT
+        string? actual = await env.Service.CancelPreTranslationBuildAsync(User01, Project01, CancellationToken.None);
+
+        // The lookup is only for diagnostics, so the cancellation still succeeds
+        Assert.IsNull(actual);
+        env.BackgroundJobClient.Received(1).ChangeState(HangfireJobId, Arg.Any<DeletedState>(), null); // Same as Delete()
+        Assert.IsNull(env.ProjectSecrets.Get(Project01).ServalData!.PreTranslationJobId);
+        Assert.IsFalse(env.Projects.Get(Project01).TranslateConfig.DraftConfig.DraftInProgress);
+        await env.TranslationEnginesClient.Received(1).CancelBuildAsync(TranslationEngine01, CancellationToken.None);
+        env.MockLogger.AssertHasEvent(logEvent =>
+            logEvent.LogLevel == LogLevel.Warning && logEvent.Exception is TimeoutException
+        );
+    }
+
+    [Test]
     public async Task GetBuildAsync_BuildEnded()
     {
         // Set up test environment
@@ -2142,8 +2207,19 @@ public class MachineApiServiceTests
                                     { MachineProjectService.DraftGenerationRequestIdKey, "orphan-request-1" },
                                 },
                             },
+                            new EventMetric
+                            {
+                                EventType = nameof(MachineApiService.StartPreTranslationBuildAsync),
+                                ProjectId = Project01,
+                                UserId = User01,
+                                TimeStamp = requestedAt,
+                                Tags = new Dictionary<string, BsonValue>
+                                {
+                                    { MachineProjectService.DraftGenerationRequestIdKey, "orphan-request-2" },
+                                },
+                            },
                         ],
-                        UnpagedCount = 2,
+                        UnpagedCount = 3,
                     }
                 )
             );
@@ -2156,13 +2232,23 @@ public class MachineApiServiceTests
             CancellationToken.None
         );
 
-        Assert.AreEqual(1, reports.Count);
-        Assert.IsNull(reports[0].Build);
-        Assert.AreEqual(DraftGenerationBuildStatus.UserRequested, reports[0].Status);
-        Assert.AreEqual("orphan-request-1", reports[0].DraftGenerationRequestId);
-        Assert.AreEqual(User01, reports[0].RequesterSFUserId);
-        Assert.AreEqual(new DateTimeOffset(requestedAt, TimeSpan.Zero), reports[0].Timeline.SFUserRequested);
-        Assert.AreEqual(new DateTimeOffset(cancelledAt, TimeSpan.Zero), reports[0].Timeline.SFUserCancelled);
+        Assert.AreEqual(2, reports.Count);
+
+        // The cancelled request is not expected to have a Serval build
+        ServalBuildReportDto cancelled = reports.Single(r => r.DraftGenerationRequestId == "orphan-request-1");
+        Assert.IsNull(cancelled.Build);
+        Assert.AreEqual(DraftGenerationBuildStatus.Canceled, cancelled.Status);
+        Assert.AreEqual(User01, cancelled.RequesterSFUserId);
+        Assert.AreEqual(new DateTimeOffset(requestedAt, TimeSpan.Zero), cancelled.Timeline.SFUserRequested);
+        Assert.AreEqual(new DateTimeOffset(cancelledAt, TimeSpan.Zero), cancelled.Timeline.SFUserCancelled);
+        Assert.IsEmpty(cancelled.Problems);
+
+        // The request that was not cancelled is missing its Serval build
+        ServalBuildReportDto missing = reports.Single(r => r.DraftGenerationRequestId == "orphan-request-2");
+        Assert.IsNull(missing.Build);
+        Assert.AreEqual(DraftGenerationBuildStatus.UserRequested, missing.Status);
+        Assert.IsNull(missing.Timeline.SFUserCancelled);
+        Assert.AreEqual(BuildReportProblemSeverity.Error, missing.Problems.Single().Severity);
     }
 
     [Test]
