@@ -4,7 +4,7 @@ import { LynxInsightType } from 'realtime-server/lib/esm/scriptureforge/models/l
 import { combineLatest, debounceTime, filter, fromEvent, map, startWith, switchMap } from 'rxjs';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { EditorReadyService } from '../base-services/editor-ready.service';
-import { LynxableEditor, LynxEditor } from '../lynx-editor';
+import { LynxableEditor, LynxEditor, LynxTextModelConverter } from '../lynx-editor';
 import { LynxEditorAdapterFactory } from '../lynx-editor-adapter-factory';
 import { LynxInsight } from '../lynx-insight';
 import { LynxInsightStateService } from '../lynx-insight-state.service';
@@ -25,6 +25,8 @@ export class LynxInsightScrollPositionIndicatorComponent implements OnInit {
   @Input() set editor(value: LynxableEditor | undefined) {
     this.lynxEditor = value == null ? undefined : this.lynxEditorAdapterFactory.getAdapter(value);
   }
+
+  @Input() lynxTextModelConverter?: LynxTextModelConverter;
 
   scrollPositions: LynxInsightScrollPosition[] = [];
 
@@ -68,7 +70,9 @@ export class LynxInsightScrollPositionIndicatorComponent implements OnInit {
 
     if (insight.range != null) {
       const container = editor.getScrollingContainer();
-      const bounds = editor.getBounds(insight.range.index, 1);
+      const editorIndex: number =
+        this.lynxTextModelConverter?.dataRangeToEditorRange(insight.range).index ?? insight.range.index;
+      const bounds = editor.getBounds(editorIndex, 1);
       const absoluteTop = bounds.top + container.scrollTop; // Absolute position (viewport-relative + scroll offset)
       scrollPosition.percent = (absoluteTop / container.scrollHeight) * 100;
     }
