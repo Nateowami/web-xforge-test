@@ -25,8 +25,10 @@
 app-text {
   display: block;
   overflow-y: scroll;
-  // On short viewports (e.g. a phone in landscape) the calc goes to zero or below and would hide the text entirely
-  max-height: max(calc(100vh - 25rem), 10rem);
+  max-height: calc(100vh - 25rem);
+  // On short viewports (e.g. a phone in landscape) the max-height above goes to zero, and flex shrinking would squeeze
+  // the text further. min-height wins over both.
+  min-height: 10rem;
 }
 
 .selection-reference {
@@ -36,6 +38,8 @@ app-text {
 .selection-preview {
   font-family: var(--project-font);
   height: 16em;
+  // Gives up its space to the text on short viewports, but keeps room for a couple of lines of the selection
+  min-height: 3em;
   overflow-y: scroll;
   margin-top: 1em;
   > p {
