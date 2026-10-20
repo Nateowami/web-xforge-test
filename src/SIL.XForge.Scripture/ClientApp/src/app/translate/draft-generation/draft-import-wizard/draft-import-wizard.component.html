@@ -225,7 +225,12 @@
         ></app-display-confidence>
 
         <div class="button-strip">
-          <button matButton="outlined" matStepperPrevious [disabled]="isConnecting || isImporting">
+          <button
+            matButton="outlined"
+            matStepperPrevious
+            data-test-id="step-4-back"
+            [disabled]="isConnecting || isImporting"
+          >
             <mat-icon>chevron_{{ i18n.backwardDirectionWord }}</mat-icon>
             {{ t("back") }}
           </button>
