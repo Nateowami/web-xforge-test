@@ -455,6 +455,7 @@
     "draft_source": "Draft source",
     "failed_to_save_changes": "Failed to save changes.",
     "generate_draft_from_language_model": "Generate draft from language model",
+    "invalid_project_selection": "One of the projects you entered is not valid. Please select a project or resource from the list, or clear the box, before saving.",
     "language_code": "Language code: ",
     "leave_and_discard": "Leave & discard changes",
     "next": "Next",

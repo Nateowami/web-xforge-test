@@ -265,6 +265,37 @@ describe('ConfigureSourcesComponent', () => {
       verify(mockedSFProjectService.onlineUpdateDraftSources(env.activatedProjectDoc.id, anything())).once();
     }));
 
+    it('does not save when a project box contains text that is not a valid project', fakeAsync(() => {
+      const env = new TestEnvironment();
+      tick();
+      env.fixture.detectChanges();
+      env.clickLanguageCodesConfirmationCheckbox();
+      const invalidSelectionMessage = of('invalid project');
+      when(mockedI18nService.translate('draft_sources.invalid_project_selection')).thenReturn(invalidSelectionMessage);
+
+      // The user types something into the second reference project box that does not match any project
+      env.typeInTrainingSourceInput(1, 'not a project');
+      expect(env.component.trainingSources[1]).toBeUndefined();
+
+      // SUT
+      env.component.save();
+      tick();
+      verify(mockedDialogService.message(invalidSelectionMessage)).once();
+      verify(mockedSFProjectService.onlineUpdateDraftSources(anything(), anything())).never();
+
+      // Clearing the box allows the remaining sources to be saved
+      env.typeInTrainingSourceInput(1, '');
+      env.component.save();
+      tick();
+      verify(mockedSFProjectService.onlineUpdateDraftSources(env.activatedProjectDoc.id, anything())).once();
+      const actualDraftSourceConfiguration: DraftSourceConfiguration = capture(
+        mockedSFProjectService.onlineUpdateDraftSources
+      ).last()[1];
+      expect(actualDraftSourceConfiguration.trainingSourcesParatextIds).toEqual([
+        env.activatedProjectDoc.data!.translateConfig.draftConfig.trainingSources[0].paratextId
+      ]);
+    }));
+
     it('can edit second source after first is cleared', fakeAsync(() => {
       const env = new TestEnvironment();
       tick();
@@ -813,6 +844,19 @@ class TestEnvironment {
     checkbox.nativeElement.click();
     tick();
     this.fixture.detectChanges();
+  }
+
+  typeInTrainingSourceInput(index: number, text: string): void {
+    const inputs: DebugElement[] = this.fixture.debugElement.queryAll(
+      By.css('.inputs-source-side app-project-select input')
+    );
+    const input: HTMLInputElement = inputs[index].nativeElement;
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    input.dispatchEvent(new Event('blur'));
+    tick();
+    this.fixture.detectChanges();
+    tick();
   }
 
   private loadingFinished(): void {
