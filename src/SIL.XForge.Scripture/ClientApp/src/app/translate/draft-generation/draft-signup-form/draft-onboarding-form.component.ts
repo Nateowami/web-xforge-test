@@ -18,6 +18,7 @@ import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
 import { NoticeService } from 'xforge-common/notice.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { UserService } from 'xforge-common/user.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { hasStringProp } from '../../../../type-utils';
@@ -147,7 +148,8 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
     protected readonly dialogService: DialogService,
     private readonly destroyRef: DestroyRef,
     private readonly cd: ChangeDetectorRef,
-    private readonly i18n: I18nService
+    private readonly i18n: I18nService,
+    private readonly onlineStatus: OnlineStatusService
   ) {
     super(noticeService, 'DraftOnboardingFormComponent');
   }
@@ -178,6 +180,11 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
 
     // Load available projects and resources
     void this.loadProjectsAndResources();
+
+    // OnPush change detection does not notice connectivity changes on its own
+    this.onlineStatus.onlineStatus$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      this.cd.markForCheck();
+    });
 
     // Set up conditional field listeners
     this.setupConditionalLogic();
@@ -218,7 +225,7 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
 
   async onSubmit(): Promise<void> {
     const projectId = this.activatedProject.projectId;
-    if (projectId == null || this.uiState === 'submitting') return;
+    if (projectId == null || this.uiState === 'submitting' || !this.isOnline) return;
 
     if (await this.checkAndWarnIfAlreadySubmitted()) return;
 
@@ -262,6 +269,10 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
     if (projectId != null) {
       void this.router.navigate(['/projects', projectId, 'draft-generation']);
     }
+  }
+
+  get isOnline(): boolean {
+    return this.onlineStatus.isOnline;
   }
 
   get isEditing(): boolean {
@@ -342,7 +353,8 @@ export class DraftOnboardingFormComponent extends DataLoadingComponent implement
    * Otherwise, resolves to false
    */
   private async checkAndWarnIfAlreadySubmitted(): Promise<boolean> {
-    if (this.activatedProject.projectId == null) return false;
+    // The check needs the server; onSubmit re-runs it, and submitting is blocked until the app is back online
+    if (this.activatedProject.projectId == null || !this.isOnline) return false;
 
     if ((await this.onboardingRequestService.getOpenOnboardingRequest(this.activatedProject.projectId)) == null) {
       return false;
