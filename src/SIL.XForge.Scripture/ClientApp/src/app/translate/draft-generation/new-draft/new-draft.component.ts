@@ -95,6 +95,9 @@ export class NewDraftComponent {
 
   pendingProjects: { projectId: string; name: string }[] = [];
 
+  /** Whether the wizard could not load because the user is offline. Shown on the abort screen. */
+  abortedOffline = false;
+
   // Chapter-input errors per book. Every applicable error is listed at once (one per reason), so a user whose input
   // has several problems doesn't have to discover them one blur at a time.
   draftingChapterErrors = new Map<string, ChapterInputError[]>();
@@ -206,12 +209,19 @@ export class NewDraftComponent {
   }
 
   /**
-   * Anticipated failures (no_access, config_changed, project_syncing) show a blocking abort screen.
+   * Anticipated failures (no_access, config_changed, project_syncing, or failing to load while offline) show a blocking
+   * abort screen.
    * Unanticipated failures go to the app-wide error handler and navigate back so the user isn't stranded.
    */
   private handleAbort(): void {
     const mode = this.logicHandler.abortMode;
     if (mode === 'no_access' || mode === 'config_changed' || mode === 'project_syncing') {
+      this.page = 'abort';
+      return;
+    }
+    // Loading the wizard needs the server, so failing while offline is expected. Say so rather than reporting an error.
+    if (mode === 'init_failure' && !this.onlineStatusService.isOnline) {
+      this.abortedOffline = true;
       this.page = 'abort';
       return;
     }

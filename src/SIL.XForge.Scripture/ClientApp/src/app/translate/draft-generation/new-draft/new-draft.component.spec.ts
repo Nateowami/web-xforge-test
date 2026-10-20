@@ -896,6 +896,16 @@ describe('NewDraftComponent', () => {
       verify(mockedRouter.navigate(deepEqual(['/projects', 'testProjectId', 'draft-generation']))).once();
       expect(env.component.page).not.toEqual('abort');
     }));
+
+    it('shows the offline abort screen instead of an error when initialization fails offline', fakeAsync(() => {
+      const env = new TestEnvironment(testState, { progressError: true, offline: true });
+      tick();
+
+      verify(mockedErrorHandler.handleError(anything())).never();
+      verify(mockedRouter.navigate(anything())).never();
+      expect(env.component.page).toEqual('abort');
+      expect(env.component.abortedOffline).toBe(true);
+    }));
   });
 
   describe('onPendingUpdatesComplete', () => {
