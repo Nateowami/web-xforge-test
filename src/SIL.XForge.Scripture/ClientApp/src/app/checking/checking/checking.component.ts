@@ -1710,10 +1710,12 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
       }
     }
 
-    // Suggest book/chapter from first question (within route book if provided)
+    // Suggest book/chapter from first question (within route book if provided). Skip questions in books that are no
+    // longer in the project, as a sync removes a deleted book before it archives the book's questions.
     if (suggestedBookChapter == null) {
-      const firstQuestionVerseRef: VerseRefData | undefined = this.filterQuestions(this.defaultQuestionsQuery!.docs)[0]
-        ?.data?.verseRef;
+      const firstQuestionVerseRef: VerseRefData | undefined = this.filterQuestions(
+        this.defaultQuestionsQuery!.docs
+      ).find(q => q.data != null && this.books.includes(q.data.verseRef.bookNum))?.data?.verseRef;
 
       if (firstQuestionVerseRef != null) {
         // If route book is provided, don't use question from a different book

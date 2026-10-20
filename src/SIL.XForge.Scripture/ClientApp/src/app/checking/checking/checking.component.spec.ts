@@ -270,6 +270,29 @@ describe('CheckingComponent', () => {
       expect(env.router.url).toEqual('/projects/project01/checking/MAT/1?scope=chapter');
     }));
 
+    it('reroutes past questions of a removed book that are not yet archived', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'MAT',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+      env.component.projectUserConfigDoc!.submitJson0Op(op => {
+        op.set<number>(puc => puc.selectedBookNum!, 40);
+        op.set<number>(puc => puc.selectedChapterNum!, 1);
+      });
+
+      // Remove MAT but leave its question active, as sync archives a deleted book's questions after removing the book.
+      // The MAT question sorts before the JHN questions, so it must be skipped.
+      env.component.projectDoc!.submitJson0Op(op => op.remove(p => p.texts, 1), false);
+      tick();
+      expect(env.component.books).toEqual([43]);
+      expect(env.getQuestionDoc('q16Id').data!.isArchived).toBe(false);
+      expect(env.router.url).toEqual('/projects/project01/checking/MAT?scope=chapter');
+      env.setBookRoute('MAT');
+      expect(env.router.url).toEqual('/projects/project01/checking/JHN/1?scope=chapter');
+    }));
+
     describe('Prev/Next question buttons', () => {
       it('can navigate using next button', fakeAsync(() => {
         const env = new TestEnvironment({ user: ADMIN_USER });
