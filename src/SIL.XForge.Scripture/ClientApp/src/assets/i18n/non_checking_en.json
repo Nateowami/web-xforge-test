@@ -821,6 +821,7 @@
     "connect_network_to_change_settings": "Project settings cannot be changed while offline. Please connect to the internet to make changes.",
     "danger_zone": "Danger Zone",
     "delete_project_cannot_be_undone": "Once you delete a project, there is no going back. Please be certain.",
+    "delete_project_failed_offline": "The project could not be deleted because Scripture Forge could not reach the server. Please check your internet connection and try again.",
     "delete_this_project": "Delete this project",
     "email_invitations_only": "Email invitations only",
     "enable_community_checking": "Enable Community Checking",

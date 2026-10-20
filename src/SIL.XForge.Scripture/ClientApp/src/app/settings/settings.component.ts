@@ -19,6 +19,7 @@ import { combineLatest, firstValueFrom } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { AuthService } from 'xforge-common/auth.service';
+import { isNetworkError } from 'xforge-common/command.service';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ExternalUrlService } from 'xforge-common/external-url.service';
@@ -311,7 +312,18 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
         const user: UserDoc = await this.userService.getCurrentUser();
         await this.userService.setCurrentProjectId(user, undefined);
         if (this.projectDoc != null) {
-          await this.projectService.onlineDelete(this.projectDoc.id);
+          try {
+            await this.projectService.onlineDelete(this.projectDoc.id);
+          } catch (error) {
+            // The current project was cleared above so that the deletion is not reported as a remote deletion.
+            // Restore it, since the project has not been deleted.
+            await this.userService.setCurrentProjectId(user, this.projectDoc.id);
+            if (isNetworkError(error) || !this._isAppOnline) {
+              this.noticeService.showError(this.i18n.translateStatic('settings.delete_project_failed_offline'));
+              return;
+            }
+            throw error;
+          }
           void this.router.navigateByUrl('/projects', { replaceUrl: true });
         }
       }

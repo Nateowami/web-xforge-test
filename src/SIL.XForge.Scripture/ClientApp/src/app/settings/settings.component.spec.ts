@@ -20,6 +20,7 @@ import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/mode
 import { of } from 'rxjs';
 import { anything, deepEqual, instance, mock, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { createTestFeatureFlag, FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -662,6 +663,36 @@ describe('SettingsComponent', () => {
       verify(mockedUserService.setCurrentProjectId(anything(), undefined)).once();
       verify(mockedSFProjectService.onlineDelete(anything())).once();
       expect(env.location.path()).toEqual('/projects');
+    }));
+
+    it('should keep the current project and explain if the delete request cannot reach the server', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject();
+      env.setDialogResponse(true);
+      // The service worker answers a request it cannot send with 504 Gateway Timeout
+      when(mockedSFProjectService.onlineDelete(anything())).thenReject(
+        new CommandError(CommandErrorCode.Other, 'Error invoking delete: 504 Gateway Timeout')
+      );
+      env.wait();
+      const pathBefore: string = env.location.path();
+      env.clickElement(env.deleteProjectButton);
+      verify(mockedUserService.setCurrentProjectId(anything(), undefined)).once();
+      verify(mockedUserService.setCurrentProjectId(anything(), 'project01')).once();
+      verify(mockedNoticeService.showError(anything())).once();
+      expect(env.location.path()).toEqual(pathBefore);
+    }));
+
+    it('should keep the current project and rethrow if the server rejects the delete', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject();
+      env.setDialogResponse(true);
+      when(mockedSFProjectService.onlineDelete(anything())).thenReject(
+        new CommandError(CommandErrorCode.Forbidden, 'Error invoking delete: Forbidden')
+      );
+      env.wait();
+      expect(() => env.clickElement(env.deleteProjectButton)).toThrowError(/Forbidden/);
+      verify(mockedUserService.setCurrentProjectId(anything(), 'project01')).once();
+      verify(mockedNoticeService.showError(anything())).never();
     }));
 
     it('should not delete project if user cancels', fakeAsync(() => {
