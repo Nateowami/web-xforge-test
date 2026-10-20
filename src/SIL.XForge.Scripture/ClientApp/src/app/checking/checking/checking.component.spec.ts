@@ -2578,6 +2578,30 @@ describe('CheckingComponent', () => {
       expect(env.currentQuestion).toBe(4);
     }));
 
+    it('can select a question on the end verse of a combined verse from the text', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: ADMIN_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+      env
+        .getQuestionDoc('q6Id')
+        .submitJson0Op(op => op.set(q => q.verseRef, { bookNum: 43, chapterNum: 1, verseNum: 6, verse: '6' }));
+      env.realtimeService.updateQueryAdaptersRemote();
+      tick(100);
+      env.fixture.detectChanges();
+      expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).not.toEqual('q6Id');
+
+      // A Paratext project with verses 5 and 6 combined has a single segment, verse_1_5-6
+      env.ngZone.run(() => env.component.verseRefClicked(new VerseRef('JHN', '1', '5-6')));
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).toEqual('q6Id');
+      env.waitForQuestionTimersToComplete();
+    }));
+
     it('quill editor element lang attribute is set from project language', fakeAsync(() => {
       const env = new TestEnvironment({ user: CHECKER_USER });
       env.waitForAudioPlayer();

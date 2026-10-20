@@ -1146,6 +1146,9 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     }
 
     let bestMatch: QuestionDoc | undefined;
+    // The clicked segment may be a combined verse (e.g. 1-2), so match questions on any verse it covers
+    const clickedVerses: VerseRef[] = verseRef.allVerses(true);
+    const clickedEndVerseNum: number = clickedVerses[clickedVerses.length - 1].verseNum;
 
     for (const questionDoc of this.visibleQuestions ?? []) {
       const questionVerseRef = questionDoc.data == null ? undefined : toVerseRef(questionDoc.data.verseRef);
@@ -1157,7 +1160,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
         break;
       } else if (
         questionVerseRef.chapterNum === verseRef.chapterNum &&
-        questionVerseRef.verseNum <= verseRef.verseNum
+        questionVerseRef.verseNum <= clickedEndVerseNum
       ) {
         const allVerses = questionVerseRef.allVerses(true);
         const endRef = allVerses[allVerses.length - 1];
