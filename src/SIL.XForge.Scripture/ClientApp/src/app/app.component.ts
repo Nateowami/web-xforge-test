@@ -504,6 +504,9 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   }
 
   private async showProjectDeletedDialog(): Promise<void> {
+    // Any open dialog belongs to the project the user can no longer access. MatDialog only closes dialogs on browser
+    // history navigation (back/forward), not on the router navigation below, so close them explicitly.
+    this.dialogService.closeAll();
     await this.userService.setCurrentProjectId(this.currentUserDoc!, undefined);
     // Leave the project before telling the user about it. If we wait for the dialog to be dismissed, the project's
     // components stay alive behind it and keep polling the API for a project that no longer exists.

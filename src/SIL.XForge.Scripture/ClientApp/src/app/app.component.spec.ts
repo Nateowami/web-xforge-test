@@ -318,6 +318,7 @@ describe('AppComponent', () => {
     expect(env.selectedProjectId).toEqual('project01');
     // SUT
     env.deleteProject('project01', false);
+    verify(mockedDialogService.closeAll()).once();
     verify(mockedDialogService.message(anything())).once();
     verify(mockedUserService.setCurrentProjectId(anything(), undefined)).once();
     // Get past setTimeout to navigation
@@ -370,6 +371,17 @@ describe('AppComponent', () => {
     // Get past setTimeout to navigation
     tick();
     expect(env.location.path()).toEqual('/projects');
+  }));
+
+  it('closes open dialogs before showing the message when removed from project', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.navigate(['/projects', 'project01']);
+    env.init();
+
+    env.removeUserFromProject('project01');
+    tick();
+    verify(mockedDialogService.closeAll()).once();
+    verify(mockedDialogService.closeAll()).calledBefore(mockedDialogService.message(anything()));
   }));
 
   it('response to remote project change for serval admin', fakeAsync(() => {

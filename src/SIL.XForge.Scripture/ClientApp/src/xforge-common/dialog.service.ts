@@ -110,6 +110,11 @@ export class DialogService {
     return this.matDialog.openDialogs.length;
   }
 
+  /** Closes every open dialog, e.g. when the project they belong to is no longer accessible. */
+  closeAll(): void {
+    this.matDialog.closeAll();
+  }
+
   /**
    * @param value A string that is a translation key, or an Observable<string>
    * @returns `value` if it is an Observable, or an Observable for a translation with `value` as the localization key.
