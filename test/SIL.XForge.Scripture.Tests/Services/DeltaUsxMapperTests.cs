@@ -2102,6 +2102,41 @@ public class DeltaUsxMapperTests
         Assert.IsTrue(chapterDeltas[0].Delta.DeepEquals(expected));
     }
 
+    [TestCase("a")]
+    [TestCase("QA")]
+    [TestCase("2a")]
+    [TestCase("3-4")]
+    public void ToDelta_VerseWithAltNumber_IsValid(string altNumber)
+    {
+        // Paratext writes \v 1 \va a\va* as an altnumber attribute, and accepts any text there
+        XElement verse = Verse("1");
+        verse.Add(new XAttribute("altnumber", altNumber));
+        XDocument usxDoc = Usx("PHM", Chapter("1"), Para("p", verse, "Verse text."));
+
+        var mapper = new DeltaUsxMapper(_mapperGuidService, _logger, _exceptionHandler);
+        List<ChapterDelta> chapterDeltas = [.. mapper.ToChapterDeltas(usxDoc)];
+
+        var expected = Delta
+            .New()
+            .InsertBook("PHM")
+            .InsertChapter("1")
+            .InsertBlank("p_1")
+            .InsertEmbed(
+                "verse",
+                new JObject(
+                    new JProperty("number", "1"),
+                    new JProperty("style", "v"),
+                    new JProperty("altnumber", altNumber)
+                )
+            )
+            .InsertText("Verse text.", "verse_1_1")
+            .InsertPara("p");
+
+        Assert.That(chapterDeltas[0].IsValid, Is.True);
+        Assert.IsTrue(chapterDeltas[0].Delta.DeepEquals(expected));
+        Assert.IsTrue(XNode.DeepEquals(mapper.ToUsx(usxDoc, chapterDeltas), usxDoc));
+    }
+
     [Test]
     public void ToDelta_DoublyInvalidInline()
     {

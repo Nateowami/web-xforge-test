@@ -470,7 +470,8 @@ Verse =
     element verse {
         attribute number { xsd:string { minLength = "1" pattern = "[0-9]+\w?(\x{200F}?[\-,][0-9]+\w?)*" } },
         attribute style { "v" },
-        attribute altnumber { xsd:string { minLength = "1" pattern = "[0-9]+\w?(\x{200F}?[\-,:][0-9]+\w?)*" } }?,
+        # Paratext accepts any text in \va (e.g. "a"), so the alternate verse number is not restricted to digits
+        attribute altnumber { xsd:string { minLength = "1" } }?,
         attribute pubnumber { xsd:string { minLength = "1" } }?,
         attribute sid { xsd:string { pattern = "[A-Z1-4]{3} ?[a-z0-9\-,:]*" } }?,
         attribute eid { xsd:string { pattern = "[A-Z1-4]{3} ?[a-z0-9\-,:]*" } }?,
