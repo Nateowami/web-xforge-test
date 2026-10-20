@@ -2902,6 +2902,34 @@ describe('CheckingComponent', () => {
       expect(env.isSegmentHighlighted(1, 6)).toBe(true);
     }));
 
+    it('keeps the highlighted verse when resuming paused chapter audio', fakeAsync(() => {
+      const env = new TestEnvironment({ user: CHECKER_USER });
+      env.selectQuestion(1);
+      env.component.toggleAudio();
+      env.fixture.detectChanges();
+
+      let isPlaying = true;
+      const audio = mock(CheckingScriptureAudioPlayerComponent);
+      when(audio.isPlaying).thenCall(() => isPlaying);
+      when(audio.play()).thenCall(() => (isPlaying = true));
+      env.component.scriptureAudioPlayer = instance(audio);
+      env.component.highlightSegments('verse_1_2-3');
+      env.waitForSliderUpdate();
+      expect(env.isSegmentHighlighted(1, 2)).toBe(true);
+      const highlightedVerse: string | undefined = env.component.scripturePanel!.activeVerse?.toString();
+      expect(highlightedVerse).toContain('1:2-3');
+
+      // Paused from the player's own controls, then resumed with the play button in the toolbar
+      isPlaying = false;
+      env.component.toggleAudio();
+      env.waitForSliderUpdate();
+
+      expect(env.component.showScriptureAudioPlayer).toBe(true);
+      expect(env.component.scripturePanel!.activeVerse?.toString()).toEqual(highlightedVerse);
+      expect(env.isSegmentHighlighted(1, 2)).toBe(true);
+      expect(env.isSegmentHighlighted(1, 3)).toBe(true);
+    }));
+
     // TODO: Get this test working
     xit('pauses audio on reload (changing book)', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER, questionScope: 'book' });
