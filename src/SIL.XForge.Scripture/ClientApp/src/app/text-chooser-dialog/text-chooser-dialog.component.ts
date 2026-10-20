@@ -327,9 +327,13 @@ export class TextChooserDialogComponent {
       // Finally we have to subtract startOffset from the result, because startTrimLength is relative to the start of
       // the selection, not the start of the segment. This will result in a negative value for startTrimLength, meaning
       // add to the start, rather than trim.
-      startTrimLength =
-        /[\s\S]*(?:\u200B|\b|\s|^)(?=[\s\S])/.exec(startNodeText.substring(0, startOffset + 1))![0].length -
-        startOffset;
+      // The regex finds no boundaries in scripts that don't separate words with spaces (e.g. Japanese), so also use
+      // the closest word boundary found by the browser's word segmenter.
+      const wordStart = Math.max(
+        /[\s\S]*(?:\u200B|\b|\s|^)(?=[\s\S])/.exec(startNodeText.substring(0, startOffset + 1))![0].length,
+        ...this.wordBoundaries(startNodeText).filter(boundary => boundary <= startOffset)
+      );
+      startTrimLength = wordStart - startOffset;
     }
     // Trim any whitespace from the right side of the selection
     let endTrimLength = endText.length - endText.trimEnd().length;
@@ -345,7 +349,12 @@ export class TextChooserDialogComponent {
       // endNodeText.substring(endOffset - 1)
       // This yields the number of chars to expand beyond the end of the selection, which is made negative to create
       // a negative trim length.
-      endTrimLength = -endNodeText.substring(endOffset - 1).search(/[\s\S](?:\u200B|\b|\s|$)/);
+      // As above, also use the closest boundary found by the word segmenter.
+      const wordEnd = Math.min(
+        endOffset + endNodeText.substring(endOffset - 1).search(/[\s\S](?:\u200B|\b|\s|$)/),
+        ...this.wordBoundaries(endNodeText).filter(boundary => boundary >= endOffset)
+      );
+      endTrimLength = endOffset - wordEnd;
     }
 
     // Set result to the complete text of all segments in the selection. This is the first segment, plus any segments
@@ -421,6 +430,15 @@ export class TextChooserDialogComponent {
       lastVerseNum,
       result
     };
+  }
+
+  /** Gets the indexes at which words start or end in the text, according to the browser's Unicode word segmenter. */
+  private wordBoundaries(text: string): number[] {
+    if (typeof Intl.Segmenter !== 'function') {
+      return [];
+    }
+    const segments = new Intl.Segmenter(undefined, { granularity: 'word' }).segment(text);
+    return [...Array.from(segments, segment => segment.index), text.length];
   }
 
   private getVerseFromElement(element: Element): number {

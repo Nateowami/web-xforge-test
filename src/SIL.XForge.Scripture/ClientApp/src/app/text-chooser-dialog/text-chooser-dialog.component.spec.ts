@@ -150,6 +150,22 @@ describe('TextChooserDialogComponent', () => {
     env.closeDialog();
   }));
 
+  it('expands the selection to whole words in Japanese', fakeAsync(async () => {
+    // Select from after the comma to the end of the sentence
+    const env = new TestEnvironment({ start: 13, end: 22 }, 'verse_1_11', 'verse_1_11');
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('…国に飢饉があった。… (Matthew 1:11)');
+    env.closeDialog();
+  }));
+
+  it('expands a partial Japanese word selection to the whole word', fakeAsync(async () => {
+    // Select 'に飢', which ends partway through the word '飢饉'
+    const env = new TestEnvironment({ start: 14, end: 16 }, 'verse_1_11', 'verse_1_11');
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('…に飢饉… (Matthew 1:11)');
+    env.closeDialog();
+  }));
+
   it('indicates when not all segments of the end verse were selected', fakeAsync(async () => {
     const env = new TestEnvironment({ start: 3, end: TestEnvironment.segmentLen(4) }, 'verse_1_3', 'verse_1_4');
     env.fireSelectionChange();
@@ -569,6 +585,8 @@ class TestEnvironment {
     delta.insert({ blank: true }, { segment: 'verse_1_9' });
     delta.insert({ verse: { number: '10', style: 'v' } });
     delta.insert('verse ten', { segment: 'verse_1_10' });
+    delta.insert({ verse: { number: '11', style: 'v' } });
+    delta.insert('士師が世を治めていたころ、国に飢饉があった。そこで、ある人が', { segment: 'verse_1_11' });
     return delta;
   }
 
