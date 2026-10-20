@@ -5,16 +5,19 @@ import { Router } from '@angular/router';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { TextInfoPermission } from 'realtime-server/lib/esm/scriptureforge/models/text-info-permission';
+import { DeltaOperation } from 'rich-text';
 import { of, Subscription } from 'rxjs';
 import { anything, capture, mock, verify, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
 import { SFProjectProfileDoc } from '../../../core/models/sf-project-profile-doc';
 import { BuildDto } from '../../../machine-api/build-dto';
+import { DraftHandlingService } from '../draft-handling.service';
 import { DraftPreviewBooksComponent } from './draft-preview-books.component';
 
 const mockedActivatedProjectService = mock(ActivatedProjectService);
 const mockedRouter = mock(Router);
+const mockedDraftHandlingService = mock(DraftHandlingService);
 
 describe('DraftPreviewBooks', () => {
   let env: TestEnvironment;
@@ -23,7 +26,8 @@ describe('DraftPreviewBooks', () => {
     imports: [getTestTranslocoModule()],
     providers: [
       { provide: ActivatedProjectService, useMock: mockedActivatedProjectService },
-      { provide: Router, useMock: mockedRouter }
+      { provide: Router, useMock: mockedRouter },
+      { provide: DraftHandlingService, useMock: mockedDraftHandlingService }
     ]
   }));
 
@@ -95,6 +99,69 @@ describe('DraftPreviewBooks', () => {
     expect(url).toEqual(['/projects', 'project01', 'translate', 'GEN', '2']);
   }));
 
+  it('navigates to the first chapter with drafted verses for a whole-book draft', fakeAsync(() => {
+    // The source only had text in chapter 3, but the whole book was drafted, so chapters 1 and 2 have only the book
+    // heading and the AI-generated remark, with blank verses.
+    env = new TestEnvironment({ draftedScriptureRange: 'GEN' });
+    when(mockedDraftHandlingService.getBookDraft(anything(), anything())).thenResolve(
+      new Map([
+        ['1', [...TestEnvironment.bookHeadingOps, ...TestEnvironment.chapterOps(1, '')]],
+        ['2', TestEnvironment.chapterOps(2, '')],
+        ['3', TestEnvironment.chapterOps(3, 'In the beginning')]
+      ])
+    );
+
+    env.getBookButtonAtIndex(0).click();
+    tick();
+    env.fixture.detectChanges();
+
+    const [url] = capture(mockedRouter.navigate).first();
+    expect(url).toEqual(['/projects', 'project01', 'translate', 'GEN', '3']);
+    const [textDocId, options] = capture(mockedDraftHandlingService.getBookDraft).last();
+    expect(textDocId.bookNum).toBe(1);
+    expect(options.timestamp).toBeUndefined();
+  }));
+
+  it('looks for drafted verses in the draft of the build being previewed', fakeAsync(() => {
+    const dateGenerated = '2026-10-14T06:37:16.000Z';
+    env = new TestEnvironment({
+      build: {
+        additionalInfo: {
+          dateGenerated,
+          translationScriptureRanges: [{ projectId: 'project01', scriptureRange: 'GEN' }]
+        }
+      } as BuildDto
+    });
+    when(mockedDraftHandlingService.getBookDraft(anything(), anything())).thenResolve(
+      new Map([
+        ['1', TestEnvironment.chapterOps(1, '')],
+        ['2', TestEnvironment.chapterOps(2, 'In the beginning')]
+      ])
+    );
+
+    env.getBookButtonAtIndex(0).click();
+    tick();
+    env.fixture.detectChanges();
+
+    const [url, extras] = capture(mockedRouter.navigate).first();
+    expect(url).toEqual(['/projects', 'project01', 'translate', 'GEN', '2']);
+    expect(extras).toEqual({ queryParams: { 'draft-active': true, 'draft-timestamp': dateGenerated } });
+    const [, options] = capture(mockedDraftHandlingService.getBookDraft).last();
+    expect(options.timestamp).toEqual(new Date(dateGenerated));
+  }));
+
+  it('does not fetch the draft when the drafted chapters are known', fakeAsync(() => {
+    env = new TestEnvironment({ draftedScriptureRange: 'GEN2-3' });
+
+    env.getBookButtonAtIndex(0).click();
+    tick();
+    env.fixture.detectChanges();
+
+    const [url] = capture(mockedRouter.navigate).first();
+    expect(url).toEqual(['/projects', 'project01', 'translate', 'GEN', '2']);
+    verify(mockedDraftHandlingService.getBookDraft(anything(), anything())).never();
+  }));
+
   it('does not show a chapter range when the whole book was drafted', fakeAsync(() => {
     // Genesis has 50 chapters; all 50 were drafted, so it is a whole-book draft and no range is shown.
     env = new TestEnvironment({
@@ -144,7 +211,34 @@ class TestEnvironment {
     })
   } as SFProjectProfileDoc;
 
+  /** The ops before the first chapter marker, which are in the draft of chapter 1. */
+  static readonly bookHeadingOps: DeltaOperation[] = [
+    { insert: '- Source Project', attributes: { segment: 'id_1' } },
+    { insert: '\n', attributes: { book: { code: 'GEN', style: 'id' } } }
+  ];
+
+  /** The draft of a chapter with two verses, each with the given text, or blank if the text is empty. */
+  static chapterOps(chapter: number, verseText: string): DeltaOperation[] {
+    const verseOps = (verse: number): DeltaOperation[] => [
+      { insert: { verse: { number: `${verse}`, style: 'v' } } },
+      {
+        insert: verseText === '' ? { blank: true } : verseText,
+        attributes: { segment: `verse_${chapter}_${verse}` }
+      }
+    ];
+    return [
+      { insert: { chapter: { number: `${chapter}`, style: 'c' } } },
+      { insert: `This draft of GEN ${chapter} was generated by AI.`, attributes: { segment: 'rem_1' } },
+      { insert: '\n', attributes: { para: { style: 'rem' } } },
+      { insert: { blank: true }, attributes: { segment: 'p_1' } },
+      ...verseOps(1),
+      ...verseOps(2),
+      { insert: '\n', attributes: { para: { style: 'p' } } }
+    ];
+  }
+
   constructor({ build, draftedScriptureRange }: { build?: BuildDto; draftedScriptureRange?: string } = {}) {
+    when(mockedDraftHandlingService.getBookDraft(anything(), anything())).thenResolve(new Map());
     if (draftedScriptureRange != null) {
       this.mockProjectDoc.data!.translateConfig.draftConfig.draftedScriptureRange = draftedScriptureRange;
     }
