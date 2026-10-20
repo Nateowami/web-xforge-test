@@ -1594,6 +1594,32 @@ describe('CheckingComponent', () => {
       flush();
     }));
 
+    it('does not highlight already read answers on the question shown when the page opens', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        checkerProjectUserConfig: { selectedQuestionRef: 'project01:q9Id', answerRefsRead: ['a0Id', 'a1Id'] }
+      });
+      expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).withContext('setup').toBe('q9Id');
+      env.fixture.detectChanges();
+      const otherAnswerIndex = 1;
+      expect(env.getAnswerText(otherAnswerIndex)).withContext('setup').toBe('Answer 1 on question');
+      expect(env.getAnswer(otherAnswerIndex).classes['attention']).toBeUndefined();
+      flush();
+    }));
+
+    it('highlights unread answers on the question shown when the page opens', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        checkerProjectUserConfig: { selectedQuestionRef: 'project01:q9Id', answerRefsRead: ['a0Id'] }
+      });
+      expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).withContext('setup').toBe('q9Id');
+      env.fixture.detectChanges();
+      const otherAnswerIndex = 1;
+      expect(env.getAnswerText(otherAnswerIndex)).withContext('setup').toBe('Answer 1 on question');
+      expect(env.getAnswer(otherAnswerIndex).classes['attention']).toBe(true);
+      flush();
+    }));
+
     it('does not reload answer audio when a comment is added remotely', fakeAsync(() => {
       const env = new TestEnvironment({ user: CHECKER_USER });
       env.selectQuestion(9);
@@ -3011,6 +3037,7 @@ class TestEnvironment {
     questionScope?: QuestionScope;
     hasConnection?: boolean;
     testProject?: SFProject;
+    checkerProjectUserConfig?: Partial<SFProjectUserConfig>;
   }) {
     const { user, testProject, questionScope = 'book', hasConnection = true } = options;
     const projectBookRoute = 'projectBookRoute' in options ? options.projectBookRoute : 'JHN';
@@ -3029,6 +3056,9 @@ class TestEnvironment {
 
     if (testProject != null) {
       this.testProject = testProject;
+    }
+    if (options.checkerProjectUserConfig != null) {
+      Object.assign(this.checkerProjectUserConfig, options.checkerProjectUserConfig);
     }
 
     when(mockedUserService.editDisplayName(true)).thenResolve();

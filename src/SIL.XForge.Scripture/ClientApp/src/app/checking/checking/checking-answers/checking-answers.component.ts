@@ -118,7 +118,6 @@ export class CheckingAnswersComponent implements OnInit {
   @ViewChild(CheckingInputFormComponent) answerInput?: CheckingInputFormComponent;
   @ViewChildren(CheckingCommentsComponent) allComments?: QueryList<CheckingCommentsComponent>;
   @ViewChild(CheckingQuestionComponent) questionComponent?: CheckingQuestionComponent;
-  @Input() projectUserConfigDoc?: SFProjectUserConfigDoc;
   @Input() textsByBookId?: TextsByBookId;
   @Input() checkingTextComponent?: CheckingTextComponent;
   @Output() action: EventEmitter<AnswerAction> = new EventEmitter<AnswerAction>();
@@ -139,6 +138,7 @@ export class CheckingAnswersComponent implements OnInit {
   private _answersToShow: string[] = [];
   private _projectProfileDoc?: SFProjectProfileDoc;
   private _questionDoc?: QuestionDoc;
+  private _projectUserConfigDoc?: SFProjectUserConfigDoc;
   private userAnswerRefsRead: string[] = [];
   private fileSources: Map<string, string | undefined> = new Map<string, string | undefined>();
   /** If the user has recently added or edited their answer since opening up the question. */
@@ -181,14 +181,23 @@ export class CheckingAnswersComponent implements OnInit {
     this.setProjectAdmin();
   }
 
+  @Input() set projectUserConfigDoc(projectUserConfigDoc: SFProjectUserConfigDoc | undefined) {
+    this._projectUserConfigDoc = projectUserConfigDoc;
+    // This input can be set after questionDoc (e.g. when this component is first created), so the answers the user has
+    // already read must be captured here too, or every answer from another user is highlighted as unread.
+    this.updateUserAnswerRefsRead();
+    this.refreshAnswersHighlightStatus();
+  }
+  get projectUserConfigDoc(): SFProjectUserConfigDoc | undefined {
+    return this._projectUserConfigDoc;
+  }
+
   @Input() set questionDoc(questionDoc: QuestionDoc | undefined) {
     if (questionDoc !== this._questionDoc) {
       this.hideAnswerForm();
     }
     this._questionDoc = questionDoc;
-    if (this.projectUserConfigDoc != null && this.projectUserConfigDoc.data != null) {
-      this.userAnswerRefsRead = cloneDeep(this.projectUserConfigDoc.data.answerRefsRead);
-    }
+    this.updateUserAnswerRefsRead();
 
     this.showRemoteAnswers();
     if (questionDoc == null) {
@@ -370,7 +379,7 @@ export class CheckingAnswersComponent implements OnInit {
       return;
     }
     // update read answers list so when the answers are rendered again after editing they won't be shown as unread
-    this.userAnswerRefsRead = cloneDeep(this.projectUserConfigDoc.data.answerRefsRead);
+    this.updateUserAnswerRefsRead();
     this.activeAnswer = cloneDeep(answer);
     if (this.activeAnswer.verseRef != null) {
       this.verseRef = toVerseRef(this.activeAnswer.verseRef);
@@ -633,6 +642,13 @@ export class CheckingAnswersComponent implements OnInit {
     } else if (this.fileSources.get(audioUrl) == null) {
       // Reuse any existing object URL, since a new one would stop the audio if it is playing
       this.fileSources.set(audioUrl, URL.createObjectURL(audio));
+    }
+  }
+
+  /** Captures which answers the user has read, so that answers marked read while being viewed stay highlighted. */
+  private updateUserAnswerRefsRead(): void {
+    if (this.projectUserConfigDoc?.data != null) {
+      this.userAnswerRefsRead = cloneDeep(this.projectUserConfigDoc.data.answerRefsRead);
     }
   }
 
