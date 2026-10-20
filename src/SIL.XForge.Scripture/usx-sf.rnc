@@ -120,6 +120,22 @@ BookIdentification.book.code.enum = (
      | "REP" # Reproof
      | "4BA" # 4 Baruch
      | "LAO" # Laodiceans
+     # Peripheral books. Their \periph divisions are not supported, so only peripheral books without them are editable.
+     | "XXA" # Extra A, e.g. a hymnal
+     | "XXB" # Extra B
+     | "XXC" # Extra C
+     | "XXD" # Extra D
+     | "XXE" # Extra E
+     | "XXF" # Extra F
+     | "XXG" # Extra G
+     | "FRT" # Front Matter
+     | "BAK" # Back Matter
+     | "OTH" # Other Matter
+     | "INT" # Introduction
+     | "CNC" # Concordance
+     | "GLO" # Glossary
+     | "TDX" # Topical Index
+     | "NDX" # Names Index
      )
 
 Para =
