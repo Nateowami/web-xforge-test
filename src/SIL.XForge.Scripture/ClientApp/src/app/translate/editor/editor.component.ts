@@ -1540,7 +1540,6 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       data: noteDialogData
     });
 
-    const currentVerseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
     this.setNoteFabVisibility('hidden');
     const result: NoteDialogResult | undefined = await lastValueFrom(dialogRef.afterClosed());
 
@@ -1550,7 +1549,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           content: result.noteContent,
           threadDataId: threadDataId,
           dataId: result.noteDataId,
-          verseRef: currentVerseRef,
+          // Save a new thread to the verse the dialog showed. insertNote() may have fallen back to the first verse
+          // of the chapter when no verse was selected.
+          verseRef,
           status: result.status
         });
       }
