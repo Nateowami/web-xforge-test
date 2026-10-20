@@ -2223,6 +2223,27 @@ describe('CheckingComponent', () => {
         flush();
       }));
 
+      it('closes the comment edit form when the comment is deleted remotely', fakeAsync(() => {
+        const env = new TestEnvironment({ user: CHECKER_USER });
+        env.selectQuestion(1);
+        env.answerQuestion('Answer question to be commented on');
+        env.commentOnAnswer(0, 'Response to answer');
+        env.waitForSliderUpdate();
+        env.clickButton(env.getEditCommentButton(0, 0));
+        expect(env.getYourCommentField(0)).not.toBeNull();
+        expect(env.getAddCommentButton(0)).toBeNull();
+
+        env.component.questionsList!.activeQuestionDoc!.submitJson0Op(
+          op => op.set(q => q.answers[0].comments[0].deleted, true),
+          false
+        );
+        env.waitForSliderUpdate();
+        expect(env.getAnswerComments(0).length).toBe(0);
+        expect(env.getYourCommentField(0)).toBeNull();
+        expect(env.getAddCommentButton(0)).not.toBeNull();
+        flush();
+      }));
+
       it('can record audio for a comment', fakeAsync(() => {
         const env = new TestEnvironment({ user: CHECKER_USER });
         env.selectQuestion(1);
