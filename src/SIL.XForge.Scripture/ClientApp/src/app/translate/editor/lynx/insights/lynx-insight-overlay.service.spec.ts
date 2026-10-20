@@ -161,6 +161,39 @@ describe('LynxInsightOverlayService', () => {
     }));
   });
 
+  describe('editor scrolling', () => {
+    it('should reposition overlay when editor scrolls', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.openOverlay();
+      env.attachScrollStrategy();
+
+      env.scrollEditorWithOriginAt({ top: 100, bottom: 120 });
+
+      verify(env.getOverlayRefMock().updatePosition()).once();
+    }));
+
+    it('should hide overlay while its origin is scrolled out of the editor view', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.openOverlay();
+      env.attachScrollStrategy();
+
+      // Default container rect spans top 0 to bottom 600
+      env.scrollEditorWithOriginAt({ top: 100, bottom: 120 });
+      expect(env.getOverlayElement().style.visibility).toBe('');
+
+      env.scrollEditorWithOriginAt({ top: 610, bottom: 630 });
+      expect(env.getOverlayElement().style.visibility).toBe('hidden');
+
+      env.scrollEditorWithOriginAt({ top: -30, bottom: -10 });
+      expect(env.getOverlayElement().style.visibility).toBe('hidden');
+
+      // Shown again once the origin is scrolled back into view, even partially
+      env.scrollEditorWithOriginAt({ top: 590, bottom: 610 });
+      expect(env.getOverlayElement().style.visibility).toBe('');
+      expect(env.service.isOpen).toBeTrue();
+    }));
+  });
+
   describe('direction handling', () => {
     it('should use rtl i18n direction when creating overlay config', fakeAsync(() => {
       const env = new TestEnvironment();
@@ -196,6 +229,7 @@ class TestEnvironment {
   }> = [];
 
   private containerElement: HTMLElement;
+  private readonly origin: HTMLElement = document.createElement('div');
   private containerRectConfig: DOMRect | null = null;
   private overlayRectConfig: DOMRect | null = null;
 
@@ -280,7 +314,7 @@ class TestEnvironment {
     insights: LynxInsight[];
     textModelConverter: LynxTextModelConverter;
   } {
-    const origin = document.createElement('div');
+    const origin = this.origin;
     const editorMock = mock<LynxEditor>();
     when(editorMock.getScrollingContainer()).thenReturn(this.containerElement);
     const editor = instance(editorMock);
@@ -314,6 +348,26 @@ class TestEnvironment {
     this.overlayRefs.forEach(ref => {
       ref.overlayElement.getBoundingClientRect = () => this.overlayRectConfig ?? defaultOverlayRect;
     });
+  }
+
+  /** Attaches the scroll strategy from the captured overlay config, as the real overlay would on create. */
+  attachScrollStrategy(): void {
+    when(this.overlayRefs[0].mock.hasAttached()).thenReturn(true);
+    this.captureOverlayConfig().scrollStrategy.attach(this.overlayRefs[0].instance);
+  }
+
+  /** Simulates scrolling the editor so that the overlay origin is at the given vertical position. */
+  scrollEditorWithOriginAt(originRect: { top: number; bottom: number }): void {
+    this.origin.getBoundingClientRect = () => ({ left: 100, right: 120, ...originRect }) as DOMRect;
+    this.containerElement.dispatchEvent(new Event('scroll'));
+  }
+
+  getOverlayRefMock(): OverlayRef {
+    return this.overlayRefs[0].mock;
+  }
+
+  getOverlayElement(): HTMLElement {
+    return this.overlayRefs[0].overlayElement;
   }
 
   getScrollContainer(): HTMLElement {
