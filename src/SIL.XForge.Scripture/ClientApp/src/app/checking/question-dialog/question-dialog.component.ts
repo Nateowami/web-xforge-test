@@ -161,6 +161,8 @@ export class QuestionDialogComponent implements OnInit {
         this.scriptureEnd.setValue(endVerseRef.toString());
       }
       this.updateSelection();
+      // A question imported from a file can have a reference that is not in the text, so show that before any edits
+      this.showScriptureReferenceErrors();
     } else if (this.data.defaultVerse != null && this.data.defaultVerse.bookNum > 0) {
       const { startVerseRef, endVerseRef } = toStartAndEndVerseRefs(this.data.defaultVerse);
       this.scriptureStart.setValue(startVerseRef.toString());
@@ -199,6 +201,7 @@ export class QuestionDialogComponent implements OnInit {
   }
 
   async submit(): Promise<void> {
+    this.showScriptureReferenceErrors();
     if (this.textAndAudio != null) {
       this.textAndAudio.suppressErrors = false;
     }
@@ -256,5 +259,14 @@ export class QuestionDialogComponent implements OnInit {
         control.setValue(result.toString());
       }
     });
+  }
+
+  /** Shows any errors in the reference fields, even if the user has not edited them. */
+  private showScriptureReferenceErrors(): void {
+    if (this.versesForm.invalid) {
+      this.versesForm.markAllAsTouched();
+      // The end reference only shows its own errors once the form is dirty (see ParentAndStartErrorStateMatcher)
+      this.versesForm.markAsDirty();
+    }
   }
 }

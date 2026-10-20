@@ -489,6 +489,84 @@ describe('QuestionDialogComponent', () => {
     expect(env.scriptureEndValidationMsg.textContent).toContain('Must be the same book and chapter');
   }));
 
+  it('shows error on opening a question whose end reference is not in the text', fakeAsync(() => {
+    // LUK 1 has 80 verses
+    env = new TestEnvironment({
+      dataId: 'question01',
+      ownerRef: 'user01',
+      projectRef: 'project01',
+      verseRef: fromVerseRef(new VerseRef('LUK 1:3-81')),
+      text: 'Imported question',
+      answers: [],
+      isArchived: false,
+      dateCreated: '',
+      dateModified: ''
+    });
+    flush();
+    tick(EDITOR_READY_TIMEOUT);
+    env.fixture.detectChanges();
+    expect(env.component.scriptureEnd.value).toBe('LUK 1:81');
+    expect(env.scriptureEndInput.classList).toContain('mat-form-field-invalid');
+    expect(env.scriptureEndValidationMsg.textContent).toContain('Must be inside verse range');
+
+    env.clickElement(env.saveButton);
+    flush();
+    expect(env.afterCloseCallback).not.toHaveBeenCalled();
+  }));
+
+  it('shows error on opening a question whose start reference is not in the text', fakeAsync(() => {
+    env = new TestEnvironment({
+      dataId: 'question01',
+      ownerRef: 'user01',
+      projectRef: 'project01',
+      verseRef: fromVerseRef(new VerseRef('LUK 1:81')),
+      text: 'Imported question',
+      answers: [],
+      isArchived: false,
+      dateCreated: '',
+      dateModified: ''
+    });
+    flush();
+    tick(EDITOR_READY_TIMEOUT);
+    env.fixture.detectChanges();
+    expect(env.scriptureStartInput.classList).toContain('mat-form-field-invalid');
+    expect(env.scriptureStartValidationMsg.textContent).toContain('Must be inside verse range');
+  }));
+
+  it('does not show reference errors on opening a question with a valid reference', fakeAsync(() => {
+    env = new TestEnvironment({
+      dataId: 'question01',
+      ownerRef: 'user01',
+      projectRef: 'project01',
+      verseRef: fromVerseRef(new VerseRef('LUK 1:3-80')),
+      text: 'Question',
+      answers: [],
+      isArchived: false,
+      dateCreated: '',
+      dateModified: ''
+    });
+    flush();
+    tick(EDITOR_READY_TIMEOUT);
+    env.fixture.detectChanges();
+    expect(env.scriptureStartInput.classList).not.toContain('mat-form-field-invalid');
+    expect(env.scriptureEndInput.classList).not.toContain('mat-form-field-invalid');
+    expect(env.component.versesForm.dirty).toBe(false);
+  }));
+
+  it('shows unedited reference error when saving', fakeAsync(() => {
+    env = new TestEnvironment(undefined, new VerseRef('LUK 1:81'));
+    flush();
+    tick(EDITOR_READY_TIMEOUT);
+    env.inputValue(env.questionInput, 'Question');
+    expect(env.scriptureStartInput.classList).not.toContain('mat-form-field-invalid');
+
+    env.clickElement(env.saveButton);
+    flush();
+    expect(env.afterCloseCallback).not.toHaveBeenCalled();
+    expect(env.scriptureStartInput.classList).toContain('mat-form-field-invalid');
+    expect(env.scriptureStartValidationMsg.textContent).toContain('Must be inside verse range');
+  }));
+
   it('generate correct verse ref when start and end mismatch only by case or insignificant zero', fakeAsync(() => {
     env = new TestEnvironment();
     flush();

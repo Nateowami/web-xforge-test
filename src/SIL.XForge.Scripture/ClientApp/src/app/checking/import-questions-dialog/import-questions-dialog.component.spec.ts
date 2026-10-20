@@ -326,7 +326,7 @@ describe('ImportQuestionsDialogComponent', () => {
     const env = new TestEnvironment();
 
     const genQuestions = [['Genesis 1:1', 'Question for Genesis 1:1']];
-    const matQuestions = Array.from(Array(100), (_, i) => [`MAT 1:${i + 1}`, `Question for Matthew 1:${i + 1}`]);
+    const matQuestions = Array.from(Array(5), (_, i) => [`MAT 1:${i + 1}`, `Question for Matthew 1:${i + 1}`]);
 
     env.selectFileWithContents([['Reference', 'Questions'], ...genQuestions, ...matQuestions]);
 
@@ -340,7 +340,7 @@ describe('ImportQuestionsDialogComponent', () => {
     const env = new TestEnvironment();
 
     const genQuestions = [['Genesis 1:1', 'Question for Genesis 1:1']];
-    const matQuestions = Array.from(Array(100), (_, i) => [`MAT 1:${i + 1}`, `Question for Matthew 1:${i + 1}`]);
+    const matQuestions = Array.from(Array(5), (_, i) => [`MAT 1:${i + 1}`, `Question for Matthew 1:${i + 1}`]);
 
     env.selectFileWithContents([['Reference', 'Questions'], ...genQuestions, ...matQuestions], 'test.xls');
 
@@ -354,7 +354,7 @@ describe('ImportQuestionsDialogComponent', () => {
     const env = new TestEnvironment();
 
     const genQuestions = [['Genesis 1:1', 'Question for Genesis 1:1']];
-    const matQuestions = Array.from(Array(100), (_, i) => [`MAT 1:${i + 1}`, `Question for Matthew 1:${i + 1}`]);
+    const matQuestions = Array.from(Array(5), (_, i) => [`MAT 1:${i + 1}`, `Question for Matthew 1:${i + 1}`]);
 
     env.selectFileWithContents([['Reference', 'Questions'], ...genQuestions, ...matQuestions], 'test.xlsx');
 
@@ -446,6 +446,32 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('treats CSV rows with references that are not in the project text as invalid', fakeAsync(() => {
+    // MAT 1 has 5 verses and is the only chapter of MAT in the project; GEN is not in the project
+    const env = new TestEnvironment();
+
+    env.selectFileWithContents([
+      ['Reference', 'Questions'],
+      ['MAT 1:5', 'Question for the last verse'],
+      ['MAT 1:6', 'Question for a verse past the end of the chapter'],
+      ['MAT 1:4-6', 'Question for a range past the end of the chapter'],
+      ['MAT 2:1', 'Question for a chapter not in the project'],
+      ['GEN 1:1', 'Question for a book not in the project']
+    ]);
+
+    const invalidRows = env.tableRows;
+    expect(invalidRows.length).toBe(3);
+    expect(env.getColumnTwoText(invalidRows[0])).toEqual('MAT 1:6');
+    expect(env.getColumnTwoText(invalidRows[1])).toEqual('MAT 1:4-6');
+    expect(env.getColumnTwoText(invalidRows[2])).toEqual('MAT 2:1');
+
+    env.click(env.continueImportButton);
+
+    expect(env.tableRows.length).toBe(1);
+    expect(env.getRowReference(env.tableRows[0])).toEqual('MAT 1:5');
+    env.click(env.backButton);
+  }));
+
   it('allows reference and questions columns to be anywhere and ignores irrelevant columns', fakeAsync(() => {
     // (also, it infers the book from the file name)
     const env = new TestEnvironment({ includeAllBooks: true });
@@ -469,14 +495,14 @@ describe('ImportQuestionsDialogComponent', () => {
 
     const fileContents = [
       ['ID', 'Notes', ' QUestions ', 'Answer', ' references '],
-      ['id1', 'note 1', 'question 1', 'answer 1', '1:1'],
-      ['id2', 'note 2', 'question 2', 'answer 2', '1:2']
+      ['id1', 'note 1', 'question 1', 'answer 1', '41:1'],
+      ['id2', 'note 2', 'question 2', 'answer 2', '41:2']
     ];
     const filename = 'tq_GEN.tsv'; // this is the format unfoldingWord uses for file names
     env.selectFileWithContents(fileContents, filename);
 
     expect(env.tableRows.length).toBe(2);
-    expect(env.getRowReference(env.tableRows[1])).toEqual('GEN 1:2');
+    expect(env.getRowReference(env.tableRows[1])).toEqual('GEN 41:2');
     env.click(env.backButton);
   }));
 

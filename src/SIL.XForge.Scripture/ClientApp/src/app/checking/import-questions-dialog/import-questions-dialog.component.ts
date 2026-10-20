@@ -1,7 +1,7 @@
 import { CdkScrollable } from '@angular/cdk/scrolling';
 import { AsyncPipe, NgTemplateOutlet } from '@angular/common';
 import { Component, DestroyRef, ElementRef, Inject, NgZone, OnDestroy, ViewChild } from '@angular/core';
-import { AbstractControl, FormControl, FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
+import { AbstractControl, FormControl, FormGroup, FormsModule, ReactiveFormsModule, ValidatorFn } from '@angular/forms';
 import { MatAnchor, MatButton, MatIconButton } from '@angular/material/button';
 import { MatCard, MatCardActions, MatCardContent, MatCardTitle } from '@angular/material/card';
 import { MatCheckbox } from '@angular/material/checkbox';
@@ -36,7 +36,11 @@ import { TranslocoModule, TranslocoService } from '@ngneat/transloco';
 import { Canon, VerseRef } from '@sillsdev/scripture';
 import { ngfModule } from 'angular-file';
 import { Question } from 'realtime-server/lib/esm/scriptureforge/models/question';
-import { fromVerseRef, toVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
+import {
+  fromVerseRef,
+  toStartAndEndVerseRefs,
+  toVerseRef
+} from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { Subject } from 'rxjs';
 import { CsvService } from 'xforge-common/csv-service.service';
 import { DialogService } from 'xforge-common/dialog.service';
@@ -733,10 +737,12 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
         const refStartsWithBook: boolean = Canon.allBookIds.includes(reference.slice(0, 3)) && reference[3] === ' ';
         const fullReference: string =
           refStartsWithBook || defaultBookId == null ? reference : defaultBookId + ' ' + reference;
-        questions.push({
-          verseRef: new VerseRef(fullReference),
-          text: questionText
-        });
+        const verseRef: VerseRef = new VerseRef(fullReference);
+        if (!this.isReferenceInProjectText(verseRef)) {
+          invalidRows.push([rowNumber, reference, questionText]);
+          continue;
+        }
+        questions.push({ verseRef: verseRef, text: questionText });
       } catch {
         invalidRows.push([rowNumber, reference, questionText]);
       }
@@ -749,6 +755,20 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     await this.setUpQuestionList(questions, false);
     this.questionSource = 'csv_file';
     this.loading = false;
+  }
+
+  /**
+   * Checks the reference against the verses in the project's text, the same way the question dialog does, so that an
+   * imported question can later be edited and saved. References to books not in the project are not checked here,
+   * since questions for those books are skipped without being reported.
+   */
+  private isReferenceInProjectText(verseRef: VerseRef): boolean {
+    if (this.data.textsByBookId[verseRef.book] == null) {
+      return true;
+    }
+    const validator: ValidatorFn = SFValidators.verseStr(this.data.textsByBookId);
+    const { startVerseRef, endVerseRef } = toStartAndEndVerseRefs(verseRef);
+    return [startVerseRef, endVerseRef].every(ref => ref == null || validator(new FormControl(ref.toString())) == null);
   }
 
   // TODO should consider verse ranges, rather than just starting verse
