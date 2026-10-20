@@ -267,6 +267,24 @@ describe('TextChooserDialogComponent', () => {
     env.closeDialog();
   }));
 
+  it('keeps the verse string of a combined verse that is not a range', fakeAsync(async () => {
+    const env = new TestEnvironment(
+      { start: 0, end: TestEnvironment.segmentLen('13,15') },
+      'verse_1_13,15',
+      'verse_1_13,15'
+    );
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('verses thirteen and fifteen (Matthew 1:13,15)');
+    env.click(env.saveButton);
+    expect(await env.resultPromise).toEqual({
+      verses: { bookNum: 40, chapterNum: 1, verseNum: 13, verse: '13,15' },
+      text: 'verses thirteen and fifteen',
+      startClipped: false,
+      endClipped: false
+    });
+    flush();
+  }));
+
   it('shows the correct verse range when first or last segment has only white space selected', fakeAsync(async () => {
     const env = new TestEnvironment({ start: TestEnvironment.segmentLen(7) - 1, end: 1 }, 'verse_1_7', 'verse_1_9');
     env.fireSelectionChange();
@@ -596,6 +614,8 @@ class TestEnvironment {
     delta.insert('verse ten', { segment: 'verse_1_10' });
     delta.insert({ verse: { number: '11-12', style: 'v' } });
     delta.insert('verses eleven and twelve', { segment: 'verse_1_11-12' });
+    delta.insert({ verse: { number: '13,15', style: 'v' } });
+    delta.insert('verses thirteen and fifteen', { segment: 'verse_1_13,15' });
     return delta;
   }
 

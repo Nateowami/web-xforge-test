@@ -28,7 +28,7 @@ import {
   ScriptureChooserDialogData
 } from '../scripture-chooser-dialog/scripture-chooser-dialog.component';
 import { TextComponent } from '../shared/text/text.component';
-import { getVerseStrFromSegmentRef } from '../shared/verse-utils';
+import { getVerseNumbers, getVerseRefFromSegmentRef } from '../shared/verse-utils';
 
 export interface TextChooserDialogData {
   bookNum: number;
@@ -129,14 +129,12 @@ export class TextChooserDialogComponent {
       this.selectedText = expansion.result;
       this.startClipped = expansion.startClipped;
       this.endClipped = expansion.endClipped;
-      const firstVerseNum = expansion.firstVerseNum;
-      const lastVerseNum = expansion.lastVerseNum;
 
       this.selectedVerses = {
         bookNum: this.bookNum,
         chapterNum: this.chapterNum,
-        verseNum: firstVerseNum,
-        verse: firstVerseNum === lastVerseNum ? firstVerseNum.toString() : firstVerseNum + '-' + lastVerseNum
+        verseNum: expansion.firstVerseNum,
+        verse: expansion.verse
       };
       this.rawTextSelection = rawSelection;
       this.selectionChanged = true;
@@ -265,7 +263,7 @@ export class TextChooserDialogComponent {
     startClipped: boolean;
     endClipped: boolean;
     firstVerseNum: number;
-    lastVerseNum: number;
+    verse: string;
     result: string;
   } {
     // All selected segments except the first and last. The portions of the first and last segments that were selected
@@ -406,33 +404,36 @@ export class TextChooserDialogComponent {
 
     // Find the range of verses that has been selected. If only whitespace was selected in the first segment, then the
     // selection starts in the next segment, and the starting verse is the verse of that next segment.
-    const firstVerseNum =
-      startText.trim() === '' && segments.length > 1
-        ? this.getVerseFromElement(segments[1])
-        : this.getVerseFromElement(segments[0]);
+    const firstVerseSegment = startText.trim() === '' && segments.length > 1 ? segments[1] : segments[0];
+    const lastVerseSegment =
+      endText.trim() === '' && segments.length > 1 ? segments[segments.length - 2] : segments[segments.length - 1];
+    const firstVerseNum = this.getVerseFromElement(firstVerseSegment);
+    // The last verse may be a combined verse such as 2-3, in which case the range ends at its last verse number
+    const lastVerseRef = getVerseRefFromSegmentRef(this.bookNum, lastVerseSegment.getAttribute('data-segment')!);
+    const lastVerseNums = lastVerseRef == null ? [] : getVerseNumbers(lastVerseRef);
     const lastVerseNum =
-      endText.trim() === '' && segments.length > 1
-        ? this.getLastVerseFromElement(segments[segments.length - 2])
-        : this.getLastVerseFromElement(segments[segments.length - 1]);
+      lastVerseNums.length > 0 ? lastVerseNums[lastVerseNums.length - 1] : this.getVerseFromElement(lastVerseSegment);
+
+    let verse: string;
+    if (lastVerseRef?.verse != null && lastVerseNums.length > 1 && lastVerseRef.verseNum === firstVerseNum) {
+      // The selection is within a single combined verse, so use its verse string as is. Rebuilding it as a range
+      // would turn e.g. verses 6,8 into 6-8, which includes verse 7.
+      verse = lastVerseRef.verse;
+    } else {
+      verse = firstVerseNum === lastVerseNum ? firstVerseNum.toString() : firstVerseNum + '-' + lastVerseNum;
+    }
 
     return {
       startClipped,
       endClipped,
       firstVerseNum,
-      lastVerseNum,
+      verse,
       result
     };
   }
 
   private getVerseFromElement(element: Element): number {
     return parseInt(element.getAttribute('data-segment')!.split('_', 3)[2], 10);
-  }
-
-  /** Gets the last verse number of the segment's verse, e.g. 3 for a segment in combined verse 2-3. */
-  private getLastVerseFromElement(element: Element): number {
-    const verseStr: string = getVerseStrFromSegmentRef(element.getAttribute('data-segment')!) ?? '';
-    const verseNums: number[] = (verseStr.match(/\d+/g) ?? []).map(num => parseInt(num, 10));
-    return verseNums.length > 0 ? Math.max(...verseNums) : this.getVerseFromElement(element);
   }
 
   private getSegments(verse?: number): Element[] {
