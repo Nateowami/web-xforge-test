@@ -13,6 +13,7 @@ import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scri
 import { debounceTime } from 'rxjs/operators';
 import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
+import { NoticeService } from 'xforge-common/notice.service';
 import { OwnerComponent } from 'xforge-common/owner/owner.component';
 import { SubscriptionDisposable } from 'xforge-common/subscription-disposable';
 import { UserService } from 'xforge-common/user.service';
@@ -63,7 +64,8 @@ export class CheckingCommentsComponent extends SubscriptionDisposable implements
   constructor(
     private readonly dialogService: DialogService,
     private userService: UserService,
-    private readonly i18n: I18nService
+    private readonly i18n: I18nService,
+    private readonly noticeService: NoticeService
   ) {
     super();
   }
@@ -164,11 +166,13 @@ export class CheckingCommentsComponent extends SubscriptionDisposable implements
     }
     if (this.questionDoc != null) {
       // The edit form is rendered in place of the comment being edited, so if another user deletes that comment the
-      // form disappears with it. Close the form so the user can add a comment again (SF-2157).
+      // form disappears with it. Close the form so the user can add a comment again, and tell them why their edit is
+      // gone (SF-2157).
       this.subscribe(this.questionDoc.remoteChanges$, () => {
         const activeComment: Comment | undefined = this.activeComment;
         if (activeComment != null && !this.getSortedComments().some(c => c.dataId === activeComment.dataId)) {
           this.hideCommentForm();
+          this.noticeService.show(this.i18n.translateStatic('checking_comments.comment_deleted_while_editing'));
         }
       });
       // Give the user two seconds before marking the comment as read. This also prevents SF-624 - prematurely

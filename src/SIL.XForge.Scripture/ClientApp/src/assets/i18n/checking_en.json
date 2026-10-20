@@ -283,6 +283,7 @@
   },
   "checking_comments": {
     "add_a_comment": "Add a comment",
+    "comment_deleted_while_editing": "The comment you were editing was deleted by someone else.",
     "delete": "Delete",
     "confirm_delete": "Are you sure you want to delete this comment?",
     "edit": "Edit",

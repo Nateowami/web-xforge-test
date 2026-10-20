@@ -2241,6 +2241,7 @@ describe('CheckingComponent', () => {
         expect(env.getAnswerComments(0).length).toBe(0);
         expect(env.getYourCommentField(0)).toBeNull();
         expect(env.getAddCommentButton(0)).not.toBeNull();
+        verify(mockedNoticeService.show('The comment you were editing was deleted by someone else.')).once();
         flush();
       }));
 
