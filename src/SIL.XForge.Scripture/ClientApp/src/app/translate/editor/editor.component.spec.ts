@@ -238,6 +238,17 @@ describe('EditorComponent', () => {
     env.dispose();
   }));
 
+  it('navigates to translate overview when book is not in the project', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectUserConfig();
+    env.routeWithParams({ projectId: 'project01', bookId: 'GEN' });
+    env.wait();
+
+    expect(env.component.books).not.toContain(1);
+    expect(env.location.path()).toEqual('/projects/project01/translate');
+    env.dispose();
+  }));
+
   it('remote user config should not change segment', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setProjectUserConfig({
