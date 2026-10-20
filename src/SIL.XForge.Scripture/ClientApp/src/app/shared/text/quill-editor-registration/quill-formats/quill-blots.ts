@@ -112,7 +112,9 @@ export class VerseEmbed extends QuillEmbedBlot {
     if (value.altnumber != null) {
       const verseAltSpan: HTMLSpanElement = document.createElement('span');
       verseAltSpan.setAttribute(customAttributeName('style'), 'va');
-      verseAltSpan.innerText = value.altnumber;
+      // Paratext shows \va text as typed, so some projects already bracket it, e.g. "(23)"
+      const isBracketed: boolean = /^\p{Ps}.*\p{Pe}$/u.test(value.altnumber);
+      verseAltSpan.innerText = isBracketed ? value.altnumber : `(${value.altnumber})`;
       verseSpan.appendChild(verseAltSpan);
     }
 

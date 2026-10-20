@@ -2103,6 +2103,37 @@ public class DeltaUsxMapperTests
     }
 
     [Test]
+    public void ToDelta_VerseAltNumberWithText()
+    {
+        // Paratext produces this USX from "\v 1 \va (23)\va*"
+        XElement verse = Verse("1");
+        verse.Add(new XAttribute("altnumber", "(23)"));
+        XDocument usxDoc = Usx("PHM", Chapter("1"), Para("p", verse, "Verse text."));
+
+        var mapper = new DeltaUsxMapper(_mapperGuidService, _logger, _exceptionHandler);
+        List<ChapterDelta> chapterDeltas = [.. mapper.ToChapterDeltas(usxDoc)];
+
+        var expected = Delta
+            .New()
+            .InsertBook("PHM")
+            .InsertChapter("1")
+            .InsertBlank("p_1")
+            .InsertEmbed(
+                "verse",
+                new JObject(
+                    new JProperty("number", "1"),
+                    new JProperty("style", "v"),
+                    new JProperty("altnumber", "(23)")
+                )
+            )
+            .InsertText("Verse text.", "verse_1_1")
+            .InsertPara("p");
+
+        Assert.That(chapterDeltas[0].IsValid, Is.True);
+        Assert.IsTrue(chapterDeltas[0].Delta.DeepEquals(expected));
+    }
+
+    [Test]
     public void ToDelta_DoublyInvalidInline()
     {
         // A node that is invalid for more than one reason is still just invalid, not crashing.

@@ -705,7 +705,16 @@ describe('Quill blots', () => {
       const node = VerseEmbed.create(verseValue) as HTMLElement;
 
       const altSpan = node.querySelector('[data-style="va"]') as HTMLElement | null;
-      expect(altSpan?.innerText).toBe('2');
+      expect(altSpan?.innerText).toBe('(2)');
+    });
+
+    it('should not add brackets to an altnumber that already has them', () => {
+      const verseValue = { number: '1', altnumber: '(23)' };
+      const node = VerseEmbed.create(verseValue) as HTMLElement;
+
+      const altSpan = node.querySelector('[data-style="va"]') as HTMLElement | null;
+      expect(altSpan?.innerText).toBe('(23)');
+      expect(VerseEmbed.value(node)).toEqual(verseValue);
     });
 
     it('should retrieve verse value from node', () => {
