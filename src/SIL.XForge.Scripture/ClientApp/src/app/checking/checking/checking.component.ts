@@ -1690,8 +1690,12 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
 
     // Suggest book/chapter from last user selected question
     if (lastSelected?.bookNum != null && lastSelected.chapterNum != null) {
+      // The stored chapter may not exist in the book, e.g. chapter 1 is stored for a URL without a chapter
+      const doesLastChapterExist: boolean = this.projectDoc.data.texts.some(
+        t => t.bookNum === lastSelected.bookNum && t.chapters.some(c => c.number === lastSelected.chapterNum)
+      );
       // If route book is provided, don't use stored question from a different book
-      if (routeBookNum == null || routeBookNum === lastSelected.bookNum) {
+      if (doesLastChapterExist && (routeBookNum == null || routeBookNum === lastSelected.bookNum)) {
         suggestedBookChapter = lastSelected;
       }
     }

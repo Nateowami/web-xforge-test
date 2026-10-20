@@ -3,6 +3,7 @@ import { Router } from '@angular/router';
 import { Canon } from '@sillsdev/scripture';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
+import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { combineLatest, from, merge, Observable, of } from 'rxjs';
 import {
   delay,
@@ -69,10 +70,13 @@ export class ResumeCheckingService extends ResumeBaseService {
       tap(([projectDoc]) => (projectId = projectDoc?.id || '')),
       map(([projectDoc, projectUserConfigDoc]) => {
         const config = projectUserConfigDoc?.data;
-        const doesLastBookExist =
-          projectDoc?.data?.texts.find(t => t.bookNum === config?.selectedBookNum) !== undefined;
-        if (config?.selectedBookNum && config?.selectedChapterNum && doesLastBookExist) {
-          return of(this.getLinkTokens(projectDoc!, config.selectedBookNum, config.selectedChapterNum));
+        const lastBook: TextInfo | undefined = projectDoc?.data?.texts.find(t => t.bookNum === config?.selectedBookNum);
+        if (config?.selectedBookNum && config?.selectedChapterNum && lastBook != null) {
+          const doesLastChapterExist: boolean = lastBook.chapters.some(c => c.number === config.selectedChapterNum);
+          const chapterNum: number = doesLastChapterExist
+            ? config.selectedChapterNum
+            : (lastBook.chapters[0]?.number ?? 1);
+          return of(this.getLinkTokens(projectDoc!, config.selectedBookNum, chapterNum));
         }
 
         return this.getQuestion(projectDoc).pipe(

@@ -114,6 +114,32 @@ describe('ResumeCheckingService', () => {
     flush();
   }));
 
+  it('should create link using first chapter of last book if last chapter does not exist', fakeAsync(async () => {
+    activatedProjectChange$.next({
+      id: 'project01',
+      data: {
+        userRoles: { user01: SFProjectRole.ParatextAdministrator } as any,
+        texts: [{ bookNum: 68, chapters: [{ number: 3 } as Chapter] } as TextInfo]
+      } as SFProjectProfile
+    } as SFProjectProfileDoc);
+    when(mockProjectService.getUserConfig(anything(), anything())).thenResolve({
+      changes$: of([]) as Observable<OtJson0Op[]>,
+      data: { selectedBookNum: 68, selectedChapterNum: 1 } as SFProjectUserConfig
+    } as SFProjectUserConfigDoc);
+
+    await service['updateProjectUserConfig']('project01');
+
+    let result: string[] | undefined;
+    service.resumeLink$.subscribe(link => {
+      result = link;
+    });
+
+    tick(1); // Account for the delay(0)
+
+    expect(result).toEqual(['projects', 'project01', 'checking', 'JDT', '3']);
+    flush();
+  }));
+
   it('should create link using first unanswered question if last location is invalid', fakeAsync(async () => {
     when(mockProjectService.getUserConfig(anything(), anything())).thenResolve({
       changes$: of([]) as Observable<OtJson0Op[]>,

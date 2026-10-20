@@ -236,6 +236,30 @@ describe('CheckingComponent', () => {
       expect(env.router.url).toContain('MAT/1?scope=book');
     }));
 
+    it('reroutes to the last selected chapter when no chapter is provided', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: ADMIN_USER,
+        projectBookRoute: 'MAT',
+        projectChapterRoute: undefined,
+        questionScope: 'book',
+        projectUserConfig: { selectedBookNum: 40, selectedChapterNum: 2 }
+      });
+
+      expect(env.router.url).toContain('MAT/2?scope=book');
+    }));
+
+    it('does not reroute to a last selected chapter that does not exist in the book', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: ADMIN_USER,
+        projectBookRoute: 'MAT',
+        projectChapterRoute: undefined,
+        questionScope: 'book',
+        projectUserConfig: { selectedBookNum: 40, selectedChapterNum: 4 }
+      });
+
+      expect(env.router.url).toContain('MAT/1?scope=book');
+    }));
+
     describe('Prev/Next question buttons', () => {
       it('can navigate using next button', fakeAsync(() => {
         const env = new TestEnvironment({ user: ADMIN_USER });
@@ -3011,6 +3035,7 @@ class TestEnvironment {
     questionScope?: QuestionScope;
     hasConnection?: boolean;
     testProject?: SFProject;
+    projectUserConfig?: Partial<SFProjectUserConfig>;
   }) {
     const { user, testProject, questionScope = 'book', hasConnection = true } = options;
     const projectBookRoute = 'projectBookRoute' in options ? options.projectBookRoute : 'JHN';
@@ -3029,6 +3054,17 @@ class TestEnvironment {
 
     if (testProject != null) {
       this.testProject = testProject;
+    }
+    if (options.projectUserConfig != null) {
+      const userConfig: SFProjectUserConfig | undefined = [
+        this.adminProjectUserConfig,
+        this.checkerProjectUserConfig,
+        this.cleanCheckerProjectUserConfig,
+        this.observerProjectUserConfig,
+        this.translatorProjectUserConfig,
+        this.consultantProjectUserConfig
+      ].find(config => config.ownerRef === user.id);
+      Object.assign(userConfig!, options.projectUserConfig);
     }
 
     when(mockedUserService.editDisplayName(true)).thenResolve();
