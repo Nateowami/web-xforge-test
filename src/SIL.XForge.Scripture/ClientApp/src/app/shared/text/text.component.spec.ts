@@ -1020,6 +1020,39 @@ describe('TextComponent', () => {
       .toEqual('wj w');
   }));
 
+  it('marks alternate verse number character runs that have their own brackets', fakeAsync(() => {
+    const chapterNum = 2;
+    const segmentRef = `verse_${chapterNum}_1`;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'first ', attributes: { segment: segmentRef } },
+      { insert: '(23)', attributes: { segment: segmentRef, char: { style: 'va', cid: '1111' } } },
+      { insert: ' second ', attributes: { segment: segmentRef } },
+      { insert: '24', attributes: { segment: segmentRef, char: { style: 'va', cid: '2222' } } }
+    ];
+
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+    const editor: Quill = env.component.editor!;
+    const vaElements = (): Element[] => Array.from(editor.container.querySelectorAll('usx-char'));
+    expect(vaElements().map(e => e.hasAttribute('data-bracketed'))).toEqual([true, false]);
+
+    // Editing the text re-evaluates it, e.g. deleting the closing bracket of "(23)"
+    const closingBracketIndex: number = editor.getIndex(editor.scroll.find(vaElements()[0])!) + '(23'.length;
+    editor.deleteText(closingBracketIndex, 1, 'user');
+    tick();
+    expect(vaElements().map(e => e.hasAttribute('data-bracketed'))).toEqual([false, false]);
+
+    // The marker is display-only and is not written to the text doc
+    const charOps = editor.getContents().ops!.filter(op => op.attributes?.char != null);
+    expect(charOps.map(op => op.attributes!.char)).toEqual([
+      { style: 'va', cid: '1111' },
+      { style: 'va', cid: '2222' }
+    ]);
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('isValidSelectionForCurrentSegment', fakeAsync(() => {
     const chapterNum = 2;
     const segmentRef: string = `verse_${chapterNum}_1`;

@@ -377,11 +377,13 @@ usx-char {
     color: #5faa5f;
     top: -0.5em;
     position: relative;
-    &:before {
-      content: '(';
-    }
-    &:after {
-      content: ')';
+    &:not([data-bracketed]) {
+      &:before {
+        content: '(';
+      }
+      &:after {
+        content: ')';
+      }
     }
   }
 }

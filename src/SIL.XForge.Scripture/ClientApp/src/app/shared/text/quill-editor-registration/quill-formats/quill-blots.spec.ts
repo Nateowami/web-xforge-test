@@ -717,6 +717,20 @@ describe('Quill blots', () => {
       expect(VerseEmbed.value(node)).toEqual(verseValue);
     });
 
+    it('should add brackets to any altnumber text that is not fully bracketed', () => {
+      const cases: [string, string][] = [
+        ['a', '(a)'],
+        ['23-24', '(23-24)'],
+        ['[23]', '[23]'],
+        ['(23)a', '((23)a)']
+      ];
+      for (const [altnumber, expected] of cases) {
+        const node = VerseEmbed.create({ number: '1', altnumber }) as HTMLElement;
+        const altSpan = node.querySelector('[data-style="va"]') as HTMLElement | null;
+        expect(altSpan?.innerText).withContext(altnumber).toBe(expected);
+      }
+    });
+
     it('should retrieve verse value from node', () => {
       const verseValue = { number: '1' };
       const node = VerseEmbed.create(verseValue) as HTMLElement;

@@ -42,6 +42,14 @@ function customAttributeName(key: string): string {
 }
 
 /**
+ * Whether alternate verse number (\va) text already has its own brackets, e.g. "(23)". Paratext shows \va text as
+ * typed, so some projects bracket it themselves, and SF should then not add another pair.
+ */
+function isBracketed(text: string): boolean {
+  return /^\p{Ps}[\s\S]*\p{Pe}$/u.test(text.trim());
+}
+
+/**
  * This class overrides the "value" method so that it does not normalize text to NFC. This avoids a bug where Quill
  * does not properly handle NFD data (https://github.com/quilljs/quill/issues/1976).
  */
@@ -112,9 +120,7 @@ export class VerseEmbed extends QuillEmbedBlot {
     if (value.altnumber != null) {
       const verseAltSpan: HTMLSpanElement = document.createElement('span');
       verseAltSpan.setAttribute(customAttributeName('style'), 'va');
-      // Paratext shows \va text as typed, so some projects already bracket it, e.g. "(23)"
-      const isBracketed: boolean = /^\p{Ps}.*\p{Pe}$/u.test(value.altnumber);
-      verseAltSpan.innerText = isBracketed ? value.altnumber : `(${value.altnumber})`;
+      verseAltSpan.innerText = isBracketed(value.altnumber) ? value.altnumber : `(${value.altnumber})`;
       verseSpan.appendChild(verseAltSpan);
     }
 
@@ -225,6 +231,18 @@ export class CharInline extends QuillInlineBlot {
       setUsxValue(elem, usxStyle);
     } else {
       super.format(name, value);
+    }
+  }
+
+  optimize(context: { [key: string]: any }): void {
+    super.optimize(context);
+    // The text of a \va char span is editable, so this is re-checked whenever it changes. The CSS adds the brackets
+    // unless this attribute is set.
+    const elem = this.domNode as HTMLElement;
+    const styles: string[] = elem.getAttribute(customAttributeName('style'))?.split(' ') ?? [];
+    const bracketed: boolean = styles.includes('va') && isBracketed(elem.textContent ?? '');
+    if (elem.hasAttribute(customAttributeName('bracketed')) !== bracketed) {
+      elem.toggleAttribute(customAttributeName('bracketed'), bracketed);
     }
   }
 }
