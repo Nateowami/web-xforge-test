@@ -3902,6 +3902,26 @@ describe('EditorComponent', () => {
         env.dispose();
       }));
 
+      it('should add only one draft tab when changing chapter while the last build is being fetched', fakeAsync(() => {
+        const env = new TestEnvironment();
+        const lastCompletedBuild$ = new Subject<BuildDto>();
+        when(mockedDraftGenerationService.getLastCompletedBuild(anything())).thenReturn(lastCompletedBuild$);
+        when(mockedPermissionsService.canAccessDrafts(anything(), anything())).thenReturn(true);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), anything())).thenReturn(true);
+        env.wait();
+        env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '1' });
+        env.wait();
+        env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '2' });
+        env.wait();
+
+        lastCompletedBuild$.next({} as BuildDto);
+        env.wait();
+
+        const sourceTabGroup = env.component.tabState.getTabGroup('source');
+        expect(sourceTabGroup?.tabs.filter(tab => tab.type === 'draft').length).toBe(1);
+        env.dispose();
+      }));
+
       it('should select the draft tab if url query param is set', fakeAsync(() => {
         const env = new TestEnvironment();
         when(mockedActivatedRoute.snapshot).thenReturn({

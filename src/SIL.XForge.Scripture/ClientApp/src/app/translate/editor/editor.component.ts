@@ -1396,10 +1396,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   private async updateDraftTabVisibility(): Promise<void> {
+    const bookNum: number | undefined = this.bookNum;
+    const chapterNum: number | undefined = this.chapter;
     const chapter: Chapter | undefined = this.text?.chapters.find(c => c.number === this.chapter);
     const hasDraft: boolean = this.projectService.hasDraft(this.projectDoc?.data, this.bookNum, this.chapter);
     const draftApplied: boolean = chapter?.draftApplied ?? false;
-    const existingDraftTab: { groupId: EditorTabGroupType; index: number } | undefined =
+    let existingDraftTab: { groupId: EditorTabGroupType; index: number } | undefined =
       this.tabState.getFirstTabOfTypeIndex('draft');
 
     const urlDraftActive: boolean = this.activatedRoute.snapshot.queryParams['draft-active'] === 'true';
@@ -1420,6 +1422,11 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     // Only try to fetch the draft build if existing information indicates we should show the draft
     if (draftShouldBeVisible && canViewDrafts && this.projectId != null) {
       draftBuild = await firstValueFrom(this.draftGenerationService.getLastCompletedBuild(this.projectId));
+      // If the user moved to another chapter while the build was being fetched, the call for that chapter handles
+      // the draft tab instead
+      if (this.bookNum !== bookNum || this.chapter !== chapterNum) return;
+      // Another call may have added or removed the draft tab while the build was being fetched (SF-3445)
+      existingDraftTab = this.tabState.getFirstTabOfTypeIndex('draft');
     }
 
     const isBlockedByFormattingOptions: boolean =
