@@ -1,7 +1,7 @@
 import { DebugElement } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
-import { provideRouter } from '@angular/router';
+import { provideRouter, Router } from '@angular/router';
 import { createTestProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { of } from 'rxjs';
 import { anything, mock, verify, when } from 'ts-mockito';
@@ -33,7 +33,7 @@ describe('DraftOnboardingFormComponent', () => {
   configureTestingModule(() => ({
     imports: [getTestTranslocoModule()],
     providers: [
-      provideRouter([]),
+      provideRouter([{ path: 'projects/:projectId/draft-generation', children: [] }]),
       provideTestOnlineStatus(),
       { provide: OnlineStatusService, useClass: TestOnlineStatusService },
       { provide: ActivatedProjectService, useMock: mockedActivatedProjectService },
@@ -69,7 +69,25 @@ describe('DraftOnboardingFormComponent', () => {
 
     expect(env.offlineMessage).toBeNull();
     expect(env.submitButton.nativeElement.disabled).toBe(false);
-    verify(mockedOnboardingRequestService.getOpenOnboardingRequest('project01')).never();
+    // The already-submitted check skipped while offline runs on reconnecting
+    verify(mockedOnboardingRequestService.getOpenOnboardingRequest('project01')).once();
+    verify(mockedDialogService.message(anything(), anything(), anything())).never();
+
+    // Later reconnects do not repeat the check
+    env.setOnline(false);
+    env.setOnline(true);
+    verify(mockedOnboardingRequestService.getOpenOnboardingRequest('project01')).once();
+  }));
+
+  it('warns on reconnecting if a request was already submitted while the form was opened offline', fakeAsync(() => {
+    const env = new TestEnvironment({ online: false });
+    when(mockedOnboardingRequestService.getOpenOnboardingRequest('project01')).thenResolve({} as any);
+
+    env.setOnline(true);
+
+    verify(mockedOnboardingRequestService.getOpenOnboardingRequest('project01')).once();
+    verify(mockedDialogService.message('draft_sources.request_already_submitted', undefined, anything())).once();
+    expect(TestBed.inject(Router).url).toEqual('/projects/project01/draft-generation');
   }));
 
   it('hides the offline message when online', fakeAsync(() => {
@@ -98,6 +116,7 @@ class TestEnvironment {
     when(mockedParatextService.getProjects()).thenResolve([]);
     when(mockedParatextService.getResources()).thenResolve([]);
     when(mockedOnboardingRequestService.getOpenOnboardingRequest(anything())).thenResolve(null);
+    when(mockedDialogService.message(anything(), anything(), anything())).thenResolve();
     when(mockedProgressService.getProgress(anything(), anything())).thenReturn(new Promise(() => {}));
 
     this.fixture = TestBed.createComponent(DraftOnboardingFormComponent);
