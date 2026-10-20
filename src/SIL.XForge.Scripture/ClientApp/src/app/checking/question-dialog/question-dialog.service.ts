@@ -41,6 +41,7 @@ export class QuestionDialogService {
       ...config,
       saveQuestion: async (result: QuestionDialogResult) => {
         savedQuestionDoc = await this.saveQuestion(config, result);
+        return savedQuestionDoc != null;
       }
     };
     const dialogConfig: MatDialogConfig = { data, autoFocus: true, disableClose: true };
@@ -55,7 +56,10 @@ export class QuestionDialogService {
     return savedQuestionDoc;
   }
 
-  /** Saves the question, uploading any audio first. Called by the dialog, which stays open until this finishes. */
+  /**
+   * Saves the question, uploading any audio first. Called by the dialog, which stays open until this finishes, and
+   * remains open if this returns undefined because the question could not be saved.
+   */
   private async saveQuestion(
     config: QuestionDialogData,
     result: QuestionDialogResult
@@ -78,9 +82,7 @@ export class QuestionDialogService {
         result.audio.fileName
       );
       if (urlResult == null) {
-        // Discard the question if an error occurred while uploading or storing the audio
-        // ENHANCE: Keep the dialog open and notify the user instead of discarding the question. For example, see
-        // chapter-audio-dialog.component.ts.
+        // The audio could not be uploaded or stored. FileService tells the user why, and the dialog stays open.
         return undefined;
       }
       audioUrl = urlResult;

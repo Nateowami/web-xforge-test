@@ -53,8 +53,11 @@ export interface QuestionDialogResult {
 }
 
 export interface QuestionDialogComponentData extends QuestionDialogData {
-  /** Saves the question. The dialog stays open, showing that it is saving, until this resolves. */
-  saveQuestion: (result: QuestionDialogResult) => Promise<void>;
+  /**
+   * Saves the question. The dialog stays open, showing that it is saving, until this resolves. It closes if this
+   * resolves to true, and otherwise stays open so the user can try again or cancel.
+   */
+  saveQuestion: (result: QuestionDialogResult) => Promise<boolean>;
 }
 
 @Component({
@@ -98,6 +101,10 @@ export class QuestionDialogComponent implements OnInit {
     SFValidators.verseStartBeforeEnd
   );
   _selection?: VerseRef;
+  /**
+   * While saving, the inputs are made read-only rather than disabling the form controls. A disabled control is not
+   * valid, which would unload the scripture text and clear the selected verses.
+   */
   isSaving: boolean = false;
 
   private _question: Readonly<Question | undefined>;
@@ -229,12 +236,15 @@ export class QuestionDialogComponent implements OnInit {
       audio: this.textAndAudio.audioAttachment ?? {}
     };
     this.isSaving = true;
+    let saved: boolean;
     try {
-      await this.data.saveQuestion(result);
+      saved = await this.data.saveQuestion(result);
     } finally {
       this.isSaving = false;
     }
-    this.dialogRef.close(result);
+    if (saved) {
+      this.dialogRef.close(result);
+    }
   }
 
   /** Edit text of control using Scripture chooser dialog. */

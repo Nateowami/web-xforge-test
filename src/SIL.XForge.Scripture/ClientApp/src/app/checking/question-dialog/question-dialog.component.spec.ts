@@ -107,8 +107,8 @@ describe('QuestionDialogComponent', () => {
   it('stays open and shows that it is saving until the question is saved', fakeAsync(() => {
     env = new TestEnvironment();
     flush();
-    let finishSaving!: () => void;
-    env.saveQuestion.and.returnValue(new Promise<void>(resolve => (finishSaving = resolve)));
+    let finishSaving!: (saved: boolean) => void;
+    env.saveQuestion.and.returnValue(new Promise<boolean>(resolve => (finishSaving = resolve)));
     env.inputValue(env.scriptureStartInput, 'LUK 1:1');
     env.inputValue(env.questionInput, 'Who is Theophilus?');
 
@@ -119,15 +119,50 @@ describe('QuestionDialogComponent', () => {
     expect(env.saveButton.disabled).toBe(true);
     expect(env.saveButton.querySelector('mat-spinner')).not.toBeNull();
     expect(env.cancelButton.disabled).toBe(true);
+    // Edits made while saving would not be saved, so the inputs are read-only
+    expect(env.inputElement(env.scriptureStartInput).readOnly).toBe(true);
+    expect(env.inputElement(env.scriptureEndInput).readOnly).toBe(true);
+    expect(env.inputElement(env.questionInput).readOnly).toBe(true);
+    expect((env.scriptureStartInputIcon as HTMLButtonElement).disabled).toBe(true);
+    expect((env.scriptureEndInputIcon as HTMLButtonElement).disabled).toBe(true);
+    expect(env.recordAudioButton.disabled).toBe(true);
+    expect(env.uploadAudioButton.disabled).toBe(true);
+    // The scripture text stays loaded with the selected verse highlighted
+    expect(env.component.textDocId).toBeDefined();
+    expect(env.component.selection).toEqual(new VerseRef('LUK 1:1'));
 
-    finishSaving();
+    finishSaving(true);
     flush();
     expect(env.afterCloseCallback).toHaveBeenCalledWith(
       jasmine.objectContaining({ text: 'Who is Theophilus?', verseRef: new VerseRef('LUK 1:1') })
     );
   }));
 
-  it('stays open if saving fails', fakeAsync(() => {
+  it('stays open so the user can try again if the question could not be saved', fakeAsync(() => {
+    env = new TestEnvironment();
+    flush();
+    env.saveQuestion.and.resolveTo(false);
+    env.inputValue(env.scriptureStartInput, 'LUK 1:1');
+    env.inputValue(env.questionInput, 'Who is Theophilus?');
+
+    env.clickElement(env.saveButton);
+    flush();
+    env.fixture.detectChanges();
+    expect(env.saveQuestion).toHaveBeenCalledTimes(1);
+    expect(env.afterCloseCallback).not.toHaveBeenCalled();
+    expect(env.saveButton.disabled).toBe(false);
+    expect(env.cancelButton.disabled).toBe(false);
+    expect(env.inputElement(env.questionInput).readOnly).toBe(false);
+    expect(env.inputElement(env.questionInput).value).toEqual('Who is Theophilus?');
+
+    env.saveQuestion.and.resolveTo(true);
+    env.clickElement(env.saveButton);
+    flush();
+    expect(env.saveQuestion).toHaveBeenCalledTimes(2);
+    expect(env.afterCloseCallback).toHaveBeenCalledWith(jasmine.objectContaining({ text: 'Who is Theophilus?' }));
+  }));
+
+  it('stays open if saving throws', fakeAsync(() => {
     env = new TestEnvironment();
     flush();
     env.saveQuestion.and.rejectWith(new Error('save failed'));
@@ -627,7 +662,7 @@ class TestEnvironment {
   readonly component: QuestionDialogComponent;
   readonly dialogRef: MatDialogRef<QuestionDialogComponent>;
   readonly afterCloseCallback: jasmine.Spy;
-  readonly saveQuestion: jasmine.Spy<(result: QuestionDialogResult) => Promise<void>>;
+  readonly saveQuestion: jasmine.Spy<(result: QuestionDialogResult) => Promise<boolean>>;
   readonly dialogServiceSpy: DialogService;
 
   readonly mockedScriptureChooserMatDialogRef = mock(MatDialogRef);
@@ -675,7 +710,7 @@ class TestEnvironment {
       data: createTestProjectProfile({ texts: Object.values(textsByBookId) })
     });
     const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, 'project01');
-    this.saveQuestion = jasmine.createSpy('saveQuestion').and.resolveTo();
+    this.saveQuestion = jasmine.createSpy('saveQuestion').and.resolveTo(true);
     const config: MatDialogConfig<QuestionDialogComponentData> = {
       data: {
         saveQuestion: this.saveQuestion,
@@ -751,6 +786,14 @@ class TestEnvironment {
     return this.overlayContainerElement.querySelector('#question-save-btn') as HTMLButtonElement;
   }
 
+  get recordAudioButton(): HTMLButtonElement {
+    return this.overlayContainerElement.querySelector('app-attach-audio .record-audio') as HTMLButtonElement;
+  }
+
+  get uploadAudioButton(): HTMLButtonElement {
+    return this.overlayContainerElement.querySelector('app-attach-audio .upload-audio-file') as HTMLButtonElement;
+  }
+
   get scriptureEndInput(): HTMLInputElement {
     return this.overlayContainerElement.querySelector('#scripture-end') as HTMLInputElement;
   }
@@ -779,8 +822,12 @@ class TestEnvironment {
     return this.fixture.debugElement.queryAll(By.css('.form-helper-text'));
   }
 
+  inputElement(element: HTMLElement): HTMLInputElement | HTMLTextAreaElement {
+    return element.querySelector('input, textarea') as HTMLInputElement | HTMLTextAreaElement;
+  }
+
   inputValue(element: HTMLElement, value: string): void {
-    const inputElem = element.querySelector('input, textarea') as HTMLInputElement | HTMLTextAreaElement;
+    const inputElem = this.inputElement(element);
     inputElem.value = value;
     inputElem.dispatchEvent(new Event('input'));
     inputElem.dispatchEvent(new Event('change'));

@@ -85,7 +85,7 @@ describe('QuestionDialogService', () => {
     const questionDialogPromise = env.service.questionDialog(env.getQuestionDialogData());
     // Nothing is saved until the dialog asks for it
     verify(mockedQuestionsService.createQuestion(anything(), anything(), anything(), anything())).never();
-    await env.dialogData!.saveQuestion(result);
+    expect(await env.dialogData!.saveQuestion(result)).toBe(true);
     verify(mockedQuestionsService.createQuestion(env.PROJECT01, anything(), 'someFileName.mp3', anything())).once();
     afterClosed$.next(result);
     afterClosed$.complete();
@@ -112,7 +112,7 @@ describe('QuestionDialogService', () => {
     await env.service.questionDialog(env.getQuestionDialogData());
     verify(mockedQuestionsService.createQuestion(env.PROJECT01, anything())).never();
     verify(mockedNoticeService.show('question_dialog.add_question_denied')).once();
-    expect().nothing();
+    expect(env.saveSucceeded).toBe(false);
   });
 
   it('uploads audio when provided', async () => {
@@ -142,7 +142,7 @@ describe('QuestionDialogService', () => {
     expect(questionDoc!.data!.text).toBe('question edited');
   });
 
-  it('discards changes if failed to upload or store the audio', async () => {
+  it('keeps the dialog open and leaves the question unchanged if the audio fails to upload or store', async () => {
     const env = new TestEnvironment();
     const result: QuestionDialogResult = {
       text: 'question added',
@@ -164,7 +164,10 @@ describe('QuestionDialogService', () => {
     ).thenResolve(undefined);
     const questionDoc = env.addQuestion(env.getNewQuestion());
     const editedQuestion = await env.service.questionDialog(env.getQuestionDialogData(questionDoc));
-    expect(editedQuestion).toBeUndefined();
+    expect(env.saveSucceeded).toBe(false);
+    // The user then cancelled the dialog
+    expect(editedQuestion).toBe(questionDoc);
+    expect(questionDoc.data!.text).toBe('question to be edited');
   });
 
   it('removes audio if audio deleted', async () => {
@@ -209,6 +212,8 @@ class TestEnvironment {
   adminUser: UserInfo = { id: 'user01', role: SFProjectRole.ParatextAdministrator };
 
   dialogData?: QuestionDialogComponentData;
+  /** Whether the last save requested by the simulated dialog succeeded. */
+  saveSucceeded?: boolean;
 
   private testProjectProfile: SFProjectProfile = createTestProjectProfile({
     texts: [this.matthewText],
@@ -243,10 +248,20 @@ class TestEnvironment {
     );
   }
 
-  /** Simulates the dialog closing. When saving, the dialog closes only after the question has been saved. */
+  /**
+   * Simulates the dialog closing. When saving, the dialog closes only after the question has been saved. If it could
+   * not be saved, the dialog stays open and the user then cancels it.
+   */
   closeDialogWith(result: QuestionDialogResult | 'close'): void {
     when(this.mockedDialogRef.afterClosed()).thenCall(() =>
-      result === 'close' ? of(result) : from(this.dialogData!.saveQuestion(result).then(() => result))
+      result === 'close'
+        ? of(result)
+        : from(
+            this.dialogData!.saveQuestion(result).then(saved => {
+              this.saveSucceeded = saved;
+              return saved ? result : 'close';
+            })
+          )
     );
   }
 

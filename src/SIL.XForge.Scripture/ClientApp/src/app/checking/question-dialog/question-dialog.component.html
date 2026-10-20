@@ -7,8 +7,14 @@
       <div class="references">
         <mat-form-field class="scripture-reference" id="scripture-start" appearance="outline">
           <mat-label>{{ t("scripture_reference") }}</mat-label>
-          <input matInput type="text" formControlName="scriptureStart" (input)="updateScriptureEndEnabled()" />
-          <button mat-icon-button matSuffix (click)="openScriptureChooser(scriptureStart)">
+          <input
+            matInput
+            type="text"
+            formControlName="scriptureStart"
+            (input)="updateScriptureEndEnabled()"
+            [readonly]="isSaving"
+          />
+          <button mat-icon-button matSuffix (click)="openScriptureChooser(scriptureStart)" [disabled]="isSaving">
             <mat-icon>expand_more</mat-icon>
           </button>
           <mat-error id="question-scripture-start-helper-text" class="scripture-helper-text">
@@ -17,9 +23,15 @@
         </mat-form-field>
         <mat-form-field class="scripture-reference" id="scripture-end" appearance="outline">
           <mat-label>{{ t("end_reference") }}</mat-label>
-          <input matInput type="text" formControlName="scriptureEnd" [errorStateMatcher]="parentAndStartMatcher" />
+          <input
+            matInput
+            type="text"
+            formControlName="scriptureEnd"
+            [errorStateMatcher]="parentAndStartMatcher"
+            [readonly]="isSaving"
+          />
           <button
-            [disabled]="scriptureEnd.disabled"
+            [disabled]="scriptureEnd.disabled || isSaving"
             mat-icon-button
             matSuffix
             (click)="openScriptureChooser(scriptureEnd)"
@@ -46,9 +58,14 @@
         ></app-checking-text>
       </div>
       <div>
-        <app-text-and-audio #input [input]="question" [textLabel]="t('question')"></app-text-and-audio>
+        <app-text-and-audio
+          #input
+          [input]="question"
+          [textLabel]="t('question')"
+          [readonly]="isSaving"
+        ></app-text-and-audio>
         <div class="attachments">
-          <app-attach-audio [textAndAudio]="input" [isUploadEnabled]="true"></app-attach-audio>
+          <app-attach-audio [textAndAudio]="input" [isUploadEnabled]="true" [disabled]="isSaving"></app-attach-audio>
         </div>
       </div>
     </mat-dialog-content>
