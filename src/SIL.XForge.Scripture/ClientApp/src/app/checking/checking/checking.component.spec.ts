@@ -230,6 +230,40 @@ describe('CheckingComponent', () => {
       discardPeriodicTasks();
     }));
 
+    it('should move to another book when a sync removes the current book', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 2,
+        questionScope: 'book'
+      });
+      const projectDoc = env.component.projectDoc!;
+      const jhnIndex: number = projectDoc.data!.texts.findIndex(t => t.bookNum === 43);
+      projectDoc.submitJson0Op(op => op.remove(p => p.texts, jhnIndex), false);
+      env.waitForSliderUpdate();
+
+      expect(env.component.books).toEqual([40]);
+      expect(env.location.path()).toEqual('/projects/project01/checking/MAT/1?scope=book');
+      discardPeriodicTasks();
+    }));
+
+    it('should move to another chapter when a sync removes the current chapter', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: CHECKER_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 2,
+        questionScope: 'book'
+      });
+      const projectDoc = env.component.projectDoc!;
+      const jhnIndex: number = projectDoc.data!.texts.findIndex(t => t.bookNum === 43);
+      projectDoc.submitJson0Op(op => op.remove(p => p.texts[jhnIndex].chapters, 1), false);
+      env.waitForSliderUpdate();
+
+      expect(env.component.chapters).toEqual([1]);
+      expect(env.location.path()).toEqual('/projects/project01/checking/JHN/1?scope=book');
+      discardPeriodicTasks();
+    }));
+
     it('should re-calculate scripture slide position on drag end', fakeAsync(() => {
       const testProject: SFProject = TestEnvironment.generateTestProject();
       const env = new TestEnvironment({ user: CHECKER_USER, testProject });

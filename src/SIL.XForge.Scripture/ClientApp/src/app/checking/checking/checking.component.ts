@@ -394,8 +394,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     }
 
     this._book = book;
-    this.text = this.projectDoc.data.texts.find(t => t.bookNum === book);
-    this.chapters = this.text == null ? [] : this.text.chapters.map(c => c.number);
+    this.updateText(this.projectDoc.data.texts);
     this._chapter = undefined;
   }
 
@@ -615,6 +614,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
               .pipe(quietTakeUntilDestroyed(this.destroyRef))
               .subscribe(() => {
                 this.updateBooksAndChapters();
+                this.navigateIfBookChapterRemoved();
                 this.changeDetector.markForCheck();
               });
           }
@@ -1578,8 +1578,36 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
 
     this.books = texts.map(t => t.bookNum).sort((a, b) => a - b);
     if (this.book != null) {
-      this.text = texts.find(t => t.bookNum === this.book);
-      this.chapters = this.text == null ? [] : this.text.chapters.map(c => c.number);
+      this.updateText(texts);
+    }
+  }
+
+  private updateText(texts: TextInfo[]): void {
+    this.text = texts.find(t => t.bookNum === this.book);
+    this.chapters = this.text == null ? [] : this.text.chapters.map(c => c.number);
+  }
+
+  /** Moves to a book and chapter that exist if a sync removed the current book or chapter. */
+  private navigateIfBookChapterRemoved(): void {
+    if (this.projectDoc?.data == null || this.activeQuestionScope == null || this.book == null) {
+      return;
+    }
+
+    if (this.text == null) {
+      const firstText: TextInfo | undefined = this.projectDoc.data.texts.find(t => t.bookNum === this.books[0]);
+      if (firstText != null) {
+        this.navigateBookChapter(
+          this.projectDoc.id,
+          this.activeQuestionScope,
+          firstText.bookNum,
+          firstText.chapters[0]?.number,
+          { replaceUrl: true }
+        );
+      }
+    } else if (this.chapter != null && this.chapters.length > 0 && !this.chapters.includes(this.chapter)) {
+      this.navigateBookChapter(this.projectDoc.id, this.activeQuestionScope, this.book, this.chapters[0], {
+        replaceUrl: true
+      });
     }
   }
 
