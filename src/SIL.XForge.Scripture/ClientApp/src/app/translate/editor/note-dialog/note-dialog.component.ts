@@ -35,7 +35,7 @@ import { isParatextRole } from 'realtime-server/lib/esm/scriptureforge/models/sf
 import { toVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { merge } from 'rxjs';
 import { DialogService } from 'xforge-common/dialog.service';
-import { I18nService } from 'xforge-common/i18n.service';
+import { I18nKey, I18nService } from 'xforge-common/i18n.service';
 import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
 import { UserService } from 'xforge-common/user.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
@@ -126,6 +126,7 @@ export class NoteDialogComponent implements OnInit {
   private textDoc?: TextDoc;
   private paratextProjectUsers?: ParatextUserProfile[];
   private noteIdBeingEdited?: string;
+  private isClosingForRemoteChange: boolean = false;
   private userRole?: string;
 
   constructor(
@@ -172,7 +173,7 @@ export class NoteDialogComponent implements OnInit {
     if (this.threadDoc != null) {
       merge(this.threadDoc.remoteChanges$, this.threadDoc.delete$)
         .pipe(quietTakeUntilDestroyed(this.destroyRef))
-        .subscribe(() => this.onRemoteThreadChange());
+        .subscribe(() => void this.onRemoteThreadChange());
     }
   }
 
@@ -429,20 +430,45 @@ export class NoteDialogComponent implements OnInit {
 
   /** Keeps the dialog in step with notes edited or deleted by other users while it is open. */
   private async onRemoteThreadChange(): Promise<void> {
-    if (this.threadDoc?.data == null || this.threadDoc.data.notes.every(n => n.deleted)) {
+    if (this.isClosingForRemoteChange) return;
+    const notes: Note[] = this.sortedUndeletedNotes();
+    if (notes.length === 0) {
       // There is nothing left to view or reply to
-      this.dialogRef.close({ deleted: true });
+      this.closeForRemoteChange('note_dialog.note_deleted_by_another_user', { deleted: true });
       return;
+    }
+    if (this.noteIdBeingEdited != null) {
+      if (!notes.some(n => n.dataId === this.noteIdBeingEdited)) {
+        this.closeForRemoteChange('note_dialog.comment_deleted_by_another_user', { deleted: true });
+        return;
+      }
+      // Only the last note in a thread can be edited
+      if (notes[notes.length - 1].dataId !== this.noteIdBeingEdited) {
+        this.closeForRemoteChange('note_dialog.reply_added_while_editing');
+        return;
+      }
     }
     await this.updateNotesToDisplayAsync();
   }
 
-  private async updateNotesToDisplayAsync(): Promise<void> {
-    if (this.threadDoc?.data == null) return;
-    const sortedNotes: Note[] = sortBy(
+  /** Closes the dialog without saving, and tells the user why, as anything they typed is discarded. */
+  private closeForRemoteChange(message: I18nKey, result?: NoteDialogResult): void {
+    this.isClosingForRemoteChange = true;
+    this.dialogRef.close(result);
+    void this.dialogService.message(message);
+  }
+
+  private sortedUndeletedNotes(): Note[] {
+    if (this.threadDoc?.data == null) return [];
+    return sortBy(
       this.threadDoc.data.notes.filter(n => !n.deleted),
       n => new Date(n.dateCreated)
     );
+  }
+
+  private async updateNotesToDisplayAsync(): Promise<void> {
+    if (this.threadDoc?.data == null) return;
+    const sortedNotes: Note[] = this.sortedUndeletedNotes();
     if (sortedNotes.length === 0) {
       this.notesToDisplay = [];
       return;

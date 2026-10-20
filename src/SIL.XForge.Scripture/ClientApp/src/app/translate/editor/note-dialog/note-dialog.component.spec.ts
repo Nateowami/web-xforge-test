@@ -543,6 +543,8 @@ describe('NoteDialogComponent', () => {
     env.enterNoteContent('a reply to a note that is being deleted');
     env.simulateRemoteChange('dataid01', op => op.set(nt => nt.notes[0].deleted, true));
     expect(env.dialogResult).toEqual({ deleted: true });
+    // The reply is discarded, so the user is told why the dialog closed
+    verify(mockedDialogService.message('note_dialog.note_deleted_by_another_user')).once();
   }));
 
   it('closes when another user deletes the note thread', fakeAsync(() => {
@@ -551,6 +553,7 @@ describe('NoteDialogComponent', () => {
     void env.getNoteThreadDoc('dataid01').delete();
     flush();
     expect(env.dialogResult).toEqual({ deleted: true });
+    verify(mockedDialogService.message('note_dialog.note_deleted_by_another_user')).once();
   }));
 
   it('hides a note deleted by another user while the thread still has notes', fakeAsync(() => {
@@ -559,6 +562,7 @@ describe('NoteDialogComponent', () => {
     env.simulateRemoteChange('dataid01', op => op.set(nt => nt.notes[4].deleted, true));
     expect(env.notes.length).toEqual(3);
     expect(env.dialogResult).toBeUndefined();
+    verify(mockedDialogService.message(anything())).never();
   }));
 
   it('keeps the note being edited out of the list when another user changes the thread', fakeAsync(() => {
@@ -569,6 +573,29 @@ describe('NoteDialogComponent', () => {
     expect(env.notes.length).toEqual(2);
     expect(env.component.currentNoteContent).toEqual('note05');
     expect(env.dialogResult).toBeUndefined();
+  }));
+
+  it('closes without saving when another user deletes the note being edited', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread(undefined, undefined, true) });
+    env.clickEditNote();
+    env.enterNoteContent('an edit to a note that is being deleted');
+    env.simulateRemoteChange('dataid01', op => op.set(nt => nt.notes[4].deleted, true));
+    // Saving would have written the edit onto the deleted note
+    expect(env.dialogResult).toEqual({ deleted: true });
+    verify(mockedDialogService.message('note_dialog.comment_deleted_by_another_user')).once();
+  }));
+
+  it('closes without saving when another user replies to the note being edited', fakeAsync(() => {
+    const noteThread: NoteThread = TestEnvironment.getNoteThread(undefined, undefined, true);
+    env = new TestEnvironment({ noteThread });
+    env.clickEditNote();
+    env.enterNoteContent('an edit to a note that is no longer the last one');
+    const reply: Note = { ...noteThread.notes[4], dataId: 'note06', content: 'reply', ownerRef: 'user02' };
+    env.simulateRemoteChange('dataid01', op => op.add(nt => nt.notes, reply));
+    // Only the last note can be edited
+    expect(env.dialogResult).toBeUndefined();
+    expect(env.dialogClosed).toBe(true);
+    verify(mockedDialogService.message('note_dialog.reply_added_while_editing')).once();
   }));
 
   it('resolves a thread', fakeAsync(() => {
@@ -1061,6 +1088,7 @@ class TestEnvironment {
   readonly component: NoteDialogComponent;
   readonly dialogRef: MatDialogRef<NoteDialogComponent, NoteDialogResult | undefined>;
   dialogResult?: NoteDialogResult;
+  dialogClosed: boolean = false;
 
   constructor({
     includeSnapshots = true,
@@ -1132,7 +1160,10 @@ class TestEnvironment {
     }
 
     when(mockedUserService.currentUserId).thenReturn(currentUserId);
-    firstValueFrom(this.dialogRef.afterClosed()).then(result => (this.dialogResult = result));
+    firstValueFrom(this.dialogRef.afterClosed()).then(result => {
+      this.dialogResult = result;
+      this.dialogClosed = true;
+    });
 
     when(mockedUserService.getProfile(anything())).thenCall(id =>
       this.realtimeService.subscribe(UserProfileDoc.COLLECTION, id)
