@@ -10,13 +10,16 @@ import { LynxInsightOverlayComponent } from './lynx-insight-overlay/lynx-insight
 /**
  * Custom scroll strategy that listens to a specific scroll container and repositions the overlay.
  * This replaces the need for CdkScrollable registration with ScrollDispatcher.
- * The overlay is hidden while its origin is scrolled out of the container's visible area.
+ * The overlay is hidden while its origin is out of the container's visible area. This is rechecked when the container
+ * scrolls or is resized (e.g. by a window resize), but not when only the content moves (e.g. text edited above the
+ * origin by another user).
  */
 class OverlayScrollStrategy implements ScrollStrategy {
   private _scrollContainer: Element;
   private _origin: Element;
   private _overlayRef?: OverlayRef;
   private _scrollListener?: () => void;
+  private _resizeObserver?: ResizeObserver;
 
   constructor(scrollContainer: Element, origin: Element) {
     this._scrollContainer = scrollContainer;
@@ -25,18 +28,11 @@ class OverlayScrollStrategy implements ScrollStrategy {
 
   attach(overlayRef: OverlayRef): void {
     this._overlayRef = overlayRef;
-    this._scrollListener = () => {
-      // Check if overlay is still attached before updating position
-      if (this._overlayRef != null && this._overlayRef.hasAttached()) {
-        this._overlayRef.updatePosition();
-
-        // The overlay lives outside the editor, so it is not clipped by the editor's scroll container. Without
-        // this, it would float over the surrounding UI (toolbar, insights panel) when its origin is scrolled out
-        // of view. Hide it rather than close it, so it reappears when the origin is scrolled back into view.
-        this._overlayRef.overlayElement.style.visibility = this.isOriginInView() ? '' : 'hidden';
-      }
-    };
+    this._scrollListener = () => this.update();
     this._scrollContainer.addEventListener('scroll', this._scrollListener);
+    // Resizing the container moves the origin relative to the container's visible area without a scroll event
+    this._resizeObserver = new ResizeObserver(() => this.update());
+    this._resizeObserver.observe(this._scrollContainer);
   }
 
   enable(): void {
@@ -48,11 +44,25 @@ class OverlayScrollStrategy implements ScrollStrategy {
       this._scrollContainer.removeEventListener('scroll', this._scrollListener);
       this._scrollListener = undefined;
     }
+    this._resizeObserver?.disconnect();
+    this._resizeObserver = undefined;
   }
 
   detach(): void {
     this.disable();
     this._overlayRef = undefined;
+  }
+
+  private update(): void {
+    // Check if overlay is still attached before updating position
+    if (this._overlayRef != null && this._overlayRef.hasAttached()) {
+      this._overlayRef.updatePosition();
+
+      // The overlay lives outside the editor, so it is not clipped by the editor's scroll container. Without
+      // this, it would float over the surrounding UI (toolbar, insights panel) when its origin is out of view.
+      // Hide it rather than close it, so it reappears when the origin is back in view.
+      this._overlayRef.overlayElement.style.visibility = this.isOriginInView() ? '' : 'hidden';
+    }
   }
 
   private isOriginInView(): boolean {

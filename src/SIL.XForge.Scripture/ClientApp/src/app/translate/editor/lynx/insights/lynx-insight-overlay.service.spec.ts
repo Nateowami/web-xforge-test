@@ -192,6 +192,32 @@ describe('LynxInsightOverlayService', () => {
       expect(env.getOverlayElement().style.visibility).toBe('');
       expect(env.service.isOpen).toBeTrue();
     }));
+
+    it('should update overlay position and visibility when editor is resized', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.openOverlay();
+      env.attachScrollStrategy();
+
+      // E.g. the window is resized and the editor shrinks above the origin, without the editor scrolling
+      env.resizeEditorWithOriginAt({ top: 610, bottom: 630 });
+      verify(env.getOverlayRefMock().updatePosition()).once();
+      expect(env.getOverlayElement().style.visibility).toBe('hidden');
+
+      env.resizeEditorWithOriginAt({ top: 100, bottom: 120 });
+      verify(env.getOverlayRefMock().updatePosition()).twice();
+      expect(env.getOverlayElement().style.visibility).toBe('');
+    }));
+
+    it('should stop observing the editor when the overlay is closed', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.openOverlay();
+      env.attachScrollStrategy();
+      expect(env.isEditorResizeObserved).toBeTrue();
+
+      env.service.close();
+
+      expect(env.isEditorResizeObserved).toBeFalse();
+    }));
   });
 
   describe('direction handling', () => {
@@ -231,14 +257,30 @@ class TestEnvironment {
   private containerElement: HTMLElement;
   private readonly origin: HTMLElement = document.createElement('div');
   private containerRectConfig: DOMRect | null = null;
+  private resizeObserverCallback?: ResizeObserverCallback;
+  private resizeObserverTarget?: Element;
   private overlayRectConfig: DOMRect | null = null;
 
   constructor(numOverlayRefs = 1) {
     this.containerElement = this.createContainerElement();
     this.setupOverlayMocks(numOverlayRefs);
     this.configureMockRects();
+    this.setupResizeObserverFake();
 
     this.service = TestBed.inject(LynxInsightOverlayService);
+  }
+
+  /** Captures the observer callback, as real resize notifications are delivered after layout, outside fakeAsync. */
+  private setupResizeObserverFake(): void {
+    const env = this;
+    spyOn(window, 'ResizeObserver').and.callFake(function (callback: ResizeObserverCallback) {
+      env.resizeObserverCallback = callback;
+      return {
+        observe: (target: Element) => (env.resizeObserverTarget = target),
+        unobserve: () => {},
+        disconnect: () => (env.resizeObserverTarget = undefined)
+      } as ResizeObserver;
+    });
   }
 
   private createContainerElement(): HTMLElement {
@@ -354,6 +396,16 @@ class TestEnvironment {
   attachScrollStrategy(): void {
     when(this.overlayRefs[0].mock.hasAttached()).thenReturn(true);
     this.captureOverlayConfig().scrollStrategy.attach(this.overlayRefs[0].instance);
+  }
+
+  get isEditorResizeObserved(): boolean {
+    return this.resizeObserverTarget === this.containerElement;
+  }
+
+  /** Simulates resizing the editor so that the overlay origin is at the given vertical position. */
+  resizeEditorWithOriginAt(originRect: { top: number; bottom: number }): void {
+    this.origin.getBoundingClientRect = () => ({ left: 100, right: 120, ...originRect }) as DOMRect;
+    this.resizeObserverCallback?.([], {} as ResizeObserver);
   }
 
   /** Simulates scrolling the editor so that the overlay origin is at the given vertical position. */
