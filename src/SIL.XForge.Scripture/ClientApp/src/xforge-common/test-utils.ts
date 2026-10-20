@@ -9,7 +9,7 @@ import {
 } from '@angular/core';
 import { TestBed, TestModuleMetadata } from '@angular/core/testing';
 import { HAMMER_LOADER } from '@angular/platform-browser';
-import { TranslocoTestingModule } from '@ngneat/transloco';
+import { Translation, TranslocoTestingModule } from '@ngneat/transloco';
 import { instance, reset } from 'ts-mockito';
 import { en } from './i18n.service';
 
@@ -65,11 +65,18 @@ export const configureTestingModule = (createModuleDef: () => TestModuleMetadata
  * @param loadLangs Whether to preload the languages. Set to false if tests want to use the untranslated key.
  * Default is true.
  */
-export function getTestTranslocoModule(loadLangs = true): ModuleWithProviders<TranslocoTestingModule> {
+/**
+ * @param extraLangs Additional languages besides English, keyed by language code, for tests that switch the interface
+ * language. Each translation only needs the keys the test reads; other keys fall back to English.
+ */
+export function getTestTranslocoModule(
+  loadLangs = true,
+  extraLangs: Record<string, Translation> = {}
+): ModuleWithProviders<TranslocoTestingModule> {
   return TranslocoTestingModule.forRoot({
-    langs: { en },
+    langs: { en, ...extraLangs },
     translocoConfig: {
-      availableLangs: ['en'],
+      availableLangs: ['en', ...Object.keys(extraLangs)],
       reRenderOnLangChange: true,
       fallbackLang: 'en',
       defaultLang: 'en'
