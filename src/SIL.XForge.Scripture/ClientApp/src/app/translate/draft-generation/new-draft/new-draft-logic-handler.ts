@@ -3,6 +3,7 @@ import { Canon } from '@sillsdev/scripture';
 import { mapValues } from 'lodash-es';
 import { BehaviorSubject, firstValueFrom, skip } from 'rxjs';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { filterNullish, quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { ChapterSet, VerboseScriptureRange } from '../../../shared/scripture-range';
 import { projectLabel } from '../../../shared/utils';
@@ -144,6 +145,7 @@ export class NewDraftLogicHandler {
     private readonly activatedProjectService: ActivatedProjectService,
     private readonly draftSourcesService: DraftSourcesService,
     private readonly progressService: DraftProgressService,
+    private readonly onlineStatusService: OnlineStatusService,
     private readonly destroyRef: DestroyRef
   ) {
     void this.init();
@@ -155,6 +157,9 @@ export class NewDraftLogicHandler {
    * user to restart the process). Automatically sets training books to most recently selected training books.
    */
   async init(): Promise<void> {
+    // Progress data comes from an online-only API call, so wait for a connection rather than letting the request fail
+    // and abort the wizard (e.g. when it is reopened with the browser's back/forward buttons while offline).
+    await this.onlineStatusService.online;
     try {
       const [bundle, sources] = await Promise.all([
         this.fetchProgressBundle(),

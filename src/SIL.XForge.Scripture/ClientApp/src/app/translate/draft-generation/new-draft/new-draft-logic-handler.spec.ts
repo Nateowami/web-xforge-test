@@ -3,8 +3,9 @@ import { Canon } from '@sillsdev/scripture';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { ProjectScriptureRange } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
 import { BehaviorSubject, filter, firstValueFrom, of } from 'rxjs';
-import { instance, mock, resetCalls, verify, when } from 'ts-mockito';
+import { anything, instance, mock, resetCalls, verify, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { SFProjectProfileDoc } from '../../../core/models/sf-project-profile-doc';
 import { SFProjectService } from '../../../core/sf-project.service';
 import { chapterCounts } from '../../../shared/progress-service/progress.service';
@@ -115,6 +116,24 @@ describe('NewDraftLogicHandler', () => {
       });
 
       expect(env.logicHandler.status$.getValue()).toBe('input');
+    });
+
+    it('waits until online before loading progress', async () => {
+      let goOnline!: () => void;
+      const online = new Promise<void>(resolve => (goOnline = resolve));
+      resetCalls(mockedDraftProgressService);
+      const env = new TestEnvironment(teamStartingToTranslateGenesis, undefined, { online });
+      await new Promise(resolve => setTimeout(resolve));
+
+      // Offline, the progress request would fail and abort the wizard, so it must not be made yet
+      verify(mockedDraftProgressService.getChaptersWithContent(anything())).never();
+      expect(env.logicHandler.status$.getValue()).toBe('init');
+
+      goOnline();
+      await env.waitForInit();
+
+      verify(mockedDraftProgressService.getChaptersWithContent('testProjectId')).once();
+      expect(env.availableDraftingScriptureRange).toBe(teamStartingToTranslateGenesis.draftingSourceBooksChapters);
     });
 
     it('initializes available ranges based on progress service', async () => {
@@ -1093,6 +1112,7 @@ const mockedActivatedProjectService = mock(ActivatedProjectService);
 const mockedSFProjectService = mock(SFProjectService);
 const mockedDraftSourcesService = mock(DraftSourcesService);
 const mockedDraftProgressService = mock(DraftProgressService);
+const mockedOnlineStatusService = mock(OnlineStatusService);
 
 interface TestState {
   lastSelectedTranslationScriptureRanges: ProjectScriptureRange[] | undefined;
@@ -1138,8 +1158,13 @@ class TestEnvironment {
   sfProjectService = instance(mockedSFProjectService);
   draftSourcesService = instance(mockedDraftSourcesService);
   draftProgressService = instance(mockedDraftProgressService);
+  onlineStatusService = instance(mockedOnlineStatusService);
 
-  constructor(state: TestState, sources$?: BehaviorSubject<DraftSourcesAsArrays>) {
+  constructor(
+    state: TestState,
+    sources$?: BehaviorSubject<DraftSourcesAsArrays>,
+    options: { online?: Promise<void> } = {}
+  ) {
     const project = createTestProjectProfile({
       texts: (state.targetTextBooks ?? []).map(bookId => ({
         bookNum: Canon.bookIdToNumber(bookId),
@@ -1218,10 +1243,13 @@ class TestEnvironment {
       new Set(state.completeTargetBooks ?? [])
     );
 
+    when(mockedOnlineStatusService.online).thenReturn(options.online ?? Promise.resolve());
+
     this.logicHandler = new NewDraftLogicHandler(
       this.activatedProjectService,
       this.draftSourcesService,
       this.draftProgressService,
+      this.onlineStatusService,
       mockDestroyRef
     );
   }

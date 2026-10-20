@@ -834,16 +834,29 @@ describe('NewDraftComponent', () => {
       expect(env.component.page).toEqual('preface');
     }));
 
-    it('skips detection entirely when offline', fakeAsync(() => {
+    it('waits until online before loading and detecting pending updates', fakeAsync(() => {
+      resetCalls(mockedProgressService);
+      resetCalls(mockedErrorHandler);
       const env = new TestEnvironment(testState, {
         offline: true,
         projects: [makeParatextProject({ projectId: 'draft-source-1-id', hasUpdate: true })]
       });
       tick();
 
-      expect(env.component.pendingProjects).toEqual([]);
-      expect(env.component.page).toEqual('preface');
+      // Offline (e.g. reopened with the browser's forward button), the wizard stays on its loading screen rather than
+      // making requests that would fail
+      expect(env.component.initData).toBeUndefined();
+      expect(env.component.page).toEqual('loading');
       verify(mockedParatextService.getProjects()).never();
+      verify(mockedProgressService.getChaptersWithContent(anything())).never();
+      verify(mockedErrorHandler.handleError(anything())).never();
+
+      env.onlineStatusService.setIsOnline(true);
+      tick();
+
+      expect(env.component.page).toEqual('pending_updates');
+      expect(env.component.pendingProjects.map(p => p.projectId)).toEqual(['draft-source-1-id']);
+      verify(mockedParatextService.getProjects()).once();
     }));
 
     it('proceeds to the preface page when getProjects fails', fakeAsync(() => {

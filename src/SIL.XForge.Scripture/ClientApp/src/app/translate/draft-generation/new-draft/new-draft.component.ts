@@ -145,6 +145,7 @@ export class NewDraftComponent {
       this.activatedProjectService,
       this.draftSourcesService,
       this.progressService,
+      this.onlineStatusService,
       this.destroyRef
     );
 
@@ -152,6 +153,9 @@ export class NewDraftComponent {
   }
 
   async init(): Promise<void> {
+    // Like the logic handler's loading, pending-update detection needs a connection. Waiting here means it runs once the
+    // user is back online instead of being skipped for a wizard that was opened offline.
+    await this.onlineStatusService.online;
     // Fetching the Paratext project list (for pending-update detection) doesn't depend on the project doc, so start it
     // now to overlap with the init work below. The fetch is best-effort: offline (or any failure) resolves to
     // undefined and detection is simply skipped.
