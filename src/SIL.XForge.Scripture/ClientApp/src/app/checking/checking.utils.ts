@@ -2,6 +2,7 @@ import { VerseRef } from '@sillsdev/scripture';
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
 import { Question } from 'realtime-server/lib/esm/scriptureforge/models/question';
 import { SFProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
+import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { VerseRefData, toVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { I18nService } from 'xforge-common/i18n.service';
 
@@ -43,6 +44,13 @@ export function isQuestionScope(scope: any): scope is QuestionScope {
  */
 export function bookChapterMatchesVerseRef(bookChapter: BookChapter, verseRef: VerseRefData): boolean {
   return verseRef.bookNum === bookChapter.bookNum && verseRef.chapterNum === bookChapter.chapterNum;
+}
+
+/**
+ * Whether the book has no verses, i.e. it exists in the project but has no content yet.
+ */
+export function isEmptyBook(text: TextInfo): boolean {
+  return text.chapters.length === 1 && text.chapters[0].lastVerse === 0;
 }
 
 export class CheckingUtils {

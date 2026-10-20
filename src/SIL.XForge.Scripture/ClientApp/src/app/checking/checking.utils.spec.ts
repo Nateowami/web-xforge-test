@@ -1,10 +1,12 @@
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
+import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { VerseRefData } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { getAudioTimings, getAudioTimingWithHeadings } from './checking-test.utils';
 import {
   BookChapter,
   bookChapterMatchesVerseRef,
   CheckingUtils,
+  isEmptyBook,
   isQuestionScope,
   QuestionScope
 } from './checking.utils';
@@ -115,6 +117,26 @@ describe('Misc checking functions', () => {
         fail('Expected to be a valid question scope');
       }
     });
+  });
+
+  describe('isEmptyBook', () => {
+    it('should return true when the book has a single chapter with no verses', () => {
+      expect(isEmptyBook(createText([0]))).toBe(true);
+    });
+
+    it('should return false when the book has verses', () => {
+      expect(isEmptyBook(createText([3]))).toBe(false);
+      expect(isEmptyBook(createText([0, 2]))).toBe(false);
+    });
+
+    function createText(lastVerses: number[]): TextInfo {
+      return {
+        bookNum: 42,
+        hasSource: false,
+        chapters: lastVerses.map((lastVerse, i) => ({ number: i + 1, lastVerse, isValid: true, permissions: {} })),
+        permissions: {}
+      };
+    }
   });
 
   describe('bookChapterMatchesVerseRef', () => {

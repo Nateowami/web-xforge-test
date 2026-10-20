@@ -42,7 +42,7 @@ import { TextsByBookId } from '../../core/models/texts-by-book-id';
 import { PermissionsService } from '../../core/permissions.service';
 import { SFProjectService } from '../../core/sf-project.service';
 import { formatDateForFilename } from '../../shared/utils';
-import { CheckingUtils } from '../checking.utils';
+import { CheckingUtils, isEmptyBook } from '../checking.utils';
 import { CheckingQuestionsService } from '../checking/checking-questions.service';
 import {
   ImportQuestionsDialogComponent,
@@ -528,8 +528,7 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
     this.textsByBookId = {};
     this.texts = [];
     for (const text of this.projectDoc.data.texts.slice().sort((a, b) => a.bookNum - b.bookNum)) {
-      // ignore empty books
-      if (text.chapters.length === 1 && text.chapters[0].lastVerse === 0) {
+      if (isEmptyBook(text)) {
         continue;
       }
       this.textsByBookId[Canon.bookNumberToId(text.bookNum)] = text;
