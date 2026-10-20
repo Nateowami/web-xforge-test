@@ -1,5 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, DestroyRef, ErrorHandler, OnInit } from '@angular/core';
+import { Component, DestroyRef, ErrorHandler, OnInit, ViewChild } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
 import { MatCard, MatCardContent, MatCardSubtitle, MatCardTitle } from '@angular/material/card';
@@ -51,6 +51,7 @@ interface ConnectProjectFormValues {
 })
 export class ConnectProjectComponent extends DataLoadingComponent implements OnInit {
   static readonly errorAlreadyConnectedKey: string = 'error-already-connected';
+  @ViewChild(ProjectSelectComponent) sourceProjectSelect?: ProjectSelectComponent;
   readonly connectProjectForm = new FormGroup({
     settings: new FormGroup({
       sourceParatextId: new FormControl(undefined),
@@ -145,6 +146,11 @@ export class ConnectProjectComponent extends DataLoadingComponent implements OnI
 
   async submit(): Promise<void> {
     if (!this.connectProjectForm.valid || this.projectsFromParatext == null) {
+      return;
+    }
+    // Text that does not match a project or resource reaches the form as no source at all, so check the project select
+    // itself rather than connecting without the source the user tried to enter.
+    if (this.sourceProjectSelect?.isValid === false) {
       return;
     }
     const values: ConnectProjectFormValues = {

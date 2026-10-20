@@ -195,6 +195,39 @@ describe('ConnectProjectComponent', () => {
     verify(mockedRouter.navigate(deepEqual(['/projects', 'project01']))).once();
   }));
 
+  it('should not connect when the source text does not match a project or resource', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupDefaultProjectData();
+    env.waitForProjectsResponse();
+    expect(env.component.state).toEqual('input');
+
+    env.typeSourceProjectText('not a real project');
+    // The text does not reach the form as a value, so the form alone would let the project connect without a source
+    expect(env.component.connectProjectForm.valid).toBe(true);
+    expect(env.component.connectProjectForm.value.settings?.sourceParatextId).toBeUndefined();
+
+    env.clickElement(env.submitButton);
+
+    expect(env.component.state).toEqual('input');
+    expect(env.progressBar).toBeNull();
+    expect(env.sourceProjectSelectError?.nativeElement.textContent).toContain('select a valid project or resource');
+    verify(mockedSFProjectService.onlineCreate(anything())).never();
+
+    // Choosing a real project allows connecting
+    env.selectSourceProject('pt04');
+    env.clickElement(env.submitButton);
+    expect(env.component.state).toEqual('connecting');
+    env.setQueuedCount();
+    env.emitSyncComplete();
+
+    const settings: SFProjectCreateSettings = {
+      paratextId: 'pt01',
+      checkingEnabled: true,
+      sourceParatextId: 'pt04'
+    };
+    verify(mockedSFProjectService.onlineCreate(deepEqual(settings))).once();
+  }));
+
   it('handles already connected error', fakeAsync(() => {
     // Another user might have _just_ connected this PT project. We could respond by joining this user to the
     // now-connected project. But the user may have made Translation or Checking selections on the Connect Project page
@@ -455,6 +488,19 @@ class TestEnvironment {
 
   get resourceLoadingErrorMessage(): DebugElement {
     return this.fixture.debugElement.query(By.css('app-project-select + .error-text'));
+  }
+
+  get sourceProjectSelectError(): DebugElement | null {
+    return this.sourceProjectSelect.query(By.css('mat-error'));
+  }
+
+  typeSourceProjectText(text: string): void {
+    const input = this.inputElement(this.sourceProjectSelect);
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    this.fixture.detectChanges();
+    tick();
+    this.fixture.detectChanges();
   }
 
   selectSourceProject(projectId: string): void {
