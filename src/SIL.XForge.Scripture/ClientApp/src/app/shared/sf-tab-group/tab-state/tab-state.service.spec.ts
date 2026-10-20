@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { of, take } from 'rxjs';
+import { Observable, of, take } from 'rxjs';
 import { v4 as uuid } from 'uuid';
 import { TabGroup } from './tab-group';
 import { TabInfo, TabStateService } from './tab-state.service';
@@ -129,6 +129,24 @@ describe('TabStateService', () => {
       expect(service['groups'].get(groupId)!.tabs.length).toBe(1);
       service.removeTab(groupId, 0);
       expect(service['groups'].get(groupId)!.tabs.length).toBe(0);
+    });
+
+    it('should update a tab in place', () => {
+      service.addTabGroup(
+        groupId,
+        tabs.map(tab => ({ ...tab }))
+      );
+      const tab: TabInfo<string> = service.getTabGroup(groupId)!.tabs[1];
+      let emittedHeader: Observable<string> | undefined;
+      service.tabs$.subscribe(flatTabs => (emittedHeader = flatTabs[1].headerText$));
+
+      const headerText$: Observable<string> = of('Updated');
+      service.updateTab(groupId, 1, { headerText$, tooltip: 'Updated tooltip' });
+
+      expect(service.getTabGroup(groupId)!.tabs[1]).toBe(tab);
+      expect(tab.headerText$).toBe(headerText$);
+      expect(tab.tooltip).toEqual('Updated tooltip');
+      expect(emittedHeader).toBe(headerText$);
     });
 
     it('should select a tab', () => {

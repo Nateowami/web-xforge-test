@@ -3658,6 +3658,57 @@ describe('EditorComponent', () => {
         discardPeriodicTasks();
         env.dispose();
       }));
+
+      it('should update the source tab when the source project is changed and tab groups are not consolidated', fakeAsync(async () => {
+        const env = new TestEnvironment(env => env.setupProject({}, 'project03'));
+        env.wait();
+        env.breakpointObserver.emitObserveValue(false);
+        env.component['tabStateInitialized$'].next(true);
+        env.component['targetEditorLoaded$'].next();
+        env.wait();
+
+        const sourceTab: EditorTabInfo = env.component.tabState.getTabGroup('source')!.tabs[0];
+        expect(sourceTab.type).toEqual('project-source');
+        expect(await firstValueFrom(sourceTab.headerText$)).toEqual('SRC');
+
+        env.changeSourceProject('project01', 'project03', 'NEW', 'new source');
+
+        // The existing source tab is updated rather than replaced
+        const tabs: EditorTabInfo[] = env.component.tabState.getTabGroup('source')!.tabs.slice();
+        expect(tabs.length).toEqual(1);
+        expect(tabs[0]).toBe(sourceTab);
+        expect(sourceTab.projectId).toEqual('project03');
+        expect(sourceTab.tooltip).toEqual('new source');
+        expect(await firstValueFrom(sourceTab.headerText$)).toEqual('NEW');
+        expect(env.fixture.nativeElement.querySelector('#source-text-area .tab-header-content').textContent).toContain(
+          'NEW'
+        );
+        discardPeriodicTasks();
+        env.dispose();
+      }));
+
+      it('should update the source tab when the source project is changed and tab groups are consolidated', fakeAsync(async () => {
+        const env = new TestEnvironment(env => env.setupProject({}, 'project03'));
+        env.wait();
+        env.breakpointObserver.emitObserveValue(true);
+        env.component['tabStateInitialized$'].next(true);
+        env.component['targetEditorLoaded$'].next();
+        env.wait();
+
+        env.changeSourceProject('project01', 'project03', 'NEW', 'new source');
+
+        const sourceTab: EditorTabInfo = env.component.tabState.getTabGroup('target')!.tabs[0];
+        expect(sourceTab.type).toEqual('project-source');
+        expect(sourceTab.projectId).toEqual('project03');
+        expect(await firstValueFrom(sourceTab.headerText$)).toEqual('NEW');
+
+        // The updated source tab is restored to the source tab group when the tab groups are deconsolidated
+        env.breakpointObserver.emitObserveValue(false);
+        env.wait();
+        expect(env.component.tabState.getTabGroup('source')!.tabs[0]).toBe(sourceTab);
+        discardPeriodicTasks();
+        env.dispose();
+      }));
     });
 
     describe('initEditorTabs', () => {
@@ -4481,6 +4532,9 @@ class TestEnvironment {
     when(mockedSFProjectService.getProfile('project02')).thenCall(() =>
       this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, 'project02')
     );
+    when(mockedSFProjectService.getProfile('project03')).thenCall(() =>
+      this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, 'project03')
+    );
     when(mockedSFProjectService.tryGetForRole('project01', anything())).thenCall((id, role) =>
       isParatextRole(role) ? this.realtimeService.subscribe(SFProjectDoc.COLLECTION, id) : undefined
     );
@@ -4954,6 +5008,22 @@ class TestEnvironment {
   removeSourceProject(projectId: string): void {
     const projectDoc: SFProjectProfileDoc = this.getProjectDoc(projectId);
     projectDoc.submitJson0Op(op => op.unset(p => p.translateConfig.source!), false);
+    this.wait();
+  }
+
+  changeSourceProject(projectId: string, sourceProjectRef: string, shortName: string, name: string): void {
+    const projectDoc: SFProjectProfileDoc = this.getProjectDoc(projectId);
+    projectDoc.submitJson0Op(
+      op =>
+        op.set(p => p.translateConfig.source!, {
+          paratextId: sourceProjectRef,
+          projectRef: sourceProjectRef,
+          name,
+          shortName,
+          writingSystem: { tag: 'qaa' }
+        }),
+      false
+    );
     this.wait();
   }
 

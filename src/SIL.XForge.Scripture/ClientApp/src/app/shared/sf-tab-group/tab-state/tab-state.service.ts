@@ -142,6 +142,20 @@ export class TabStateService<TGroupId extends string, T extends TabInfo<string>>
     this.tabGroupsSource$.next(this.groups);
   }
 
+  /**
+   * Updates the properties of the tab at the given location. The tab object is modified in place, so that references
+   * to it (e.g. those kept for restoring consolidated tabs) remain valid.
+   */
+  updateTab(groupId: TGroupId, index: number, changes: Partial<T>): void {
+    const tab: T | undefined = this.groups.get(groupId)?.tabs[index];
+    if (tab == null) {
+      return;
+    }
+
+    Object.assign(tab, changes);
+    this.tabGroupsSource$.next(this.groups);
+  }
+
   selectTab(groupId: TGroupId, index: number): void {
     this.groups.get(groupId)!.selectedIndex = index;
     this.tabGroupsSource$.next(this.groups);

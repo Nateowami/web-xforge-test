@@ -1311,6 +1311,18 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         } else if (existingSourceTab == null) {
           this.tabState.addTab('source', tab);
         }
+      } else if (existingSourceTab != null) {
+        // The source project may have been changed in the project settings
+        const sourceTab: EditorTabInfo | undefined = this.tabState.getTabGroup(existingSourceTab.groupId)?.tabs[
+          existingSourceTab.index
+        ];
+        if (sourceTab?.projectId !== projectSource.projectRef || sourceTab?.tooltip !== projectSource.name) {
+          this.tabState.updateTab(existingSourceTab.groupId, existingSourceTab.index, {
+            projectId: projectSource.projectRef,
+            headerText$: of(projectSource.shortName),
+            tooltip: projectSource.name
+          });
+        }
       }
     } else if (existingSourceTab != null) {
       // Remove from the group the tab is actually in, which is not the 'source' group when tab groups are
