@@ -1825,10 +1825,14 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     if (numberOfNotes > 1) {
       preview += '\n' + this.i18n.translateStatic('editor.more_notes', { count: numberOfNotes - 1 });
     }
-    const verseRef: VerseRef | undefined = this.getNoteThreadEmbedVerseRef(threadDoc.currentVerseRef());
-    if (threadDoc.data == null || verseRef == null) {
+    const threadVerseRef: VerseRef | undefined = threadDoc.currentVerseRef();
+    const verseRef: VerseRef | undefined = this.getNoteThreadEmbedVerseRef(threadVerseRef);
+    if (threadDoc.data == null || threadVerseRef == null || verseRef == null) {
       return undefined;
     }
+    // The thread's anchor is relative to the text of its own verse, so it does not apply to the verse the icon was
+    // moved to
+    const textAnchor: TextAnchor = verseRef.equals(threadVerseRef) ? threadDoc.data.position : { start: 0, length: 0 };
     const hasNewContent: boolean = this.hasNewContent(threadDoc);
     const otherAssigned: boolean = threadDoc.isAssignedToOtherUser(this.userService.currentUserId, this.paratextUsers);
     const icon: NoteThreadIcon =
@@ -1843,7 +1847,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       id: threadDoc.data.dataId,
       preview,
       icon,
-      textAnchor: threadDoc.data.position,
+      textAnchor,
       highlight: hasNewContent
     };
   }
@@ -1885,6 +1889,11 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           n => n.data?.dataId === threadId
         );
         if (noteThreadDoc?.data == null) {
+          continue;
+        }
+        const threadVerseRef: VerseRef | undefined = noteThreadDoc.currentVerseRef();
+        if (threadVerseRef != null && !this.getNoteThreadEmbedVerseRef(threadVerseRef)?.equals(threadVerseRef)) {
+          // The icon was moved to a verse other than the thread's, so edits to that verse do not move the anchor
           continue;
         }
 

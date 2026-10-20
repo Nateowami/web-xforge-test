@@ -1246,17 +1246,20 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    /** Sets MAT 2 to a chapter that starts directly with a verse, i.e. "\c 2 \v 1" with no paragraph marker. */
+    function addChapterWithNoParagraphBeforeVerse1(env: TestEnvironment): void {
+      const delta = new Delta();
+      delta.insert({ chapter: { number: '2', style: 'c' } });
+      delta.insert({ verse: { number: '1', style: 'v' } });
+      delta.insert('target: chapter 2, verse 1.', { segment: 'verse_2_1' });
+      delta.insert({ verse: { number: '2', style: 'v' } });
+      delta.insert({ blank: true }, { segment: 'verse_2_2' });
+      delta.insert('\n');
+      env.addTextDocFromDelta(new TextDocId('project01', 40, 2, 'target'), delta);
+    }
+
     it('embeds chapter number note at start of first verse when chapter has no paragraph before it', fakeAsync(() => {
-      const env = new TestEnvironment(env => {
-        const delta = new Delta();
-        delta.insert({ chapter: { number: '2', style: 'c' } });
-        delta.insert({ verse: { number: '1', style: 'v' } });
-        delta.insert('target: chapter 2, verse 1.', { segment: 'verse_2_1' });
-        delta.insert({ verse: { number: '2', style: 'v' } });
-        delta.insert({ blank: true }, { segment: 'verse_2_2' });
-        delta.insert('\n');
-        env.addTextDocFromDelta(new TextDocId('project01', 40, 2, 'target'), delta);
-      });
+      const env = new TestEnvironment(addChapterWithNoParagraphBeforeVerse1);
       env.addParatextNoteThread(7, 'MAT 2:0', '', { start: 0, length: 0 }, ['user01']);
       env.setProjectUserConfig();
       env.routeWithParams({ projectId: 'project01', bookId: 'MAT', chapter: '2' });
@@ -1268,6 +1271,47 @@ describe('EditorComponent', () => {
       const contents = env.targetEditor.getContents();
       expect(contents.ops![2].attributes!['threadid']).toEqual('dataid07');
       expect(contents.ops![3].insert).toEqual('target: chapter 2, verse 1.');
+      env.dispose();
+    }));
+
+    it('ignores anchor of chapter number note shown at start of first verse', fakeAsync(() => {
+      const env = new TestEnvironment(addChapterWithNoParagraphBeforeVerse1);
+      const origPosition: TextAnchor = { start: 3, length: 5 };
+      env.addParatextNoteThread(7, 'MAT 2:0', '', origPosition, ['user01']);
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'MAT', chapter: '2' });
+      env.wait();
+
+      // The icon is not moved into verse 1 by the anchor, and no verse 1 text is underlined
+      const verse1Range: Range = env.component.target!.getSegmentRange('verse_2_1')!;
+      expect(env.getNoteThreadEditorPosition('dataid07')).toEqual(verse1Range.index);
+      const contents = env.targetEditor.getContents();
+      expect(contents.ops![3].insert).toEqual('target: chapter 2, verse 1.');
+      expect(contents.ops![3].attributes!['text-anchor']).toBeUndefined();
+
+      // Editing verse 1 does not change the anchor, which is relative to the chapter number
+      env.targetEditor.setSelection(verse1Range.index + 1, 'user');
+      env.wait();
+      env.typeCharacters('T');
+      env.wait();
+      expect(env.getNoteThreadDoc('project01', 'dataid07').data!.position).toEqual(origPosition);
+      env.dispose();
+    }));
+
+    it('does not embed chapter number note when chapter has no segments', fakeAsync(() => {
+      // A bare "\c 2" has no segment at all, so there is nowhere to put the icon. This pins the current behavior.
+      const env = new TestEnvironment(env => {
+        const delta = new Delta();
+        delta.insert({ chapter: { number: '2', style: 'c' } });
+        delta.insert('\n');
+        env.addTextDocFromDelta(new TextDocId('project01', 40, 2, 'target'), delta);
+      });
+      env.addParatextNoteThread(7, 'MAT 2:0', '', { start: 0, length: 0 }, ['user01']);
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'MAT', chapter: '2' });
+      env.wait();
+
+      expect(env.component.target!.embeddedElements.has('dataid07')).toBe(false);
       env.dispose();
     }));
 
