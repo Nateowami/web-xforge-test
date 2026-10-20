@@ -28,6 +28,7 @@ import {
   ScriptureChooserDialogData
 } from '../scripture-chooser-dialog/scripture-chooser-dialog.component';
 import { TextComponent } from '../shared/text/text.component';
+import { getVerseStrFromSegmentRef } from '../shared/verse-utils';
 
 export interface TextChooserDialogData {
   bookNum: number;
@@ -411,8 +412,8 @@ export class TextChooserDialogComponent {
         : this.getVerseFromElement(segments[0]);
     const lastVerseNum =
       endText.trim() === '' && segments.length > 1
-        ? this.getVerseFromElement(segments[segments.length - 2])
-        : this.getVerseFromElement(segments[segments.length - 1]);
+        ? this.getLastVerseFromElement(segments[segments.length - 2])
+        : this.getLastVerseFromElement(segments[segments.length - 1]);
 
     return {
       startClipped,
@@ -425,6 +426,13 @@ export class TextChooserDialogComponent {
 
   private getVerseFromElement(element: Element): number {
     return parseInt(element.getAttribute('data-segment')!.split('_', 3)[2], 10);
+  }
+
+  /** Gets the last verse number of the verse a segment belongs to, e.g. 3 for the combined verse 'verse_1_2-3'. */
+  private getLastVerseFromElement(element: Element): number {
+    const verseStr: string = getVerseStrFromSegmentRef(element.getAttribute('data-segment')!) ?? '';
+    const verseNums: number[] = (verseStr.match(/\d+/g) ?? []).map(n => parseInt(n, 10));
+    return Math.max(this.getVerseFromElement(element), ...verseNums);
   }
 
   private getSegments(verse?: number): Element[] {

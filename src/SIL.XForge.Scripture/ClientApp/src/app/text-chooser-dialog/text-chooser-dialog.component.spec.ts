@@ -8,7 +8,7 @@ import { User } from 'realtime-server/lib/esm/common/models/user';
 import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
-import { getTextDocId } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
+import { getTextDocId, TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import * as RichText from 'rich-text';
 import { firstValueFrom, of } from 'rxjs';
@@ -22,7 +22,8 @@ import { ChildViewContainerComponent, configureTestingModule, getTestTranslocoMo
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { SF_TYPE_REGISTRY } from '../core/models/sf-type-registry';
-import { TextDoc } from '../core/models/text-doc';
+import { TextDoc, TextDocId } from '../core/models/text-doc';
+import { getCombinedVerseTextDoc } from '../shared/test-utils';
 import { provideQuillRegistrations } from '../shared/text/quill-editor-registration/quill-providers';
 import { TextChooserDialogComponent, TextChooserDialogData, TextSelection } from './text-chooser-dialog.component';
 
@@ -329,6 +330,51 @@ describe('TextChooserDialogComponent', () => {
     env.closeDialog();
   }));
 
+  it('uses the whole verse range when selecting text in a combined verse', fakeAsync(async () => {
+    const env = new TestEnvironment(
+      { start: 0, end: 10 },
+      'verse_1_2-3',
+      'verse_1_2-3',
+      undefined,
+      getCombinedVerseTextDoc(new TextDocId(TestEnvironment.PROJECT01, 40, 1))
+    );
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('target: chapter… (Matthew 1:2-3)');
+    env.click(env.saveButton);
+    expect(await env.resultPromise).toEqual({
+      verses: { bookNum: 40, chapterNum: 1, verseNum: 2, verse: '2-3' },
+      text: 'target: chapter',
+      startClipped: false,
+      endClipped: true
+    });
+  }));
+
+  it('ends the verse range at the end of a combined verse', fakeAsync(async () => {
+    const env = new TestEnvironment(
+      { start: 0, end: 10 },
+      'verse_1_1',
+      'verse_1_2-3',
+      undefined,
+      getCombinedVerseTextDoc(new TextDocId(TestEnvironment.PROJECT01, 40, 1))
+    );
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('target: chapter 1, verse 1. target: chapter… (Matthew 1:1-3)');
+    env.closeDialog();
+  }));
+
+  it('uses the whole verse range for a combined verse in right to left text', fakeAsync(async () => {
+    const env = new TestEnvironment(
+      { start: 0, end: 10 },
+      'verse_1_2\u200f-3',
+      'verse_1_2\u200f-3',
+      undefined,
+      getCombinedVerseTextDoc(new TextDocId(TestEnvironment.PROJECT01, 40, 1), true)
+    );
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('target: chapter… (Matthew 1:2-3)');
+    env.closeDialog();
+  }));
+
   it('can handle right to left text', fakeAsync(() => {
     const config: TextChooserDialogData = { ...TestEnvironment.defaultDialogData, isRightToLeft: true };
     const env = new TestEnvironment([], 'verse_1_1', 'verse_1_2', config);
@@ -402,7 +448,8 @@ class TestEnvironment {
     ranges: SimpleRange | SimpleRange[] = [],
     startSegment = 'verse_1_1',
     endSegment = 'verse_1_2',
-    dialogData?: TextChooserDialogData
+    dialogData?: TextChooserDialogData,
+    textData: TextData = TestEnvironment.delta
   ) {
     ranges = Array.isArray(ranges) ? ranges : [ranges];
     when(mockedDocument.getSelection()).thenCall(
@@ -446,7 +493,7 @@ class TestEnvironment {
 
     const config: TextChooserDialogData = dialogData || TestEnvironment.defaultDialogData;
 
-    this.addTextDoc(config.bookNum);
+    this.addTextDoc(config.bookNum, textData);
 
     this.realtimeService.addSnapshot<SFProjectProfile>(SFProjectProfileDoc.COLLECTION, {
       id: TestEnvironment.PROJECT01,
@@ -572,11 +619,11 @@ class TestEnvironment {
     return delta;
   }
 
-  private addTextDoc(bookNum: number): void {
+  private addTextDoc(bookNum: number, data: TextData): void {
     this.realtimeService.addSnapshot(TextDoc.COLLECTION, {
       id: getTextDocId(TestEnvironment.PROJECT01, bookNum, 1, 'target'),
       type: RichText.type.name,
-      data: TestEnvironment.delta
+      data
     });
   }
 }
