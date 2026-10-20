@@ -1,6 +1,6 @@
 import Quill, { Range } from 'quill';
 import { Subject } from 'rxjs';
-import { anything, instance, mock, resetCalls, verify, when } from 'ts-mockito';
+import { anything, instance, mock, verify, when } from 'ts-mockito';
 import { TextDocId } from '../../../../../core/models/text-doc';
 import { LynxTextModelConverter } from '../lynx-editor';
 import { LynxInsight } from '../lynx-insight';
@@ -65,7 +65,6 @@ class TestEnvironment {
       hoverMultiInsight$: new Subject<LynxInsight | null>()
     } as LynxInsightOverlayRef;
     when(this.mockOverlayService.open(anything(), anything(), anything(), anything())).thenReturn(overlayRef);
-    resetCalls(this.mockEditor);
 
     this.service = new QuillInsightRenderService(instance(this.mockOverlayService), instance(this.mockInsightState));
   }
