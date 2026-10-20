@@ -155,13 +155,17 @@ export class NoteDialogComponent implements OnInit {
         this.projectId,
         this.userRole
       );
-      if (this.threadDoc != null && projectDoc != null && projectDoc.data?.paratextUsers != null) {
+      if (projectDoc?.data?.paratextUsers != null) {
         this.paratextProjectUsers = projectDoc.data.paratextUsers;
-        this.isAssignedToOtherUser = this.threadDoc.isAssignedToOtherUser(
-          this.userService.currentUserId,
-          this.paratextProjectUsers
-        );
       }
+    }
+    if (this.threadDoc != null) {
+      // Users who cannot read the Paratext user list (e.g. commenters) are never Paratext users, so a thread
+      // assigned to a specific Paratext user is assigned to someone else. This matches the icon in the editor.
+      this.isAssignedToOtherUser = this.threadDoc.isAssignedToOtherUser(
+        this.userService.currentUserId,
+        this.paratextProjectUsers ?? []
+      );
     }
     // extract note info and content for display
     await this.updateNotesToDisplayAsync();

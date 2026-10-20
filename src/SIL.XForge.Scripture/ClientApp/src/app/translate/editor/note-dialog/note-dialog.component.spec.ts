@@ -276,6 +276,20 @@ describe('NoteDialogComponent', () => {
     }
   }));
 
+  it('shows gray icon to non-paratext users when assigned to a paratext user', fakeAsync(() => {
+    // user03 is a commenter, so cannot read the project's Paratext users
+    const noteThread: NoteThread = TestEnvironment.defaultNoteThread;
+    noteThread.assignment = 'opaqueuser01';
+    env = new TestEnvironment({ noteThread, currentUserId: 'user03' });
+    expect(env.component.flagIcon).toEqual('/assets/icons/TagIcons/flag04.png');
+    env.closeDialog();
+
+    noteThread.assignment = AssignedUsers.TeamUser;
+    env = new TestEnvironment({ noteThread, currentUserId: 'user03' });
+    expect(env.component.flagIcon).toEqual('/assets/icons/TagIcons/flag01.png');
+    env.closeDialog();
+  }));
+
   it('hides assigned user for non-paratext users', fakeAsync(() => {
     env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread(), currentUserId: 'user02' });
     expect(env.threadAssignedUser).toBeFalsy();
