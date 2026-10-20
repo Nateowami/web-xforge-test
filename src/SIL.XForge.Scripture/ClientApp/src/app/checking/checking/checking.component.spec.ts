@@ -331,6 +331,31 @@ describe('CheckingComponent', () => {
         discardPeriodicTasks();
         flush();
       }));
+
+      it('disables prev/next buttons at the ends of the question list when offline', fakeAsync(() => {
+        const env = new TestEnvironment({ user: ADMIN_USER, questionScope: 'all', hasConnection: false });
+        const questionCount: number = env.questions.length;
+
+        env.selectQuestion(2);
+        env.clickButton(env.previousButton);
+        tick(env.questionReadTimer);
+        env.fixture.detectChanges();
+        expect(env.currentQuestion).toEqual(1);
+        expect(env.previousButton.nativeElement.disabled).toBe(true);
+        expect(env.nextButton.nativeElement.disabled).toBe(false);
+
+        env.selectQuestion(questionCount - 1);
+        env.clickButton(env.nextButton);
+        tick(env.questionReadTimer);
+        env.fixture.detectChanges();
+        expect(env.currentQuestion).toEqual(questionCount);
+        expect(env.previousButton.nativeElement.disabled).toBe(false);
+        expect(env.nextButton.nativeElement.disabled).toBe(true);
+
+        env.waitForAudioPlayer();
+        discardPeriodicTasks();
+        flush();
+      }));
     });
 
     it('gets adjacent question when no actively selected question', fakeAsync(() => {
@@ -3069,20 +3094,34 @@ class TestEnvironment {
     if (!hasConnection) {
       const checkingQuestionsService = TestBed.inject(CheckingQuestionsService);
 
-      // Store original function to call inside callFake
+      // Store original functions to call inside callFake
       const realQueryQuestions = checkingQuestionsService.queryQuestions;
+      const realQueryAdjacentQuestions = checkingQuestionsService.queryAdjacentQuestions;
+
+      // Alter `query.ready$` to emit false and complete
+      const withOfflineReady = (query: RealtimeQuery<QuestionDoc>): RealtimeQuery<QuestionDoc> => {
+        Object.assign(query.ready$, of(false));
+        return query;
+      };
 
       spyOn(checkingQuestionsService, 'queryQuestions').and.callFake((...args: any[]) =>
         // Call real function
         realQueryQuestions
           .apply(checkingQuestionsService, args as [projectId: string, options: any, destroyRef: DestroyRef])
-          .then(
-            // Then alter `query.ready$` to emit false and complete
-            (query: RealtimeQuery<QuestionDoc>) => {
-              Object.assign(query.ready$, of(false));
-              return query;
-            }
+          .then(withOfflineReady)
+      );
+      spyOn(checkingQuestionsService, 'queryAdjacentQuestions').and.callFake((...args: any[]) =>
+        realQueryAdjacentQuestions
+          .apply(
+            checkingQuestionsService,
+            args as [
+              projectId: string,
+              relativeTo: Question | VerseRefData,
+              prevOrNext: 'prev' | 'next',
+              destroyRef: DestroyRef
+            ]
           )
+          .then(withOfflineReady)
       );
     }
 
