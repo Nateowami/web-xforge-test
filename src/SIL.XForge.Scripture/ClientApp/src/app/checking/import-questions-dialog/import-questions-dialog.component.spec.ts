@@ -79,6 +79,20 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('shows questions only from the chapters in the project', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    env.selectFileWithContents([
+      ['Reference', 'Question'],
+      ['MAT 1:1', 'Question for Matthew 1:1'],
+      ['MAT 4:1', 'Question for Matthew 4:1']
+    ]);
+
+    expect(env.tableRows.length).toBe(1);
+    expect(env.getRowReference(env.tableRows[0])).toBe('MAT 1:1');
+    env.click(env.backButton);
+  }));
+
   it('can select questions in the list', fakeAsync(() => {
     const env = new TestEnvironment();
     env.click(env.importFromTransceleratorButton);
@@ -793,7 +807,11 @@ class TestEnvironment {
 
     const gen: TextInfo = {
       bookNum: 1,
-      chapters: [{ number: 41, lastVerse: 57, isValid: true, permissions: {} }],
+      chapters: [
+        { number: 1, lastVerse: 31, isValid: true, permissions: {} },
+        { number: 41, lastVerse: 57, isValid: true, permissions: {} },
+        { number: 43, lastVerse: 34, isValid: true, permissions: {} }
+      ],
       hasSource: false,
       permissions: {}
     };

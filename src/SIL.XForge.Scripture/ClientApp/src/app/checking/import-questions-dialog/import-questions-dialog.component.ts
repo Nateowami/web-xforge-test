@@ -341,7 +341,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
 
     questions.sort((a, b) => a.verseRef.BBBCCCVVV - b.verseRef.BBBCCCVVV);
 
-    for (const question of questions.filter(q => this.data.textsByBookId[q.verseRef.book] != null)) {
+    for (const question of questions.filter(q => this.isChapterInProject(q.verseRef))) {
       // Questions imported from Transcelerator are considered duplicates if the ID and verse ref is the same. The
       // version in SF should be updated if the text is different from the version being imported. Transcelerator does
       // not allow changing the reference for a question, as of 2021-03-09
@@ -749,6 +749,11 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     await this.setUpQuestionList(questions, false);
     this.questionSource = 'csv_file';
     this.loading = false;
+  }
+
+  private isChapterInProject(verseRef: VerseRef): boolean {
+    const text = this.data.textsByBookId[verseRef.book];
+    return text != null && text.chapters.some(chapter => chapter.number === verseRef.chapterNum);
   }
 
   // TODO should consider verse ranges, rather than just starting verse
