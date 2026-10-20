@@ -1970,9 +1970,9 @@ class TestEnvironment {
     when(mockedTranslocoService.translate<string>(anything(), anything())).thenCall(
       (translationStringKey: string, _: any) => translationStringKey
     );
-    when(mockedDialogService.openMatDialog(anything(), anything())).thenReturn({
-      afterClosed: () => of(undefined)
-    } as MatDialogRef<any>);
+    const mockedDialogRef = mock<MatDialogRef<any>>(MatDialogRef);
+    when(mockedDialogRef.afterClosed()).thenReturn(of(undefined));
+    when(mockedDialogService.openMatDialog(anything(), anything())).thenReturn(instance(mockedDialogRef));
 
     this.realtimeService.addSnapshot<SFProjectProfile>(SFProjectProfileDoc.COLLECTION, {
       id: 'project01',
