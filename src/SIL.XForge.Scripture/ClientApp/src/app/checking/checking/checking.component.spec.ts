@@ -2578,6 +2578,23 @@ describe('CheckingComponent', () => {
       expect(env.currentQuestion).toBe(4);
     }));
 
+    it('selects a question on a verse within a clicked combined verse', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      env
+        .getQuestionDoc('q6Id')
+        .submitJson0Op(op => op.set(q => q.verseRef, { bookNum: 43, chapterNum: 1, verseNum: 6, verse: '6' }));
+      env.realtimeService.updateQueryAdaptersRemote();
+      tick(100);
+      env.fixture.detectChanges();
+
+      // No question starts at or spans verse 5, but the question on verse 6 is within 5-7
+      env.component.verseRefClicked(new VerseRef('JHN', '1', '5-7'));
+      env.waitForSliderUpdate();
+      tick(env.questionReadTimer);
+      env.fixture.detectChanges();
+      expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).toEqual('q6Id');
+    }));
+
     it('quill editor element lang attribute is set from project language', fakeAsync(() => {
       const env = new TestEnvironment({ user: CHECKER_USER });
       env.waitForAudioPlayer();

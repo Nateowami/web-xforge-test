@@ -394,9 +394,9 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
         matchStartNum = Number.parseInt(verseParts[0]);
         matchLastNum = Number.parseInt(verseParts[verseParts.length - 1]);
       }
-      const matchStartsWithin: boolean = matchStartNum >= startVerseNum && matchStartNum <= lastVerseNum;
-      const matchEndsWithin: boolean = matchLastNum >= startVerseNum && matchLastNum <= lastVerseNum;
-      if (matchStartsWithin || matchEndsWithin) {
+      // A segment for a combined verse such as 3-5 also contains verse 4, even though neither end of it is verse 4
+      const overlaps: boolean = matchStartNum <= lastVerseNum && matchLastNum >= startVerseNum;
+      if (overlaps) {
         segmentsInVerseRef.push(segment);
       }
     }

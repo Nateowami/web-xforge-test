@@ -1146,6 +1146,9 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     }
 
     let bestMatch: QuestionDoc | undefined;
+    // The clicked verse may be a combined verse, such as 3-5
+    const clickedVerses: VerseRef[] = verseRef.allVerses(true);
+    const clickedEndVerseNum: number = clickedVerses[clickedVerses.length - 1].verseNum;
 
     for (const questionDoc of this.visibleQuestions ?? []) {
       const questionVerseRef = questionDoc.data == null ? undefined : toVerseRef(questionDoc.data.verseRef);
@@ -1164,6 +1167,13 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
         if (endRef.verseNum >= verseRef.verseNum) {
           bestMatch = questionDoc;
         }
+      } else if (
+        questionVerseRef.chapterNum === verseRef.chapterNum &&
+        questionVerseRef.verseNum <= clickedEndVerseNum
+      ) {
+        // The question is on a later verse within the clicked combined verse, e.g. a question on 4 when 3-5 is
+        // clicked. Prefer a question that covers the start of the clicked verse, otherwise use the first such question.
+        bestMatch ??= questionDoc;
       }
     }
     if (bestMatch != null) {
