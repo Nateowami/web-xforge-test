@@ -20,7 +20,9 @@
               } @else if (row.syncState === "failed") {
                 <span class="sync-failed"><mat-icon>error</mat-icon>{{ t("sync_failed") }}</span>
                 @if (row.canSync) {
-                  <button mat-stroked-button (click)="retrySyncProject(row)">{{ t("retry") }}</button>
+                  <button mat-stroked-button (click)="retrySyncProject(row)" [disabled]="!isOnline">
+                    {{ t("retry") }}
+                  </button>
                 } @else {
                   <span class="cant-sync"><mat-icon>warning</mat-icon>{{ t("cant_sync") }}</span>
                 }
@@ -56,7 +58,7 @@
 
     <div class="pending-actions">
       @if (showSyncAll) {
-        <button mat-flat-button color="primary" (click)="syncAll()">
+        <button mat-flat-button color="primary" (click)="syncAll()" [disabled]="!isOnline">
           <mat-icon>sync</mat-icon>{{ t("sync_all") }}
         </button>
       }
