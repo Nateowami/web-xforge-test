@@ -168,9 +168,10 @@ describe('NoteDialogComponent', () => {
   }));
 
   it('shows scripture text and notes in the project font size', fakeAsync(() => {
-    TestEnvironment.testProjectProfile.defaultFontSize = 24;
-    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread('Reattached content text.') });
-    TestEnvironment.testProjectProfile.defaultFontSize = 12;
+    env = new TestEnvironment({
+      noteThread: TestEnvironment.getNoteThread('Reattached content text.'),
+      defaultFontSize: 24
+    });
 
     expect(env.textRowElement.nativeElement.style.fontSize).toEqual('2rem');
     const reattachNote = env.notes[4].nativeElement as HTMLElement;
@@ -788,6 +789,7 @@ interface TestEnvironmentConstructorArgs {
   biblicalTerm?: BiblicalTerm;
   userProfile?: UserProfile;
   userProfileId?: string;
+  defaultFontSize?: number;
 }
 
 class TestEnvironment {
@@ -1048,7 +1050,8 @@ class TestEnvironment {
     combinedVerseTextDoc,
     biblicalTerm,
     userProfile,
-    userProfileId
+    userProfileId,
+    defaultFontSize
   }: TestEnvironmentConstructorArgs = {}) {
     this.fixture = TestBed.createComponent(ChildViewContainerComponent);
     const textDocId = new TextDocId(TestEnvironment.PROJECT01, 40, 1);
@@ -1073,7 +1076,10 @@ class TestEnvironment {
       });
       this.realtimeService.addSnapshot<SFProjectProfile>(SFProjectProfileDoc.COLLECTION, {
         id: configData.projectId,
-        data: TestEnvironment.testProjectProfile
+        data:
+          defaultFontSize == null
+            ? TestEnvironment.testProjectProfile
+            : { ...TestEnvironment.testProjectProfile, defaultFontSize }
       });
       const textData: TextData = combinedVerseTextDoc
         ? getCombinedVerseTextDoc(textDocId, isRightToLeftProject)
