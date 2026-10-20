@@ -1243,7 +1243,13 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     }
 
     if (withFilterReset) {
-      this.resetFilter();
+      if (this.isInScope(questionDoc.data?.verseRef)) {
+        this.resetFilter();
+      } else {
+        // Activating the question navigates to its book/chapter, which loads a new list using this filter.
+        // Refreshing the current list now would make it activate one of its own questions instead of this one.
+        this.activeQuestionFilter = QuestionFilter.None;
+      }
     }
     this.questionsList?.activateQuestion(questionDoc);
   }

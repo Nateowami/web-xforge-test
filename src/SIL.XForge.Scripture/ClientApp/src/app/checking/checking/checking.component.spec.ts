@@ -1038,6 +1038,43 @@ describe('CheckingComponent', () => {
       env.waitForQuestionTimersToComplete();
     }));
 
+    it('activates a new question added to another book after navigating to it', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: ADMIN_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+      env.setQuestionFilter(QuestionFilter.NoAnswers);
+      env.selectQuestion(2);
+      const dateNow = new Date();
+      const newQuestion: Question = {
+        dataId: 'newQuestionId',
+        ownerRef: ADMIN_USER.id,
+        projectRef: 'project01',
+        text: 'Question added to another book',
+        answers: [],
+        verseRef: { bookNum: 40, chapterNum: 1, verseNum: 1, verse: '1' },
+        isArchived: false,
+        dateCreated: dateNow.toJSON(),
+        dateModified: dateNow.toJSON()
+      };
+      when(mockedQuestionDialogService.questionDialog(anything())).thenCall(() => {
+        env.insertQuestion(newQuestion);
+        return env.getQuestionDoc(newQuestion.dataId);
+      });
+
+      env.clickButton(env.addQuestionButton);
+      expect(env.location.path()).toEqual('/projects/project01/checking/MAT/1?scope=chapter');
+      expect(env.component.activeQuestionFilter).toEqual(QuestionFilter.None);
+      expect(env.component.projectUserConfigDoc!.data!.selectedQuestionRef).toEqual('project01:newQuestionId');
+
+      env.setBookChapter('MAT', 1);
+      env.waitForQuestionTimersToComplete();
+      env.fixture.detectChanges();
+      expect(env.component.questionsList!.activeQuestionDoc!.id).toEqual('project01:newQuestionId');
+    }));
+
     it('should not reset scope after a user changes chapter', fakeAsync(() => {
       const env = new TestEnvironment({
         user: ADMIN_USER,
