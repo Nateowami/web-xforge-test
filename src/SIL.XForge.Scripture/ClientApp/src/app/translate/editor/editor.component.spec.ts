@@ -3922,6 +3922,48 @@ describe('EditorComponent', () => {
         env.dispose();
       }));
 
+      it('should add only one draft tab when returning to a chapter while the last build is being fetched', fakeAsync(() => {
+        const env = new TestEnvironment();
+        const lastCompletedBuild$ = new Subject<BuildDto>();
+        when(mockedDraftGenerationService.getLastCompletedBuild(anything())).thenReturn(lastCompletedBuild$);
+        when(mockedPermissionsService.canAccessDrafts(anything(), anything())).thenReturn(true);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), anything())).thenReturn(true);
+        env.wait();
+        env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '1' });
+        env.wait();
+        env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '2' });
+        env.wait();
+        env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '1' });
+        env.wait();
+
+        lastCompletedBuild$.next({} as BuildDto);
+        env.wait();
+
+        const sourceTabGroup = env.component.tabState.getTabGroup('source');
+        expect(sourceTabGroup?.tabs.filter(tab => tab.type === 'draft').length).toBe(1);
+        env.dispose();
+      }));
+
+      it('should not add a draft tab after moving to a chapter with no draft while the last build is being fetched', fakeAsync(() => {
+        const env = new TestEnvironment();
+        const lastCompletedBuild$ = new Subject<BuildDto>();
+        when(mockedDraftGenerationService.getLastCompletedBuild(anything())).thenReturn(lastCompletedBuild$);
+        when(mockedPermissionsService.canAccessDrafts(anything(), anything())).thenReturn(true);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), anything())).thenReturn(false);
+        when(mockedSFProjectService.hasDraft(anything(), anything(), 1)).thenReturn(true);
+        env.wait();
+        env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '1' });
+        env.wait();
+        env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '2' });
+        env.wait();
+
+        lastCompletedBuild$.next({} as BuildDto);
+        env.wait();
+
+        expect(env.component.tabState.getFirstTabOfTypeIndex('draft')).toBeUndefined();
+        env.dispose();
+      }));
+
       it('should select the draft tab if url query param is set', fakeAsync(() => {
         const env = new TestEnvironment();
         when(mockedActivatedRoute.snapshot).thenReturn({
