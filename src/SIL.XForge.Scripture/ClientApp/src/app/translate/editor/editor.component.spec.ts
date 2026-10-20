@@ -48,6 +48,7 @@ import {
 import { TextAnchor } from 'realtime-server/lib/esm/scriptureforge/models/text-anchor';
 import { TextType } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import { TextInfoPermission } from 'realtime-server/lib/esm/scriptureforge/models/text-info-permission';
+import { TranslateSource } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
 import { fromVerseRef } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import * as RichText from 'rich-text';
 import { DeltaOperation, StringMap } from 'rich-text';
@@ -3658,6 +3659,35 @@ describe('EditorComponent', () => {
         discardPeriodicTasks();
         env.dispose();
       }));
+
+      it('should update the source tab when the source project is changed', fakeAsync(() => {
+        const env = new TestEnvironment();
+        env.wait();
+        env.component['tabStateInitialized$'].next(true);
+        env.wait();
+
+        const sourceTabHeader = (): string =>
+          env.fixture.nativeElement.querySelector('#source-text-area .tab-header-content').textContent.trim();
+        expect(sourceTabHeader()).toContain('SRC');
+
+        env.changeSourceProject('project01', {
+          paratextId: 'source03',
+          projectRef: 'project03',
+          name: 'new source',
+          shortName: 'NEW',
+          writingSystem: { tag: 'qaa' }
+        });
+
+        const sourceTab: EditorTabInfo | undefined = env.component.tabState
+          .getTabGroup('source')
+          ?.tabs.find(tab => tab.type === 'project-source');
+        expect(sourceTab?.projectId).toEqual('project03');
+        expect(sourceTab?.tooltip).toEqual('new source');
+        expect(sourceTabHeader()).toContain('NEW');
+        expect(sourceTabHeader()).not.toContain('SRC');
+        discardPeriodicTasks();
+        env.dispose();
+      }));
     });
 
     describe('initEditorTabs', () => {
@@ -4954,6 +4984,19 @@ class TestEnvironment {
   removeSourceProject(projectId: string): void {
     const projectDoc: SFProjectProfileDoc = this.getProjectDoc(projectId);
     projectDoc.submitJson0Op(op => op.unset(p => p.translateConfig.source!), false);
+    this.wait();
+  }
+
+  /** Simulates an administrator changing the source project on the project settings page. */
+  changeSourceProject(projectId: string, source: TranslateSource): void {
+    // Set up the new source project and its text
+    this.setupProject({}, source.projectRef);
+    when(mockedSFProjectService.getProfile(source.projectRef)).thenCall(() =>
+      this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, source.projectRef)
+    );
+    this.addTextDoc(new TextDocId(source.projectRef, 40, 1, 'target'), 'source');
+    const projectDoc: SFProjectProfileDoc = this.getProjectDoc(projectId);
+    projectDoc.submitJson0Op(op => op.set(p => p.translateConfig.source, source), false);
     this.wait();
   }
 
