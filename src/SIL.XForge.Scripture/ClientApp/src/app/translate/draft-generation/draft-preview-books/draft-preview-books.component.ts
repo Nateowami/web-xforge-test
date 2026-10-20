@@ -1,5 +1,5 @@
 import { AsyncPipe } from '@angular/common';
-import { Component, Input } from '@angular/core';
+import { Component, DestroyRef, Input } from '@angular/core';
 import { MatButton } from '@angular/material/button';
 import { Router } from '@angular/router';
 import { TranslocoModule } from '@ngneat/transloco';
@@ -60,13 +60,19 @@ export class DraftPreviewBooksComponent {
   );
 
   protected projectParatextId?: string;
+  /** Whether a book's draft is being downloaded to find its first drafted chapter. The book buttons are disabled. */
+  protected isLookingUpDraftedChapter = false;
+  private destroyed = false;
 
   constructor(
     private readonly activatedProjectService: ActivatedProjectService,
     private readonly router: Router,
     private readonly draftHandlingService: DraftHandlingService,
-    readonly i18n: I18nService
-  ) {}
+    readonly i18n: I18nService,
+    destroyRef: DestroyRef
+  ) {
+    destroyRef.onDestroy(() => (this.destroyed = true));
+  }
 
   linkForBookAndChapter(bookId: string, chapterNumber: number): string[] {
     return ['/projects', this.activatedProjectService.projectId!, 'translate', bookId, chapterNumber.toString()];
@@ -76,8 +82,20 @@ export class DraftPreviewBooksComponent {
     // Go to the first drafted chapter (for a partial draft this is not chapter 1). A whole-book draft has no chapter
     // detail, so look in the draft for the first chapter with drafted verses. Fall back to the book's first chapter,
     // then to chapter 1.
-    const firstChapter =
-      book.draftedChapters[0] ?? (await this.firstChapterWithDraftedVerses(book)) ?? book.chaptersInBook[0] ?? 1;
+    if (this.isLookingUpDraftedChapter) return;
+    let firstChapter: number | undefined = book.draftedChapters[0];
+    if (firstChapter == null) {
+      const urlBeforeLookup: string = this.router.url;
+      this.isLookingUpDraftedChapter = true;
+      try {
+        firstChapter = await this.firstChapterWithDraftedVerses(book);
+      } finally {
+        this.isLookingUpDraftedChapter = false;
+      }
+      // Downloading the draft can take a while. If the user has gone elsewhere meanwhile, do not pull them back.
+      if (this.destroyed || this.router.url !== urlBeforeLookup) return;
+    }
+    firstChapter ??= book.chaptersInBook[0] ?? 1;
     void this.router.navigate(this.linkForBookAndChapter(book.bookId, firstChapter), {
       queryParams: { 'draft-active': true, 'draft-timestamp': this.build?.additionalInfo?.dateGenerated }
     });
