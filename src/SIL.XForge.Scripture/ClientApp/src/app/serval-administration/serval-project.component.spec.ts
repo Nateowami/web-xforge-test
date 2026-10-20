@@ -38,6 +38,7 @@ interface TestEnvironmentArgs {
   draftConfig?: Partial<DraftConfig>;
   onboardingRequest?: Partial<OpenOnboardingRequest>;
   onboardingRequestError?: boolean;
+  startOffline?: boolean;
 }
 
 const mockActivatedProjectService = mock(ActivatedProjectService);
@@ -92,6 +93,32 @@ describe('ServalProjectComponent', () => {
     it('leaves out the onboarding request link when the lookup fails', fakeAsync(() => {
       const env = new TestEnvironment({ preTranslate: true, onboardingRequestError: true });
       expect(env.onboardingRequestLink).toBeNull();
+    }));
+
+    it('loads the onboarding request link once the page comes online', fakeAsync(() => {
+      const env = new TestEnvironment({ preTranslate: true, onboardingRequest: {}, startOffline: true });
+      verify(mockOnboardingRequestService.getOpenOnboardingRequest(anything())).never();
+      expect(env.onboardingRequestLink).toBeNull();
+
+      env.onlineStatus = true;
+      verify(mockOnboardingRequestService.getOpenOnboardingRequest(env.mockProjectId)).once();
+      expect(env.onboardingRequestLink).not.toBeNull();
+      expect(env.onboardingRequestLink!.textContent).toContain('New');
+    }));
+
+    it('keeps the onboarding request link while offline and refreshes it when back online', fakeAsync(() => {
+      const env = new TestEnvironment({ preTranslate: true, onboardingRequest: {} });
+      expect(env.onboardingRequestLink!.textContent).toContain('New');
+
+      env.onlineStatus = false;
+      expect(env.onboardingRequestLink).not.toBeNull();
+      expect(env.onboardingRequestLink!.disabled).toBe(true);
+
+      env.setOnboardingRequest({ status: 'in_progress' });
+      env.onlineStatus = true;
+      verify(mockOnboardingRequestService.getOpenOnboardingRequest(env.mockProjectId)).twice();
+      expect(env.onboardingRequestLink!.textContent).toContain('In Progress');
+      expect(env.onboardingRequestLink!.disabled).toBe(false);
     }));
   });
 
@@ -464,30 +491,35 @@ describe('ServalProjectComponent', () => {
           new CommandError(CommandErrorCode.Forbidden, 'forbidden')
         );
       } else {
-        when(mockOnboardingRequestService.getOpenOnboardingRequest(this.mockProjectId)).thenResolve(
-          args.onboardingRequest == null
-            ? null
-            : {
-                id: 'request01',
-                submittedAt: '2026-08-01T00:00:00Z',
-                submittedBy: { name: 'User One', email: 'user01@example.com' },
-                status: 'new',
-                contactEmail: null,
-                ...args.onboardingRequest
-              }
-        );
+        this.setOnboardingRequest(args.onboardingRequest);
       }
       when(mockOnboardingRequestService.getStatus(anything())).thenCall((status: string) =>
         status === 'in_progress' ? { value: 'in_progress', label: 'In Progress' } : { value: 'new', label: 'New' }
       );
 
       spyOn(saveAs, 'saveAs').and.stub();
+      if (args.startOffline) this.testOnlineStatusService.setIsOnline(false);
 
       this.fixture = TestBed.createComponent(ServalProjectComponent);
       this.component = this.fixture.componentInstance;
       this.fixture.detectChanges();
       tick();
       this.fixture.detectChanges();
+    }
+
+    setOnboardingRequest(onboardingRequest: Partial<OpenOnboardingRequest> | undefined): void {
+      when(mockOnboardingRequestService.getOpenOnboardingRequest(this.mockProjectId)).thenResolve(
+        onboardingRequest == null
+          ? null
+          : {
+              id: 'request01',
+              submittedAt: '2026-08-01T00:00:00Z',
+              submittedBy: { name: 'User One', email: 'user01@example.com' },
+              status: 'new',
+              contactEmail: null,
+              ...onboardingRequest
+            }
+      );
     }
 
     get preTranslateCheckbox(): HTMLInputElement {
