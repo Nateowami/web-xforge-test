@@ -11,20 +11,13 @@ const mockedRouter = mock(Router);
 const mockedActivatedRoute = mock(ActivatedRoute);
 
 describe('PageNotFoundComponent', () => {
-  configureTestingModule(() => {
-    // Return a simple UrlTree-like object
-    when(mockedRouter.createUrlTree(anything(), anything())).thenReturn({
-      toString: () => '/projects'
-    } as UrlTree);
-
-    return {
-      imports: [PageNotFoundComponent, getTestTranslocoModule(), MatIcon, MatProgressBar, PageNotFoundHostComponent],
-      providers: [
-        { provide: Router, useMock: mockedRouter },
-        { provide: ActivatedRoute, useMock: mockedActivatedRoute }
-      ]
-    };
-  });
+  configureTestingModule(() => ({
+    imports: [PageNotFoundComponent, getTestTranslocoModule(), MatIcon, MatProgressBar, PageNotFoundHostComponent],
+    providers: [
+      { provide: Router, useMock: mockedRouter },
+      { provide: ActivatedRoute, useMock: mockedActivatedRoute }
+    ]
+  }));
 
   it('should redirect after ten seconds', fakeAsync(() => {
     new TestEnvironment();
@@ -32,6 +25,15 @@ describe('PageNotFoundComponent', () => {
     verify(mockedRouter.navigateByUrl(anything())).never();
     tick(0.2 * 1000);
     verify(mockedRouter.navigateByUrl(strictEqual('/projects'))).once();
+    expect().nothing();
+  }));
+
+  it('should not redirect after being destroyed', fakeAsync(() => {
+    const env = new TestEnvironment();
+    tick(5 * 1000);
+    env.fixture.destroy();
+    tick(10 * 1000);
+    verify(mockedRouter.navigateByUrl(anything())).never();
     expect().nothing();
   }));
 });
@@ -50,6 +52,11 @@ class TestEnvironment {
   readonly component: PageNotFoundComponent;
 
   constructor() {
+    // Return a simple UrlTree-like object. Stubbed per test because mocks are reset after each test.
+    when(mockedRouter.createUrlTree(anything(), anything())).thenReturn({
+      toString: () => '/projects'
+    } as UrlTree);
+
     this.fixture = TestBed.createComponent(PageNotFoundHostComponent);
     this.fixture.detectChanges();
     this.hostComponent = this.fixture.componentInstance;
