@@ -114,7 +114,9 @@
                 canSelectNullableOptions
               >
                 @for (option of resolutionOptions; track option) {
-                  <mat-option [value]="option.key">{{ option.label }}</mat-option>
+                  <mat-option [value]="option.key" [disabled]="option.key === 'approved' && isMainProjectMissing">{{
+                    option.label
+                  }}</mat-option>
                 }
               </mat-select>
             </mat-form-field>
