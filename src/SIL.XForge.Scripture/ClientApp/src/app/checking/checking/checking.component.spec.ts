@@ -515,6 +515,39 @@ describe('CheckingComponent', () => {
       verify(mockedDialogService.message(anything())).never();
       env.waitForSliderUpdate();
     }));
+
+    it('tells the user when opening a text that was deleted while the project still lists it', fakeAsync(() => {
+      const env = new TestEnvironment({ user: CHECKER_USER, projectBookRoute: 'JHN', projectChapterRoute: 1 });
+      env.waitForSliderUpdate();
+      when(mockedDialogService.message(anything())).thenResolve();
+      env.deleteText(getTextDocId('project01', 40, 3));
+      verify(mockedDialogService.message(anything())).never();
+
+      env.setBookChapter('MAT', 3);
+      verify(mockedDialogService.message('editor.text_has_been_deleted')).once();
+      expect(env.location.path()).toEqual('/projects/project01/checking');
+      env.waitForSliderUpdate();
+    }));
+
+    [
+      { bookId: 'GEN', chapter: 1 },
+      { bookId: 'GEN', chapter: undefined },
+      { bookId: 'JHN', chapter: 3 }
+    ].forEach(({ bookId, chapter }) => {
+      it(`tells the user when the route is to ${[bookId, chapter].join(' ').trim()}, which the project does not have`, fakeAsync(() => {
+        when(mockedDialogService.message(anything())).thenResolve();
+        const env = new TestEnvironment({
+          user: CHECKER_USER,
+          projectBookRoute: bookId,
+          projectChapterRoute: chapter
+        });
+        env.waitForSliderUpdate();
+
+        verify(mockedDialogService.message('editor.text_has_been_deleted')).once();
+        expect(env.location.path()).toEqual('/projects/project01/checking');
+        expect(env.component.book).toBeUndefined();
+      }));
+    });
   });
 
   describe('Questions', () => {

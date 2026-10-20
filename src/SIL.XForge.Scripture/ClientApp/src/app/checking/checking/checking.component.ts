@@ -614,6 +614,12 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
 
           this.activeQuestionScope = routeScope;
 
+          // The route can name a book or chapter that a sync has since removed, such as from a bookmark or refresh
+          if (routeBookNum != null && !this.projectHasText(routeBookNum, routeChapterNum)) {
+            this.onTextDeleted(routeProjectId);
+            return;
+          }
+
           // If book/chapter is specified in route, use routed book/chapter even if it contains no questions
           if (routeBookNum != null && routeChapterNum != null) {
             this.book = routeBookNum;
@@ -1574,10 +1580,26 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     // The user may have moved to another chapter while the text was loading
     if (textDocId !== this.textDocId) return;
 
-    this.textDeleteSub = textDoc.delete$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(() => {
-      void this.dialogService.message('editor.text_has_been_deleted').then(() => {
-        void this.router.navigateByUrl(`/projects/${textDocId.projectId}/checking`, { replaceUrl: true });
-      });
+    // If the text was deleted before it loaded, such as while a stale cached project still listed it, delete$ will
+    // not emit, but the doc is left unloaded
+    if (!textDoc.isLoaded) {
+      this.onTextDeleted(textDocId.projectId);
+      return;
+    }
+
+    this.textDeleteSub = textDoc.delete$
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.onTextDeleted(textDocId.projectId));
+  }
+
+  private projectHasText(bookNum: number, chapterNum: number | undefined): boolean {
+    const text: TextInfo | undefined = this.projectDoc?.data?.texts.find(t => t.bookNum === bookNum);
+    return text != null && (chapterNum == null || text.chapters.some(c => c.number === chapterNum));
+  }
+
+  private onTextDeleted(projectId: string): void {
+    void this.dialogService.message('editor.text_has_been_deleted').then(() => {
+      void this.router.navigateByUrl(`/projects/${projectId}/checking`, { replaceUrl: true });
     });
   }
 
