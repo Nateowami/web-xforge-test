@@ -2,6 +2,7 @@ import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http'
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { DebugElement } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatOption } from '@angular/material/core';
 import { MatDialogRef } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, provideRouter } from '@angular/router';
@@ -146,6 +147,14 @@ describe('OnboardingRequestDetailComponent', () => {
       flush();
 
       expect(env.component.request?.resolution).toBe(newResolution);
+    }));
+
+    it('should not allow choosing approved when the project no longer exists', fakeAsync(() => {
+      const env = new TestEnvironment({ mainProjectDoc: { id: 'project01', data: undefined } as SFProjectProfileDoc });
+      env.wait();
+
+      const options: MatOption[] = env.resolutionSelect.componentInstance.options.toArray();
+      expect(options.filter(o => o.disabled).map(o => o.value)).toEqual(['approved']);
     }));
   });
 
