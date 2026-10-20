@@ -699,6 +699,39 @@ describe('TextComponent', () => {
       expect(cursorRemoveSpy).toHaveBeenCalledTimes(1);
     }));
 
+    it('should announce presence again when coming back online', fakeAsync(() => {
+      const env: TestEnvironment = new TestEnvironment();
+      env.fixture.detectChanges();
+      env.id = new TextDocId('project01', 40, 1);
+      env.waitForEditor();
+
+      // Changing chapters while offline creates new local presences that are never submitted
+      env.onlineStatus = false;
+      env.id = new TextDocId('project01', 41, 1);
+      env.waitForEditor();
+      env.id = new TextDocId('project01', 40, 1);
+      env.waitForEditor();
+      const range: QuillRange = env.component.getSegmentRange('verse_1_1')!;
+      env.component.editor!.setSelection(range.index + 1, 'user');
+      tick();
+      const presenceChannelSubmit = spyOn<any>(env.localPresenceChannel, 'submit').and.callThrough();
+      const presenceDocSubmit = spyOn<any>(env.localPresenceDoc, 'submit').and.callThrough();
+
+      env.onlineStatus = true;
+
+      expect(presenceChannelSubmit).toHaveBeenCalledTimes(1);
+      const presenceData: PresenceData = presenceChannelSubmit.calls.mostRecent().args[0] as PresenceData;
+      expect(presenceData.viewer.activeInEditor).toBe(false);
+      expect(presenceDocSubmit).toHaveBeenCalledTimes(1);
+      expect(presenceDocSubmit.calls.mostRecent().args[0]).toEqual(
+        jasmine.objectContaining({ index: range.index + 1, length: 0 })
+      );
+
+      // Unchanged online status emissions should not submit again
+      env.onlineStatus = true;
+      expect(presenceChannelSubmit).toHaveBeenCalledTimes(1);
+    }));
+
     it('should clear doc presence on blur', fakeAsync(() => {
       const env: TestEnvironment = new TestEnvironment();
       env.fixture.detectChanges();

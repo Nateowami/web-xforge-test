@@ -26,7 +26,7 @@ import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-
 import { TextAnchor } from 'realtime-server/lib/esm/scriptureforge/models/text-anchor';
 import { StringMap } from 'rich-text';
 import { fromEvent, ReplaySubject, Subject, Subscription, timer } from 'rxjs';
-import { takeUntil, tap } from 'rxjs/operators';
+import { distinctUntilChanged, filter, takeUntil, tap } from 'rxjs/operators';
 import { LocalPresence, Presence } from 'sharedb/lib/sharedb';
 import tinyColor from 'tinycolor2';
 import { WINDOW } from 'xforge-common/browser-globals';
@@ -351,6 +351,18 @@ export class TextComponent implements AfterViewInit, OnDestroy {
         .pipe(quietTakeUntilDestroyed(this.destroyRef, { logWarnings: false }))
         .subscribe(() => this.submitLocalPresenceChannel(true));
     });
+    // Presence is not submitted while offline, and ShareDB only re-sends presence that was submitted, so announce this
+    // user to other viewers again when coming back online
+    this.onlineStatusService.onlineStatus$
+      .pipe(
+        distinctUntilChanged(),
+        filter(isOnline => isOnline),
+        quietTakeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => {
+        void this.submitLocalPresenceChannel(false);
+        void this.submitLocalPresenceDoc(this.editor?.getSelection() ?? null);
+      });
   }
 
   @Input() set isReadOnly(value: boolean) {
