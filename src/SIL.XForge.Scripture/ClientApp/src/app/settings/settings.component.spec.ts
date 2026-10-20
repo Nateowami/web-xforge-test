@@ -392,16 +392,46 @@ describe('SettingsComponent', () => {
         expect(env.statusDone(env.lynxPunctuationCheckerStatus)).not.toBeNull();
         expect(env.statusDone(env.lynxAllowedCharacterCheckerStatus)).toBeNull();
 
-        // Disabling assessments also saves the (hidden) allowed-character checker as disabled
+        // The allowed-character checker is already off, so disabling assessments does not save it
         env.clickElement(env.inputElement(env.lynxAssessmentsCheckbox));
         env.wait();
         expect(env.lynxAllowedCharacterCheckerCheckbox).toBeNull();
+        verify(
+          mockedSFProjectService.onlineUpdateSettings(
+            'project01',
+            deepEqual({ lynxAllowedCharacterCheckerEnabled: false })
+          )
+        ).never();
 
         env.clickElement(env.inputElement(env.lynxAssessmentsCheckbox));
         env.wait();
         expect(env.inputElement(env.lynxAllowedCharacterCheckerCheckbox).checked).toBe(false);
         expect(env.statusDone(env.lynxPunctuationCheckerStatus)).not.toBeNull();
         expect(env.statusDone(env.lynxAllowedCharacterCheckerStatus)).toBeNull();
+      }));
+
+      it('disables an enabled allowed-character checker when disabling assessments', fakeAsync(() => {
+        const env = new TestEnvironment();
+        env.setupProject();
+        env.wait();
+        env.clickElement(env.inputElement(env.lynxAssessmentsCheckbox));
+        env.wait();
+        env.clickElement(env.inputElement(env.lynxAllowedCharacterCheckerCheckbox));
+        env.wait();
+        expect(env.inputElement(env.lynxAllowedCharacterCheckerCheckbox).checked).toBe(true);
+
+        env.clickElement(env.inputElement(env.lynxAssessmentsCheckbox));
+        env.wait();
+        verify(
+          mockedSFProjectService.onlineUpdateSettings(
+            'project01',
+            deepEqual({ lynxAllowedCharacterCheckerEnabled: false })
+          )
+        ).once();
+
+        env.clickElement(env.inputElement(env.lynxAssessmentsCheckbox));
+        env.wait();
+        expect(env.inputElement(env.lynxAllowedCharacterCheckerCheckbox).checked).toBe(false);
       }));
     });
   });
