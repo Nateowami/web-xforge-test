@@ -9,6 +9,7 @@ import { ActivatedProjectService } from 'xforge-common/activated-project.service
 import { AuthService } from 'xforge-common/auth.service';
 import { DialogService } from 'xforge-common/dialog.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
 import { QueryResults } from 'xforge-common/query-parameters';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
@@ -150,6 +151,24 @@ describe('EventMetricsLogComponent', () => {
     expect(env.rows.length).toEqual(2);
   }));
 
+  it('should show the system as the author of events without a user', fakeAsync(() => {
+    const env = new TestEnvironment();
+    when(mockedUserService.getProfile('user02')).thenResolve({
+      id: 'user02',
+      data: { displayName: 'User 02' }
+    } as UserProfileDoc);
+    env.populateEventMetrics([
+      { eventType: 'RetrievePreTranslationStatusAsync', timeStamp: new Date().toISOString() },
+      { eventType: 'BuildProjectAsync', timeStamp: new Date().toISOString(), userId: 'user02' }
+    ]);
+    env.wait();
+    env.wait();
+    env.wait();
+
+    expect(env.authorName(0)).toEqual('System');
+    expect(env.authorName(1)).toEqual('User 02');
+  }));
+
   it('should show custom event type calculations', fakeAsync(() => {
     const env = new TestEnvironment();
     // This list is to ensure complete test coverage of the custom cases in EventMetricsLogComponent.getEventType()
@@ -211,6 +230,10 @@ class TestEnvironment {
 
   cell(row: number, column: number): DebugElement {
     return this.rows[row].children[column];
+  }
+
+  authorName(row: number): string {
+    return this.cell(row, 3).query(By.css('.name')).nativeElement.textContent.trim();
   }
 
   clickButton(button: DebugElement): void {
