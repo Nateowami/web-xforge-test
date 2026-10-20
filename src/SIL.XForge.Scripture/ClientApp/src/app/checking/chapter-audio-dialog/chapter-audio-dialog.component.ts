@@ -8,6 +8,7 @@ import {
   MatDialogClose,
   MatDialogContent,
   MatDialogRef,
+  MatDialogState,
   MatDialogTitle
 } from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
@@ -100,6 +101,7 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   private _timingErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _timingParseErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _loadingAudio: boolean = false;
+  private isSaving: boolean = false;
 
   constructor(
     private readonly destroyRef: DestroyRef,
@@ -317,6 +319,26 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   async save(): Promise<void> {
+    // Ignore further clicks on Save, such as the second click of a double-click, while a save is in progress or after
+    // it has closed the dialog. Otherwise the save runs twice, e.g. deleting the chapter audio again after it is gone.
+    if (this.isSaving || this.dialogRef.getState() !== MatDialogState.OPEN) return;
+    this.isSaving = true;
+    try {
+      await this.saveChanges();
+    } finally {
+      this.isSaving = false;
+    }
+  }
+
+  uploadedFiles(e: Event): void {
+    const el = e.target as HTMLInputElement;
+    if (el.files == null) {
+      return;
+    }
+    this.processUploadedFiles(el.files);
+  }
+
+  private async saveChanges(): Promise<void> {
     let canSave = false;
     if (this.allFieldsValid) {
       canSave = true;
@@ -364,14 +386,6 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
       chapter: this.chapter,
       audioUrl
     });
-  }
-
-  uploadedFiles(e: Event): void {
-    const el = e.target as HTMLInputElement;
-    if (el.files == null) {
-      return;
-    }
-    this.processUploadedFiles(el.files);
   }
 
   private parseAdobeAuditionStyleTimingFile(data: string[][]): AudioTiming[] {
