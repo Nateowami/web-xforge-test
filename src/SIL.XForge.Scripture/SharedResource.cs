@@ -58,4 +58,14 @@ public class SharedResource
     public static readonly Dictionary<string, InterfaceLanguage> Cultures = JsonConvert
         .DeserializeObject<List<InterfaceLanguage>>(File.ReadAllText("locales.json"))
         .ToDictionary(culture => culture.CanonicalTag);
+
+    /// <summary>
+    /// Gets the URL of the help site in the language matching the specified UI culture, or the English help site if
+    /// the help site has not been translated into that language.
+    /// </summary>
+    public static string GetHelpUrl(string uiCultureName)
+    {
+        InterfaceLanguage? locale = Cultures.Values.FirstOrDefault(c => c.Tags.Contains(uiCultureName));
+        return "https://help.scriptureforge.org/" + (locale?.Helps ?? string.Empty);
+    }
 }

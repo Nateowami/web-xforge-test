@@ -2,7 +2,14 @@
 @inject IRazorPageSettings Settings
 @inject IViewLocalizer Localizer
 @inject IHtmlLocalizer<SharedResource> SharedLocalizer
+@using Microsoft.AspNetCore.Localization
 @using SIL.XForge.Scripture.Services
+
+@{
+    string helpUrl = SharedResource.GetHelpUrl(
+        HttpContext.Features.Get<IRequestCultureFeature>()!.RequestCulture.UICulture.Name
+    );
+}
 
 @section scripts {
 <script src="https://cdn.auth0.com/js/auth0-spa-js/2.1/auth0-spa-js.production.js"></script>
@@ -107,7 +114,7 @@
                 <div class="statement-buttons flex justify-content-center">
                     @if (Settings.UseScriptureForgeBranding())
                     {
-                        <a href="https://help.scriptureforge.org"
+                        <a href="@helpUrl"
                            class="mdl-button mdl-button--raised mdl-button--colored button-lg">@SharedLocalizer[SharedResource.Keys.LearnMore]</a>
                     }
                     <a class="mdl-button mdl-button--raised mdl-button--accent button-lg"
