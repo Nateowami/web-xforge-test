@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { isObjectLike } from 'lodash-es';
+import { isEqual, isObjectLike } from 'lodash-es';
 import { environment } from '../environments/environment';
 import { OfflineData, OfflineStore } from './offline-store';
 import { ObjectFilter, performQuery, PrimitiveType, QueryParameters, QueryResults } from './query-parameters';
@@ -25,25 +25,42 @@ function getKeyRange(filter: PrimitiveType | ObjectFilter): IDBKeyRange | undefi
   return IDBKeyRange.only(filter);
 }
 
-function createObjectStore(
-  db: IDBDatabase,
-  collection: string,
-  indexPaths?: (string | { [x: string]: number | string } | [string, unknown])[]
-): void {
-  const objectStore = db.createObjectStore(collection, { keyPath: 'id' });
-  if (indexPaths != null) {
-    for (const path of indexPaths) {
-      if (typeof path === 'string') {
-        objectStore.createIndex(path, `data.${path}`);
-      } else if (Array.isArray(path)) {
-        // Index options are not supported in IndexedDB, so we ignore them.
-        objectStore.createIndex(path[0], `data.${path[0]}`);
-      } else {
-        objectStore.createIndex(
-          Object.keys(path).join('_'),
-          Object.keys(path).map(key => `data.${key}`)
-        );
-      }
+type IndexPath = string | { [x: string]: number | string } | [string, unknown];
+
+function getIndexKeyPaths(indexPaths: IndexPath[] = []): Map<string, string | string[]> {
+  const keyPaths = new Map<string, string | string[]>();
+  for (const path of indexPaths) {
+    if (typeof path === 'string') {
+      keyPaths.set(path, `data.${path}`);
+    } else if (Array.isArray(path)) {
+      // Index options are not supported in IndexedDB, so we ignore them.
+      keyPaths.set(path[0], `data.${path[0]}`);
+    } else {
+      keyPaths.set(
+        Object.keys(path).join('_'),
+        Object.keys(path).map(key => `data.${key}`)
+      );
+    }
+  }
+  return keyPaths;
+}
+
+/**
+ * Makes the indexes of the object store match the specified index paths. Missing indexes are created, and indexes
+ * that are no longer specified, or whose key path has changed, are removed. This can only be called during a version
+ * change transaction.
+ */
+function updateIndexes(objectStore: IDBObjectStore, indexPaths?: IndexPath[]): void {
+  const keyPaths = getIndexKeyPaths(indexPaths);
+  for (const name of Array.from(objectStore.indexNames)) {
+    const keyPath = keyPaths.get(name);
+    if (keyPath == null || !isEqual(objectStore.index(name).keyPath, keyPath)) {
+      objectStore.deleteIndex(name);
+    }
+  }
+  for (const [name, keyPath] of keyPaths) {
+    if (!objectStore.indexNames.contains(name)) {
+      objectStore.createIndex(name, keyPath);
     }
   }
 }
@@ -188,21 +205,21 @@ export class IndexeddbOfflineStore extends OfflineStore {
       };
       request.onupgradeneeded = () => {
         const db = request.result;
+        const transaction = request.transaction!;
         const storeNames = db.objectStoreNames;
+        const getObjectStore = (collection: string): IDBObjectStore =>
+          storeNames.contains(collection)
+            ? transaction.objectStore(collection)
+            : db.createObjectStore(collection, { keyPath: 'id' });
+        // Existing object stores are updated too, so that indexes added since the database was created are available
         for (const docType of this.typeRegistry.docTypes) {
-          if (!storeNames.contains(docType.COLLECTION)) {
-            createObjectStore(db, docType.COLLECTION, docType.INDEX_PATHS);
-          }
+          updateIndexes(getObjectStore(docType.COLLECTION), docType.INDEX_PATHS);
         }
         for (const fileType of this.typeRegistry.fileTypes) {
-          if (!storeNames.contains(fileType)) {
-            createObjectStore(db, fileType);
-          }
+          updateIndexes(getObjectStore(fileType));
         }
         for (const featureType of this.typeRegistry.customTypes) {
-          if (!storeNames.contains(featureType)) {
-            createObjectStore(db, featureType);
-          }
+          updateIndexes(getObjectStore(featureType));
         }
       };
     });
