@@ -25,7 +25,8 @@
 app-text {
   display: block;
   overflow-y: scroll;
-  max-height: calc(100vh - 25rem);
+  // On short viewports (e.g. a phone in landscape) the calc goes to zero or below and would hide the text entirely
+  max-height: max(calc(100vh - 25rem), 10rem);
 }
 
 .selection-reference {
