@@ -142,6 +142,7 @@ class MockComponent {}
 const ROUTES: Route[] = [
   { path: 'projects/:projectId/checking/:bookId/:chapter', component: MockComponent },
   { path: 'projects/:projectId/checking/:bookId', component: MockComponent },
+  { path: 'projects/:projectId/checking', component: MockComponent },
   { path: 'projects/:projectId/translate/:bookId', component: MockComponent },
   { path: 'projects/:projectId', component: MockComponent }
 ];
@@ -490,6 +491,28 @@ describe('CheckingComponent', () => {
       env.setCheckingEnabled(false);
       expect(env.component.projectDoc).toBeUndefined();
       expect(env.component.questionDocs.length).toEqual(0);
+      env.waitForSliderUpdate();
+    }));
+
+    it('responds to remote deletion of the displayed text', fakeAsync(() => {
+      const env = new TestEnvironment({ user: CHECKER_USER, projectBookRoute: 'JHN', projectChapterRoute: 1 });
+      env.waitForSliderUpdate();
+      when(mockedDialogService.message(anything())).thenResolve();
+
+      env.deleteText(getTextDocId('project01', 43, 1));
+      verify(mockedDialogService.message('editor.text_has_been_deleted')).once();
+      expect(env.location.path()).toEqual('/projects/project01/checking');
+      env.waitForSliderUpdate();
+    }));
+
+    it('ignores remote deletion of a text that is no longer displayed', fakeAsync(() => {
+      const env = new TestEnvironment({ user: CHECKER_USER, projectBookRoute: 'JHN', projectChapterRoute: 1 });
+      env.waitForSliderUpdate();
+      env.setBookChapter('JHN', 2);
+      env.waitForSliderUpdate();
+
+      env.deleteText(getTextDocId('project01', 43, 1));
+      verify(mockedDialogService.message(anything())).never();
       env.waitForSliderUpdate();
     }));
   });
@@ -3413,6 +3436,11 @@ class TestEnvironment {
     tick();
     this.fixture.detectChanges();
     this.waitForSliderUpdate();
+  }
+
+  deleteText(textId: string): void {
+    this.ngZone.run(() => void this.realtimeService.get<TextDoc>(TextDoc.COLLECTION, textId).delete());
+    tick();
   }
 
   setBookChapter(bookId: string, chapter: number): void {

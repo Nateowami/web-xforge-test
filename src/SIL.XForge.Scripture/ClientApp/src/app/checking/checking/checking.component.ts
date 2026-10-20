@@ -35,6 +35,7 @@ import { toVerseRef, VerseRefData } from 'realtime-server/lib/esm/scriptureforge
 import { asyncScheduler, BehaviorSubject, combineLatest, merge, Observable, of, Subscription } from 'rxjs';
 import { distinctUntilChanged, filter, map, startWith, take, throttleTime } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
+import { DialogService } from 'xforge-common/dialog.service';
 import { DonutChartComponent } from 'xforge-common/donut-chart/donut-chart.component';
 import { I18nService } from 'xforge-common/i18n.service';
 import { Breakpoint, MediaBreakpointService } from 'xforge-common/media-breakpoints/media-breakpoint.service';
@@ -51,7 +52,7 @@ import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SF_DEFAULT_SHARE_ROLE } from '../../core/models/sf-project-role-info';
 import { SFProjectUserConfigDoc } from '../../core/models/sf-project-user-config-doc';
 import { TextAudioDoc } from '../../core/models/text-audio-doc';
-import { TextDocId } from '../../core/models/text-doc';
+import { TextDoc, TextDocId } from '../../core/models/text-doc';
 import { TextsByBookId } from '../../core/models/texts-by-book-id';
 import { PermissionsService } from '../../core/permissions.service';
 import { SFProjectService } from '../../core/sf-project.service';
@@ -198,6 +199,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
   private audioChangedSub?: Subscription;
   private projectRemoteChangesSub?: Subscription;
   private questionsRemoteChangesSub?: Subscription;
+  private textDeleteSub?: Subscription;
   private text?: TextInfo;
   private _scriptureAudioPlayer?: CheckingScriptureAudioPlayerComponent;
   private _showScriptureAudioPlayer: boolean = false;
@@ -217,7 +219,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     private readonly questionDialogService: QuestionDialogService,
     readonly i18n: I18nService,
     private readonly onlineStatusService: OnlineStatusService,
-    private readonly chapterAudioDialogService: ChapterAudioDialogService
+    private readonly chapterAudioDialogService: ChapterAudioDialogService,
+    private readonly dialogService: DialogService
   ) {
     super(noticeService, 'CheckingComponent');
   }
@@ -619,6 +622,7 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
               bookNum: this.book,
               chapterNum: this.chapter
             };
+            void this.subscribeToTextDeletion();
           } else {
             this.defaultQuestionsQuery = await this.checkingQuestionsService.queryAdjacentQuestions(
               this.projectDoc!.id,
@@ -1558,6 +1562,23 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
       ]);
     }, changeUpdateDelayMs);
     this.changeDetector.markForCheck();
+  }
+
+  /** Tells the user, and leaves the page, if the displayed chapter is deleted, such as by a Paratext sync. */
+  private async subscribeToTextDeletion(): Promise<void> {
+    this.textDeleteSub?.unsubscribe();
+    const textDocId: TextDocId | undefined = this.textDocId;
+    if (textDocId == null || !this.permissions.canAccessText(textDocId, this.projectDoc?.data)) return;
+
+    const textDoc: TextDoc = await this.projectService.getText(textDocId);
+    // The user may have moved to another chapter while the text was loading
+    if (textDocId !== this.textDocId) return;
+
+    this.textDeleteSub = textDoc.delete$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      void this.dialogService.message('editor.text_has_been_deleted').then(() => {
+        void this.router.navigateByUrl(`/projects/${textDocId.projectId}/checking`, { replaceUrl: true });
+      });
+    });
   }
 
   // Unbind this component from the data when a user is removed from the project, otherwise console
