@@ -1,12 +1,15 @@
 import { Component, DebugElement, Input, NgZone, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
+import { TranslocoTestingModule } from '@ngneat/transloco';
+import { CookieService } from 'ngx-cookie-service';
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
 import { BehaviorSubject } from 'rxjs';
+import { instance, mock } from 'ts-mockito';
+import { en, I18nService } from 'xforge-common/i18n.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
-import { getTestTranslocoModule } from 'xforge-common/test-utils';
 import { TextDocId } from '../../../core/models/text-doc';
 import { AudioPlayerComponent } from '../../../shared/audio/audio-player/audio-player.component';
 import { AudioPlayerStub, getAudioTimings, getAudioTimingWithHeadings } from '../../checking-test.utils';
@@ -151,6 +154,18 @@ describe('ScriptureAudioComponent', () => {
     expect(env.verseLabel.nativeElement.textContent).toEqual('Genesis 1:2');
   }));
 
+  it('updates the verse label when the interface language changes', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.clickNextRef();
+    env.clickNextRef();
+    env.wait();
+    expect(env.verseLabel.nativeElement.textContent).toEqual('Genesis 1:2');
+
+    TestBed.inject(I18nService).setLocale('es');
+    env.wait();
+    expect(env.verseLabel.nativeElement.textContent).toEqual('Génesis 1:2');
+  }));
+
   it('pauses and emits on close', fakeAsync(() => {
     const env = new TestEnvironment();
 
@@ -278,12 +293,22 @@ class TestEnvironment {
 
     TestBed.configureTestingModule({
       imports: [
-        getTestTranslocoModule(),
+        TranslocoTestingModule.forRoot({
+          langs: { en, es: { canon: { book_names: { GEN: 'Génesis' } } } },
+          translocoConfig: {
+            availableLangs: ['en', 'es'],
+            reRenderOnLangChange: true,
+            fallbackLang: 'en',
+            defaultLang: 'en'
+          },
+          preloadLangs: true
+        }),
         HostComponent,
         CheckingScriptureAudioPlayerComponent,
         AudioPlayerStubComponent
       ],
-      providers: [provideTestOnlineStatus()]
+      // Mock the cookie service so that changing the locale does not leave a culture cookie for later specs
+      providers: [provideTestOnlineStatus(), { provide: CookieService, useValue: instance(mock(CookieService)) }]
     });
     TestBed.overrideComponent(HostComponent, { set: { template: template } });
     TestBed.overrideComponent(CheckingScriptureAudioPlayerComponent, {
