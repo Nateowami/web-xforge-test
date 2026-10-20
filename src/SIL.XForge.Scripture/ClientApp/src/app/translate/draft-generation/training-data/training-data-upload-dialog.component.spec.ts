@@ -195,8 +195,9 @@ describe('TrainingDataUploadDialogComponent', () => {
     expect(env.wrapperTrainingDataFile.classList.contains('valid')).toBe(true);
 
     // Removing the file again does not show the error until the user tries to save again
-    env.component.deleteTrainingData();
+    env.deleteButton.click();
     await env.wait();
+    expect(env.wrapperTrainingDataFile.classList.contains('valid')).toBe(false);
     expect(env.wrapperTrainingDataFile.classList.contains('invalid')).toBe(false);
   });
 
@@ -291,6 +292,10 @@ class TestEnvironment {
 
   get fileUploadElement(): HTMLInputElement {
     return this.dropzoneElement.querySelector('input[type=file]') as HTMLInputElement;
+  }
+
+  get deleteButton(): HTMLElement {
+    return this.overlayContainerElement.querySelector('.wrapper-training-data-file .delete') as HTMLElement;
   }
 
   get fileNameExistsWarning(): HTMLElement {
