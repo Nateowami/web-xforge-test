@@ -1,14 +1,30 @@
 import { SimpleChange } from '@angular/core';
-import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { QuillService } from 'ngx-quill';
+import { User } from 'realtime-server/lib/esm/common/models/user';
+import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
-import { ReplaySubject } from 'rxjs';
+import * as RichText from 'rich-text';
+import { firstValueFrom, ReplaySubject } from 'rxjs';
 import { anything, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { FontService } from 'xforge-common/font.service';
+import { UserDoc } from 'xforge-common/models/user-doc';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
+import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
+import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
+import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
+import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../../../core/models/sf-project-profile-doc';
+import { SF_TYPE_REGISTRY } from '../../../core/models/sf-type-registry';
+import { TextDoc, TextDocId } from '../../../core/models/text-doc';
 import { SFProjectService } from '../../../core/sf-project.service';
 import { CopyrightBannerComponent } from '../../../shared/copyright-banner/copyright-banner.component';
+import { fakeResizeObserver, getTextDoc } from '../../../shared/test-utils';
+import { provideQuillRegistrations } from '../../../shared/text/quill-editor-registration/quill-providers';
+import { EDITOR_READY_TIMEOUT } from '../../../shared/text/text.component';
 import { EditorResourceComponent } from './editor-resource.component';
 
 describe('EditorResourceComponent', () => {
@@ -17,6 +33,7 @@ describe('EditorResourceComponent', () => {
   const mockSFProjectService = mock(SFProjectService);
   const mockFontService = mock(FontService);
   const mockDialogService = mock(DialogService);
+  const mockUserService = mock(UserService);
   const projectDoc = {
     id: 'projectId',
     data: createTestProjectProfile()
@@ -24,9 +41,14 @@ describe('EditorResourceComponent', () => {
 
   configureTestingModule(() => ({
     providers: [
+      provideQuillRegistrations(),
+      provideTestRealtime(SF_TYPE_REGISTRY),
+      provideTestOnlineStatus(),
+      { provide: OnlineStatusService, useClass: TestOnlineStatusService },
       { provide: SFProjectService, useMock: mockSFProjectService },
       { provide: FontService, useMock: mockFontService },
-      { provide: DialogService, useMock: mockDialogService }
+      { provide: DialogService, useMock: mockDialogService },
+      { provide: UserService, useMock: mockUserService }
     ],
     imports: [CopyrightBannerComponent, getTestTranslocoModule()]
   }));
@@ -155,6 +177,83 @@ describe('EditorResourceComponent', () => {
         segmentRef: new SimpleChange('verse_1_2', 'verse_1_3', false)
       });
       expect(scrollSegmentIntoView).not.toHaveBeenCalled();
+    });
+
+    describe('with the resource text', () => {
+      let resourceFixture: ComponentFixture<EditorResourceComponent>;
+      let scrollSegmentIntoView: jasmine.Spy;
+
+      beforeEach(async () => {
+        const realtimeService: TestRealtimeService = TestBed.inject(TestRealtimeService);
+        const textDocId = new TextDocId(projectDoc.id, 40, 1, 'target');
+        realtimeService.addSnapshot(TextDoc.COLLECTION, {
+          id: textDocId.toString(),
+          type: RichText.type.name,
+          data: getTextDoc(textDocId)
+        });
+        realtimeService.addSnapshot<User>(UserDoc.COLLECTION, {
+          id: 'user01',
+          data: createTestUser({ sites: { sf: { projects: [projectDoc.id] } } })
+        });
+        const resourceProjectDoc = {
+          id: projectDoc.id,
+          data: createTestProjectProfile({
+            texts: [
+              {
+                bookNum: 40,
+                chapters: [{ number: 1, lastVerse: 7, isValid: true, permissions: {} }],
+                hasSource: false,
+                permissions: {}
+              }
+            ]
+          })
+        } as SFProjectProfileDoc;
+        when(mockSFProjectService.getProfile(projectDoc.id)).thenResolve(resourceProjectDoc);
+        when(mockSFProjectService.getText(anything())).thenCall(id =>
+          realtimeService.subscribe(TextDoc.COLLECTION, id.toString())
+        );
+        when(mockUserService.getCurrentUser()).thenCall(() => realtimeService.subscribe(UserDoc.COLLECTION, 'user01'));
+        // Load Quill before the editor is created, as it is loaded asynchronously
+        await firstValueFrom(TestBed.inject(QuillService).getQuill());
+
+        resourceFixture = TestBed.createComponent(EditorResourceComponent);
+        resourceFixture.componentRef.setInput('projectId', projectDoc.id);
+        resourceFixture.componentRef.setInput('bookNum', 40);
+        resourceFixture.componentRef.setInput('chapter', 1);
+        resourceFixture.componentRef.setInput('segmentRef', 'verse_1_1');
+        resourceFixture.componentRef.setInput('highlightSegment', true);
+      });
+
+      function loadResourceText(): void {
+        resourceFixture.detectChanges();
+        tick(EDITOR_READY_TIMEOUT);
+        resourceFixture.detectChanges();
+        scrollSegmentIntoView = spyOn(resourceFixture.componentInstance.resourceText, 'scrollSegmentIntoView');
+      }
+
+      it('should scroll to the verse when the target moves to another verse', fakeAsync(() => {
+        loadResourceText();
+
+        resourceFixture.componentRef.setInput('segmentRef', 'verse_1_3');
+        resourceFixture.detectChanges();
+        expect(scrollSegmentIntoView).toHaveBeenCalledOnceWith('verse_1_3');
+        flush();
+      }));
+
+      it('should scroll to the verse when the tab is shown', fakeAsync(() => {
+        const resizeObserver = fakeResizeObserver();
+        loadResourceText();
+
+        // The resource tab is behind another tab, so it cannot be scrolled when the user moves to another verse
+        resizeObserver.setShown(resourceFixture.nativeElement, false);
+        resourceFixture.componentRef.setInput('segmentRef', 'verse_1_3');
+        resourceFixture.detectChanges();
+        scrollSegmentIntoView.calls.reset();
+
+        resizeObserver.setShown(resourceFixture.nativeElement, true);
+        expect(scrollSegmentIntoView).toHaveBeenCalledOnceWith('verse_1_3');
+        flush();
+      }));
     });
   });
 });

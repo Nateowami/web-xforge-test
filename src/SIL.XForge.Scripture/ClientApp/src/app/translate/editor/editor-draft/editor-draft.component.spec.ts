@@ -34,6 +34,7 @@ import { SFProjectService } from '../../../core/sf-project.service';
 import { TextDocService } from '../../../core/text-doc.service';
 import { BuildDto, ServalBuildDiagnostic, ServalDiagnosticCode } from '../../../machine-api/build-dto';
 import { BuildStates } from '../../../machine-api/build-states';
+import { fakeResizeObserver } from '../../../shared/test-utils';
 import { provideQuillRegistrations } from '../../../shared/text/quill-editor-registration/quill-providers';
 import { EDITOR_READY_TIMEOUT } from '../../../shared/text/text.component';
 import { DraftGenerationService } from '../../draft-generation/draft-generation.service';
@@ -293,6 +294,25 @@ describe('EditorDraftComponent', () => {
       flush();
     }));
 
+    it('should scroll to the verse selected in the target when the tab is shown', fakeAsync(() => {
+      const resizeObserver = fakeResizeObserver();
+      component.segmentRef = 'verse_1_2';
+      component.highlightSegment = true;
+      fixture.detectChanges();
+      tick(EDITOR_READY_TIMEOUT);
+      const scrollSegmentIntoView = spyOn(component.draftText, 'scrollSegmentIntoView');
+
+      // The draft tab is behind another tab, so it cannot be scrolled when the user moves to another verse
+      resizeObserver.setShown(fixture.nativeElement, false);
+      selectTargetSegment('verse_1_3', true);
+      scrollSegmentIntoView.calls.reset();
+
+      resizeObserver.setShown(fixture.nativeElement, true);
+      expect(scrollSegmentIntoView).toHaveBeenCalledOnceWith('verse_1_3');
+      expect(highlightedSegments()).toEqual(['verse_1_3']);
+      flush();
+    }));
+
     it('should highlight draft segments whose verses overlap the target segment', fakeAsync(() => {
       const combinedVerseDraftOps = [
         { insert: { chapter: { number: '1', style: 'c' } } },
@@ -317,6 +337,10 @@ describe('EditorDraftComponent', () => {
 
       selectTargetSegment('verse_1_3-4', true);
       expect(highlightedSegments()).toEqual(['verse_1_3']);
+
+      // A verse list
+      selectTargetSegment('verse_1_2,3', true);
+      expect(highlightedSegments()).toEqual(['verse_1_1-2', 'verse_1_1-2/p_1', 'verse_1_3']);
 
       // A segment that is not in a verse, such as a heading, cannot be matched to the draft
       selectTargetSegment('s_1', true);

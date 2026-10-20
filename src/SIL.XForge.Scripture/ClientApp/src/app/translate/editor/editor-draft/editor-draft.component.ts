@@ -1,5 +1,14 @@
 import { AsyncPipe, NgClass } from '@angular/common';
-import { AfterViewInit, Component, DestroyRef, Input, OnChanges, SimpleChanges, ViewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  DestroyRef,
+  ElementRef,
+  Input,
+  OnChanges,
+  SimpleChanges,
+  ViewChild
+} from '@angular/core';
 import { MatOption } from '@angular/material/autocomplete';
 import { MatButton } from '@angular/material/button';
 import { MatFormField } from '@angular/material/form-field';
@@ -52,6 +61,7 @@ import { BuildDto } from '../../../machine-api/build-dto';
 import { BuildStates } from '../../../machine-api/build-states';
 import { NoticeComponent } from '../../../shared/notice/notice.component';
 import { TextComponent } from '../../../shared/text/text.component';
+import { elementShown$ } from '../../../shared/utils';
 import { getVerseStrFromSegmentRef } from '../../../shared/verse-utils';
 import { DisplayConfidenceComponent } from '../../draft-generation/build-confidences/display-confidence.component';
 import { DraftGenerationService } from '../../draft-generation/draft-generation.service';
@@ -152,6 +162,7 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
     private readonly draftHandlingService: DraftHandlingService,
     private readonly draftNotificationService: DraftNotificationService,
     private readonly draftOptionsService: DraftOptionsService,
+    private readonly elementRef: ElementRef<HTMLElement>,
     private readonly errorReportingService: ErrorReportingService,
     private readonly i18n: I18nService,
     private readonly projectService: SFProjectService,
@@ -286,6 +297,10 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
   ngAfterViewInit(): void {
     this.generateDraftUrl = `/projects/${this.projectId}/draft-generation`;
     this.populateDraftTextInit();
+    // The verse cannot be scrolled to while the tab is hidden behind another tab
+    elementShown$(this.elementRef.nativeElement)
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.highlightTargetVerse());
   }
 
   onSelectionChanged(e: MatSelectChange): void {
@@ -614,13 +629,16 @@ interface VerseSpan {
   lastVerse: number;
 }
 
-/** Gets the verses of a verse segment, e.g. verse_1_2-3/p_1 is chapter 1, verses 2 to 3. */
+/**
+ * Gets the verses of a verse segment, e.g. verse_1_2-3/p_1 is chapter 1, verses 2 to 3. A verse list such as
+ * verse_1_6,8 is treated as the span from its first to its last verse.
+ */
 function getVerseSpan(segmentRef: string): VerseSpan | undefined {
   const verseStr: string | undefined = getVerseStrFromSegmentRef(segmentRef);
   if (verseStr == null) {
     return undefined;
   }
-  const verseParts: string[] = verseStr.split('-');
+  const verseParts: string[] = verseStr.split(/[,-]/);
   return {
     chapter: segmentRef.split('_')[1],
     firstVerse: Number.parseInt(verseParts[0]),

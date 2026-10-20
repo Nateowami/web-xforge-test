@@ -11,6 +11,7 @@ import {
   booksFromScriptureRange,
   checkAppAccess,
   compareProjectsForSorting,
+  elementShown$,
   expandNumbers,
   getBookFileNameDigits,
   getUnsupportedTags,
@@ -314,6 +315,62 @@ describe('shared utils', () => {
       expect(parseDate(true)).toBeUndefined();
     });
   });
+  describe('elementShown$', () => {
+    let element: HTMLElement;
+
+    beforeEach(() => {
+      element = document.createElement('div');
+      element.style.height = '10px';
+      element.style.display = 'none';
+      document.body.appendChild(element);
+    });
+
+    afterEach(() => element.remove());
+
+    /** Waits until resize observers have been notified of the latest layout. */
+    function waitForLayout(): Promise<void> {
+      return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    }
+
+    it('emits each time the element is shown after being hidden', async () => {
+      let shownCount = 0;
+      const subscription = elementShown$(element).subscribe(() => shownCount++);
+      await waitForLayout();
+      expect(shownCount).toBe(0);
+
+      element.style.display = 'block';
+      await waitForLayout();
+      expect(shownCount).toBe(1);
+
+      // A change of size while shown is not a change of visibility
+      element.style.height = '20px';
+      await waitForLayout();
+      expect(shownCount).toBe(1);
+
+      element.style.display = 'none';
+      await waitForLayout();
+      element.style.display = 'block';
+      await waitForLayout();
+      expect(shownCount).toBe(2);
+
+      subscription.unsubscribe();
+      element.style.display = 'none';
+      await waitForLayout();
+      element.style.display = 'block';
+      await waitForLayout();
+      expect(shownCount).toBe(2);
+    });
+
+    it('emits on subscribe when the element is already shown', async () => {
+      element.style.display = 'block';
+      let shownCount = 0;
+      const subscription = elementShown$(element).subscribe(() => shownCount++);
+      await waitForLayout();
+      expect(shownCount).toBe(1);
+      subscription.unsubscribe();
+    });
+  });
+
   describe('checkAppAccess function', () => {
     const userId = 'user01';
     const projectRoute = '/projects/project01';

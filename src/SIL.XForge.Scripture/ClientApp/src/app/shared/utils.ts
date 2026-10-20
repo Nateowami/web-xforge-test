@@ -6,7 +6,7 @@ import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { DeltaOperation } from 'rich-text';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Observable } from 'rxjs';
 import { isObj } from '../../type-utils';
 import { SelectableProject } from '../core/models/selectable-project';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
@@ -312,4 +312,25 @@ export function parseDate(value: unknown): Date | undefined {
   const parsed: Date = new Date(value);
   if (Number.isNaN(parsed.getTime())) return undefined;
   return parsed;
+}
+
+/**
+ * Emits each time the element is shown after being hidden, such as when its tab becomes the active tab. Inactive tabs
+ * are display: none, so a text in one cannot be scrolled until it is shown. Also emits on subscribe if the element is
+ * already shown.
+ */
+export function elementShown$(element: Element): Observable<void> {
+  return new Observable<void>(subscriber => {
+    let isShown = false;
+    const observer = new ResizeObserver(entries => {
+      const wasShown: boolean = isShown;
+      const size: DOMRectReadOnly = entries[entries.length - 1].contentRect;
+      isShown = size.width > 0 || size.height > 0;
+      if (isShown && !wasShown) {
+        subscriber.next();
+      }
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  });
 }

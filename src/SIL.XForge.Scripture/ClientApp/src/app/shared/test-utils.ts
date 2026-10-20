@@ -127,3 +127,44 @@ export const createMockMediaStream = (): MediaStream => {
 
   return destination.stream;
 };
+
+/**
+ * Replaces ResizeObserver with a fake for the current spec, so that a spec can simulate an element being shown or
+ * hidden, such as by switching tabs, without waiting for the browser to lay out the page.
+ */
+export function fakeResizeObserver(): { setShown(element: Element, shown: boolean): void } {
+  const observed: { element: Element; observer: FakeResizeObserver }[] = [];
+
+  class FakeResizeObserver implements ResizeObserver {
+    constructor(readonly callback: ResizeObserverCallback) {}
+
+    observe(element: Element): void {
+      observed.push({ element, observer: this });
+    }
+
+    unobserve(element: Element): void {
+      remove(o => o.observer === this && o.element === element);
+    }
+
+    disconnect(): void {
+      remove(o => o.observer === this);
+    }
+  }
+
+  function remove(predicate: (o: (typeof observed)[number]) => boolean): void {
+    for (let i = observed.length - 1; i >= 0; i--) {
+      if (predicate(observed[i])) observed.splice(i, 1);
+    }
+  }
+
+  spyOn(window, 'ResizeObserver').and.callFake(FakeResizeObserver as any);
+  return {
+    setShown: (element: Element, shown: boolean) => {
+      const size: number = shown ? 100 : 0;
+      const contentRect = new DOMRectReadOnly(0, 0, size, size);
+      for (const o of observed.filter(o => o.element === element)) {
+        o.observer.callback([{ target: element, contentRect } as ResizeObserverEntry], o.observer);
+      }
+    }
+  };
+}

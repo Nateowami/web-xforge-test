@@ -778,7 +778,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
   /**
    * Scrolls the nearest scrollable ancestor of the segment so that the segment is in the middle of it, if the segment
-   * is not already fully visible.
+   * is not already fully visible. Unlike EditorComponent.syncScroll(), which keeps the source text level with the
+   * target, this leaves a text alone while its segment is in view, so the user can read around it.
    */
   scrollSegmentIntoView(segment: string): void {
     const element: Element | null = this.getSegmentElement(segment);
