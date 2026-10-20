@@ -121,6 +121,66 @@ describe('JoinComponent', () => {
     expect().nothing();
   }));
 
+  it('shows the join error when a join fails while the connection is down', fakeAsync(() => {
+    let rejectJoin: (reason: any) => void = () => {};
+    const callback = (_: TestEnvironment): void => {
+      when(mockedSFProjectService.onlineJoinWithShareKey(anything())).thenReturn(
+        new Promise<string>((_, reject) => (rejectJoin = reject))
+      );
+    };
+    const env = new TestEnvironment({ callback, isLoggedIn: true });
+
+    env.onlineStatus = false;
+    rejectJoin(new CommandError(CommandErrorCode.NotFound, 'project_link_is_invalid'));
+    tick();
+
+    verify(mockedDialogService.message('join.please_connect_to_use_link')).never();
+    verify(mockedDialogService.message('join.project_link_is_invalid')).once();
+    expect().nothing();
+  }));
+
+  it('asks to connect when a join fails because the connection was lost', fakeAsync(() => {
+    let rejectJoin: (reason: any) => void = () => {};
+    const callback = (_: TestEnvironment): void => {
+      when(mockedSFProjectService.onlineJoinWithShareKey(anything())).thenReturn(
+        new Promise<string>((_, reject) => (rejectJoin = reject))
+      );
+    };
+    const env = new TestEnvironment({ callback, isLoggedIn: true });
+
+    env.onlineStatus = false;
+    rejectJoin(
+      new CommandError(
+        CommandErrorCode.Other,
+        'Error invoking joinWithShareKey: Http failure response for /command-api/projects: 504 Gateway Timeout'
+      )
+    );
+    tick();
+
+    verify(mockedDialogService.message('join.please_connect_to_use_link')).once();
+    verify(mockedDialogService.message(anything())).once();
+    verify(mockedErrorHandler.handleError(anything())).never();
+    verify(mockedRouter.navigateByUrl('/projects', anything())).once();
+    expect().nothing();
+  }));
+
+  it('asks to connect when a join request gets no response before the app notices it is offline', fakeAsync(() => {
+    const callback = (_: TestEnvironment): void => {
+      when(mockedSFProjectService.onlineJoinWithShareKey(anything())).thenReject(
+        new CommandError(
+          CommandErrorCode.Other,
+          'Error invoking joinWithShareKey: Http failure response for /command-api/projects: 0 Unknown Error'
+        )
+      );
+    };
+    new TestEnvironment({ callback, isLoggedIn: true });
+
+    verify(mockedDialogService.message('join.please_connect_to_use_link')).once();
+    verify(mockedErrorHandler.handleError(anything())).never();
+    verify(mockedRouter.navigateByUrl('/projects', anything())).once();
+    expect().nothing();
+  }));
+
   it('does not join when coming online while offline dialog is open', fakeAsync(() => {
     let closeDialog: () => void = () => {};
     const callback = (_: TestEnvironment): void => {

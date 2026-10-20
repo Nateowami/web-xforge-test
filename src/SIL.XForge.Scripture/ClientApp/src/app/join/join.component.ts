@@ -11,7 +11,7 @@ import { combineLatest } from 'rxjs';
 import { distinctUntilChanged, filter, map } from 'rxjs/operators';
 import { AnonymousService } from 'xforge-common/anonymous.service';
 import { AuthService } from 'xforge-common/auth.service';
-import { CommandError } from 'xforge-common/command.service';
+import { CommandError, isNetworkError } from 'xforge-common/command.service';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
@@ -225,7 +225,21 @@ export class JoinComponent extends DataLoadingComponent {
     } else if (error instanceof CommandError) {
       knownErrorCode = this.getKnownErrorCode(error.message);
     }
-    knownErrorCode == null ? this.errorHandler.handleError(error) : await this.showJoinError(knownErrorCode);
+    if (knownErrorCode != null) {
+      await this.showJoinError(knownErrorCode);
+    } else if (this.isConnectionError(error)) {
+      // The connect dialog is not shown once a join has started, so this is where a lost connection is reported
+      await this.dialogService.message('join.please_connect_to_use_link');
+    } else {
+      this.errorHandler.handleError(error);
+    }
+  }
+
+  private isConnectionError(error: unknown): boolean {
+    if (!this.onlineStatusService.isOnline) return true;
+    if (error instanceof HttpErrorResponse) return error.status === 0 || error.status === 504;
+    // Command requests wrap the HttpErrorResponse in a CommandError, leaving only its message
+    return error instanceof CommandError && (isNetworkError(error) || error.message.endsWith(': 0 Unknown Error'));
   }
 
   private getKnownErrorCode(code: any): ObjectPaths<typeof en.join> | undefined {
