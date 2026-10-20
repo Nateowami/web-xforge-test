@@ -90,6 +90,45 @@ describe('ScriptureAudioComponent', () => {
     expect(env.verseChangedSpy).toHaveBeenCalledWith('verse_1_2');
   }));
 
+  it('emits the current verse again when playback resumes', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.playButton.nativeElement.click();
+    env.audioPlayer.audio.currentTime = 0.8;
+    env.audioPlayer.audio.timeUpdated$.next();
+    env.wait();
+    expect(env.verseChangedSpy).toHaveBeenCalledWith('verse_1_1');
+
+    // Skipping while paused emits a verse the scripture text ignores, so it is emitted again on resume
+    env.playButton.nativeElement.click();
+    env.clickNextRef();
+    env.audioPlayer.audio.timeUpdated$.next();
+    env.wait();
+    expect(env.verseChangedSpy).toHaveBeenCalledWith('verse_1_2');
+    env.verseChangedSpy.calls.reset();
+
+    env.playButton.nativeElement.click();
+    env.audioPlayer.audio.timeUpdated$.next();
+    env.wait();
+    expect(env.isPlaying).toBe(true);
+    expect(env.verseChangedSpy).toHaveBeenCalledOnceWith('verse_1_2');
+
+    // Further time updates within the verse don't emit again
+    env.audioPlayer.audio.timeUpdated$.next();
+    env.wait();
+    expect(env.verseChangedSpy).toHaveBeenCalledTimes(1);
+  }));
+
+  it('is partway through once playback has moved past the start', fakeAsync(() => {
+    const env = new TestEnvironment();
+    expect(env.component.audioPlayer.isPartwayThrough).toBe(false);
+
+    env.audioPlayer.audio.currentTime = 1.5;
+    expect(env.component.audioPlayer.isPartwayThrough).toBe(true);
+
+    env.component.audioPlayer.stop();
+    expect(env.component.audioPlayer.isPartwayThrough).toBe(false);
+  }));
+
   it('emits verse changed event for section headings', fakeAsync(() => {
     const timings: AudioTiming[] = getAudioTimingWithHeadings();
     const env = new TestEnvironment({ timings });

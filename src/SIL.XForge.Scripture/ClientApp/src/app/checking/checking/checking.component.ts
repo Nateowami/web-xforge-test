@@ -1213,7 +1213,6 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
   }
 
   toggleAudio(forceStopAndHide: boolean = false): void {
-    const wasShowingScriptureAudioPlayer: boolean = this.showScriptureAudioPlayer;
     this._scriptureAudioPlayer?.isPlaying || forceStopAndHide
       ? this._scriptureAudioPlayer?.stop()
       : this._scriptureAudioPlayer?.play();
@@ -1228,8 +1227,9 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     if (this.scripturePanel === undefined) return;
 
     if (this.showScriptureAudioPlayer) {
-      // Resuming paused audio in the open player keeps the highlight on the verse being played
-      if (!wasShowingScriptureAudioPlayer) this.scripturePanel.activeVerse = undefined;
+      // Resuming partway through the chapter keeps the highlight on the verse being read. Otherwise the audio is starting
+      // over (opened, stopped or the chapter changed), so any highlighted verse is out of date.
+      if (!this._scriptureAudioPlayer?.isPartwayThrough) this.scripturePanel.activeVerse = undefined;
     } else {
       this.scripturePanel.activeVerse = this.activeQuestionVerseRef;
     }

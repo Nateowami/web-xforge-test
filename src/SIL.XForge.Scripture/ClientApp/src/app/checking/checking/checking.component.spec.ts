@@ -2905,29 +2905,39 @@ describe('CheckingComponent', () => {
     it('keeps the highlighted verse when resuming paused chapter audio', fakeAsync(() => {
       const env = new TestEnvironment({ user: CHECKER_USER });
       env.selectQuestion(1);
-      env.component.toggleAudio();
-      env.fixture.detectChanges();
-
-      let isPlaying = true;
-      const audio = mock(CheckingScriptureAudioPlayerComponent);
-      when(audio.isPlaying).thenCall(() => isPlaying);
-      when(audio.play()).thenCall(() => (isPlaying = true));
-      env.component.scriptureAudioPlayer = instance(audio);
-      env.component.highlightSegments('verse_1_2-3');
-      env.waitForSliderUpdate();
-      expect(env.isSegmentHighlighted(1, 2)).toBe(true);
+      const audio = env.playChapterAudioToVerse('verse_1_2-3');
       const highlightedVerse: string | undefined = env.component.scripturePanel!.activeVerse?.toString();
       expect(highlightedVerse).toContain('1:2-3');
 
       // Paused from the player's own controls, then resumed with the play button in the toolbar
-      isPlaying = false;
+      audio.isPlaying = false;
       env.component.toggleAudio();
       env.waitForSliderUpdate();
 
+      expect(audio.isPlaying).toBe(true);
       expect(env.component.showScriptureAudioPlayer).toBe(true);
       expect(env.component.scripturePanel!.activeVerse?.toString()).toEqual(highlightedVerse);
       expect(env.isSegmentHighlighted(1, 2)).toBe(true);
       expect(env.isSegmentHighlighted(1, 3)).toBe(true);
+    }));
+
+    it('clears the highlighted verse when chapter audio in the open player starts over', fakeAsync(() => {
+      const env = new TestEnvironment({ user: CHECKER_USER });
+      env.selectQuestion(1);
+      const audio = env.playChapterAudioToVerse('verse_1_2-3');
+      audio.isPlaying = false;
+
+      // Changing to another chapter with audio stops the audio but leaves the player open
+      env.component.chapter = 2;
+      env.waitForSliderUpdate();
+      expect(audio.currentTime).toBe(0);
+      expect(env.component.showScriptureAudioPlayer).toBe(true);
+
+      env.component.toggleAudio();
+      env.waitForSliderUpdate();
+
+      expect(audio.isPlaying).toBe(true);
+      expect(env.component.scripturePanel!.activeVerse).toBeUndefined();
     }));
 
     // TODO: Get this test working
@@ -3629,6 +3639,31 @@ class TestEnvironment {
     this.ngZone.run(() => this.getVerse(chapter, verse).dispatchEvent(new MouseEvent('click', { bubbles: true })));
     tick();
     this.fixture.detectChanges();
+  }
+
+  /**
+   * Opens the Scripture audio player with a fake player that has played partway into the chapter, up to the given
+   * verse, which is highlighted. The returned state is what the fake player reads and its controls change.
+   */
+  playChapterAudioToVerse(segmentRef: string): { isPlaying: boolean; currentTime: number } {
+    this.component.toggleAudio();
+    this.fixture.detectChanges();
+
+    const state = { isPlaying: true, currentTime: 0 };
+    const audio = mock(CheckingScriptureAudioPlayerComponent);
+    when(audio.isPlaying).thenCall(() => state.isPlaying);
+    when(audio.isPartwayThrough).thenCall(() => state.currentTime > 0);
+    when(audio.play()).thenCall(() => (state.isPlaying = true));
+    when(audio.stop()).thenCall(() => {
+      state.isPlaying = false;
+      state.currentTime = 0;
+    });
+    this.component.scriptureAudioPlayer = instance(audio);
+
+    state.currentTime = 5;
+    this.component.highlightSegments(segmentRef);
+    this.waitForSliderUpdate();
+    return state;
   }
 
   isSegmentHighlighted(chapter: number, verse: number | string): boolean {

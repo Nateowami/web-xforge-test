@@ -87,6 +87,11 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     return 0;
   }
 
+  /** Whether playback is past the start of the chapter, so playing continues rather than starting over. */
+  get isPartwayThrough(): boolean {
+    return (this.audioPlayer?.audio?.currentTime ?? 0) > 0;
+  }
+
   get numberOfSegments(): number {
     return this._timing.length;
   }
@@ -230,8 +235,10 @@ export class CheckingScriptureAudioPlayerComponent implements AfterViewInit {
     this.verseChangeSubscription?.unsubscribe();
     this.verseChangeSubscription = audio.timeUpdated$
       .pipe(
-        map(() => this.getCurrentIndexInTimings(audio.currentTime)),
-        distinctUntilChanged(),
+        // Include the playing state so that starting playback emits the current verse again. Verse changes while
+        // paused (e.g. skipping or seeking) are not highlighted, so they must be re-sent when playback resumes.
+        map(() => ({ index: this.getCurrentIndexInTimings(audio.currentTime), isPlaying: audio.isPlaying })),
+        distinctUntilChanged((a, b) => a.index === b.index && a.isPlaying === b.isPlaying),
         quietTakeUntilDestroyed(this.destroyRef)
       )
       .subscribe(() => {
