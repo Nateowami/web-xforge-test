@@ -86,7 +86,7 @@
         <mat-icon>help</mat-icon> {{ t("help") }}
       </a>
       <span class="flex-spacer"></span>
-      <button mat-button [mat-dialog-close]="'close'" type="button" id="audio-cancel-btn">
+      <button mat-button [mat-dialog-close]="'close'" type="button" id="audio-cancel-btn" [disabled]="isLoadingAudio">
         {{ t("cancel") }}
       </button>
       <button mat-flat-button color="primary" type="submit" (click)="save()" id="audio-save-btn" [disabled]="!isOnline">

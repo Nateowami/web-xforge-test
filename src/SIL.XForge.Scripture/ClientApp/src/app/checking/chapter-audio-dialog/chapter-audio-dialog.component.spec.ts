@@ -9,8 +9,10 @@ import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/mode
 import { Chapter, TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { firstValueFrom } from 'rxjs';
 import { anything, deepEqual, mock, spy, verify, when } from 'ts-mockito';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { CsvService } from 'xforge-common/csv-service.service';
 import { DialogService } from 'xforge-common/dialog.service';
+import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { FileService } from 'xforge-common/file.service';
 import { FileOfflineData, FileType } from 'xforge-common/models/file-offline-data';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -134,6 +136,129 @@ describe('ChapterAudioDialogComponent', () => {
     expect(env.component.isAudioUploaded).toBe(true);
     expect(env.component.isTimingUploaded).toBe(true);
     expect(env.component.isLoadingAudio).toBe(false);
+  }));
+
+  it('reports a timing data error that is not caused by the connection', fakeAsync(async () => {
+    when(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenReject(new CommandError(CommandErrorCode.Forbidden, 'Forbidden'));
+    await env.component.audioUpdate(env.audioFile);
+    await env.component.prepareTimingFileUpload(env.timingFile);
+    await env.component.save();
+    await env.wait();
+
+    verify(env.dialogServiceSpy.message('chapter_audio_dialog.upload_failed')).once();
+    verify(env.errorReportingServiceSpy.silentError('Error occurred saving chapter audio', anything())).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(0);
+  }));
+
+  it('does not report a timing data error caused by the connection', fakeAsync(async () => {
+    when(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenReject(
+      new CommandError(CommandErrorCode.Other, 'Http failure response for command-api: 504 Gateway Timeout')
+    );
+    await env.component.audioUpdate(env.audioFile);
+    await env.component.prepareTimingFileUpload(env.timingFile);
+    await env.component.save();
+    await env.wait();
+
+    verify(env.dialogServiceSpy.message('chapter_audio_dialog.upload_failed')).once();
+    verify(env.errorReportingServiceSpy.silentError(anything(), anything())).never();
+    expect(env.numberOfTimesDialogClosed).toEqual(0);
+  }));
+
+  it('reuses the uploaded audio file when retrying after saving the timing data failed', fakeAsync(async () => {
+    when(env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything()))
+      .thenReject(new CommandError(CommandErrorCode.Other, '504 Gateway Timeout'))
+      .thenResolve();
+    await env.component.audioUpdate(env.audioFile);
+    await env.component.prepareTimingFileUpload(env.timingFile);
+    await env.component.save();
+    await env.wait();
+    expect(env.numberOfTimesDialogClosed).toEqual(0);
+
+    await env.component.save();
+    await env.wait();
+
+    verify(
+      mockedFileService.tryOnlineUploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).once();
+    verify(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), 'audio url')
+    ).twice();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
+  }));
+
+  it('uploads the audio file again if a different file was chosen after a failed save', fakeAsync(async () => {
+    when(env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything()))
+      .thenReject(new CommandError(CommandErrorCode.Other, '504 Gateway Timeout'))
+      .thenResolve();
+    await env.component.audioUpdate(env.audioFile);
+    await env.component.prepareTimingFileUpload(env.timingFile);
+    await env.component.save();
+    await env.wait();
+
+    // A different file with the same length, so the timing data is still valid
+    await env.component.audioUpdate({ ...env.audioFile, blob: getAudioBlob() });
+    await env.component.save();
+    await env.wait();
+
+    verify(
+      mockedFileService.tryOnlineUploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).twice();
+  }));
+
+  it('ignores Save and disables Cancel while saving', fakeAsync(async () => {
+    let finishSaving: () => void = () => {};
+    when(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).thenReturn(new Promise<void>(resolve => (finishSaving = resolve)));
+    await env.component.audioUpdate(env.audioFile);
+    await env.component.prepareTimingFileUpload(env.timingFile);
+    env.fixture.detectChanges();
+    expect(env.cancelButton.disabled).toBe(false);
+
+    const saving: Promise<void> = env.component.save();
+    await env.wait();
+    expect(env.cancelButton.disabled).toBe(true);
+    expect(env.dialogRef.disableClose).toBe(true);
+    await env.component.save();
+
+    finishSaving();
+    await saving;
+    await env.wait();
+    verify(
+      mockedFileService.tryOnlineUploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).once();
+    verify(
+      env.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
+    ).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
   }));
 
   it('should default selection to first chapter with question and no audio', fakeAsync(() => {
@@ -593,6 +718,32 @@ describe('ChapterAudioDialogComponent', () => {
     expect(env.numberOfTimesDialogClosed).withContext('saving should occur and close dialog when online').toEqual(1);
   }));
 
+  it('keeps the dialog open if deleting the chapter audio fails', fakeAsync(() => {
+    env.component.book = 1;
+    env.component.chapter = 2;
+    when(env.projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).thenReject(
+      new CommandError(CommandErrorCode.Other, '504 Gateway Timeout')
+    );
+    env.onlineStatus = true;
+    env.component.audioUpdate(env.audioFile);
+    tick();
+    env.component.prepareTimingFileUpload(env.timingFile);
+    tick();
+    env.component.deleteAudioData();
+    tick();
+    env.component.deleteTimingData();
+    tick();
+
+    // SUT
+    env.component.save();
+    tick();
+    env.fixture.detectChanges();
+    flush();
+    verify(env.dialogServiceSpy.message('chapter_audio_dialog.delete_failed')).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(0);
+    expect(env.component.isLoadingAudio).toBe(false);
+  }));
+
   it('disables save button if offline, shows message', fakeAsync(async () => {
     const config: MatDialogConfig<ChapterAudioDialogData> = {
       data: {
@@ -703,6 +854,7 @@ class TestEnvironment {
   ) as TestOnlineStatusService;
   readonly projectServiceSpy: SFProjectService = spy(TestBed.inject(SFProjectService));
   readonly dialogServiceSpy: DialogService = spy(TestBed.inject(DialogService));
+  readonly errorReportingServiceSpy: ErrorReportingService = spy(TestBed.inject(ErrorReportingService));
   private numTimesClosedFired: number;
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
 
@@ -740,6 +892,7 @@ class TestEnvironment {
       this.projectServiceSpy.onlineCreateAudioTimingData(anything(), anything(), anything(), anything(), anything())
     ).thenResolve();
     when(this.dialogServiceSpy.message(anything())).thenResolve();
+    when(this.errorReportingServiceSpy.silentError(anything(), anything())).thenReturn();
 
     this.audioFile = {
       status: 'uploaded',
@@ -800,6 +953,10 @@ class TestEnvironment {
 
   get saveButton(): HTMLButtonElement {
     return this.fetchElement('#audio-save-btn') as HTMLButtonElement;
+  }
+
+  get cancelButton(): HTMLButtonElement {
+    return this.fetchElement('#audio-cancel-btn') as HTMLButtonElement;
   }
 
   get offlineError(): HTMLElement {

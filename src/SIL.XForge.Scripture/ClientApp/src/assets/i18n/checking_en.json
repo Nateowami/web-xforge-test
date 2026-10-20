@@ -239,6 +239,7 @@
     "delete": "Delete Audio...",
     "delete_audio": "Delete Audio",
     "delete_both": "Delete Both",
+    "delete_failed": "The audio could not be deleted. Please try again.",
     "delete_timing": "Delete Timing",
     "drag_and_drop_files": "Drop audio and timing files here to upload",
     "drag_and_drop_overlay": "Drop files to upload",

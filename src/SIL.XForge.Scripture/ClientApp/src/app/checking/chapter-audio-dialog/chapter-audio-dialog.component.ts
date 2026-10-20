@@ -20,8 +20,10 @@ import { Chapter, TextInfo } from 'realtime-server//lib/esm/scriptureforge/model
 import { AudioTiming } from 'realtime-server/lib/esm/scriptureforge/models/audio-timing';
 import { getTextAudioId } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { filter } from 'rxjs/operators';
+import { isNetworkError } from 'xforge-common/command.service';
 import { CsvService } from 'xforge-common/csv-service.service';
 import { DialogService } from 'xforge-common/dialog.service';
+import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { ExternalUrlService } from 'xforge-common/external-url.service';
 import { FileService, formatFileSource } from 'xforge-common/file.service';
 import { I18nKeyForComponent, I18nService } from 'xforge-common/i18n.service';
@@ -100,6 +102,7 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   private _timingErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _timingParseErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _loadingAudio: boolean = false;
+  private _uploadedAudio?: { blob: Blob; url: string };
 
   constructor(
     private readonly destroyRef: DestroyRef,
@@ -111,6 +114,7 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     private readonly dialogService: DialogService,
     private readonly onlineStatusService: OnlineStatusService,
     private readonly projectService: SFProjectService,
+    private readonly errorReportingService: ErrorReportingService,
     protected readonly externalUrlService: ExternalUrlService
   ) {
     this.getStartingLocation();
@@ -317,12 +321,22 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   }
 
   async save(): Promise<void> {
+    // Save is not disabled while saving, so that its spinner stays visible
+    if (this._loadingAudio) return;
+
     let canSave = false;
     if (this.allFieldsValid) {
       canSave = true;
     } else if (!this.isAudioUploaded && !this.isTimingUploaded && this._selectionHasAudioAlready) {
-      await this.projectService.onlineDeleteAudioTimingData(this.data.projectId, this.book, this.chapter);
-      this.dialogRef.close();
+      const deleted: boolean = await this.trySaving(
+        'delete_failed',
+        'Error occurred deleting chapter audio',
+        async () => {
+          await this.projectService.onlineDeleteAudioTimingData(this.data.projectId, this.book, this.chapter);
+          return true;
+        }
+      );
+      if (deleted) this.dialogRef.close();
       return;
     }
 
@@ -340,40 +354,34 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     // going offline just after clicking Save.
     if (!this.onlineStatusService.isOnline) return;
 
-    this._loadingAudio = true;
+    const blob: Blob = this.audio!.blob!;
     let audioUrl: string | undefined;
-    try {
-      audioUrl = await this.fileService.tryOnlineUploadFile(
+    const saved: boolean = await this.trySaving('upload_failed', 'Error occurred saving chapter audio', async () => {
+      // If only saving the timing data failed last time, reuse the file that was uploaded then
+      audioUrl = this._uploadedAudio?.blob === blob ? this._uploadedAudio.url : undefined;
+      audioUrl ??= await this.fileService.tryOnlineUploadFile(
         FileType.Audio,
         this.data.projectId,
         TextAudioDoc.COLLECTION,
         objectId(),
-        this.audio!.blob!,
+        blob,
         this.audio!.fileName!,
         true
       );
-      if (audioUrl != null) {
-        // Save the timing data before closing, so that the user keeps their files if the connection drops
-        await this.projectService.onlineCreateAudioTimingData(
-          this.data.projectId,
-          this.book,
-          this.chapter,
-          this.timing_processed,
-          audioUrl
-        );
-      }
-    } catch {
-      // The file was uploaded, but the timing data could not be saved
-      audioUrl = undefined;
-    } finally {
-      this._loadingAudio = false;
-    }
+      if (audioUrl == null) return false;
+      this._uploadedAudio = { blob, url: audioUrl };
 
-    // if the upload fails, we need to show an error and not close the dialog
-    if (audioUrl == null) {
-      void this.dialogService.message('chapter_audio_dialog.upload_failed');
-      return;
-    }
+      // Save the timing data before closing, so that the user keeps their files if the connection drops
+      await this.projectService.onlineCreateAudioTimingData(
+        this.data.projectId,
+        this.book,
+        this.chapter,
+        this.timing_processed,
+        audioUrl
+      );
+      return true;
+    });
+    if (!saved || audioUrl == null) return;
 
     this.dialogRef.close({
       timingData: this.timing_processed,
@@ -389,6 +397,34 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
       return;
     }
     this.processUploadedFiles(el.files);
+  }
+
+  /**
+   * Runs a step of saving with Save and Cancel disabled. If it fails or returns false, shows the given message and
+   * leaves the dialog open with the user's files, so they can try again.
+   */
+  private async trySaving(
+    failedKey: I18nKeyForComponent<'chapter_audio_dialog'>,
+    errorDescription: string,
+    saveStep: () => Promise<boolean>
+  ): Promise<boolean> {
+    this._loadingAudio = true;
+    const disableClose: boolean | undefined = this.dialogRef.disableClose;
+    this.dialogRef.disableClose = true;
+    let saved: boolean = false;
+    try {
+      saved = await saveStep();
+    } catch (error) {
+      // A dropped connection is expected here, but anything else (e.g. the user lost permission) should be reported
+      if (!isNetworkError(error)) {
+        this.errorReportingService.silentError(errorDescription, ErrorReportingService.normalizeError(error));
+      }
+    } finally {
+      this._loadingAudio = false;
+      this.dialogRef.disableClose = disableClose;
+    }
+    if (!saved) void this.dialogService.message(`chapter_audio_dialog.${failedKey}`);
+    return saved;
   }
 
   private parseAdobeAuditionStyleTimingFile(data: string[][]): AudioTiming[] {
