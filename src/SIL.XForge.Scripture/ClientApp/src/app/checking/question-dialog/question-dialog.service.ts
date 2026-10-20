@@ -14,7 +14,12 @@ import { objectId } from 'xforge-common/utils';
 import { QuestionDoc } from '../../core/models/question-doc';
 import { SFProjectService } from '../../core/sf-project.service';
 import { CheckingQuestionsService } from '../checking/checking-questions.service';
-import { QuestionDialogComponent, QuestionDialogData, QuestionDialogResult } from './question-dialog.component';
+import {
+  QuestionDialogComponent,
+  QuestionDialogComponentData,
+  QuestionDialogData,
+  QuestionDialogResult
+} from './question-dialog.component';
 
 @Injectable({
   providedIn: 'root'
@@ -31,18 +36,31 @@ export class QuestionDialogService {
 
   /** Opens a question dialog that can be used to add a new question or edit an existing question. */
   async questionDialog(config: QuestionDialogData): Promise<QuestionDoc | undefined> {
-    const questionDoc = config.questionDoc;
-    const dialogConfig: MatDialogConfig = { data: config, autoFocus: true, disableClose: true };
+    let savedQuestionDoc: QuestionDoc | undefined;
+    const data: QuestionDialogComponentData = {
+      ...config,
+      saveQuestion: async (result: QuestionDialogResult) => {
+        savedQuestionDoc = await this.saveQuestion(config, result);
+      }
+    };
+    const dialogConfig: MatDialogConfig = { data, autoFocus: true, disableClose: true };
     const dialogRef = this.dialogService.openMatDialog(QuestionDialogComponent, dialogConfig) as MatDialogRef<
       QuestionDialogComponent,
       QuestionDialogResult | 'close'
     >;
-    // ENHANCE: Put the audio upload logic into QuestionDialogComponent so we can detect if the upload
-    // fails and notify the user without discarding the question. For example, see chapter-audio-dialog.component.ts.
     const result: QuestionDialogResult | 'close' | undefined = await lastValueFrom(dialogRef.afterClosed());
     if (result == null || result === 'close') {
-      return questionDoc;
+      return config.questionDoc;
     }
+    return savedQuestionDoc;
+  }
+
+  /** Saves the question, uploading any audio first. Called by the dialog, which stays open until this finishes. */
+  private async saveQuestion(
+    config: QuestionDialogData,
+    result: QuestionDialogResult
+  ): Promise<QuestionDoc | undefined> {
+    const questionDoc = config.questionDoc;
     if (!(await this.canCreateAndEditQuestions(config.projectId))) {
       this.noticeService.show(this.transloco.translate('question_dialog.add_question_denied'));
       return undefined;
@@ -61,6 +79,8 @@ export class QuestionDialogService {
       );
       if (urlResult == null) {
         // Discard the question if an error occurred while uploading or storing the audio
+        // ENHANCE: Keep the dialog open and notify the user instead of discarding the question. For example, see
+        // chapter-audio-dialog.component.ts.
         return undefined;
       }
       audioUrl = urlResult;

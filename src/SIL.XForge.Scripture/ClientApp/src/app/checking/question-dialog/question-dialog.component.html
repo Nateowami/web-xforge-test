@@ -53,11 +53,22 @@
       </div>
     </mat-dialog-content>
     <mat-dialog-actions [align]="'end'">
-      <button mat-button [mat-dialog-close]="'close'" type="button" id="question-cancel-btn">
+      <button mat-button [mat-dialog-close]="'close'" type="button" id="question-cancel-btn" [disabled]="isSaving">
         {{ t("cancel") }}
       </button>
-      <button mat-flat-button color="primary" type="submit" (click)="submit()" id="question-save-btn">
-        {{ t("save") }}
+      <button
+        mat-flat-button
+        color="primary"
+        type="submit"
+        (click)="submit()"
+        id="question-save-btn"
+        [disabled]="isSaving"
+      >
+        @if (isSaving) {
+          <mat-spinner diameter="24"></mat-spinner>
+        } @else {
+          {{ t("save") }}
+        }
       </button>
     </mat-dialog-actions>
   </div>

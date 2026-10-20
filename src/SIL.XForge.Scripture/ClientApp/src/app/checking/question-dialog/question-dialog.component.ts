@@ -14,6 +14,7 @@ import {
 import { MatError, MatFormField, MatLabel, MatSuffix } from '@angular/material/form-field';
 import { MatIcon } from '@angular/material/icon';
 import { MatInput } from '@angular/material/input';
+import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { TranslocoModule } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { cloneDeep } from 'lodash-es';
@@ -51,6 +52,11 @@ export interface QuestionDialogResult {
   audio: AudioAttachment;
 }
 
+export interface QuestionDialogComponentData extends QuestionDialogData {
+  /** Saves the question. The dialog stays open, showing that it is saving, until this resolves. */
+  saveQuestion: (result: QuestionDialogResult) => Promise<void>;
+}
+
 @Component({
   templateUrl: './question-dialog.component.html',
   styleUrls: ['./question-dialog.component.scss'],
@@ -73,7 +79,8 @@ export interface QuestionDialogResult {
     AttachAudioComponent,
     MatDialogActions,
     MatButton,
-    MatDialogClose
+    MatDialogClose,
+    MatProgressSpinner
   ]
 })
 export class QuestionDialogComponent implements OnInit {
@@ -91,12 +98,13 @@ export class QuestionDialogComponent implements OnInit {
     SFValidators.verseStartBeforeEnd
   );
   _selection?: VerseRef;
+  isSaving: boolean = false;
 
   private _question: Readonly<Question | undefined>;
 
   constructor(
     private readonly dialogRef: MatDialogRef<QuestionDialogComponent, QuestionDialogResult | 'close'>,
-    @Inject(MAT_DIALOG_DATA) private data: QuestionDialogData,
+    @Inject(MAT_DIALOG_DATA) private data: QuestionDialogComponentData,
     readonly i18n: I18nService,
     readonly dialogService: DialogService,
     private readonly destroyRef: DestroyRef
@@ -199,6 +207,9 @@ export class QuestionDialogComponent implements OnInit {
   }
 
   async submit(): Promise<void> {
+    if (this.isSaving) {
+      return;
+    }
     if (this.textAndAudio != null) {
       this.textAndAudio.suppressErrors = false;
     }
@@ -212,11 +223,18 @@ export class QuestionDialogComponent implements OnInit {
       return;
     }
 
-    this.dialogRef.close({
+    const result: QuestionDialogResult = {
       verseRef: this._selection,
       text: this.textAndAudio.text.value,
       audio: this.textAndAudio.audioAttachment ?? {}
-    });
+    };
+    this.isSaving = true;
+    try {
+      await this.data.saveQuestion(result);
+    } finally {
+      this.isSaving = false;
+    }
+    this.dialogRef.close(result);
   }
 
   /** Edit text of control using Scripture chooser dialog. */
