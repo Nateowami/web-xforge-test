@@ -170,6 +170,7 @@ export class NewDraftComponent {
     };
 
     this.initTrainingDataFiles(this.initData.projectId);
+    this.watchForDraftStartedElsewhere();
 
     const sources = this.logicHandler.sources;
     const targetTag = this.activatedProjectService.projectDoc?.data?.writingSystem.tag;
@@ -379,6 +380,30 @@ export class NewDraftComponent {
     }
   }
 
+  /**
+   * Leaves the wizard for the draft generation page (which shows the build's progress) when a draft starts for this
+   * project from somewhere else, e.g. another user. A project can only have one build at a time, so this wizard can no
+   * longer start one. Watches from the start of input, including the pending-updates pre-step.
+   */
+  private watchForDraftStartedElsewhere(): void {
+    const projectDoc: SFProjectProfileDoc | undefined = this.activatedProjectService.projectDoc;
+    if (projectDoc == null) return;
+
+    const isDraftInProgress = (): boolean => projectDoc.data?.translateConfig.draftConfig.draftInProgress === true;
+    let wasDraftInProgress = isDraftInProgress();
+    projectDoc.remoteChanges$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      const draftInProgress = isDraftInProgress();
+      if (draftInProgress && !wasDraftInProgress && !this.building) {
+        // The backend marks the draft in progress before it syncs the projects, so latch `building` to stop that sync
+        // from showing the 'project_syncing' abort screen while navigating away.
+        this.building = true;
+        void this.dialogService.message('draft_generation.draft_already_running');
+        this.goBack();
+      }
+      wasDraftInProgress = draftInProgress;
+    });
+  }
+
   get currentUserEmail(): string | undefined {
     return this.currentUserDoc?.data?.email;
   }
@@ -480,6 +505,7 @@ export class NewDraftComponent {
    * Latched when the build request is sent, suppressing the sync watcher so the backend sync that starting a build
    * triggers doesn't self-abort with 'project_syncing'. Reset if the request fails, so a retry is guarded against
    * stale data the same way the first attempt was (unlike `submitting`, which only drives the button/spinner state).
+   * Also latched when a draft is started elsewhere (see watchForDraftStartedElsewhere).
    */
   private building = false;
   async generateDraftClicked(): Promise<void> {

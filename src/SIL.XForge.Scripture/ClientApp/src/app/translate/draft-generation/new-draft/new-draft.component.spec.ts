@@ -2,6 +2,7 @@ import { DestroyRef, ErrorHandler } from '@angular/core';
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { Router } from '@angular/router';
 import { Canon } from '@sillsdev/scripture';
+import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { TrainingData } from 'realtime-server/lib/esm/scriptureforge/models/training-data';
@@ -1060,6 +1061,77 @@ describe('NewDraftComponent', () => {
     }));
   });
 
+  describe('draft started elsewhere', () => {
+    beforeEach(() => {
+      reset(mockedDraftGenerationService);
+      reset(mockedRouter);
+      reset(mockedDialogService);
+      when(mockedDraftGenerationService.startBuildOrGetActiveBuild(anything())).thenReturn(of(undefined));
+    });
+
+    it('goes to the draft generation page and informs the user when another user starts a draft', fakeAsync(() => {
+      const env = new TestEnvironment(testState);
+      tick();
+      expect(env.component.page).toEqual('preface');
+
+      env.startDraftForTarget();
+      tick();
+
+      verify(mockedDialogService.message('draft_generation.draft_already_running')).once();
+      verify(mockedRouter.navigate(deepEqual(['/projects', 'testProjectId', 'draft-generation']))).once();
+
+      // The backend syncs after marking the draft in progress; that sync must not flash the abort screen.
+      env.startSyncFor('testProjectId');
+      tick();
+      expect(env.component.page).not.toEqual('abort');
+      expect(env.component.abortMode).toBeNull();
+    }));
+
+    it('also leaves the pending-updates pre-step when another user starts a draft', fakeAsync(() => {
+      const env = new TestEnvironment(testState, {
+        projects: [makeParatextProject({ projectId: 'draft-source-1-id', name: 'Draft Source 1', hasUpdate: true })]
+      });
+      tick();
+      expect(env.component.page).toEqual('pending_updates');
+
+      env.startDraftForTarget();
+      tick();
+
+      verify(mockedDialogService.message('draft_generation.draft_already_running')).once();
+      verify(mockedRouter.navigate(deepEqual(['/projects', 'testProjectId', 'draft-generation']))).once();
+      expect().nothing();
+    }));
+
+    it('does not react to the draft this user started', fakeAsync(() => {
+      const build$ = new Subject<undefined>();
+      when(mockedDraftGenerationService.startBuildOrGetActiveBuild(anything())).thenReturn(build$);
+      const env = new TestEnvironment(testState);
+      tick();
+      env.component.logicHandler.selectDraftingBooks(['GEN']);
+
+      env.component.generateDraftClicked();
+      tick();
+      env.startDraftForTarget();
+      tick();
+
+      verify(mockedDialogService.message(anything())).never();
+      verify(mockedRouter.navigate(anything())).never();
+      expect().nothing();
+    }));
+
+    it('does not react to changes while a draft was already in progress on entry', fakeAsync(() => {
+      const env = new TestEnvironment(testState, { targetDraftInProgress: true });
+      tick();
+
+      env.startDraftForTarget();
+      tick();
+
+      verify(mockedDialogService.message(anything())).never();
+      verify(mockedRouter.navigate(anything())).never();
+      expect(env.component.page).toEqual('preface');
+    }));
+  });
+
   describe('empty states', () => {
     it('reports no available drafting books when the source offers none', async () => {
       const env = new TestEnvironment({
@@ -1214,6 +1286,14 @@ class TestEnvironment {
     entry.changes$.next();
   }
 
+  /** Simulates the backend marking a draft as in progress on the target project and notifying watchers. */
+  startDraftForTarget(): void {
+    const entry = this.syncDocs.get('testProjectId');
+    if (entry == null) throw new Error('No sync doc registered for the target project');
+    (entry.data as unknown as SFProjectProfile).translateConfig.draftConfig.draftInProgress = true;
+    entry.changes$.next();
+  }
+
   constructor(
     state: TestState,
     options: {
@@ -1228,6 +1308,8 @@ class TestEnvironment {
       trainingData$?: Observable<TrainingData[]>;
       /** When true, the target project is already syncing on entry (baseline for the sync watcher). */
       targetSyncing?: boolean;
+      /** When true, a draft is already in progress for the target project on entry. */
+      targetDraftInProgress?: boolean;
     } = {}
   ) {
     const project = createTestProjectProfile({
@@ -1260,6 +1342,7 @@ class TestEnvironment {
     });
 
     if (options.targetSyncing) project.sync.queuedCount = 1;
+    if (options.targetDraftInProgress) project.translateConfig.draftConfig.draftInProgress = true;
 
     const projectId = 'testProjectId';
     // The target doc doubles as a sync-watcher doc so tests can simulate the target starting to sync.
