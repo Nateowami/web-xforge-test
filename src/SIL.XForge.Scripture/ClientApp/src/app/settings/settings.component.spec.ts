@@ -379,6 +379,31 @@ describe('SettingsComponent', () => {
         expect(env.inputElement(env.biblicalTermsCheckbox).disabled).toBe(true);
       }));
     });
+
+    describe('Insights options', () => {
+      it('does not show a status icon on the unchanged allowed-character checker when re-enabling assessments', fakeAsync(() => {
+        const env = new TestEnvironment();
+        env.setupProject();
+        env.wait();
+
+        env.clickElement(env.inputElement(env.lynxAssessmentsCheckbox));
+        env.wait();
+        expect(env.inputElement(env.lynxAllowedCharacterCheckerCheckbox).checked).toBe(false);
+        expect(env.statusDone(env.lynxPunctuationCheckerStatus)).not.toBeNull();
+        expect(env.statusDone(env.lynxAllowedCharacterCheckerStatus)).toBeNull();
+
+        // Disabling assessments also saves the (hidden) allowed-character checker as disabled
+        env.clickElement(env.inputElement(env.lynxAssessmentsCheckbox));
+        env.wait();
+        expect(env.lynxAllowedCharacterCheckerCheckbox).toBeNull();
+
+        env.clickElement(env.inputElement(env.lynxAssessmentsCheckbox));
+        env.wait();
+        expect(env.inputElement(env.lynxAllowedCharacterCheckerCheckbox).checked).toBe(false);
+        expect(env.statusDone(env.lynxPunctuationCheckerStatus)).not.toBeNull();
+        expect(env.statusDone(env.lynxAllowedCharacterCheckerStatus)).toBeNull();
+      }));
+    });
   });
 
   describe('Sharing Settings', () => {
@@ -844,6 +869,22 @@ class TestEnvironment {
 
   get biblicalTermsStatus(): DebugElement {
     return this.fixture.debugElement.query(By.css('#biblical-terms-status'));
+  }
+
+  get lynxAssessmentsCheckbox(): DebugElement {
+    return this.fixture.debugElement.query(By.css('#checkbox-lynx-assessments'));
+  }
+
+  get lynxPunctuationCheckerStatus(): DebugElement {
+    return this.fixture.debugElement.query(By.css('#lynx-punctuation-checker-status'));
+  }
+
+  get lynxAllowedCharacterCheckerCheckbox(): DebugElement {
+    return this.fixture.debugElement.query(By.css('#checkbox-lynx-allowed-character-checker'));
+  }
+
+  get lynxAllowedCharacterCheckerStatus(): DebugElement {
+    return this.fixture.debugElement.query(By.css('#lynx-allowed-character-checker-status'));
   }
 
   set onlineStatus(hasConnection: boolean) {
