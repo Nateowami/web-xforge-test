@@ -60,7 +60,7 @@ import { ShareButtonComponent } from '../../shared/share/share-button.component'
 import { getVerseRefFromSegmentRef, getVerseStrFromSegmentRef } from '../../shared/verse-utils';
 import { ChapterAudioDialogData } from '../chapter-audio-dialog/chapter-audio-dialog.component';
 import { ChapterAudioDialogService } from '../chapter-audio-dialog/chapter-audio-dialog.service';
-import { BookChapter, CheckingUtils, isQuestionScope, QuestionScope } from '../checking.utils';
+import { BookChapter, CheckingUtils, isEmptyBook, isQuestionScope, QuestionScope } from '../checking.utils';
 import { QuestionDialogData } from '../question-dialog/question-dialog.component';
 import { QuestionDialogService } from '../question-dialog/question-dialog.service';
 import { AnswerAction, CheckingAnswersComponent } from './checking-answers/checking-answers.component';
@@ -327,6 +327,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     const textsByBook: TextsByBookId = {};
     if (this.projectDoc != null && this.projectDoc.data != null) {
       for (const text of this.projectDoc.data.texts) {
+        // Match the books offered by the Manage Questions page
+        if (isEmptyBook(text)) continue;
         textsByBook[Canon.bookNumberToId(text.bookNum)] = text;
       }
     }
