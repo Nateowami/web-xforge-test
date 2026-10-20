@@ -444,17 +444,19 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
       if (newValue.lynxAssessmentsEnabled) {
         this.lynxPunctuationCheckerEnabled.setValue(true, { emitEvent: false });
         this.updateSetting({ ...newValue, lynxPunctuationCheckerEnabled: true }, 'lynxPunctuationCheckerEnabled');
-        // The allowed-character checker is not changed here, so clear any status left from when it was hidden
-        this.controlStates.set('lynxAllowedCharacterCheckerEnabled', ElementState.InSync);
       } else {
         // When 'assessments' is unchecked, auto-disable children
         this.lynxPunctuationCheckerEnabled.setValue(false, { emitEvent: false });
         this.updateSetting({ ...newValue, lynxPunctuationCheckerEnabled: false }, 'lynxPunctuationCheckerEnabled');
-        this.lynxAllowedCharacterCheckerEnabled.setValue(false, { emitEvent: false });
-        this.updateSetting(
-          { ...newValue, lynxAllowedCharacterCheckerEnabled: false },
-          'lynxAllowedCharacterCheckerEnabled'
-        );
+        // Only save the allowed-character checker if it was on, so that a no-op save does not leave a status
+        // on it that shows when assessments are enabled again
+        if (newValue.lynxAllowedCharacterCheckerEnabled) {
+          this.lynxAllowedCharacterCheckerEnabled.setValue(false, { emitEvent: false });
+          this.updateSetting(
+            { ...newValue, lynxAllowedCharacterCheckerEnabled: false },
+            'lynxAllowedCharacterCheckerEnabled'
+          );
+        }
       }
     } else {
       // If both child settings are disabled, auto-disable assessments (parent setting)
