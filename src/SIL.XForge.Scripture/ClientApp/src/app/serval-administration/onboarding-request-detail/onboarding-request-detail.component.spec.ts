@@ -255,6 +255,43 @@ describe('OnboardingRequestDetailComponent', () => {
       verify(mockedOnboardingRequestService.approveRequest(anything())).once();
       expect().nothing();
     }));
+
+    it('does not open the dialog and shows an error when the project no longer exists', fakeAsync(() => {
+      const env = new TestEnvironment({ mainProjectDoc: { id: 'project01', data: undefined } as SFProjectProfileDoc });
+      env.wait();
+
+      expect(env.approveButton.nativeElement.disabled).toBe(true);
+      expect(env.component.warnings.some(w => w.includes('no longer exists'))).toBe(true);
+
+      void env.component.approveRequest();
+      flush();
+
+      verify(mockedDialogService.openMatDialog(anything(), anything())).never();
+      verify(mockedNoticeService.showError(anything())).once();
+      verify(mockedOnboardingRequestService.approveRequest(anything())).never();
+    }));
+
+    it('does not configure or approve when the project is deleted while the dialog is open', fakeAsync(() => {
+      const deletableProjectDoc = createProjectDoc('project01', MAIN_PARATEXT_ID, 'MAIN');
+      const env = new TestEnvironment({
+        mainProjectDoc: deletableProjectDoc,
+        approveDialogResult: {
+          draftingSourceParatextId: 'drafting_source_pt',
+          trainingSourceParatextIds: ['training_source_pt'],
+          enableBackTranslationDrafting: false
+        }
+      });
+      env.wait();
+      expect(env.approveButton.nativeElement.disabled).toBe(false);
+
+      void env.component.approveRequest();
+      (deletableProjectDoc as { data: unknown }).data = undefined;
+      flush();
+
+      verify(mockedNoticeService.showError(anything())).once();
+      verify(mockedProjectService.onlineSetDraftSources(anything(), anything(), anything())).never();
+      verify(mockedOnboardingRequestService.approveRequest(anything())).never();
+    }));
   });
 
   /**
@@ -314,6 +351,12 @@ describe('OnboardingRequestDetailComponent', () => {
 
     get assigneeSelect(): DebugElement {
       return this.fixture.debugElement.query(By.css('app-onboarding-request-assignee-select'));
+    }
+
+    get approveButton(): DebugElement {
+      return this.fixture.debugElement
+        .queryAll(By.css('.actions-container button'))
+        .find(b => b.nativeElement.textContent.includes('Approve'))!;
     }
 
     get resolutionSelect(): DebugElement {
