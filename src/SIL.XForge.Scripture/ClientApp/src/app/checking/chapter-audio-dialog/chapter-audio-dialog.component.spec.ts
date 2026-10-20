@@ -550,6 +550,9 @@ describe('ChapterAudioDialogComponent', () => {
 
     // SUT
     env.component.save();
+    tick();
+    // The spinner shows the user why further clicks do nothing while the delete is in progress
+    expect(env.saveButton.querySelector('mat-spinner')).not.toBeNull();
     env.component.save();
     finishDelete();
     tick();
