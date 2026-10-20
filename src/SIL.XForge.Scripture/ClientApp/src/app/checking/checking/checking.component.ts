@@ -30,7 +30,7 @@ import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { getTextAudioId } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
-import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
+import { Chapter, TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { toVerseRef, VerseRefData } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import { asyncScheduler, BehaviorSubject, combineLatest, merge, Observable, of, Subscription } from 'rxjs';
 import { distinctUntilChanged, filter, map, startWith, take, throttleTime } from 'rxjs/operators';
@@ -610,6 +610,22 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
           }
 
           this.activeQuestionScope = routeScope;
+
+          // Reroute to the first chapter if the routed chapter does not exist in the book, as the editor does
+          const routeBookChapters: Chapter[] | undefined = this.projectDoc?.data?.texts.find(
+            t => t.bookNum === routeBookNum
+          )?.chapters;
+          if (
+            routeChapterNum != null &&
+            routeBookChapters != null &&
+            routeBookChapters.length > 0 &&
+            !routeBookChapters.some(c => c.number === routeChapterNum)
+          ) {
+            this.navigateBookChapter(routeProjectId, routeScope, routeBookNum, routeBookChapters[0].number, {
+              replaceUrl: true
+            });
+            return;
+          }
 
           // If book/chapter is specified in route, use routed book/chapter even if it contains no questions
           if (routeBookNum != null && routeChapterNum != null) {
@@ -1689,14 +1705,20 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     let suggestedBookChapter: BookChapter | undefined;
 
     // Suggest book/chapter from last user selected question
-    if (lastSelected?.bookNum != null && lastSelected.chapterNum != null) {
-      // The stored chapter may not exist in the book, e.g. chapter 1 is stored for a URL without a chapter
-      const doesLastChapterExist: boolean = this.projectDoc.data.texts.some(
-        t => t.bookNum === lastSelected.bookNum && t.chapters.some(c => c.number === lastSelected.chapterNum)
-      );
-      // If route book is provided, don't use stored question from a different book
-      if (doesLastChapterExist && (routeBookNum == null || routeBookNum === lastSelected.bookNum)) {
+    // If route book is provided, don't use stored question from a different book
+    if (
+      lastSelected?.bookNum != null &&
+      lastSelected.chapterNum != null &&
+      (routeBookNum == null || routeBookNum === lastSelected.bookNum)
+    ) {
+      const lastBookChapters: Chapter[] =
+        this.projectDoc.data.texts.find(t => t.bookNum === lastSelected.bookNum)?.chapters ?? [];
+      // The stored chapter may no longer exist in the book, so fall back to the book's first chapter,
+      // as ResumeCheckingService does
+      if (lastBookChapters.some(c => c.number === lastSelected.chapterNum)) {
         suggestedBookChapter = lastSelected;
+      } else if (lastBookChapters.length > 0) {
+        suggestedBookChapter = { bookNum: lastSelected.bookNum, chapterNum: lastBookChapters[0].number };
       }
     }
 

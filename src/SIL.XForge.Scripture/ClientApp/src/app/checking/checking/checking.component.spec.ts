@@ -34,6 +34,7 @@ import {
 import { createTestProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config-test-data';
 import { TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { getTextDocId, TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
+import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { fromVerseRef, VerseRefData } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import * as RichText from 'rich-text';
 import { BehaviorSubject, firstValueFrom, of, Subject } from 'rxjs';
@@ -258,6 +259,38 @@ describe('CheckingComponent', () => {
       });
 
       expect(env.router.url).toContain('MAT/1?scope=book');
+    }));
+
+    it('reroutes to the first chapter of the last selected book if the last selected chapter does not exist', fakeAsync(() => {
+      const testProject: SFProject = TestEnvironment.generateTestProject();
+      const mat: TextInfo = testProject.texts.find(t => t.bookNum === 40)!;
+      mat.chapters = mat.chapters.filter(c => c.number === 3);
+      const env = new TestEnvironment({
+        user: ADMIN_USER,
+        testProject,
+        projectBookRoute: 'MAT',
+        projectChapterRoute: undefined,
+        questionScope: 'book',
+        projectUserConfig: { selectedBookNum: 40, selectedChapterNum: 1 }
+      });
+
+      // The first MAT question is in chapter 1, which does not exist
+      expect(env.router.url).toContain('MAT/3?scope=book');
+    }));
+
+    it('reroutes to the first chapter of the book if the routed chapter does not exist', fakeAsync(() => {
+      const testProject: SFProject = TestEnvironment.generateTestProject();
+      const mat: TextInfo = testProject.texts.find(t => t.bookNum === 40)!;
+      mat.chapters = mat.chapters.filter(c => c.number === 3);
+      const env = new TestEnvironment({
+        user: ADMIN_USER,
+        testProject,
+        projectBookRoute: 'MAT',
+        projectChapterRoute: 1,
+        questionScope: 'book'
+      });
+
+      expect(env.router.url).toContain('MAT/3?scope=book');
     }));
 
     describe('Prev/Next question buttons', () => {

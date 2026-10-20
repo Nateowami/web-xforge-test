@@ -251,6 +251,55 @@ describe('ResumeCheckingService', () => {
     expect(opsSets[2].value).toEqual(23);
   }));
 
+  it('should store the first chapter of the book when the route has no chapter', fakeAsync(async () => {
+    when(mockActivatedProjectService.projectDoc).thenReturn({
+      data: { texts: [{ bookNum: 68, chapters: [{ number: 3 } as Chapter] } as TextInfo] } as SFProjectProfile
+    } as SFProjectProfileDoc);
+    const opsSets = navigateWithUserConfig({ selectedBookNum: 40, selectedChapterNum: 2 }, { bookId: 'JDT' });
+
+    expect(opsSets.length).toEqual(3);
+    expect(opsSets[1].path).toContain('puc.selectedBookNum');
+    expect(opsSets[1].value).toEqual(68);
+    expect(opsSets[2].path).toContain('puc.selectedChapterNum');
+    expect(opsSets[2].value).toEqual(3);
+  }));
+
+  it('should keep the stored chapter when the route has no chapter and the book is unchanged', fakeAsync(async () => {
+    const opsSets = navigateWithUserConfig({ selectedBookNum: 40, selectedChapterNum: 2 }, { bookId: 'MAT' });
+
+    expect(opsSets.length).toEqual(2);
+    expect(opsSets[1].path).toContain('puc.selectedBookNum');
+    expect(opsSets[1].value).toEqual(40);
+  }));
+
+  /** Navigates to a checking route with the given params and returns the ops set on the user config. */
+  function navigateWithUserConfig(
+    userConfig: Partial<SFProjectUserConfig>,
+    params: Params
+  ): { path: string; value: any }[] {
+    const userConfigDoc = mock(SFProjectUserConfigDoc);
+    const opsSets: { path: string; value: any }[] = [];
+    when(userConfigDoc.data).thenReturn(userConfig as SFProjectUserConfig);
+    when(userConfigDoc.submitJson0Op(anything())).thenCall((fn: (op: Json0OpBuilder<SFProjectUserConfig>) => void) => {
+      fn({
+        set: (path: any, value: any) => {
+          opsSets.push({ path: path.toString(), value });
+        }
+      } as Json0OpBuilder<SFProjectUserConfig>);
+    });
+
+    service['projectUserConfigDoc$'].next(instance(userConfigDoc));
+
+    when(mockRouter.url).thenReturn('/projects/project01/checking');
+    when(mockRouter.routerState).thenReturn({
+      snapshot: { root: { firstChild: { params } as ActivatedRouteSnapshot } }
+    } as any);
+    routerEvents$.next(new NavigationEnd(-1, '', '')); // Trigger route change
+
+    verify(userConfigDoc.submitJson0Op(anything())).once();
+    return opsSets;
+  }
+
   function setUpQuestions(newLocal: QuestionDoc[]): void {
     const query: RealtimeQuery<QuestionDoc> = mock(RealtimeQuery);
     when(query.ready$).thenReturn(of(true));

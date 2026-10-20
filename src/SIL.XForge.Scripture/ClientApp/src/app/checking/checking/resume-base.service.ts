@@ -64,19 +64,30 @@ export abstract class ResumeBaseService {
       const routeBookNum: number | undefined =
         routeBookId != null && routeBookId !== 'all' ? Canon.bookIdToNumber(routeBookId) : undefined;
 
-      if (routeBookNum && this.projectUserConfigDoc$.value) {
+      const projectUserConfigDoc: SFProjectUserConfigDoc | undefined = this.projectUserConfigDoc$.value;
+      if (routeBookNum && projectUserConfigDoc) {
+        // A route without a chapter (e.g. opening a book from the overview) shows the last chapter viewed in the book,
+        // or else the book's first chapter, which may not be chapter 1
+        let chapterNum: number | undefined = routeChapterNum;
+        if (chapterNum == null && projectUserConfigDoc.data?.selectedBookNum !== routeBookNum) {
+          chapterNum =
+            this.activatedProjectService.projectDoc?.data?.texts.find(t => t.bookNum === routeBookNum)?.chapters[0]
+              ?.number ?? 1;
+        }
         let selectedTask: string | undefined = undefined;
         if (this.router.url.includes('checking')) {
           selectedTask = 'checking';
         } else if (this.router.url.includes('translate')) {
           selectedTask = 'translate';
         }
-        await this.projectUserConfigDoc$.value.submitJson0Op(op => {
+        await projectUserConfigDoc.submitJson0Op(op => {
           if (selectedTask != null) {
             op.set<string>(puc => puc.selectedTask!, selectedTask);
           }
           op.set(puc => puc.selectedBookNum!, routeBookNum);
-          op.set(puc => puc.selectedChapterNum!, routeChapterNum ?? 1);
+          if (chapterNum != null) {
+            op.set(puc => puc.selectedChapterNum!, chapterNum);
+          }
         });
       }
     });
