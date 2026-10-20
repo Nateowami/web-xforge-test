@@ -25,6 +25,9 @@
   } @else if (initData == null || page === "loading") {
     <mat-spinner class="loading-indicator"></mat-spinner>
     <p class="loading-text">{{ t("loading") }}</p>
+    @if (!onlineStatusService.isOnline) {
+      <p class="offline-text offline-loading-text">{{ t("offline_message") }}</p>
+    }
   } @else {
     @if (stepNumber != null) {
       <p class="step-indicator">{{ t("step_indicator", { step: stepNumber, total: totalStepCount }) }}</p>
