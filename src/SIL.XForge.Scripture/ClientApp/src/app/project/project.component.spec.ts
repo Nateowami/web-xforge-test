@@ -28,7 +28,7 @@ import { ResumeCheckingService } from '../checking/checking/resume-checking.serv
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { SFProjectUserConfigDoc } from '../core/models/sf-project-user-config-doc';
 import { SF_TYPE_REGISTRY } from '../core/models/sf-type-registry';
-import { ProjectComponent } from './project.component';
+import { ProjectComponent, USER_DOC_FETCH_TIMEOUT_MS } from './project.component';
 
 const mockedAuthService = mock(AuthService);
 const mockedUserService = mock(UserService);
@@ -194,6 +194,8 @@ describe('ProjectComponent', () => {
     // Simulate the server having already added the user to the project, which the client only learns of on fetch
     const userDoc: UserDoc = env.realtimeService.get<UserDoc>(UserDoc.COLLECTION, 'user01');
     spyOn(userDoc, 'onlineFetch').and.callFake(async () => {
+      // As with ShareDB, the fetched op arrives asynchronously as a remote change, while the fetch is still pending
+      await Promise.resolve();
       env.setProjectData({ memberProjectIdSuffixes: [1] });
       userDoc.submitJson0Op(op => op.set(u => u.sites, { sf: { projects: ['project1'] } }), false);
     });
@@ -204,6 +206,45 @@ describe('ProjectComponent', () => {
     verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate', 'MAT']), anything())).once();
     expect(env.component.projectNotFound).toBe(false);
     expect(env.pageNotFound).toBeNull();
+    env.fixture.destroy();
+  }));
+
+  it('shows page not found if fetching the user doc fails', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectData({ memberProjectIdSuffixes: [] });
+    const userDoc: UserDoc = env.realtimeService.get<UserDoc>(UserDoc.COLLECTION, 'user01');
+    spyOn(userDoc, 'onlineFetch').and.rejectWith(new Error('Connection closed'));
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+
+    verify(mockedRouter.navigate(anything(), anything())).never();
+    expect(env.component.projectNotFound).toBe(true);
+    expect(env.pageNotFound).not.toBeNull();
+    env.fixture.destroy();
+  }));
+
+  it('shows page not found if fetching the user doc does not finish', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectData({ memberProjectIdSuffixes: [] });
+    const userDoc: UserDoc = env.realtimeService.get<UserDoc>(UserDoc.COLLECTION, 'user01');
+    spyOn(userDoc, 'onlineFetch').and.returnValue(new Promise<void>(() => {}));
+    env.fixture.detectChanges();
+    tick();
+    env.fixture.detectChanges();
+    expect(env.pageNotFound).toBeNull();
+
+    tick(USER_DOC_FETCH_TIMEOUT_MS);
+    env.fixture.detectChanges();
+    expect(env.component.projectNotFound).toBe(true);
+    expect(env.pageNotFound).not.toBeNull();
+
+    // The user doc changes still arrive once the connection recovers
+    env.addUserToProject(1);
+    env.fixture.detectChanges();
+    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate', 'MAT']), anything())).once();
+    expect(env.pageNotFound).toBeNull();
+    env.fixture.destroy();
   }));
 
   it('navigate old sharing link to new joining link', fakeAsync(() => {

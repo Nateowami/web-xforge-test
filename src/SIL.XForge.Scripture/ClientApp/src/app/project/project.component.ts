@@ -4,9 +4,10 @@ import { Canon } from '@sillsdev/scripture';
 import { User } from 'realtime-server/lib/esm/common/models/user';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SFProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
-import { lastValueFrom, Observable } from 'rxjs';
-import { distinctUntilChanged, filter, first, map } from 'rxjs/operators';
+import { from, lastValueFrom, Observable } from 'rxjs';
+import { distinctUntilChanged, filter, first, map, switchMap, timeout } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
+import { UserDoc } from 'xforge-common/models/user-doc';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { UserService } from 'xforge-common/user.service';
@@ -17,6 +18,8 @@ import { PermissionsService } from '../core/permissions.service';
 import { SFProjectService } from '../core/sf-project.service';
 import { PageNotFoundComponent } from '../shared/page-not-found/page-not-found.component';
 type TaskType = 'translate' | 'checking';
+
+export const USER_DOC_FETCH_TIMEOUT_MS = 5000;
 
 @Component({
   selector: 'app-projects',
@@ -68,18 +71,39 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
       });
     });
 
-    navigateToProject$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(async projectId => {
-      // The user doc can lag behind the server just after the user was added to the project (e.g. when joining with a
-      // share link), so bring it up to date before deciding that the project does not exist
-      if (!this.isUserOnProject(userDoc.data, projectId) && this.onlineStatusService.isOnline) {
-        await userDoc.onlineFetch();
-      }
+    navigateToProject$
+      .pipe(
+        // A fetch of the user doc can bring in remote changes that trigger a new check. Drop the result of any check
+        // that was superseded, and only act on a check result that differs from the last one, so that the project is
+        // navigated to once.
+        switchMap(projectId =>
+          from(this.isProjectFound(userDoc, projectId)).pipe(map(found => ({ projectId, found })))
+        ),
+        distinctUntilChanged((a, b) => a.projectId === b.projectId && a.found === b.found),
+        quietTakeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(({ projectId, found }) => {
+        this.projectNotFound = !found;
+        if (found) {
+          void this.navigateToProject(projectId);
+        }
+      });
+  }
 
-      this.projectNotFound = !this.isUserOnProject(userDoc.data, projectId);
-      if (!this.projectNotFound) {
-        void this.navigateToProject(projectId);
+  private async isProjectFound(userDoc: UserDoc, projectId: string): Promise<boolean> {
+    // The user doc can lag behind the server just after the user was added to the project (e.g. when joining with a
+    // share link), so bring it up to date before deciding that the project does not exist
+    if (!this.isUserOnProject(userDoc.data, projectId) && this.onlineStatusService.isOnline) {
+      try {
+        // Don't wait indefinitely if the connection has stalled. Ops the fetch brings in later still trigger a recheck.
+        await lastValueFrom(from(userDoc.onlineFetch()).pipe(timeout(USER_DOC_FETCH_TIMEOUT_MS)), {
+          defaultValue: undefined
+        });
+      } catch {
+        // Decide using the local copy of the user doc
       }
-    });
+    }
+    return this.isUserOnProject(userDoc.data, projectId);
   }
 
   private isUserOnProject(user: User | undefined, projectId: string): boolean {

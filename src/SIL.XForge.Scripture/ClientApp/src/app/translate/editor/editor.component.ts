@@ -690,21 +690,15 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     ])
       .pipe(quietTakeUntilDestroyed(this.destroyRef))
       .subscribe(async ([params, targetViewChildren]) => {
-        const projectId = params['projectId'] as string;
-        const bookId = params['bookId'] as string;
-        const bookNum = Canon.bookIdToNumber(bookId);
-        if (bookNum === 0) {
-          // The book in the URL is not a valid book ID, so go to the translate overview (as the checking app does)
-          void this.router.navigate(['/projects', projectId, 'translate'], { replaceUrl: true });
-          return;
-        }
-
         this.target = targetViewChildren.first;
         this.sourceLoaded = false;
         this.targetLoaded = false;
         this.bottomSheet.dismiss();
         this.loadingStarted();
+        const projectId = params['projectId'] as string;
+        const bookId = params['bookId'] as string;
         const chapterNum = params['chapter'] as string | null;
+        const bookNum = bookId != null ? Canon.bookIdToNumber(bookId) : 0;
         this._bookNum = bookNum;
 
         if (this.currentUserDoc === undefined) {
@@ -765,6 +759,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           this.projectDoc.data.translateConfig.draftConfig?.draftedScriptureRange
         );
         this.books = Array.from(new Set([...projectTexts, ...draftedBooks])).sort((a, b) => a - b);
+        if (!this.books.includes(bookNum)) {
+          // The book in the URL is not a book ID, or is a book that is neither in the project nor drafted (e.g. from a
+          // stale link), so go to the translate overview, as the checking app does
+          void this.router.navigate(['/projects', projectId, 'translate'], { replaceUrl: true });
+          return;
+        }
         this.text = this.projectDoc.data.texts.find(t => t.bookNum === bookNum);
 
         const allChapters: number = Math.max(
