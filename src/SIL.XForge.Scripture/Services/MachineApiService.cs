@@ -3306,7 +3306,7 @@ public partial class MachineApiService(
                 cancellationToken
             );
         }
-        catch
+        catch (Exception e)
         {
             // Release the claim so the failed request does not block subsequent build requests
             await projectSecrets.UpdateAsync(
@@ -3314,6 +3314,18 @@ public partial class MachineApiService(
                 u => u.Unset(p => p.ServalData!.PreTranslationQueuedAt),
                 cancellationToken: CancellationToken.None
             );
+
+            // Nothing was queued, so do not leave the draft marked as in progress, unless a build is running on Serval
+            if (
+                e is not BuildAlreadyRunningException
+                && projectDoc.Data.TranslateConfig.DraftConfig.DraftInProgress == true
+            )
+            {
+                await projectDoc.SubmitJson0OpAsync(op =>
+                    op.Set(pd => pd.TranslateConfig.DraftConfig.DraftInProgress, false)
+                );
+            }
+
             throw;
         }
     }
@@ -3330,6 +3342,16 @@ public partial class MachineApiService(
         CancellationToken cancellationToken
     )
     {
+        // Holding the claim, with no build running on Serval, means a draft in progress flag is left over from a build
+        // that never reported back (e.g. its sync job failed). Clear it first, so this build start still changes the
+        // flag from false to true, which is how clients (e.g. other users' draft wizards) see that a draft started.
+        if (projectDoc.Data.TranslateConfig.DraftConfig.DraftInProgress == true)
+        {
+            await projectDoc.SubmitJson0OpAsync(op =>
+                op.Set(pd => pd.TranslateConfig.DraftConfig.DraftInProgress, false)
+            );
+        }
+
         // Save the selected books
         await projectDoc.SubmitJson0OpAsync(op =>
         {

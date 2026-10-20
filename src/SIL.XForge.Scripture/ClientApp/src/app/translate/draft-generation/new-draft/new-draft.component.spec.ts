@@ -1130,6 +1130,21 @@ describe('NewDraftComponent', () => {
       verify(mockedRouter.navigate(anything())).never();
       expect(env.component.page).toEqual('preface');
     }));
+
+    it('reacts when another user starts a draft after a stale in progress flag is cleared', fakeAsync(() => {
+      const env = new TestEnvironment(testState, { targetDraftInProgress: true });
+      tick();
+
+      // The backend clears a stale flag before marking the new draft in progress
+      env.setTargetDraftInProgress(false);
+      tick();
+      env.setTargetDraftInProgress(true);
+      tick();
+
+      verify(mockedDialogService.message('draft_generation.draft_already_running')).once();
+      verify(mockedRouter.navigate(deepEqual(['/projects', 'testProjectId', 'draft-generation']))).once();
+      expect().nothing();
+    }));
   });
 
   describe('empty states', () => {
@@ -1288,9 +1303,14 @@ class TestEnvironment {
 
   /** Simulates the backend marking a draft as in progress on the target project and notifying watchers. */
   startDraftForTarget(): void {
+    this.setTargetDraftInProgress(true);
+  }
+
+  /** Simulates a remote change to the target project's draft in progress flag. */
+  setTargetDraftInProgress(draftInProgress: boolean): void {
     const entry = this.syncDocs.get('testProjectId');
     if (entry == null) throw new Error('No sync doc registered for the target project');
-    (entry.data as unknown as SFProjectProfile).translateConfig.draftConfig.draftInProgress = true;
+    (entry.data as unknown as SFProjectProfile).translateConfig.draftConfig.draftInProgress = draftInProgress;
     entry.changes$.next();
   }
 

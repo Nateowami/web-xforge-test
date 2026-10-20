@@ -5160,6 +5160,77 @@ public class MachineApiServiceTests
     }
 
     [Test]
+    public async Task StartPreTranslationBuildAsync_ClearsDraftInProgressWhenEnqueueFails()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+        env.ProjectService.SyncAsync(User01, Project01).Throws(new UnauthorizedAccessException());
+
+        // SUT
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            env.Service.StartPreTranslationBuildAsync(
+                User01,
+                new BuildConfig { ProjectId = Project01 },
+                CancellationToken.None
+            )
+        );
+
+        // A flag left set would hide the next build start from clients watching for it to become true
+        Assert.IsFalse(env.Projects.Get(Project01).TranslateConfig.DraftConfig.DraftInProgress);
+    }
+
+    [Test]
+    public async Task StartPreTranslationBuildAsync_KeepsDraftInProgressWhenBuildAlreadyRunningOnServal()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+        await env.Projects.UpdateAsync(Project01, u => u.Set(p => p.TranslateConfig.DraftConfig.DraftInProgress, true));
+        env.TranslationEnginesClient.GetCurrentBuildAsync(TranslationEngine01, null, CancellationToken.None)
+            .Returns(
+                Task.FromResult(
+                    new TranslationBuild
+                    {
+                        Url = "https://example.com",
+                        Id = ServalBuildId01,
+                        Engine = { Id = TranslationEngine01, Url = "https://example.com" },
+                    }
+                )
+            );
+
+        // SUT
+        await Assert.ThrowsAsync<BuildAlreadyRunningException>(() =>
+            env.Service.StartPreTranslationBuildAsync(
+                User01,
+                new BuildConfig { ProjectId = Project01 },
+                CancellationToken.None
+            )
+        );
+
+        Assert.IsTrue(env.Projects.Get(Project01).TranslateConfig.DraftConfig.DraftInProgress);
+    }
+
+    [Test]
+    public async Task StartPreTranslationBuildAsync_StartsWhenDraftInProgressIsStale()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+        await env.Projects.UpdateAsync(Project01, u => u.Set(p => p.TranslateConfig.DraftConfig.DraftInProgress, true));
+        env.TranslationEnginesClient.GetCurrentBuildAsync(TranslationEngine01, null, CancellationToken.None)
+            .Throws(ServalApiExceptions.NoContent);
+
+        // SUT
+        await env.Service.StartPreTranslationBuildAsync(
+            User01,
+            new BuildConfig { ProjectId = Project01 },
+            CancellationToken.None
+        );
+
+        env.BackgroundJobClient.Received(1).Create(Arg.Any<Job>(), Arg.Any<IState>());
+        Assert.AreEqual(HangfireJobId, env.ProjectSecrets.Get(Project01).ServalData!.PreTranslationJobId);
+        Assert.IsTrue(env.Projects.Get(Project01).TranslateConfig.DraftConfig.DraftInProgress);
+    }
+
+    [Test]
     public async Task StartPreTranslationBuildAsync_SuccessNoTrainingOrTranslationScriptureRanges()
     {
         // Set up test environment

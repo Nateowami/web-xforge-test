@@ -384,6 +384,10 @@ export class NewDraftComponent {
    * Leaves the wizard for the draft generation page (which shows the build's progress) when a draft starts for this
    * project from somewhere else, e.g. another user. A project can only have one build at a time, so this wizard can no
    * longer start one. Watches from the start of input, including the pending-updates pre-step.
+   *
+   * The signal is `draftInProgress` changing from false to true. A flag already true on entry may be stale (entry is
+   * gated on the Serval build state, not this flag), so it is not acted on; the backend clears a stale flag before it
+   * marks a new draft in progress, so that the start still shows up as a change to true.
    */
   private watchForDraftStartedElsewhere(): void {
     const projectDoc: SFProjectProfileDoc | undefined = this.activatedProjectService.projectDoc;
