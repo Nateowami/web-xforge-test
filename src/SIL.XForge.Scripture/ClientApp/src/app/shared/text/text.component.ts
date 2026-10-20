@@ -1282,13 +1282,21 @@ export class TextComponent implements AfterViewInit, OnDestroy {
             .subscribe(event => {
               const noteText = attributeFromMouseEvent(event, 'USX-NOTE', 'title');
               const noteType = attributeFromMouseEvent(event, 'USX-NOTE', 'data-style');
-              this.dialogService.openMatDialog(TextNoteDialogComponent, {
+              const editorHadFocus: boolean = this.editor?.hasFocus() ?? false;
+              const dialogRef = this.dialogService.openMatDialog(TextNoteDialogComponent, {
                 width: '600px',
                 data: {
                   type: noteType,
                   text: noteText,
                   isRightToLeft: this.isRtl
-                } as NoteDialogData
+                } as NoteDialogData,
+                // Closing via the backdrop moves the browser selection out of the editor, so the default focus
+                // restore would put the cursor at the start of the chapter. Refocus through Quill instead, which
+                // restores its last selection.
+                restoreFocus: false
+              });
+              dialogRef.afterClosed().subscribe(() => {
+                if (editorHadFocus) this.editor?.focus();
               });
             })
         )

@@ -1,5 +1,6 @@
 import { Component, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatDialogRef } from '@angular/material/dialog';
 import { TranslocoService } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { QuillService } from 'ngx-quill';
@@ -13,9 +14,9 @@ import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge
 import { TextAnchor } from 'realtime-server/lib/esm/scriptureforge/models/text-anchor';
 import { TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import * as RichText from 'rich-text';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, of, Subject } from 'rxjs';
 import { LocalPresence } from 'sharedb/lib/sharedb';
-import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { anything, instance, mock, objectContaining, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { MockConsole } from 'xforge-common/mock-console';
 import { UserDoc } from 'xforge-common/models/user-doc';
@@ -1599,6 +1600,53 @@ describe('TextComponent', () => {
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
   }));
 
+  it('restores the editor selection when the footnote dialog closes', fakeAsync(() => {
+    const chapterNum = 2;
+    const segmentRef: string = `verse_${chapterNum}_1`;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'quick brown', attributes: { segment: segmentRef } },
+      {
+        insert: {
+          note: {
+            caller: '+',
+            style: 'f',
+            contents: { ops: [{ insert: 'footnote text', attributes: { char: { style: 'ft' } } }] }
+          }
+        },
+        attributes: { segment: segmentRef }
+      },
+      { insert: ' fox', attributes: { segment: segmentRef } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+    const dialogClosed$ = new Subject<void>();
+    const mockedDialogRef = mock<MatDialogRef<TextNoteDialogComponent>>(MatDialogRef);
+    when(mockedDialogRef.afterClosed()).thenReturn(dialogClosed$);
+    when(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thenReturn(instance(mockedDialogRef));
+    const editor: Quill = env.component.editor!;
+    const segmentRange: QuillRange = env.component.getSegmentRange(segmentRef)!;
+    const caret: QuillRange = { index: segmentRange.index + 'quick'.length, length: 0 };
+    editor.setSelection(caret, 'user');
+    tick();
+
+    (env.quillEditor.querySelector('usx-note') as HTMLElement).click();
+    // Clicking the dialog backdrop takes focus and the browser selection out of the editor
+    (document.activeElement as HTMLElement).blur();
+    window.getSelection()!.removeAllRanges();
+    expect(editor.hasFocus()).toBeFalse();
+    dialogClosed$.next();
+    tick();
+
+    verify(
+      mockedDialogService.openMatDialog(TextNoteDialogComponent, objectContaining({ restoreFocus: false }))
+    ).once();
+    expect(editor.hasFocus()).toBeTrue();
+    expect(editor.getSelection()).toEqual(jasmine.objectContaining(caret));
+    expect(env.component.segmentRef).toEqual(segmentRef);
+  }));
+
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
     const env = new TestEnvironment();
     env.id = new TextDocId('project01', 40, 1);
@@ -1922,6 +1970,9 @@ class TestEnvironment {
     when(mockedTranslocoService.translate<string>(anything(), anything())).thenCall(
       (translationStringKey: string, _: any) => translationStringKey
     );
+    when(mockedDialogService.openMatDialog(anything(), anything())).thenReturn({
+      afterClosed: () => of(undefined)
+    } as MatDialogRef<any>);
 
     this.realtimeService.addSnapshot<SFProjectProfile>(SFProjectProfileDoc.COLLECTION, {
       id: 'project01',
