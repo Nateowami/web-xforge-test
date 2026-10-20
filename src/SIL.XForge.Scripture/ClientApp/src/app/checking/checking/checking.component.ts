@@ -827,7 +827,9 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
           this.prevQuestionOutOfScope = prevQuestionQuery;
           prevQuestionQuery.ready$
             .pipe(
-              filter(ready => ready),
+              // Query 'ready$' will not emit when offline (initial emission of false is due to BehaviorSubject),
+              // but offline docs may be available.
+              filter(isReady => isReady || !this.onlineStatusService.isOnline),
               map(() => prevQuestionQuery),
               quietTakeUntilDestroyed(this.destroyRef)
             )
@@ -853,7 +855,9 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
           this.nextQuestionOutOfScope = nextQuestionQuery;
           nextQuestionQuery.ready$
             .pipe(
-              filter(ready => ready),
+              // Query 'ready$' will not emit when offline (initial emission of false is due to BehaviorSubject),
+              // but offline docs may be available.
+              filter(isReady => isReady || !this.onlineStatusService.isOnline),
               map(() => nextQuestionQuery),
               quietTakeUntilDestroyed(this.destroyRef)
             )
