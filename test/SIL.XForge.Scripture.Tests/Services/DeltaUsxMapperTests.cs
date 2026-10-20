@@ -3953,14 +3953,16 @@ public class DeltaUsxMapperTests
         Assert.IsTrue(chapterDeltas[1].Delta.DeepEquals(expected[1]));
     }
 
-    [TestCase("XXB")]
-    [TestCase("FRT")]
-    [TestCase("GLO")]
-    [TestCase("TDX")]
-    public void ToDelta_PeripheralBookIsValid(string bookCode)
+    [TestCase("XXB", "- SepQA")]
+    [TestCase("FRT", "- Front Matter")]
+    [TestCase("GLO", "- Glossary")]
+    [TestCase("TDX", "- Topical Index")]
+    public void ToDelta_PeripheralBookIsValid(string bookCode, string bookDescription)
     {
         XDocument usxDoc = Usx(
             bookCode,
+            bookDescription,
+            "3.0",
             Chapter("1"),
             Para("p", "Extra material in the first chapter"),
             Chapter("2"),
@@ -3974,7 +3976,7 @@ public class DeltaUsxMapperTests
         [
             Delta
                 .New()
-                .InsertBook(bookCode)
+                .InsertBook(bookCode, text: bookDescription)
                 .InsertChapter("1")
                 .InsertText("Extra material in the first chapter", "p_1")
                 .InsertPara("p"),
