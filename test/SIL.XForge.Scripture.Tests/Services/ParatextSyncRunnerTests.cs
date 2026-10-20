@@ -2470,6 +2470,18 @@ public class ParatextSyncRunnerTests
             )
             .Returns(new ParatextResource());
 
+        // Users added to a resource are given the Paratext observer role
+        await env
+            .RealtimeService.GetRepository<SFProject>()
+            .UpdateAsync(
+                p => p.Id == "project01",
+                u =>
+                {
+                    u.Set(p => p.ParatextUsers[0].Role, SFProjectRole.PTObserver);
+                    u.Set(p => p.UserRoles["user01"], SFProjectRole.PTObserver);
+                }
+            );
+
         // The registry is not queried for resources, so there are no Paratext users
         env.ParatextService.GetParatextUsersAsync(Arg.Any<UserSecret>(), Arg.Any<SFProject>(), CancellationToken.None)
             .Returns([]);
@@ -2481,8 +2493,9 @@ public class ParatextSyncRunnerTests
         Assert.That(project.Sync.LastSyncSuccessful, Is.True);
         Assert.That(
             project.ParatextUsers.Single(u => u.Username == "User 1").Role,
-            Is.EqualTo(SFProjectRole.Administrator)
+            Is.EqualTo(SFProjectRole.PTObserver)
         );
+        Assert.That(project.UserRoles["user01"], Is.EqualTo(SFProjectRole.PTObserver));
         Assert.That(
             project.ParatextUsers.Single(u => u.Username == "User 2").Role,
             Is.EqualTo(SFProjectRole.Translator)
