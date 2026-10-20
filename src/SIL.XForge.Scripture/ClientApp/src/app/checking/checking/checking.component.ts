@@ -825,18 +825,12 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
             this.destroyRef
           );
           this.prevQuestionOutOfScope = prevQuestionQuery;
-          prevQuestionQuery.ready$
-            .pipe(
-              // Query 'ready$' will not emit when offline (initial emission of false is due to BehaviorSubject),
-              // but offline docs may be available.
-              filter(isReady => isReady || !this.onlineStatusService.isOnline),
-              map(() => prevQuestionQuery),
-              quietTakeUntilDestroyed(this.destroyRef)
-            )
-            .subscribe(async query => {
-              this.prevQuestion$ = of(this.filterQuestions(query.docs)[0]);
-              this.changeDetector.markForCheck();
-            });
+          // 'docs$' emits the local (IndexedDB) results, then again when the server results arrive, so this works
+          // offline and if the connection drops before the server answers. Unlike 'ready$', which is server-only.
+          prevQuestionQuery.docs$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(docs => {
+            this.prevQuestion$ = of(this.filterQuestions(docs)[0]);
+            this.changeDetector.markForCheck();
+          });
         }
 
         this.nextQuestionOutOfScope?.dispose();
@@ -853,18 +847,12 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
             this.destroyRef
           );
           this.nextQuestionOutOfScope = nextQuestionQuery;
-          nextQuestionQuery.ready$
-            .pipe(
-              // Query 'ready$' will not emit when offline (initial emission of false is due to BehaviorSubject),
-              // but offline docs may be available.
-              filter(isReady => isReady || !this.onlineStatusService.isOnline),
-              map(() => nextQuestionQuery),
-              quietTakeUntilDestroyed(this.destroyRef)
-            )
-            .subscribe(async query => {
-              this.nextQuestion$ = of(this.filterQuestions(query.docs)[0]);
-              this.changeDetector.markForCheck();
-            });
+          // 'docs$' emits the local (IndexedDB) results, then again when the server results arrive, so this works
+          // offline and if the connection drops before the server answers. Unlike 'ready$', which is server-only.
+          nextQuestionQuery.docs$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(docs => {
+            this.nextQuestion$ = of(this.filterQuestions(docs)[0]);
+            this.changeDetector.markForCheck();
+          });
         }
       });
 

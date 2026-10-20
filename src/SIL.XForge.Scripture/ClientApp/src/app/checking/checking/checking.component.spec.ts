@@ -274,10 +274,12 @@ describe('CheckingComponent', () => {
 
         const queryEmpty = mock(RealtimeQuery<QuestionDoc>) as RealtimeQuery<QuestionDoc>;
         when(queryEmpty.docs).thenReturn([]);
+        when(queryEmpty.docs$).thenReturn(new BehaviorSubject<QuestionDoc[]>([]));
         when(queryEmpty.ready$).thenReturn(new BehaviorSubject<boolean>(true));
 
         const query = mock(RealtimeQuery<QuestionDoc>) as RealtimeQuery<QuestionDoc>;
         when(query.docs).thenReturn([adjacentQuestion]);
+        when(query.docs$).thenReturn(new BehaviorSubject<QuestionDoc[]>([adjacentQuestion]));
         when(query.ready$).thenReturn(new BehaviorSubject<boolean>(true));
         const activeQuestion = { id: 'activeQId', data: { text: 'Active Question' } } as QuestionDoc;
 
@@ -350,6 +352,31 @@ describe('CheckingComponent', () => {
         env.fixture.detectChanges();
         expect(env.currentQuestion).toEqual(questionCount);
         expect(env.previousButton.nativeElement.disabled).toBe(false);
+        expect(env.nextButton.nativeElement.disabled).toBe(true);
+
+        env.waitForAudioPlayer();
+        discardPeriodicTasks();
+        flush();
+      }));
+
+      it('disables prev/next buttons at the ends of the question list when online but the server has not answered', fakeAsync(() => {
+        // Queries are stubbed so 'ready$' never becomes true, as when the connection drops before the server answers
+        const env = new TestEnvironment({ user: ADMIN_USER, questionScope: 'all', hasConnection: false });
+        env.onlineStatus = true;
+        const questionCount: number = env.questions.length;
+
+        env.selectQuestion(2);
+        env.clickButton(env.previousButton);
+        tick(env.questionReadTimer);
+        env.fixture.detectChanges();
+        expect(env.currentQuestion).toEqual(1);
+        expect(env.previousButton.nativeElement.disabled).toBe(true);
+
+        env.selectQuestion(questionCount - 1);
+        env.clickButton(env.nextButton);
+        tick(env.questionReadTimer);
+        env.fixture.detectChanges();
+        expect(env.currentQuestion).toEqual(questionCount);
         expect(env.nextButton.nativeElement.disabled).toBe(true);
 
         env.waitForAudioPlayer();
