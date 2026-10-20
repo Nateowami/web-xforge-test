@@ -163,7 +163,7 @@ describe('JoinComponent', () => {
 
       verify(mockedDialogService.message(anything())).once();
       verify(mockedErrorHandler.handleError(anything())).never();
-      verify(mockedLocationService.go('/')).once();
+      verify(mockedLocationService.replace('/')).once();
       expect().nothing();
     }));
 
@@ -181,7 +181,7 @@ describe('JoinComponent', () => {
 
         verify(mockedDialogService.message(anything())).once();
         verify(mockedErrorHandler.handleError(anything())).never();
-        verify(mockedLocationService.go('/')).once();
+        verify(mockedLocationService.replace('/')).once();
       }
       expect().nothing();
     }));
@@ -194,7 +194,7 @@ describe('JoinComponent', () => {
       };
       new TestEnvironment({ callback });
       verify(mockedErrorHandler.handleError(anything())).once();
-      verify(mockedLocationService.go('/')).once();
+      verify(mockedLocationService.replace('/')).once();
       expect().nothing();
     }));
 
@@ -217,6 +217,22 @@ describe('JoinComponent', () => {
       env.fixture.detectChanges();
       verify(mockedDialogService.message(anything(), anything())).once();
       expect(env.submitButton.nativeElement.disabled).toBeFalse();
+    }));
+
+    it('redirect to home without keeping the share link in history when the account cannot be created', fakeAsync(() => {
+      const env = new TestEnvironment();
+      when(mockedAnonymousService.generateAccount(anything(), anything(), anything())).thenReject(
+        new CommandError(CommandErrorCode.InvalidParams, 'key_already_used')
+      );
+
+      env.displayName = 'Test Name';
+      env.click(env.submitButton);
+      tick();
+
+      verify(mockedDialogService.message('join.key_already_used')).once();
+      verify(mockedLocationService.replace('/')).once();
+      verify(mockedLocationService.go(anything())).never();
+      expect().nothing();
     }));
 
     it('disable and enable form when online state changes', fakeAsync(() => {

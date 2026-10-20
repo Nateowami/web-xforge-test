@@ -143,7 +143,7 @@ export class JoinComponent extends DataLoadingComponent {
       }
     } catch (e) {
       await this.handleJoiningError(e);
-      this.locationService.go(this.locationService.origin);
+      this.locationService.replace(this.locationService.origin);
     }
     this.status = 'input';
   }
@@ -181,7 +181,7 @@ export class JoinComponent extends DataLoadingComponent {
       this.joiningResponse = await this.anonymousService.checkShareKey(shareKey);
     } catch (e) {
       await this.handleJoiningError(e);
-      this.locationService.go(this.locationService.origin);
+      this.locationService.replace(this.locationService.origin);
     } finally {
       this.loadingFinished();
     }
