@@ -8,7 +8,7 @@ import { getTextAudioId, TextAudio } from 'realtime-server/lib/esm/scriptureforg
 import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio-test-data';
 import { Chapter, TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { firstValueFrom } from 'rxjs';
-import { anything, mock, spy, when } from 'ts-mockito';
+import { anything, mock, spy, verify, when } from 'ts-mockito';
 import { CsvService } from 'xforge-common/csv-service.service';
 import { FileService } from 'xforge-common/file.service';
 import { FileOfflineData, FileType } from 'xforge-common/models/file-offline-data';
@@ -536,6 +536,87 @@ describe('ChapterAudioDialogComponent', () => {
     env.fixture.detectChanges();
     flush();
     expect(env.numberOfTimesDialogClosed).withContext('saving should occur and close dialog when online').toEqual(1);
+  }));
+
+  it('deletes existing audio only once when save is clicked twice', fakeAsync(() => {
+    env.component.book = 1;
+    env.component.chapter = 2;
+    const projectServiceSpy = spy(env.component['projectService']);
+    let finishDelete: () => void = () => {};
+    when(projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).thenCall(
+      () => new Promise<void>(resolve => (finishDelete = resolve))
+    );
+    env.onlineStatus = true;
+
+    // SUT
+    env.component.save();
+    env.component.save();
+    finishDelete();
+    tick();
+    // The dialog is now closing, so a click that lands during the close animation is ignored too
+    env.component.save();
+    tick();
+    env.fixture.detectChanges();
+    flush();
+
+    verify(projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
+  }));
+
+  it('uploads audio only once when save is clicked twice', fakeAsync(() => {
+    env.onlineStatus = true;
+    env.component.audioUpdate(env.audioFile);
+    tick();
+    env.component.prepareTimingFileUpload(env.timingFile);
+    tick();
+
+    // SUT
+    env.component.save();
+    env.component.save();
+    flush();
+    env.fixture.detectChanges();
+
+    verify(
+      mockedFileService.tryOnlineUploadFile(
+        FileType.Audio,
+        anything(),
+        TextAudioDoc.COLLECTION,
+        anything(),
+        anything(),
+        anything(),
+        true
+      )
+    ).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
+  }));
+
+  it('allows saving again after a failed upload', fakeAsync(() => {
+    when(
+      mockedFileService.tryOnlineUploadFile(
+        FileType.Audio,
+        anything(),
+        TextAudioDoc.COLLECTION,
+        anything(),
+        anything(),
+        anything(),
+        true
+      )
+    ).thenResolve(undefined, 'audio url');
+    env.onlineStatus = true;
+    env.component.audioUpdate(env.audioFile);
+    tick();
+    env.component.prepareTimingFileUpload(env.timingFile);
+    tick();
+
+    // SUT
+    env.component.save();
+    flush();
+    expect(env.numberOfTimesDialogClosed).toEqual(0);
+    env.component.save();
+    flush();
+    env.fixture.detectChanges();
+
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
   }));
 
   it('disables save button if offline, shows message', fakeAsync(async () => {
