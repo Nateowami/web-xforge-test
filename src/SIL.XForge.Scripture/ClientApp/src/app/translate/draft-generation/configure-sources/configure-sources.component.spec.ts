@@ -848,7 +848,7 @@ class TestEnvironment {
 
   typeInTrainingSourceInput(index: number, text: string): void {
     const inputs: DebugElement[] = this.fixture.debugElement.queryAll(
-      By.css('.inputs-source-side app-project-select input')
+      By.css('.training-data-card-content .inputs-source-side app-project-select input')
     );
     const input: HTMLInputElement = inputs[index].nativeElement;
     input.value = text;
