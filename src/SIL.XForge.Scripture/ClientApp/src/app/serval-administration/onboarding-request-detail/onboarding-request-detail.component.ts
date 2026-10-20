@@ -55,6 +55,9 @@ import {
 } from './approve-request-dialog/approve-request-dialog.component';
 import { formatBookListForSILNLP } from './draft-request-detail-utils';
 
+const MISSING_PROJECT_MESSAGE =
+  'The project for this request no longer exists in Scripture Forge (it may have been deleted), so the request cannot be approved.';
+
 /**
  * Component for displaying a single onboarding request's full details.
  * Accessible from the Serval Administration interface.
@@ -268,6 +271,11 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
     return this.request?.resolution != null && this.request.resolution !== 'unresolved';
   }
 
+  /** Whether the request's project no longer exists in Scripture Forge, such as when it has been deleted. */
+  get isMainProjectMissing(): boolean {
+    return this.mainProjectDoc?.data == null;
+  }
+
   get formData(): OnboardingRequestFormData {
     return this.request!.submission.formData;
   }
@@ -414,6 +422,10 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
 
   async approveRequest(): Promise<void> {
     if (this.request == null) return;
+    if (this.isMainProjectMissing) {
+      this.noticeService.showError(MISSING_PROJECT_MESSAGE);
+      return;
+    }
 
     const dialogData = this.buildApproveDialogData();
     const dialogRef = this.dialogService.openMatDialog<
@@ -423,6 +435,11 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
     >(ApproveRequestDialogComponent, { data: dialogData });
     const result = await lastValueFrom(dialogRef.afterClosed());
     if (result == null || this.request == null) return;
+    // The project may have been deleted while the dialog was open
+    if (this.isMainProjectMissing) {
+      this.noticeService.showError(MISSING_PROJECT_MESSAGE);
+      return;
+    }
 
     this.loadingStarted();
     try {
@@ -541,6 +558,10 @@ export class OnboardingRequestDetailComponent extends DataLoadingComponent imple
 
   get warnings(): string[] {
     const warnings: string[] = [];
+
+    if (this.isMainProjectMissing) {
+      warnings.push(MISSING_PROJECT_MESSAGE);
+    }
 
     if (this.request?.resolution === 'approved' && this.mainProjectDoc?.data?.translateConfig.preTranslate !== true) {
       warnings.push('This request is marked as approved but drafting is not enabled on the project.');
