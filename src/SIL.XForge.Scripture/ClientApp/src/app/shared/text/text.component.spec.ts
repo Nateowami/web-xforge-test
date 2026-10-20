@@ -732,6 +732,31 @@ describe('TextComponent', () => {
       expect(presenceChannelSubmit).toHaveBeenCalledTimes(1);
     }));
 
+    it('should not announce presence on the previous chapter when coming back online while loading', fakeAsync(() => {
+      const env: TestEnvironment = new TestEnvironment();
+      env.fixture.detectChanges();
+      env.id = new TextDocId('project01', 40, 1);
+      env.waitForEditor();
+      const previousLocalPresenceChannel: LocalPresence<PresenceData> = env.localPresenceChannel;
+      const previousPresenceChannelSubmit = spyOn<any>(env.localPresenceChannel, 'submit').and.callThrough();
+      const previousPresenceDocSubmit = spyOn<any>(env.localPresenceDoc, 'submit').and.callThrough();
+
+      env.onlineStatus = false;
+      const nextTextDocId = new TextDocId('project01', 41, 1);
+      env.runWithDelayedGetText(nextTextDocId, () => {
+        env.id = nextTextDocId;
+        tick();
+        // The user comes back online before the next chapter has loaded
+        env.onlineStatus = true;
+      });
+
+      expect(previousPresenceChannelSubmit).not.toHaveBeenCalled();
+      expect(previousPresenceDocSubmit).not.toHaveBeenCalled();
+      // Presence is announced again only once the next chapter is attached
+      expect(env.localPresenceChannel).toBeDefined();
+      expect(env.localPresenceChannel).not.toBe(previousLocalPresenceChannel);
+    }));
+
     it('should clear doc presence on blur', fakeAsync(() => {
       const env: TestEnvironment = new TestEnvironment();
       env.fixture.detectChanges();

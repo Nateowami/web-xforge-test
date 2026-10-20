@@ -1395,6 +1395,9 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
     await this.submitLocalPresenceChannel(null);
     await this.submitLocalPresenceDoc(null);
+    // Nothing else (e.g. coming back online) may submit presence on this text until presences are attached again
+    this.localPresenceChannel = undefined;
+    this.localPresenceDoc = undefined;
 
     if (this.editor != null) {
       this.clearCursors(true);
