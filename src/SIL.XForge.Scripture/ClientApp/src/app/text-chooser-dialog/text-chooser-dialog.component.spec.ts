@@ -242,6 +242,31 @@ describe('TextChooserDialogComponent', () => {
     flush();
   }));
 
+  it('includes the whole combined verse in the reference when a combined verse is selected', fakeAsync(async () => {
+    const env = new TestEnvironment(
+      { start: 0, end: TestEnvironment.segmentLen('11-12') },
+      'verse_1_11-12',
+      'verse_1_11-12'
+    );
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('verses eleven and twelve (Matthew 1:11-12)');
+    env.click(env.saveButton);
+    expect(await env.resultPromise).toEqual({
+      verses: { bookNum: 40, chapterNum: 1, verseNum: 11, verse: '11-12' },
+      text: 'verses eleven and twelve',
+      startClipped: false,
+      endClipped: false
+    });
+    flush();
+  }));
+
+  it('ends the verse range at the end of a combined verse', fakeAsync(() => {
+    const env = new TestEnvironment({ start: 0, end: 3 }, 'verse_1_10', 'verse_1_11-12');
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('verse ten verses… (Matthew 1:10-12)');
+    env.closeDialog();
+  }));
+
   it('shows the correct verse range when first or last segment has only white space selected', fakeAsync(async () => {
     const env = new TestEnvironment({ start: TestEnvironment.segmentLen(7) - 1, end: 1 }, 'verse_1_7', 'verse_1_9');
     env.fireSelectionChange();
@@ -381,7 +406,7 @@ class TestEnvironment {
     textsByBookId: TestEnvironment.textsByBookId
   };
 
-  static segmentLen(verseNumber: number): number {
+  static segmentLen(verseNumber: number | string): number {
     return TestEnvironment.delta!.filter(
       op => op.attributes != null && op.attributes.segment === 'verse_1_' + verseNumber
     )[0].insert!.length as number;
@@ -569,6 +594,8 @@ class TestEnvironment {
     delta.insert({ blank: true }, { segment: 'verse_1_9' });
     delta.insert({ verse: { number: '10', style: 'v' } });
     delta.insert('verse ten', { segment: 'verse_1_10' });
+    delta.insert({ verse: { number: '11-12', style: 'v' } });
+    delta.insert('verses eleven and twelve', { segment: 'verse_1_11-12' });
     return delta;
   }
 
