@@ -9,6 +9,7 @@ import {
   MatDialogClose
 } from '@angular/material/dialog';
 import { I18nService } from 'xforge-common/i18n.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { TranslocoModule } from '@ngneat/transloco';
 import { Dir } from '@angular/cdk/bidi';
 import { MatIcon } from '@angular/material/icon';
@@ -16,6 +17,7 @@ import { CdkScrollable } from '@angular/cdk/scrolling';
 import { MatFormField, MatLabel } from '@angular/material/form-field';
 import { MatInput } from '@angular/material/input';
 import { MatButton } from '@angular/material/button';
+import { NoticeComponent } from '../../shared/notice/notice.component';
 
 @Component({
   templateUrl: 'delete-project-dialog.component.html',
@@ -34,7 +36,8 @@ import { MatButton } from '@angular/material/button';
     ReactiveFormsModule,
     MatDialogActions,
     MatButton,
-    MatDialogClose
+    MatDialogClose,
+    NoticeComponent
   ]
 })
 export class DeleteProjectDialogComponent {
@@ -44,10 +47,15 @@ export class DeleteProjectDialogComponent {
 
   constructor(
     @Inject(MAT_DIALOG_DATA) public data: { name: string },
-    readonly i18n: I18nService
+    readonly i18n: I18nService,
+    private readonly onlineStatusService: OnlineStatusService
   ) {}
 
+  get isOnline(): boolean {
+    return this.onlineStatusService.isOnline;
+  }
+
   get deleteDisabled(): boolean {
-    return this.data.name?.toLowerCase() !== this.projectNameEntry.value.toLowerCase();
+    return !this.isOnline || this.data.name?.toLowerCase() !== this.projectNameEntry.value.toLowerCase();
   }
 }
