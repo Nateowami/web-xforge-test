@@ -19,12 +19,16 @@ describe('IndexeddbOfflineStore', () => {
   });
 
   it('creates object stores and indexes for a new database', async () => {
-    store = createStore(['projectRef', { projectRef: 1, bookNum: 1 }]);
+    store = createStore(['projectRef', { projectRef: 1, bookNum: 1 }, ['name', { unique: true }]]);
 
     await store.getAll('test_docs');
 
     const indexes = await getIndexes('test_docs');
-    expect(indexes).toEqual({ projectRef: 'data.projectRef', projectRef_bookNum: ['data.projectRef', 'data.bookNum'] });
+    expect(indexes).toEqual({
+      projectRef: 'data.projectRef',
+      projectRef_bookNum: ['data.projectRef', 'data.bookNum'],
+      name: 'data.name'
+    });
   });
 
   it('updates the indexes of an existing object store when the database is upgraded', async () => {
@@ -36,9 +40,12 @@ describe('IndexeddbOfflineStore', () => {
       objectStore.put({ id: 'doc02', data: { projectRef: 'project02', bookNum: 40 } });
     });
     store = createStore(['projectRef', { projectRef: 1, bookNum: 1 }]);
+    // query() falls back to reading the whole store if there is no index for the query, so check that it used one
+    const indexGetAll = spyOn(IDBIndex.prototype, 'getAll').and.callThrough();
 
     const results = await store.query<any>('test_docs', { projectRef: 'project01' });
 
+    expect(indexGetAll).toHaveBeenCalledTimes(1);
     expect((results.results as any[]).map(r => r.id)).toEqual(['doc01']);
     expect((await store.getAll('test_docs')).length).toBe(2);
     const indexes = await getIndexes('test_docs');

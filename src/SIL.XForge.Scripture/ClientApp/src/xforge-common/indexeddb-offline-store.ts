@@ -27,7 +27,8 @@ function getKeyRange(filter: PrimitiveType | ObjectFilter): IDBKeyRange | undefi
 
 type IndexPath = string | { [x: string]: number | string } | [string, unknown];
 
-function getIndexes(indexPaths: IndexPath[]): Map<string, string | string[]> {
+/** Gets the IndexedDB indexes, as a map of index name to key path, for the index paths of a realtime doc type. */
+export function getIndexes(indexPaths: IndexPath[]): Map<string, string | string[]> {
   const indexes = new Map<string, string | string[]>();
   for (const path of indexPaths) {
     if (typeof path === 'string') {

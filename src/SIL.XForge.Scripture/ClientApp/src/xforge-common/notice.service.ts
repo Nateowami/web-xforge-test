@@ -51,24 +51,27 @@ export class NoticeService {
     return this.showSnackBar(message);
   }
 
+  /** Shows an error message, which is hidden after the specified duration in milliseconds (0 to never hide it). */
   showError(
     message: string,
     action: string | undefined = undefined,
-    onAction: (() => void) | undefined = undefined
+    onAction: (() => void) | undefined = undefined,
+    duration: number = 5000
   ): void {
-    return this.showSnackBar(message, ['snackbar-error'], action, onAction);
+    return this.showSnackBar(message, ['snackbar-error'], action, onAction, duration);
   }
 
   private showSnackBar(
     message: string,
     classes: string[] = [],
     action: string | undefined = undefined,
-    onAction: (() => void) | undefined = undefined
+    onAction: (() => void) | undefined = undefined,
+    duration: number = 5000
   ): void {
     const config: MatSnackBarConfig<any> = {
       panelClass: classes.join(' '),
       direction: this.i18n.direction,
-      duration: 5000
+      duration
     };
     if (this.messageOnDisplay === message) {
       // Do nothing if the message is the same as one currently on display

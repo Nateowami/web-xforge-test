@@ -133,6 +133,22 @@ describe('ExceptionHandlingService', () => {
     expect().nothing();
   }));
 
+  it('should prompt to refresh when the offline database was upgraded by a newer version of the app', fakeAsync(() => {
+    const env = new TestEnvironment();
+    spyOn<any>(env.service, 'handleAlert');
+
+    env.handleError({
+      rejection: new DOMException('The requested version is less than the existing version', 'VersionError')
+    });
+
+    expect(env.service['handleAlert']).not.toHaveBeenCalled();
+    const [, action, onAction, duration] = capture(mockedNoticeService.showError).last();
+    expect(action).toBeDefined();
+    expect(duration).toBe(0);
+    onAction!();
+    verify(mockedPwaService.activateUpdates()).once();
+  }));
+
   it('should silently report 504 errors from machine-api or command-api', fakeAsync(() => {
     const env = new TestEnvironment();
     spyOn<any>(env.service, 'handleAlert');

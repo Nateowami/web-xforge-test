@@ -194,6 +194,20 @@ export class ExceptionHandlingService {
       return;
     }
 
+    // The offline database was upgraded by a newer version of the app in another tab, so this tab can no longer open it
+    if (error instanceof DOMException && error.name === 'VersionError') {
+      ngZone.run(() =>
+        noticeService.showError(
+          this.i18n.translateStatic('exception_handling_service.newer_version_in_use'),
+          this.i18n.translateStatic('app.refresh'),
+          () => pwaService.activateUpdates(),
+          // Every use of the offline database fails until the page is refreshed, so keep the message on screen
+          0
+        )
+      );
+      return;
+    }
+
     if (
       error instanceof HttpErrorResponse &&
       error.status === 504 &&
