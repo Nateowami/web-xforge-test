@@ -18,6 +18,8 @@
   background: var(--sf-source-background);
   border-radius: 4px;
   padding: 1em;
+  // Long unbroken names would otherwise widen the grid columns past the background on narrow screens
+  overflow-wrap: anywhere;
 }
 
 .sources,
