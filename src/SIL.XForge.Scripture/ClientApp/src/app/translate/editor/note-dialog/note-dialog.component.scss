@@ -37,6 +37,8 @@ h1 {
     border-radius: 4px;
     font-family: var(--project-font);
     font-size: 0.9em;
+    // Unitless so the spacing scales with the project font size; the dialog's line height is in px
+    line-height: 1.5;
     flex: 1;
     // Break long unbreakable runs (URLs, or scripts without word spaces) rather than overflow
     overflow-wrap: anywhere;
@@ -55,6 +57,7 @@ h1 {
     flex-wrap: wrap;
     .content {
       flex: 1 1 100%;
+      line-height: 1.5;
       // A URL (or a script without word spaces) has no break opportunity, so without this the note
       // text is laid out wider than the dialog. The note is `row-reverse` in LTR, so the overflow
       // spills past the start edge where it is clipped and cannot be scrolled to.

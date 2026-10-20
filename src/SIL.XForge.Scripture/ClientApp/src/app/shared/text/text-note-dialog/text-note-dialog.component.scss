@@ -4,3 +4,8 @@
   align-items: center;
   justify-content: space-between;
 }
+
+// Unitless so the spacing scales with the project font size; the dialog's line height is in px
+.mat-mdc-dialog-content {
+  line-height: 1.5;
+}

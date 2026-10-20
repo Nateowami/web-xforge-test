@@ -54,6 +54,21 @@ describe('TextNoteDialogComponent', () => {
     expect(env.title).toBe('text_note_dialog.cross_reference');
     expect(env.text).toBe(text);
   }));
+
+  it('displays the text in the given font size', fakeAsync(() => {
+    env = new TestEnvironment({
+      type: TextNoteType.Footnote,
+      text: 'Footnote text',
+      isRightToLeft: false,
+      fontSize: '2rem'
+    });
+    expect(env.content.style.fontSize).toBe('2rem');
+  }));
+
+  it('uses the default font size when none is given', fakeAsync(() => {
+    env = new TestEnvironment({ type: TextNoteType.Footnote, text: 'Footnote text', isRightToLeft: false });
+    expect(env.content.style.fontSize).toBe('');
+  }));
 });
 
 class TestEnvironment {
@@ -79,6 +94,10 @@ class TestEnvironment {
 
   get text(): string {
     return this.overlayContainerElement.query(By.css('mat-dialog-content'))!.nativeElement.textContent.trim();
+  }
+
+  get content(): HTMLElement {
+    return this.overlayContainerElement.query(By.css('mat-dialog-content'))!.nativeElement;
   }
 
   closeDialog(): void {

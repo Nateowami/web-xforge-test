@@ -167,6 +167,17 @@ describe('NoteDialogComponent', () => {
     expect(env.getTooltipText(img!)).withContext('[n2] blank - title').toEqual('Note reattached');
   }));
 
+  it('shows scripture text and notes in the project font size', fakeAsync(() => {
+    TestEnvironment.testProjectProfile.defaultFontSize = 24;
+    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread('Reattached content text.') });
+    TestEnvironment.testProjectProfile.defaultFontSize = 12;
+
+    expect(env.textRowElement.nativeElement.style.fontSize).toEqual('2rem');
+    const reattachNote = env.notes[4].nativeElement as HTMLElement;
+    expect((reattachNote.querySelector('.content .text') as HTMLElement).style.fontSize).toEqual('2rem');
+    expect((reattachNote.querySelector('.content .note-content') as HTMLElement).style.fontSize).toEqual('2rem');
+  }));
+
   it('reattached note with content', fakeAsync(() => {
     let reattachedContent: string = 'Reattached content text.';
     env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread(reattachedContent) });

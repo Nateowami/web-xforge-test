@@ -19,6 +19,7 @@ export interface NoteDialogData {
   type: TextNoteType;
   text: string;
   isRightToLeft: boolean;
+  fontSize?: string;
 }
 
 @Component({
@@ -34,6 +35,10 @@ export class TextNoteDialogComponent {
 
   get direction(): LocaleDirection {
     return this.data.isRightToLeft ? 'rtl' : 'ltr';
+  }
+
+  get fontSize(): string | undefined {
+    return this.data.fontSize;
   }
 
   get text(): string {

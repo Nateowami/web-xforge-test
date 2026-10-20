@@ -1287,7 +1287,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
                 data: {
                   type: noteType,
                   text: noteText,
-                  isRightToLeft: this.isRtl
+                  isRightToLeft: this.isRtl,
+                  fontSize: this._editorStyles.fontSize
                 } as NoteDialogData
               });
             })

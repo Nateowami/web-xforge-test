@@ -1,5 +1,6 @@
 import { Component, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatDialogConfig } from '@angular/material/dialog';
 import { TranslocoService } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { QuillService } from 'ngx-quill';
@@ -15,7 +16,7 @@ import { TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-dat
 import * as RichText from 'rich-text';
 import { firstValueFrom } from 'rxjs';
 import { LocalPresence } from 'sharedb/lib/sharedb';
-import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { anything, capture, instance, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { MockConsole } from 'xforge-common/mock-console';
 import { UserDoc } from 'xforge-common/models/user-doc';
@@ -34,7 +35,7 @@ import { SFProjectService } from '../../core/sf-project.service';
 import { getCombinedVerseTextDoc, getEmptyChapterDoc, getPoetryVerseTextDoc, getTextDoc } from '../test-utils';
 import { provideQuillRegistrations } from './quill-editor-registration/quill-providers';
 import { getAttributesAtPosition } from './quill-util';
-import { TextNoteDialogComponent, TextNoteType } from './text-note-dialog/text-note-dialog.component';
+import { NoteDialogData, TextNoteDialogComponent, TextNoteType } from './text-note-dialog/text-note-dialog.component';
 import {
   EDITOR_READY_TIMEOUT,
   PRESENCE_EDITOR_ACTIVE_TIMEOUT,
@@ -1597,6 +1598,26 @@ describe('TextComponent', () => {
       note!.click();
     });
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
+  }));
+
+  it('opens the footnote dialog in the editor font size', fakeAsync(() => {
+    const segmentRef: string = 'verse_1_1';
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: '1', style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'quick brown', attributes: { segment: segmentRef } },
+      {
+        insert: { note: { caller: '+', style: 'f', contents: { ops: [{ insert: 'footnote text' }] } } },
+        attributes: { segment: segmentRef }
+      }
+    ];
+    const env = new TestEnvironment({ chapterNum: 1, textDoc: textDocOps });
+    env.component.fontSize = '2rem';
+    env.waitForEditor();
+
+    (env.quillEditor.querySelector('usx-note[data-style="f"]') as HTMLElement).click();
+    const [, config] = capture(mockedDialogService.openMatDialog as any).last();
+    expect((config as MatDialogConfig<NoteDialogData>).data!.fontSize).toEqual('2rem');
   }));
 
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
