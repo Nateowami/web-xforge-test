@@ -100,8 +100,7 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   private _audioErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _timingErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
   private _timingParseErrorKey?: I18nKeyForComponent<'chapter_audio_dialog'>;
-  private _loadingAudio: boolean = false;
-  private isSaving: boolean = false;
+  private _isSaving: boolean = false;
 
   constructor(
     private readonly destroyRef: DestroyRef,
@@ -186,8 +185,9 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     return this.timing_processed.length;
   }
 
-  get isLoadingAudio(): boolean {
-    return this._loadingAudio;
+  /** True while a save (deleting existing chapter audio or uploading new audio) is in progress. */
+  get isSaving(): boolean {
+    return this._isSaving;
   }
 
   get timingErrorMessageKey(): string {
@@ -321,12 +321,12 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
   async save(): Promise<void> {
     // Ignore further clicks on Save, such as the second click of a double-click, while a save is in progress or after
     // it has closed the dialog. Otherwise the save runs twice, e.g. deleting the chapter audio again after it is gone.
-    if (this.isSaving || this.dialogRef.getState() !== MatDialogState.OPEN) return;
-    this.isSaving = true;
+    if (this._isSaving || this.dialogRef.getState() !== MatDialogState.OPEN) return;
+    this._isSaving = true;
     try {
       await this.saveChanges();
     } finally {
-      this.isSaving = false;
+      this._isSaving = false;
     }
   }
 
@@ -362,7 +362,6 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     // going offline just after clicking Save.
     if (!this.onlineStatusService.isOnline) return;
 
-    this._loadingAudio = true;
     const audioUrl: string | undefined = await this.fileService.tryOnlineUploadFile(
       FileType.Audio,
       this.data.projectId,
@@ -374,7 +373,6 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
     );
 
     // if the upload fails, we need to show an error and not close the dialog
-    this._loadingAudio = false;
     if (audioUrl == null) {
       void this.dialogService.message('chapter_audio_dialog.upload_failed');
       return;
