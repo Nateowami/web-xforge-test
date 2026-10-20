@@ -1,6 +1,6 @@
 import { Component, ViewChild } from '@angular/core';
-import { MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
 import { TranslocoService } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { QuillService } from 'ngx-quill';
