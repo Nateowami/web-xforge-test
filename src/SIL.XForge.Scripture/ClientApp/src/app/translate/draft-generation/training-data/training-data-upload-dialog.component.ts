@@ -59,6 +59,7 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   @ViewChild('skipFirstRow') skipFirstRow?: MatCheckbox;
   private _isUploading: boolean = false;
   private _showFilenameExists: boolean = false;
+  private _saveAttemptedWithoutFile: boolean = false;
   private trainingDataFile?: TrainingDataFileUpload;
 
   constructor(
@@ -72,6 +73,10 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
 
   get hasBeenUploaded(): boolean {
     return this.trainingDataFile?.blob != null && this.trainingDataFile?.fileName != null;
+  }
+
+  get isFileMissing(): boolean {
+    return this._saveAttemptedWithoutFile && !this.hasBeenUploaded;
   }
 
   get isUploading(): boolean {
@@ -92,6 +97,7 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
 
   deleteTrainingData(): void {
     this._showFilenameExists = false;
+    this._saveAttemptedWithoutFile = false;
     this.trainingDataFile = undefined;
     this.fileDropzone!.nativeElement.value = '';
   }
@@ -115,6 +121,7 @@ export class TrainingDataUploadDialogComponent implements AfterViewInit {
   async save(): Promise<void> {
     // We cannot save a file if it has not been uploaded
     if (!this.hasBeenUploaded) {
+      this._saveAttemptedWithoutFile = true;
       return;
     }
 

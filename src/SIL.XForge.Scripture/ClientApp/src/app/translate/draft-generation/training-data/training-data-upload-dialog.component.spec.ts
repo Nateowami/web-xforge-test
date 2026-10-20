@@ -162,6 +162,44 @@ describe('TrainingDataUploadDialogComponent', () => {
     expect(result.dataId).not.toEqual('');
   });
 
+  it('marks the file as missing when saving without a file', async () => {
+    const env = new TestEnvironment();
+    expect(env.wrapperTrainingDataFile.classList.contains('invalid')).toBe(false);
+
+    env.saveButton.click();
+    await env.wait();
+
+    verify(
+      mockedFileService.onlineUploadFile(
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything(),
+        anything()
+      )
+    ).never();
+    expect(env.wrapperTrainingDataFile.classList.contains('invalid')).toBe(true);
+
+    // Choosing a file clears the error
+    const dataTransfer = new DataTransfer();
+    for (const file of TestEnvironment.uploadFiles) {
+      dataTransfer.items.add(file);
+    }
+    env.fileUploadElement.files = dataTransfer.files;
+    env.fileUploadElement.dispatchEvent(new Event('change'));
+    await env.wait();
+
+    expect(env.wrapperTrainingDataFile.classList.contains('invalid')).toBe(false);
+    expect(env.wrapperTrainingDataFile.classList.contains('valid')).toBe(true);
+
+    // Removing the file again does not show the error until the user tries to save again
+    env.component.deleteTrainingData();
+    await env.wait();
+    expect(env.wrapperTrainingDataFile.classList.contains('invalid')).toBe(false);
+  });
+
   it('can drag and drop to initiate an upload', async () => {
     const env = new TestEnvironment();
     const dataTransfer = new DataTransfer();
@@ -257,6 +295,10 @@ class TestEnvironment {
 
   get fileNameExistsWarning(): HTMLElement {
     return this.overlayContainerElement.querySelector('.wrapper-training-data-file app-info') as HTMLElement;
+  }
+
+  get saveButton(): HTMLButtonElement {
+    return this.overlayContainerElement.querySelector('#upload-save-btn') as HTMLButtonElement;
   }
 
   get wrapperTrainingDataFile(): HTMLElement {

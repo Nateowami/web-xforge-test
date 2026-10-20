@@ -12,7 +12,7 @@
           <mat-checkbox #skipFirstRow>{{ t("skip_first_row") }}</mat-checkbox>
         </ng-container>
       </div>
-      <div class="wrapper wrapper-training-data-file" [ngClass]="{ valid: hasBeenUploaded }">
+      <div class="wrapper wrapper-training-data-file" [ngClass]="{ valid: hasBeenUploaded, invalid: isFileMissing }">
         @if (hasBeenUploaded) {
           @if (showFilenameExists) {
             <app-info [text]="t('filename_already_exists')" icon="warning" type="warning"></app-info>
