@@ -1282,14 +1282,22 @@ export class TextComponent implements AfterViewInit, OnDestroy {
             .subscribe(event => {
               const noteText = attributeFromMouseEvent(event, 'USX-NOTE', 'title');
               const noteType = attributeFromMouseEvent(event, 'USX-NOTE', 'data-style');
-              this.dialogService.openMatDialog(TextNoteDialogComponent, {
+              const editorHadFocus: boolean = this.editor?.hasFocus() === true;
+              const dialogRef = this.dialogService.openMatDialog(TextNoteDialogComponent, {
                 width: '600px',
                 data: {
                   type: noteType,
                   text: noteText,
                   isRightToLeft: this.isRtl
-                } as NoteDialogData
+                } as NoteDialogData,
+                // Clicking outside the dialog to close it moves the browser selection out of the editor, so the
+                // dialog's own focus restore would put the cursor at the start of the text and scroll to the top
+                restoreFocus: !editorHadFocus
               });
+              if (editorHadFocus) {
+                // Quill puts back the selection it had before the dialog opened
+                dialogRef.afterClosed().subscribe(() => this.editor?.focus({ preventScroll: true }));
+              }
             })
         )
       );

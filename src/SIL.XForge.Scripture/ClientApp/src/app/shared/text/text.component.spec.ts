@@ -1,4 +1,5 @@
 import { Component, ViewChild } from '@angular/core';
+import { MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { TranslocoService } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
@@ -13,9 +14,9 @@ import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge
 import { TextAnchor } from 'realtime-server/lib/esm/scriptureforge/models/text-anchor';
 import { TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import * as RichText from 'rich-text';
-import { firstValueFrom } from 'rxjs';
+import { firstValueFrom, Subject } from 'rxjs';
 import { LocalPresence } from 'sharedb/lib/sharedb';
-import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { anything, capture, instance, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { MockConsole } from 'xforge-common/mock-console';
 import { UserDoc } from 'xforge-common/models/user-doc';
@@ -1597,6 +1598,57 @@ describe('TextComponent', () => {
       note!.click();
     });
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
+  }));
+
+  it('keeps the editor cursor when the footnote dialog is closed by clicking outside it', fakeAsync(() => {
+    const chapterNum = 2;
+    const segmentRef: string = `verse_${chapterNum}_1`;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'quick brown', attributes: { segment: segmentRef } },
+      {
+        insert: {
+          note: {
+            caller: '+',
+            style: 'f',
+            contents: { ops: [{ insert: 'footnote text', attributes: { char: { style: 'ft', closed: 'false' } } }] }
+          }
+        },
+        attributes: { segment: segmentRef }
+      },
+      { insert: ' fox', attributes: { segment: segmentRef } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+    const dialogClosed$ = new Subject<void>();
+    const mockedDialogRef = mock<MatDialogRef<TextNoteDialogComponent>>(MatDialogRef);
+    when(mockedDialogRef.afterClosed()).thenReturn(dialogClosed$);
+    when(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thenReturn(instance(mockedDialogRef));
+    const editor: Quill = env.component.editor!;
+    const cursorIndex: number = env.component.getSegmentRange(segmentRef)!.index + 'quick'.length;
+    editor.setSelection(cursorIndex, 0, 'user');
+    tick();
+    expect(editor.hasFocus()).toBe(true);
+
+    (env.quillEditor.querySelector('usx-note') as HTMLElement).click();
+    const config = capture(mockedDialogService.openMatDialog as any).last()[1] as MatDialogConfig;
+    expect(config.restoreFocus).toBe(false);
+
+    // Clicking the dialog backdrop takes the focus and the browser selection out of the editor
+    const outside: HTMLButtonElement = document.createElement('button');
+    document.body.appendChild(outside);
+    outside.focus();
+    window.getSelection()!.removeAllRanges();
+    tick();
+    expect(editor.hasFocus()).toBe(false);
+
+    dialogClosed$.next();
+    dialogClosed$.complete();
+    tick();
+    expect(editor.hasFocus()).toBe(true);
+    expect(editor.getSelection()).toEqual(jasmine.objectContaining({ index: cursorIndex, length: 0 }));
+    outside.remove();
   }));
 
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
