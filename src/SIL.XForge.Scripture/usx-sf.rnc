@@ -458,13 +458,13 @@ Chapter =
         attribute number { xsd:integer },
         attribute style { "c" },
         attribute sid { xsd:string { minLength = "1" pattern = "[A-Z1-4]{3} ?[0-9]+" } }?,
-        attribute altnumber { xsd:string { minLength = "1" pattern = "[0-9]+\w?(\x{200F}?[\-,][0-9]+\w?)*" } }?,
+        # Paratext accepts any text in \ca (e.g. "a"), so the alternate chapter number is not restricted to digits
+        attribute altnumber { xsd:string { minLength = "1" } }?,
         attribute pubnumber { xsd:string { minLength = "1" } }?,
         attribute eid { xsd:string { minLength = "1" pattern = "[A-Z1-4]{3} ?[0-9]+" } }?,
         empty
     }
     # E.g. <chapter number="1" style="c" altnumber="2" pubnumber="A" />
-    # This schema will not support a chapter:verse string within altnumber
 
 Verse =
     element verse {
