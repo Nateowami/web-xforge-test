@@ -375,6 +375,51 @@ describe('TextChooserDialogComponent', () => {
     env.closeDialog();
   }));
 
+  it('keeps a comma verse as it is when selecting text in it', fakeAsync(async () => {
+    const env = new TestEnvironment(
+      { start: 0, end: 10 },
+      'verse_1_5,7',
+      'verse_1_5,7',
+      undefined,
+      getCombinedVerseTextDoc(new TextDocId(TestEnvironment.PROJECT01, 40, 1))
+    );
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('target: chapter… (Matthew 1:5,7)');
+    env.click(env.saveButton);
+    expect(await env.resultPromise).toEqual({
+      verses: { bookNum: 40, chapterNum: 1, verseNum: 5, verse: '5,7' },
+      text: 'target: chapter',
+      startClipped: false,
+      endClipped: true
+    });
+  }));
+
+  it('keeps a comma verse as it is in right to left text', fakeAsync(() => {
+    const env = new TestEnvironment(
+      { start: 0, end: 10 },
+      'verse_1_5\u200f,7',
+      'verse_1_5\u200f,7',
+      undefined,
+      getCombinedVerseTextDoc(new TextDocId(TestEnvironment.PROJECT01, 40, 1), true)
+    );
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('target: chapter… (Matthew 1:5,7)');
+    env.closeDialog();
+  }));
+
+  it('uses the verse of a lettered segment without its letter', fakeAsync(() => {
+    const env = new TestEnvironment(
+      { start: 0, end: 10 },
+      'verse_1_6a',
+      'verse_1_6a',
+      undefined,
+      getCombinedVerseTextDoc(new TextDocId(TestEnvironment.PROJECT01, 40, 1))
+    );
+    env.fireSelectionChange();
+    expect(env.selectedText).toEqual('target: chapter… (Matthew 1:6)');
+    env.closeDialog();
+  }));
+
   it('can handle right to left text', fakeAsync(() => {
     const config: TextChooserDialogData = { ...TestEnvironment.defaultDialogData, isRightToLeft: true };
     const env = new TestEnvironment([], 'verse_1_1', 'verse_1_2', config);

@@ -129,14 +129,12 @@ export class TextChooserDialogComponent {
       this.selectedText = expansion.result;
       this.startClipped = expansion.startClipped;
       this.endClipped = expansion.endClipped;
-      const firstVerseNum = expansion.firstVerseNum;
-      const lastVerseNum = expansion.lastVerseNum;
 
       this.selectedVerses = {
         bookNum: this.bookNum,
         chapterNum: this.chapterNum,
-        verseNum: firstVerseNum,
-        verse: firstVerseNum === lastVerseNum ? firstVerseNum.toString() : firstVerseNum + '-' + lastVerseNum
+        verseNum: expansion.firstVerseNum,
+        verse: expansion.verse
       };
       this.rawTextSelection = rawSelection;
       this.selectionChanged = true;
@@ -265,7 +263,7 @@ export class TextChooserDialogComponent {
     startClipped: boolean;
     endClipped: boolean;
     firstVerseNum: number;
-    lastVerseNum: number;
+    verse: string;
     result: string;
   } {
     // All selected segments except the first and last. The portions of the first and last segments that were selected
@@ -406,20 +404,26 @@ export class TextChooserDialogComponent {
 
     // Find the range of verses that has been selected. If only whitespace was selected in the first segment, then the
     // selection starts in the next segment, and the starting verse is the verse of that next segment.
-    const firstVerseNum =
-      startText.trim() === '' && segments.length > 1
-        ? this.getVerseFromElement(segments[1])
-        : this.getVerseFromElement(segments[0]);
-    const lastVerseNum =
-      endText.trim() === '' && segments.length > 1
-        ? this.getLastVerseFromElement(segments[segments.length - 2])
-        : this.getLastVerseFromElement(segments[segments.length - 1]);
+    const firstSegment: Element = startText.trim() === '' && segments.length > 1 ? segments[1] : segments[0];
+    const lastSegment: Element =
+      endText.trim() === '' && segments.length > 1 ? segments[segments.length - 2] : segments[segments.length - 1];
+    const firstVerseNum: number = this.getVerseFromElement(firstSegment);
+    const lastVerseNum: number = this.getLastVerseFromElement(lastSegment);
+    const firstVerseStr: string = this.getVerseStrFromElement(firstSegment);
+    // A selection within a single verse keeps that verse's own reference, so a combined verse such as 5,7 does not
+    // become the range 5-7. Segment letters are dropped, so text in verse 6a is attached as verse 6.
+    let verse: string;
+    if (firstVerseStr !== '' && firstVerseStr === this.getVerseStrFromElement(lastSegment)) {
+      verse = firstVerseStr.replace(/[a-z]/g, '');
+    } else {
+      verse = firstVerseNum === lastVerseNum ? firstVerseNum.toString() : `${firstVerseNum}-${lastVerseNum}`;
+    }
 
     return {
       startClipped,
       endClipped,
       firstVerseNum,
-      lastVerseNum,
+      verse,
       result
     };
   }
@@ -430,9 +434,14 @@ export class TextChooserDialogComponent {
 
   /** Gets the last verse number of the verse a segment belongs to, e.g. 3 for the combined verse 'verse_1_2-3'. */
   private getLastVerseFromElement(element: Element): number {
-    const verseStr: string = getVerseStrFromSegmentRef(element.getAttribute('data-segment')!) ?? '';
+    const verseStr: string = this.getVerseStrFromElement(element);
     const verseNums: number[] = (verseStr.match(/\d+/g) ?? []).map(n => parseInt(n, 10));
     return Math.max(this.getVerseFromElement(element), ...verseNums);
+  }
+
+  /** Gets the verse a segment belongs to, e.g. '2-3' for 'verse_1_2-3', without any right-to-left mark. */
+  private getVerseStrFromElement(element: Element): string {
+    return getVerseStrFromSegmentRef(element.getAttribute('data-segment')!) ?? '';
   }
 
   private getSegments(verse?: number): Element[] {
