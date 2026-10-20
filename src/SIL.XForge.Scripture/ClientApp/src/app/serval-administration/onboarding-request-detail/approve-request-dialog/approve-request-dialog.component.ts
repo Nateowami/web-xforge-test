@@ -34,12 +34,21 @@ export interface BackTranslationInfo extends SourceOption {
   draftingAlreadyEnabled: boolean;
 }
 
+/** A project named in the request that has no Scripture Forge project yet, so it cannot be configured. */
+export interface UnconnectedProject {
+  paratextId: string;
+  /** What the request asked to use the project for, e.g. "Draft source project". */
+  requestedAs: string[];
+}
+
 export interface ApproveRequestDialogData {
   targetProject: SourceOption;
   draftingSourceOptions: SourceOption[];
   trainingSourceOptions: SourceOption[];
+  defaultDraftingSource: string;
   defaultTrainingSource?: string;
   backTranslation?: BackTranslationInfo;
+  unconnectedProjects: UnconnectedProject[];
 }
 
 export interface ApproveRequestDialogResult {
@@ -115,11 +124,18 @@ export class ApproveRequestDialogComponent {
     this.backTranslationLanguageMatchesTarget =
       data.backTranslation != null &&
       normalizeLanguageCodeToISO639_3(data.backTranslation.languageCode) === this.normalizedTargetLanguageCode;
-    this.draftingSource = new FormControl<string>(data.draftingSourceOptions[0]?.paratextId ?? '', {
+    const isOption = (options: SourceOption[], id: string): boolean => options.some(o => o.paratextId === id);
+    const defaultDraftingSource = isOption(data.draftingSourceOptions, data.defaultDraftingSource)
+      ? data.defaultDraftingSource
+      : '';
+    const defaultTrainingSources = isOption(data.trainingSourceOptions, data.defaultTrainingSource)
+      ? [data.defaultTrainingSource]
+      : [];
+    this.draftingSource = new FormControl<string>(defaultDraftingSource, {
       validators: [Validators.required],
       nonNullable: true
     });
-    this.trainingSources = new FormControl<string[]>([data.defaultTrainingSource], {
+    this.trainingSources = new FormControl<string[]>(defaultTrainingSources, {
       validators: [trainingSourcesValidator],
       nonNullable: true
     });

@@ -21,7 +21,9 @@ const TEST_DATA: ApproveRequestDialogData = {
     { paratextId: 'ptid-B', name: 'English Source Beta', languageCode: 'eng' },
     { paratextId: 'ptid-bt', name: 'English Back Translation', languageCode: 'eng' }
   ],
-  defaultTrainingSource: 'ptid-A'
+  defaultDraftingSource: 'ptid-draft',
+  defaultTrainingSource: 'ptid-A',
+  unconnectedProjects: []
 };
 
 const BT_NEEDS_ENABLING_DATA: ApproveRequestDialogData = {
@@ -52,6 +54,16 @@ const BT_SAME_LANGUAGE_DATA: ApproveRequestDialogData = {
     languageCode: 'tpi',
     draftingAlreadyEnabled: false
   }
+};
+
+const UNCONNECTED_DEFAULTS_DATA: ApproveRequestDialogData = {
+  ...TEST_DATA,
+  draftingSourceOptions: TEST_DATA.draftingSourceOptions.filter(o => o.paratextId === 'ptid-B'),
+  trainingSourceOptions: TEST_DATA.trainingSourceOptions.filter(o => o.paratextId === 'ptid-B'),
+  unconnectedProjects: [
+    { paratextId: 'ptid-draft', requestedAs: ['Draft source project'] },
+    { paratextId: 'ptid-A', requestedAs: ['First reference project', 'Back translation project'] }
+  ]
 };
 
 const SOURCES_SAME_LANGUAGE_AS_TARGET_DATA: ApproveRequestDialogData = {
@@ -222,6 +234,54 @@ describe('ApproveRequestDialogComponent', () => {
     });
   });
 
+  describe('when projects in the request are not connected', () => {
+    it('does not show the notice when all projects are connected', () => {
+      const env = new TestEnvironment();
+      expect(env.unconnectedProjectsNotice).toBeNull();
+    });
+
+    it('lists the unconnected projects and what they were requested as', () => {
+      const env = new TestEnvironment(UNCONNECTED_DEFAULTS_DATA);
+      expect(env.unconnectedProjectsNotice).not.toBeNull();
+      const items = Array.from(env.unconnectedProjectsNotice!.querySelectorAll('li')).map(li => li.textContent!.trim());
+      expect(items).toEqual([
+        'Draft source project: ptid-draft',
+        'First reference project, Back translation project: ptid-A'
+      ]);
+    });
+
+    it('does not pre-select a different project in place of an unconnected default', () => {
+      const env = new TestEnvironment(UNCONNECTED_DEFAULTS_DATA);
+      expect(env.component.draftingSource.value).toBe('');
+      expect(env.component.trainingSources.value).toEqual([]);
+    });
+
+    it('asks for a drafting source when approving without one', () => {
+      const env = new TestEnvironment(UNCONNECTED_DEFAULTS_DATA);
+      env.component.trainingSources.setValue(['ptid-B']);
+      expect(env.draftingSourceRequiredMessage).toBeNull();
+
+      env.approveButton.click();
+      env.fixture.detectChanges();
+      verify(env.mockedDialogRef.close(anything())).never();
+      expect(env.draftingSourceRequiredMessage).not.toBeNull();
+
+      env.component.draftingSource.setValue('ptid-B');
+      env.fixture.detectChanges();
+      expect(env.draftingSourceRequiredMessage).toBeNull();
+      env.approveButton.click();
+      verify(
+        env.mockedDialogRef.close(
+          deepEqual({
+            draftingSourceParatextId: 'ptid-B',
+            trainingSourceParatextIds: ['ptid-B'],
+            enableBackTranslationDrafting: false
+          } satisfies ApproveRequestDialogResult)
+        )
+      ).once();
+    });
+  });
+
   describe('back translation section', () => {
     it('does not render when backTranslationParatextId is absent', () => {
       const env = new TestEnvironment();
@@ -319,6 +379,14 @@ class TestEnvironment {
 
   get confirmationRequiredMessage(): HTMLElement | null {
     return this.fixture.nativeElement.querySelector('.confirmation-required');
+  }
+
+  get unconnectedProjectsNotice(): HTMLElement | null {
+    return this.fixture.nativeElement.querySelector('.unconnected-projects-notice');
+  }
+
+  get draftingSourceRequiredMessage(): HTMLElement | null {
+    return this.fixture.nativeElement.querySelector('.drafting-source-required');
   }
 
   get approveButton(): HTMLButtonElement {
