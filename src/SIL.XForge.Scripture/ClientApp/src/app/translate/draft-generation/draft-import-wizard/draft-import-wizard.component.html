@@ -179,7 +179,12 @@
             ></app-display-confidence>
           }
           <div class="button-strip">
-            <button matButton="outlined" matStepperPrevious [disabled]="isImporting">
+            <button
+              matButton="outlined"
+              data-test-id="step-3-back"
+              (click)="backToProjectSelection()"
+              [disabled]="isImporting"
+            >
               <mat-icon>chevron_{{ i18n.backwardDirectionWord }}</mat-icon>
               {{ t("back") }}
             </button>

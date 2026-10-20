@@ -107,6 +107,55 @@ describe('DraftImportWizardComponent', () => {
     verify(mockMatDialogRef.close(true)).once();
   }));
 
+  it('returns to project selection when going back after connecting a project', fakeAsync(() => {
+    const env = new TestEnvironment();
+    // Create the project asynchronously, as the server does, so the wizard stops at the "connected" step
+    when(mockProjectService.onlineCreate(anything())).thenReturn(
+      new Promise(resolve => setTimeout(() => resolve('project02'), 100))
+    );
+    env.wait();
+
+    // Connect the target project
+    env.selectProject('paratext02');
+    env.clickNextButton(1);
+    env.clickNextButton(2);
+    tick(100);
+    env.syncTargetProject();
+
+    // Going back skips the connect step, as the project is now connected
+    env.clickNextButton(3, 'back');
+    env.isStepVisible(1);
+    expect(env.component.needsConnection).toBe(false);
+    expect(env.component.projects.find(p => p.paratextId === 'paratext02')?.isConnected).toBe(true);
+
+    // Advancing again does not ask to connect the project again
+    env.clickNextButton(1);
+    env.isStepVisible(4);
+    verify(mockProjectService.onlineCreate(anything())).once();
+    env.component.close();
+  }));
+
+  it('shows the overwrite confirmation when existing text is only found when advancing', fakeAsync(() => {
+    configureDraft('GEN', false);
+    const env = new TestEnvironment();
+    env.wait();
+
+    // Simulate the existing text not being known yet when the project was selected
+    env.selectProject('paratext04');
+    env.component.showOverwriteConfirmation = false;
+    env.wait();
+    env.clickNextButton(1);
+
+    // The overwrite confirmation is shown instead of starting the import
+    expect(env.component.showOverwriteConfirmation).toBe(true);
+    env.isStepVisible(5);
+    expect(env.component.importStepTriggered).toBe(false);
+    verify(
+      mockProjectService.onlineApplyPreTranslationToProject(anything(), anything(), anything(), anything())
+    ).never();
+    env.component.close();
+  }));
+
   it('applies drafts to projects that are already connected which do not have the books', fakeAsync(() => {
     // Setup test environment
     const env = new TestEnvironment();
