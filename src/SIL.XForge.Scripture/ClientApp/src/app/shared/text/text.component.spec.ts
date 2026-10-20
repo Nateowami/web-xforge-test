@@ -1621,6 +1621,33 @@ describe('TextComponent', () => {
     expect(segments.length).withContext('should be no matching segments when book does not match').toBe(0);
   }));
 
+  it('matches a combined verse segment that contains or overlaps the verse ref', fakeAsync(() => {
+    const chapterNum = 2;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'verse 1 ', attributes: { segment: 'verse_2_1' } },
+      { insert: { verse: { number: '2', style: 'v' } } },
+      { insert: 'verse 2 ', attributes: { segment: 'verse_2_2' } },
+      { insert: { verse: { number: '3-5', style: 'v' } } },
+      { insert: 'verses 3 to 5 ', attributes: { segment: 'verse_2_3-5' } },
+      { insert: { verse: { number: '6', style: 'v' } } },
+      { insert: 'verse 6', attributes: { segment: 'verse_2_6' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+
+    // A verse inside the combined verse, where neither end of the segment equals the verse
+    expect(env.component.getVerseSegments(new VerseRef('MAT 2:4'))).toEqual(['verse_2_3-5']);
+    // Ranges that only partly overlap the combined verse
+    expect(env.component.getVerseSegments(new VerseRef('MAT 2:2-3'))).toEqual(['verse_2_2', 'verse_2_3-5']);
+    expect(env.component.getVerseSegments(new VerseRef('MAT 2:5-6'))).toEqual(['verse_2_3-5', 'verse_2_6']);
+    // Ranges next to the combined verse do not match it
+    expect(env.component.getVerseSegments(new VerseRef('MAT 2:1-2'))).toEqual(['verse_2_1', 'verse_2_2']);
+    expect(env.component.getVerseSegments(new VerseRef('MAT 2:6'))).toEqual(['verse_2_6']);
+  }));
+
   it('does not execute the logic in bindQuill if the object has been disposed', fakeAsync(() => {
     const env: TestEnvironment = new TestEnvironment();
     const mockedQuill = new MockQuill('quill-editor');

@@ -372,9 +372,10 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
 
   /** Get the segments that fall within a given verse reference. A segment is considered
    * to be in the reference if (1) its ref is in the format verse_c_v or verse_c_v-w, and that
-   * ref is within the given verse reference, or (2) its ref is not in that format, but the
-   * first preceding segment with a ref in that format is within the given verse reference.
-   * For example, the result for MAT 1:1 can be as follows: [verse_1_1, verse_1_1/p_1, s_1]
+   * ref overlaps the given verse reference, or (2) its ref is not in that format, but the
+   * first preceding segment with a ref in that format overlaps the given verse reference.
+   * For example, the result for MAT 1:1 can be as follows: [verse_1_1, verse_1_1/p_1, s_1],
+   * and the result for MAT 1:4 includes verse_1_3-5.
    */
   getVerseSegments(verseRef?: VerseRef): string[] {
     const segmentsInVerseRef: string[] = [];
