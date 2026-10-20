@@ -44,12 +44,14 @@ export class ServalAdministrationComponent implements OnInit {
   }
 
   onTabChange(index: number): void {
+    // The tab group also emits when the tab was selected from the URL. Navigating then would drop the URL's filter.
+    if (index === this.selectedTabIndex) return;
     this.selectedTabIndex = index;
 
+    // Other query parameters, such as q and projectId, filter the tab that was open, so don't carry them over
     void this.router.navigate([], {
       relativeTo: this.route,
-      queryParams: { tab: this.availableTabs[index] },
-      queryParamsHandling: 'merge'
+      queryParams: { tab: this.availableTabs[index] }
     });
   }
 }
