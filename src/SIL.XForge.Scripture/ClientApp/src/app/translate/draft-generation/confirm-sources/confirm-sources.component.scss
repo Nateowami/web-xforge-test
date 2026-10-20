@@ -1,3 +1,5 @@
+@use 'src/xforge-common/media-breakpoints/breakpoints' as *;
+
 .training-data {
   display: grid;
   grid-template-areas: '. . .' '. . .';
@@ -11,6 +13,10 @@
 .gap,
 .arrow {
   padding-inline: 2em;
+
+  @include media-breakpoint('<', sm) {
+    padding-inline: 1em;
+  }
 }
 
 .training-data,
@@ -18,8 +24,6 @@
   background: var(--sf-source-background);
   border-radius: 4px;
   padding: 1em;
-  // Long unbroken names would otherwise widen the grid columns past the background on narrow screens
-  overflow-wrap: anywhere;
 }
 
 .sources,
@@ -68,6 +72,9 @@ h2 {
 
 .project-name {
   font-size: 1.1em;
+  // Paratext names are often one long word (e.g. Spanish_Reina_Valera_1960) that would otherwise widen its grid column
+  // past the background on narrow screens
+  overflow-wrap: anywhere;
 }
 
 .language-code {
