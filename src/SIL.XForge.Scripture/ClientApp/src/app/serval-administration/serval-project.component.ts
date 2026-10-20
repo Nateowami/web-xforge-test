@@ -26,7 +26,20 @@ import { saveAs } from 'file-saver';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { TrainingData } from 'realtime-server/lib/esm/scriptureforge/models/training-data';
 import { DraftConfig, TranslateSource } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
-import { catchError, firstValueFrom, lastValueFrom, Observable, of, Subscription, switchMap, throwError } from 'rxjs';
+import {
+  catchError,
+  combineLatest,
+  distinctUntilChanged,
+  filter,
+  firstValueFrom,
+  from,
+  lastValueFrom,
+  Observable,
+  of,
+  Subscription,
+  switchMap,
+  throwError
+} from 'rxjs';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { FileService } from 'xforge-common/file.service';
@@ -285,23 +298,36 @@ export class ServalProjectComponent extends DataLoadingComponent implements OnIn
       .pipe(
         quietTakeUntilDestroyed(this.destroyRef),
         filterNullish(),
-        switchMap(projectId => {
-          void this.loadOnboardingRequest(projectId);
-          return this.trainingDataService.getTrainingData(projectId, this.destroyRef);
-        })
+        switchMap(projectId => this.trainingDataService.getTrainingData(projectId, this.destroyRef))
       )
       .subscribe(activeFiles => {
         this.trainingDataFiles = activeFiles;
       });
+
+    combineLatest([
+      this.activatedProjectService.projectId$.pipe(filterNullish()),
+      this.onlineStatusService.onlineStatus$.pipe(distinctUntilChanged())
+    ])
+      .pipe(
+        // The lookup needs the server, so load it (again) whenever the page is online
+        filter(([, isOnline]) => isOnline),
+        switchMap(([projectId]) => from(this.fetchOnboardingRequest(projectId))),
+        quietTakeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(request => this.setOnboardingRequest(request));
   }
 
-  private async loadOnboardingRequest(projectId: string): Promise<void> {
-    this.onboardingRequest = undefined;
+  private async fetchOnboardingRequest(projectId: string): Promise<OpenOnboardingRequest | undefined> {
     try {
-      this.onboardingRequest = (await this.onboardingRequestService.getOpenOnboardingRequest(projectId)) ?? undefined;
+      return (await this.onboardingRequestService.getOpenOnboardingRequest(projectId)) ?? undefined;
     } catch {
       // The link is a convenience, so a failed lookup just leaves it out rather than blocking the page
+      return undefined;
     }
+  }
+
+  private setOnboardingRequest(request: OpenOnboardingRequest | undefined): void {
+    this.onboardingRequest = request;
     this.onboardingRequestLink =
       this.onboardingRequest == null
         ? undefined
