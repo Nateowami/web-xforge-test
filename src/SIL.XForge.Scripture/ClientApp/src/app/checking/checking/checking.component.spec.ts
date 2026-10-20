@@ -2583,7 +2583,8 @@ describe('CheckingComponent', () => {
         user: ADMIN_USER,
         projectBookRoute: 'JHN',
         projectChapterRoute: 1,
-        questionScope: 'chapter'
+        questionScope: 'chapter',
+        combineJohn1Verses5And6: true
       });
       env
         .getQuestionDoc('q6Id')
@@ -2592,13 +2593,12 @@ describe('CheckingComponent', () => {
       tick(100);
       env.fixture.detectChanges();
       expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).not.toEqual('q6Id');
+      expect(env.isSegmentHighlighted(1, '5-6')).toBe(false);
 
-      // A Paratext project with verses 5 and 6 combined has a single segment, verse_1_5-6
-      env.ngZone.run(() => env.component.verseRefClicked(new VerseRef('JHN', '1', '5-6')));
-      tick();
-      env.fixture.detectChanges();
+      env.clickVerse(1, '5-6');
 
       expect(env.component.questionsList!.activeQuestionDoc!.data!.dataId).toEqual('q6Id');
+      expect(env.isSegmentHighlighted(1, '5-6')).toBe(true);
       env.waitForQuestionTimersToComplete();
     }));
 
@@ -3035,8 +3035,16 @@ class TestEnvironment {
     questionScope?: QuestionScope;
     hasConnection?: boolean;
     testProject?: SFProject;
+    /** Use one segment for the combined verse 5-6 in JHN 1, as in a Paratext project with `\v 5-6` */
+    combineJohn1Verses5And6?: boolean;
   }) {
-    const { user, testProject, questionScope = 'book', hasConnection = true } = options;
+    const {
+      user,
+      testProject,
+      questionScope = 'book',
+      hasConnection = true,
+      combineJohn1Verses5And6 = false
+    } = options;
     const projectBookRoute = 'projectBookRoute' in options ? options.projectBookRoute : 'JHN';
     const projectChapterRoute = 'projectChapterRoute' in options ? options.projectChapterRoute : 1;
 
@@ -3085,7 +3093,7 @@ class TestEnvironment {
     this.loader = TestbedHarnessEnvironment.loader(this.fixture);
 
     this.setRouteSnapshot(projectBookRoute, projectChapterRoute?.toString(), questionScope);
-    this.setupDefaultProjectData(user);
+    this.setupDefaultProjectData(user, combineJohn1Verses5And6);
 
     // 'ready$' from SharedbRealtimeQueryAdapter (not the MemoryRealtimeQueryAdapter used in tests)
     // does not emit when offline, so simulate this behavior by causing the RealtimeQuery.ready$
@@ -3836,7 +3844,7 @@ class TestEnvironment {
     when(mockedActivatedRoute.snapshot).thenReturn(snapshot);
   }
 
-  private setupDefaultProjectData(user: UserInfo): void {
+  private setupDefaultProjectData(user: UserInfo, combineJohn1Verses5And6: boolean): void {
     const projectId = 'project01';
     this.realtimeService.addSnapshots<SFProject>(SFProjectDoc.COLLECTION, [
       {
@@ -3885,7 +3893,7 @@ class TestEnvironment {
     this.realtimeService.addSnapshots<TextData>(TextDoc.COLLECTION, [
       {
         id: getTextDocId(projectId, 43, 1),
-        data: this.createTextDataForChapter(1),
+        data: this.createTextDataForChapter(1, combineJohn1Verses5And6),
         type: RichText.type.name
       },
       {
@@ -4136,7 +4144,7 @@ class TestEnvironment {
     this.realtimeService.addSnapshots<Question>(QuestionDoc.COLLECTION, questions, true);
   }
 
-  private createTextDataForChapter(chapter: number): TextData {
+  private createTextDataForChapter(chapter: number, combineVerses5And6: boolean = false): TextData {
     const delta = new Delta();
     delta.insert({ chapter: { number: chapter.toString(), style: 'c' } });
     delta.insert({ blank: true }, { segment: 'p_1' });
@@ -4154,12 +4162,18 @@ class TestEnvironment {
     delta.insert('Verse 2 heading', { segment: 's1_1' });
     delta.insert('\n', { para: { style: 's1' } });
     delta.insert({ blank: true }, { segment: `verse_${chapter}_4/p_1` });
-    delta.insert({ verse: { number: '5', style: 'v' } });
-    delta.insert(`target: chapter ${chapter}, `, { segment: `verse_${chapter}_5` });
-    delta.insert('\n', { para: { style: 'p' } });
-    delta.insert({ verse: { number: '6', style: 'v' } });
-    delta.insert(`ישע`, { segment: `verse_${chapter}_6` });
-    delta.insert('\n', { para: { style: 'p' } });
+    if (combineVerses5And6) {
+      delta.insert({ verse: { number: '5-6', style: 'v' } });
+      delta.insert(`target: chapter ${chapter}, verses 5-6.`, { segment: `verse_${chapter}_5-6` });
+      delta.insert('\n', { para: { style: 'p' } });
+    } else {
+      delta.insert({ verse: { number: '5', style: 'v' } });
+      delta.insert(`target: chapter ${chapter}, `, { segment: `verse_${chapter}_5` });
+      delta.insert('\n', { para: { style: 'p' } });
+      delta.insert({ verse: { number: '6', style: 'v' } });
+      delta.insert(`ישע`, { segment: `verse_${chapter}_6` });
+      delta.insert('\n', { para: { style: 'p' } });
+    }
     delta.insert('End of chapter heading', { segment: 's1_2' });
     delta.insert('\n', { para: { style: 's1' } });
     return delta;
