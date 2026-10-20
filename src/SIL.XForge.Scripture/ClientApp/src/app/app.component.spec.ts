@@ -7,7 +7,7 @@ import { MatMenu } from '@angular/material/menu';
 import { MatTooltip } from '@angular/material/tooltip';
 import { By } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
-import { provideRouter, Route, Router } from '@angular/router';
+import { NavigationStart, provideRouter, Route, Router } from '@angular/router';
 import { CookieService } from 'ngx-cookie-service';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { User } from 'realtime-server/lib/esm/common/models/user';
@@ -19,7 +19,7 @@ import { SFProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/mode
 import { createTestProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config-test-data';
 import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
 import { BehaviorSubject, filter, firstValueFrom, Subject } from 'rxjs';
-import { anything, capture, mock, verify, when } from 'ts-mockito';
+import { anything, capture, mock, resetCalls, verify, when } from 'ts-mockito';
 import { AuthService, LoginResult } from 'xforge-common/auth.service';
 import { AvatarComponent } from 'xforge-common/avatar/avatar.component';
 import { DialogService } from 'xforge-common/dialog.service';
@@ -380,6 +380,33 @@ describe('AppComponent', () => {
     env.setUserPermissions('project01', ['questions.create', 'questions.edit']);
 
     env.removeUserRoleAndPermissionsFromProject('project01');
+    tick();
+    expect(env.location.path()).toEqual('/projects');
+    verify(mockedDialogService.message(anything())).once();
+  }));
+
+  it('leaves for good when removed from a project while on Manage Questions', fakeAsync(() => {
+    const env = new TestEnvironment();
+    let closeDialog: () => void = () => {};
+    when(mockedDialogService.message(anything())).thenCall(() => new Promise<void>(resolve => (closeDialog = resolve)));
+    env.navigate(['/projects', 'project01', 'checking']);
+    env.init();
+    env.setUserPermissions('project01', ['questions.create', 'questions.edit']);
+    resetCalls(mockedUserService);
+    const navigations: string[] = [];
+    env.router.events.pipe(filter(e => e instanceof NavigationStart)).subscribe(e => navigations.push(e.url));
+
+    env.removeUserRoleAndPermissionsFromProject('project01');
+    tick();
+    expect(env.location.path()).toEqual('/projects');
+    verify(mockedDialogService.message(anything())).once();
+    // A removed user has no role, so the checking access check would also send them to the project overview
+    expect(navigations).toEqual(['/projects']);
+    verify(mockedUserService.setCurrentProjectId(anything(), 'project01')).never();
+
+    closeDialog();
+    tick();
+    env.setCheckingEnabled('project01', false);
     tick();
     expect(env.location.path()).toEqual('/projects');
     verify(mockedDialogService.message(anything())).once();

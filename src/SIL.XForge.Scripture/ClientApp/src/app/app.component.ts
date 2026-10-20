@@ -114,7 +114,7 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   private _selectedProjectDoc?: SFProjectProfileDoc;
   private selectedProjectDeleteSub?: Subscription;
   private selectedProjectChangedSub?: Subscription;
-  private isProjectDeletedDialogOpen = false;
+  private isHandlingProjectRemoval = false;
   private _isDrawerPermanent: boolean = true;
 
   constructor(
@@ -381,6 +381,8 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
               // The user has been removed from the project
               void this.showProjectDeletedDialog();
               void this.projectService.localDelete(this._selectedProjectDoc.id);
+              // Without a role, checkAppAccess would send them to the project overview instead of My Projects
+              return;
             }
 
             checkAppAccess(
@@ -507,8 +509,8 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   private async showProjectDeletedDialog(): Promise<void> {
     // Removing a user from a project arrives as several remote changes (e.g. their role, then their permissions), each
     // of which is detected as a removal. Show the dialog only once, so that one click on Close dismisses it.
-    if (this.isProjectDeletedDialogOpen) return;
-    this.isProjectDeletedDialogOpen = true;
+    if (this.isHandlingProjectRemoval) return;
+    this.isHandlingProjectRemoval = true;
     try {
       await this.userService.setCurrentProjectId(this.currentUserDoc!, undefined);
       // Leave the project before telling the user about it. If we wait for the dialog to be dismissed, the project's
@@ -516,7 +518,7 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
       await this.navigateToStart();
       await this.dialogService.message('app.project_has_been_deleted');
     } finally {
-      this.isProjectDeletedDialogOpen = false;
+      this.isHandlingProjectRemoval = false;
     }
   }
 
