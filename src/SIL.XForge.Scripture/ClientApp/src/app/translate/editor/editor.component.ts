@@ -1554,8 +1554,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           status: result.status
         });
       }
-      this.toggleNoteThreadVerseRefs$.next();
     }
+    // Notes may have been deleted in the dialog even when it closes without a result, so always refresh the embeds
+    this.toggleNoteThreadVerseRefs$.next();
     if (this.isInsertNoteFabEnabled) {
       this.setNoteFabVisibility('visible');
       this.positionInsertNoteFab();
@@ -1819,11 +1820,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
 
   /** Gets the information needed to format a particular featured verse. */
   private getFeaturedVerseRefInfo(threadDoc: NoteThreadDoc): FeaturedVerseRefInfo | undefined {
-    const notes: Note[] = threadDoc.notesInOrderClone(threadDoc.data!.notes);
-    let preview: string = notes[0].content != null ? stripHtml(notes[0].content.trim()) : '';
-    const numberOfNotes: number = notes.filter(n => !n.deleted).length;
-    if (numberOfNotes > 1) {
-      preview += '\n' + this.i18n.translateStatic('editor.more_notes', { count: numberOfNotes - 1 });
+    const notes: Note[] = threadDoc.notesInOrderClone(threadDoc.data!.notes).filter(n => !n.deleted);
+    let preview: string = notes[0]?.content != null ? stripHtml(notes[0].content.trim()) : '';
+    if (notes.length > 1) {
+      preview += '\n' + this.i18n.translateStatic('editor.more_notes', { count: notes.length - 1 });
     }
     const verseRef: VerseRef | undefined = threadDoc.currentVerseRef();
     if (threadDoc.data == null || verseRef == null) {

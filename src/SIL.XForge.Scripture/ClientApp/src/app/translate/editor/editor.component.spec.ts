@@ -3144,6 +3144,43 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('should update the note icon tooltip when notes are deleted and the note dialog is closed', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+
+      const segmentRef = 'verse_1_1';
+      const threadId = 'dataid01';
+      expect(env.getNoteThreadIconElement(segmentRef, threadId)!.getAttribute('title')).toEqual(
+        'Note from user01\n--- 2 more note(s) ---'
+      );
+
+      env.getNoteThreadIconElement(segmentRef, threadId)!.click();
+      env.wait();
+      // Deleting notes that are not the last one in the thread leaves the dialog open, so the user closes it
+      const noteThreadDoc: NoteThreadDoc = env.getNoteThreadDoc('project01', threadId);
+      noteThreadDoc.submitJson0Op(op => op.set(n => n.notes[2].deleted, true));
+      noteThreadDoc.submitJson0Op(op => op.set(n => n.notes[1].deleted, true));
+      env.mockNoteDialogRef.close();
+      env.wait();
+
+      expect(env.getNoteThreadIconElement(segmentRef, threadId)!.getAttribute('title')).toEqual('Note from user01');
+      env.dispose();
+    }));
+
+    it('should not show a deleted note in the note icon tooltip', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      const noteThreadDoc: NoteThreadDoc = env.getNoteThreadDoc('project01', 'dataid01');
+      noteThreadDoc.submitJson0Op(op => op.set(n => n.notes[0].deleted, true));
+      env.wait();
+
+      expect(env.getNoteThreadIconElement('verse_1_1', 'dataid01')!.getAttribute('title')).toEqual(
+        'Note from user02\n--- 1 more note(s) ---'
+      );
+      env.dispose();
+    }));
+
     it('should position FAB beside selected segment', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
