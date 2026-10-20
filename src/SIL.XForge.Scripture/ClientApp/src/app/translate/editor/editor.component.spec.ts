@@ -229,30 +229,43 @@ describe('EditorComponent', () => {
     env.dispose();
   }));
 
-  it('closes dialogs opened from the editor when the text is remotely deleted', fakeAsync(() => {
+  it('closes dialogs opened while in the editor when the text is remotely deleted', fakeAsync(() => {
     const env = new TestEnvironment();
     flush();
     env.routeWithParams({ projectId: 'project02', bookId: 'MAT' });
     env.wait();
 
-    const settingsDialogClosed$ = new Subject<void>();
-    const settingsDialogRef = jasmine.createSpyObj<MatDialogRef<TranslatorSettingsDialogComponent>>('MatDialogRef', [
-      'afterClosed',
-      'close'
-    ]);
-    settingsDialogRef.afterClosed.and.returnValue(settingsDialogClosed$);
-    settingsDialogRef.close.and.callFake(() => settingsDialogClosed$.next());
-    when(mockedMatDialog.open(TranslatorSettingsDialogComponent, anything())).thenReturn(settingsDialogRef);
-    env.component.openTranslatorSettings();
-    env.wait();
+    const settingsDialogRef = env.openTranslatorSettings();
+    // A dialog opened by some other component, such as the biblical terms tab or a footnote
+    const otherDialogRef = env.openDialogElsewhere();
     expect(settingsDialogRef.close).not.toHaveBeenCalled();
+    expect(otherDialogRef.close).not.toHaveBeenCalled();
 
     env.setupDialogRef();
     env.deleteText(new TextDocId('project02', 40, 1, 'target').toString());
     expect(settingsDialogRef.close).toHaveBeenCalledTimes(1);
+    expect(otherDialogRef.close).toHaveBeenCalledTimes(1);
     tick();
     expect(env.location.path()).toEqual('/projects/project02/translate');
     env.dispose();
+  }));
+
+  it('closes dialogs opened while in the editor when the editor is destroyed', fakeAsync(() => {
+    const env = new TestEnvironment();
+    flush();
+    env.routeWithParams({ projectId: 'project02', bookId: 'MAT' });
+    env.wait();
+
+    const settingsDialogRef = env.openTranslatorSettings();
+    const otherDialogRef = env.openDialogElsewhere();
+    otherDialogRef.close();
+    expect(otherDialogRef.close).toHaveBeenCalledTimes(1);
+
+    env.fixture.destroy();
+    expect(settingsDialogRef.close).toHaveBeenCalledTimes(1);
+    // Dialogs that were already closed are not closed again
+    expect(otherDialogRef.close).toHaveBeenCalledTimes(1);
+    flush();
   }));
 
   it('remote user config should not change segment', fakeAsync(() => {
@@ -4337,6 +4350,7 @@ class TestEnvironment {
   readonly router: Router;
   readonly location: Location;
   readonly mockNoteDialogRef;
+  readonly dialogOpened$ = new Subject<MatDialogRef<any>>();
   readonly mockedDialogRef = mock<MatDialogRef<GenericDialogComponent<any>, GenericDialogOptions<any>>>(MatDialogRef);
   readonly ngZone: NgZone;
   readonly tabFactory: EditorTabFactoryService;
@@ -4500,6 +4514,7 @@ class TestEnvironment {
     this.params$ = new BehaviorSubject<Params>({ projectId: 'project01', bookId: 'MAT' });
 
     when(mockedActivatedRoute.params).thenReturn(this.params$);
+    when(mockedMatDialog.afterOpened).thenReturn(this.dialogOpened$);
     when(mockedActivatedRoute.snapshot).thenReturn({ queryParams: {} } as any);
     when(mockedSFProjectService.onlineAddTranslateMetrics('project01', anything())).thenResolve();
     when(mockedSFProjectService.getProfile('project01')).thenCall(() =>
@@ -4900,10 +4915,36 @@ class TestEnvironment {
     this.addProjectUserConfig(user5Config as SFProjectUserConfig);
   }
 
+  openTranslatorSettings(): jasmine.SpyObj<MatDialogRef<TranslatorSettingsDialogComponent>> {
+    const dialogRef = this.createOpenedDialogRef<TranslatorSettingsDialogComponent>();
+    when(mockedMatDialog.open(TranslatorSettingsDialogComponent, anything())).thenCall(() => {
+      this.dialogOpened$.next(dialogRef);
+      return dialogRef;
+    });
+    this.component.openTranslatorSettings();
+    this.wait();
+    return dialogRef;
+  }
+
+  /** Simulates MatDialog opening a dialog for a component other than the editor. */
+  openDialogElsewhere(): jasmine.SpyObj<MatDialogRef<unknown>> {
+    const dialogRef = this.createOpenedDialogRef<unknown>();
+    this.dialogOpened$.next(dialogRef);
+    return dialogRef;
+  }
+
   setupDialogRef(): void {
     const mockDialogRef = jasmine.createSpyObj('MatDialogRef', ['afterClosed']);
     mockDialogRef.afterClosed.and.returnValue(of(undefined));
     spyOn((this.component as any).dialogService.matDialog, 'open').and.returnValue(mockDialogRef);
+  }
+
+  private createOpenedDialogRef<T>(): jasmine.SpyObj<MatDialogRef<T>> {
+    const closed$ = new Subject<void>();
+    const dialogRef = jasmine.createSpyObj<MatDialogRef<T>>('MatDialogRef', ['afterClosed', 'close']);
+    dialogRef.afterClosed.and.returnValue(closed$);
+    dialogRef.close.and.callFake(() => closed$.next());
+    return dialogRef;
   }
 
   getProjectUserConfigDoc(userId: string = 'user01'): SFProjectUserConfigDoc {

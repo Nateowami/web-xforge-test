@@ -110,6 +110,11 @@ export class DialogService {
     return this.matDialog.openDialogs.length;
   }
 
+  /** Emits each dialog opened through MatDialog, whether or not it was opened through this service. */
+  get afterOpened$(): Observable<MatDialogRef<any>> {
+    return this.matDialog.afterOpened;
+  }
+
   /**
    * @param value A string that is a translation key, or an Observable<string>
    * @returns `value` if it is an Observable, or an Observable for a translation with `value` as the localization key.
