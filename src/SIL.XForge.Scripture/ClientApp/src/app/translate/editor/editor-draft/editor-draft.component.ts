@@ -1,5 +1,5 @@
 import { AsyncPipe, NgClass } from '@angular/common';
-import { AfterViewInit, Component, DestroyRef, Input, OnChanges, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, Input, OnChanges, SimpleChanges, ViewChild } from '@angular/core';
 import { MatOption } from '@angular/material/autocomplete';
 import { MatButton } from '@angular/material/button';
 import { MatFormField } from '@angular/material/form-field';
@@ -52,6 +52,7 @@ import { BuildDto } from '../../../machine-api/build-dto';
 import { BuildStates } from '../../../machine-api/build-states';
 import { NoticeComponent } from '../../../shared/notice/notice.component';
 import { TextComponent } from '../../../shared/text/text.component';
+import { getVerseStrFromSegmentRef } from '../../../shared/verse-utils';
 import { DisplayConfidenceComponent } from '../../draft-generation/build-confidences/display-confidence.component';
 import { DraftGenerationService } from '../../draft-generation/draft-generation.service';
 import { DraftHandlingService } from '../../draft-generation/draft-handling.service';
@@ -96,6 +97,9 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
   @Input() isRightToLeft!: boolean;
   @Input() fontSize?: string;
   @Input() timestamp?: Date;
+  /** The segment selected in the target text. */
+  @Input() segmentRef?: string;
+  @Input() highlightSegment?: boolean;
 
   @ViewChild(TextComponent) draftText!: TextComponent;
 
@@ -254,7 +258,16 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
     return this._draftRevisions;
   }
 
-  ngOnChanges(): void {
+  ngOnChanges(changes?: SimpleChanges): void {
+    if (
+      changes != null &&
+      Object.keys(changes).every(input => input === 'segmentRef' || input === 'highlightSegment')
+    ) {
+      // Moving around in the target text does not need the draft to be fetched again
+      this.highlightTargetVerse();
+      return;
+    }
+
     if (this.projectId == null || this.bookNum == null || this.chapter == null) {
       throw new Error('projectId, bookNum, or chapter is null');
     }
@@ -364,6 +377,7 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
         // Set the draft editor with the pre-translation segments
         this.draftText.setContents(this.draftDelta, 'api');
         this.draftText.applyEditorStyles();
+        this.highlightTargetVerse();
 
         this.isDraftApplied =
           this.targetProject?.texts.find(t => t.bookNum === this.bookNum)?.chapters.find(c => c.number === this.chapter)
@@ -458,6 +472,52 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
     }
   }
 
+  /**
+   * Highlights the draft of the verse that is selected in the target text, and scrolls it into view.
+   */
+  private highlightTargetVerse(): void {
+    if (this.draftText?.editor == null) {
+      return;
+    }
+
+    const segmentRefs: string[] = this.highlightSegment === true ? this.getDraftVerseSegments() : [];
+    // The draft text is not bound to a text doc, so TextComponent.highlight() cannot find the verse's segments
+    this.draftText.viewModel.highlight(segmentRefs);
+    if (segmentRefs.length > 0) {
+      this.draftText.scrollSegmentIntoView(segmentRefs[0]);
+    }
+  }
+
+  /**
+   * Gets the segments of the draft that contain any verse of the target segment. The draft can split or combine verses
+   * differently to the target, e.g. the target segment verse_1_2 matches the draft segments verse_1_1-2 and
+   * verse_1_2/p_1.
+   */
+  private getDraftVerseSegments(): string[] {
+    const targetVerses: VerseSpan | undefined = this.segmentRef == null ? undefined : getVerseSpan(this.segmentRef);
+    if (targetVerses == null || this.draftDelta?.ops == null) {
+      return [];
+    }
+
+    const segmentRefs: string[] = [];
+    for (const op of this.draftDelta.ops) {
+      const segmentRef: unknown = op.attributes?.segment;
+      if (!isString(segmentRef) || segmentRefs.includes(segmentRef)) {
+        continue;
+      }
+      const draftVerses: VerseSpan | undefined = getVerseSpan(segmentRef);
+      if (
+        draftVerses != null &&
+        draftVerses.chapter === targetVerses.chapter &&
+        draftVerses.firstVerse <= targetVerses.lastVerse &&
+        draftVerses.lastVerse >= targetVerses.firstVerse
+      ) {
+        segmentRefs.push(segmentRef);
+      }
+    }
+    return segmentRefs;
+  }
+
   private refreshBuildHistory(projectId: string): void {
     this.draftGenerationService
       .getBuildHistory(projectId)
@@ -546,4 +606,24 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
     });
     return chapterDrafts.get(chapterNum) ?? [];
   }
+}
+
+interface VerseSpan {
+  chapter: string;
+  firstVerse: number;
+  lastVerse: number;
+}
+
+/** Gets the verses of a verse segment, e.g. verse_1_2-3/p_1 is chapter 1, verses 2 to 3. */
+function getVerseSpan(segmentRef: string): VerseSpan | undefined {
+  const verseStr: string | undefined = getVerseStrFromSegmentRef(segmentRef);
+  if (verseStr == null) {
+    return undefined;
+  }
+  const verseParts: string[] = verseStr.split('-');
+  return {
+    chapter: segmentRef.split('_')[1],
+    firstVerse: Number.parseInt(verseParts[0]),
+    lastVerse: Number.parseInt(verseParts[verseParts.length - 1])
+  };
 }

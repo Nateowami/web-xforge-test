@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, DestroyRef, Input, OnChanges, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, Input, OnChanges, SimpleChanges, ViewChild } from '@angular/core';
 import { combineLatest, EMPTY, startWith, Subject, switchMap } from 'rxjs';
 import { FontService } from 'xforge-common/font.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
@@ -38,8 +38,20 @@ export class EditorResourceComponent implements AfterViewInit, OnChanges {
     private readonly fontService: FontService
   ) {}
 
-  ngOnChanges(): void {
+  ngOnChanges(changes: SimpleChanges): void {
     this.inputChanged$.next();
+    // When the target regains focus without moving to another verse, the resource text keeps its segment and does not
+    // emit segmentRefChange
+    if (changes.highlightSegment?.currentValue === true && changes.segmentRef == null) {
+      this.scrollToSegment();
+    }
+  }
+
+  scrollToSegment(): void {
+    const segmentRef: string | undefined = this.resourceText?.segment?.ref;
+    if (this.highlightSegment && segmentRef != null) {
+      this.resourceText.scrollSegmentIntoView(segmentRef);
+    }
   }
 
   ngAfterViewInit(): void {

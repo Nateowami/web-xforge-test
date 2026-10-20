@@ -429,6 +429,29 @@ describe('TextComponent', () => {
     expect(window.getComputedStyle(titleSegment, '::before').content).toEqual('none');
   }));
 
+  it('scrolls a segment into view only when it is not visible', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    const scrollContainer: HTMLElement = env.component.editor!.root;
+    scrollContainer.style.height = '60px';
+    scrollContainer.style.overflowY = 'auto';
+    const segment: Element = env.component.getSegmentElement('verse_1_5')!;
+    const isSegmentInView = (): boolean =>
+      segment.getBoundingClientRect().top >= scrollContainer.getBoundingClientRect().top &&
+      segment.getBoundingClientRect().bottom <= scrollContainer.getBoundingClientRect().bottom;
+    expect(isSegmentInView()).toBe(false);
+
+    env.component.scrollSegmentIntoView('verse_1_5');
+    expect(isSegmentInView()).toBe(true);
+
+    const scrollTop: number = scrollContainer.scrollTop;
+    env.component.scrollSegmentIntoView('verse_1_5');
+    expect(scrollContainer.scrollTop).toEqual(scrollTop);
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('correctly labels verse segments after line breaks', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();

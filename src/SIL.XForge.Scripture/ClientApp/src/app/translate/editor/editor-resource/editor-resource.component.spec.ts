@@ -1,3 +1,4 @@
+import { SimpleChange } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { ReplaySubject } from 'rxjs';
@@ -120,4 +121,40 @@ describe('EditorResourceComponent', () => {
     expect(component.copyrightBanner).toBe('');
     expect(component.copyrightNotice).toBeFalsy();
   }));
+
+  describe('scrollToSegment', () => {
+    let scrollSegmentIntoView: jasmine.Spy;
+
+    beforeEach(() => {
+      scrollSegmentIntoView = jasmine.createSpy('scrollSegmentIntoView');
+      component.resourceText = { segment: { ref: 'verse_1_2' }, scrollSegmentIntoView } as any;
+    });
+
+    it('should scroll to the resource segment when the target is focused', () => {
+      component.highlightSegment = true;
+      component.scrollToSegment();
+      expect(scrollSegmentIntoView).toHaveBeenCalledOnceWith('verse_1_2');
+    });
+
+    it('should not scroll when the target is not focused', () => {
+      component.highlightSegment = false;
+      component.scrollToSegment();
+      expect(scrollSegmentIntoView).not.toHaveBeenCalled();
+    });
+
+    it('should scroll when the target regains focus on the same segment', () => {
+      component.highlightSegment = true;
+      component.ngOnChanges({ highlightSegment: new SimpleChange(false, true, false) });
+      expect(scrollSegmentIntoView).toHaveBeenCalledOnceWith('verse_1_2');
+    });
+
+    it('should wait for the resource text to change segment when the target segment changes', () => {
+      component.highlightSegment = true;
+      component.ngOnChanges({
+        highlightSegment: new SimpleChange(false, true, false),
+        segmentRef: new SimpleChange('verse_1_2', 'verse_1_3', false)
+      });
+      expect(scrollSegmentIntoView).not.toHaveBeenCalled();
+    });
+  });
 });

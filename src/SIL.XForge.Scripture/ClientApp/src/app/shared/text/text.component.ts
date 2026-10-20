@@ -776,6 +776,36 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     return this.editor == null ? null : this.editor.container.querySelector(`usx-segment[data-segment="${segment}"]`);
   }
 
+  /**
+   * Scrolls the nearest scrollable ancestor of the segment so that the segment is in the middle of it, if the segment
+   * is not already fully visible.
+   */
+  scrollSegmentIntoView(segment: string): void {
+    const element: Element | null = this.getSegmentElement(segment);
+    let container: HTMLElement | null = element?.parentElement ?? null;
+    while (
+      container != null &&
+      !(
+        container.scrollHeight > container.clientHeight &&
+        ['auto', 'scroll'].includes(getComputedStyle(container).overflowY)
+      )
+    ) {
+      container = container.parentElement;
+    }
+    if (element == null || container == null) {
+      return;
+    }
+
+    const elementBounds: DOMRect = element.getBoundingClientRect();
+    const containerBounds: DOMRect = container.getBoundingClientRect();
+    if (elementBounds.top >= containerBounds.top && elementBounds.bottom <= containerBounds.bottom) {
+      return;
+    }
+    // A segment taller than the container gets its top aligned with the top of the container
+    const offset: number = Math.max(0, (container.clientHeight - elementBounds.height) / 2);
+    container.scrollTop += elementBounds.top - containerBounds.top - offset;
+  }
+
   getViewerPosition(presenceId: string): Range | undefined {
     return Object.entries(this.presenceDoc?.remotePresences ?? {}).find(([id, _data]) => id === presenceId)?.[1];
   }

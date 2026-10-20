@@ -10,6 +10,7 @@
         [subscribeToUpdates]="false"
         [highlightSegment]="highlightSegment ?? false"
         [segmentRef]="segmentRef ?? ''"
+        (segmentRefChange)="scrollToSegment()"
         [isRightToLeft]="isRightToLeft"
         [fontSize]="fontSize"
         [style.--project-font]="font"

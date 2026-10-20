@@ -1,3 +1,4 @@
+import { SimpleChange, SimpleChanges } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
@@ -236,6 +237,97 @@ describe('EditorDraftComponent', () => {
     expect(component.draftText.editor!.getContents().ops).toEqual(draftDelta.ops);
     flush();
   }));
+
+  describe('target verse highlighting', () => {
+    beforeEach(() => {
+      when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), anything())).thenReturn(
+        of(draftHistory)
+      );
+      when(mockActivatedProjectService.changes$).thenReturn(
+        of({ data: createTestProjectProfile() } as SFProjectProfileDoc)
+      );
+      spyOn<any>(component, 'getTargetOps').and.returnValue(of(targetDelta.ops!));
+    });
+
+    function highlightedSegments(): string[] {
+      return component
+        .draftText!.editor!.getContents()
+        .ops.filter(op => op.attributes?.['highlight-segment'] === true)
+        .map(op => op.attributes!['segment'] as string);
+    }
+
+    function selectTargetSegment(segmentRef: string | undefined, highlightSegment: boolean): void {
+      const changes: SimpleChanges = {
+        segmentRef: new SimpleChange(component.segmentRef, segmentRef, false),
+        highlightSegment: new SimpleChange(component.highlightSegment, highlightSegment, false)
+      };
+      component.segmentRef = segmentRef;
+      component.highlightSegment = highlightSegment;
+      component.ngOnChanges(changes);
+    }
+
+    it('should highlight the verse selected in the target without fetching the draft again', fakeAsync(() => {
+      fixture.detectChanges();
+      tick(EDITOR_READY_TIMEOUT);
+      expect(highlightedSegments()).toEqual([]);
+
+      selectTargetSegment('verse_1_2', true);
+      expect(highlightedSegments()).toEqual(['verse_1_2']);
+
+      selectTargetSegment('verse_1_3', true);
+      expect(highlightedSegments()).toEqual(['verse_1_3']);
+
+      // The target lost focus
+      selectTargetSegment('verse_1_3', false);
+      expect(highlightedSegments()).toEqual([]);
+      verify(mockDraftHandlingService.getBookDraft(anything(), anything())).once();
+      flush();
+    }));
+
+    it('should highlight the verse selected in the target when the draft loads', fakeAsync(() => {
+      component.segmentRef = 'verse_1_1';
+      component.highlightSegment = true;
+      fixture.detectChanges();
+      tick(EDITOR_READY_TIMEOUT);
+      expect(highlightedSegments()).toEqual(['verse_1_1']);
+      flush();
+    }));
+
+    it('should highlight draft segments whose verses overlap the target segment', fakeAsync(() => {
+      const combinedVerseDraftOps = [
+        { insert: { chapter: { number: '1', style: 'c' } } },
+        { attributes: { segment: 's_1', 'para-contents': true }, insert: 'Heading' },
+        { insert: '\n', attributes: { para: { style: 's' } } },
+        { insert: { verse: { number: '1-2', style: 'v' } } },
+        { attributes: { segment: 'verse_1_1-2', 'para-contents': true }, insert: 'Draft verses 1-2. ' },
+        { insert: '\n', attributes: { para: { style: 'p' } } },
+        { attributes: { segment: 'verse_1_1-2/p_1', 'para-contents': true }, insert: 'More of verses 1-2. ' },
+        { insert: { verse: { number: '3', style: 'v' } } },
+        { attributes: { segment: 'verse_1_3', 'para-contents': true }, insert: 'Draft verse 3. ' },
+        { insert: '\n', attributes: { para: { style: 'p' } } }
+      ];
+      when(mockDraftHandlingService.getBookDraft(anything(), anything())).thenResolve(
+        new Map<string, any[]>([['1', combinedVerseDraftOps]])
+      );
+      fixture.detectChanges();
+      tick(EDITOR_READY_TIMEOUT);
+
+      selectTargetSegment('verse_1_2/p_1', true);
+      expect(highlightedSegments()).toEqual(['verse_1_1-2', 'verse_1_1-2/p_1']);
+
+      selectTargetSegment('verse_1_3-4', true);
+      expect(highlightedSegments()).toEqual(['verse_1_3']);
+
+      // A segment that is not in a verse, such as a heading, cannot be matched to the draft
+      selectTargetSegment('s_1', true);
+      expect(highlightedSegments()).toEqual([]);
+
+      // The target segment is from another chapter
+      selectTargetSegment('verse_2_3', true);
+      expect(highlightedSegments()).toEqual([]);
+      flush();
+    }));
+  });
 
   it('should get book draft when changing chapter and book', fakeAsync(() => {
     const testProjectDoc: SFProjectProfileDoc = {
