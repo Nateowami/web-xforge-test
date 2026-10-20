@@ -220,6 +220,8 @@ export class NoteDialogComponent implements OnInit {
     if (this.textDoc?.data == null) {
       return '';
     }
+    // Use the thread's original verse, not the reattached one: this text is compared with the note context, which
+    // was captured from the original verse, so "Show changes" shows how that verse has changed since the note.
     const verseRef: VerseRef | undefined =
       this.threadDoc?.data == null ? this.data.verseRef : toVerseRef(this.threadDoc.data.verseRef);
     if (verseRef == null) {

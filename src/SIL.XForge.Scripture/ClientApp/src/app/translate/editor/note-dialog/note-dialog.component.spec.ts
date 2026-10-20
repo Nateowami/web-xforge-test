@@ -231,6 +231,25 @@ describe('NoteDialogComponent', () => {
     expect(env.verseRef).toEqual('Matthew 1:7');
   }));
 
+  it('compares a reattached thread with the text of its original verse', fakeAsync(() => {
+    env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread('') });
+    expect(env.verseRef).toEqual('Matthew 1:4');
+    env.toggleSegmentButton();
+    expect(env.segmentText.nativeElement.textContent).toEqual(
+      `target: chapter 1, verse 7.\ntarget: chapter 1, verse 7 - 2nd paragraph.`
+    );
+  }));
+
+  it('hides changes for a reattached thread when its original verse is unchanged', fakeAsync(() => {
+    const noteThread: NoteThread = TestEnvironment.getNoteThread('');
+    noteThread.originalContextBefore = 'target: chapter 1, ';
+    noteThread.originalSelectedText = 'verse 7.\ntarget: chapter 1, verse 7 ';
+    noteThread.originalContextAfter = '- 2nd paragraph.';
+    env = new TestEnvironment({ noteThread });
+    expect(env.textMenuButton).toBeFalsy();
+    expect(env.component.isSegmentDifferentFromContext).toBeFalse();
+  }));
+
   it('shows assigned user', fakeAsync(() => {
     env = new TestEnvironment({ noteThread: TestEnvironment.getNoteThread() });
     expect(env.threadAssignedUser.nativeElement.textContent).toContain('Team');
