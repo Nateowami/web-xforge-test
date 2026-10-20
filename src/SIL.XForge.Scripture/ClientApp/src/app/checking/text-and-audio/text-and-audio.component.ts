@@ -21,6 +21,7 @@ import { AudioAttachment } from '../checking/checking-audio-player/checking-audi
 export class TextAndAudioComponent implements AfterViewInit, OnInit, OnDestroy {
   @Input() input?: { text?: string; audioUrl?: string };
   @Input() textLabel: string = '';
+  @Input() readonly: boolean = false;
 
   suppressErrors: boolean = true;
   form = new UntypedFormGroup({

@@ -33,6 +33,8 @@ export class AttachAudioComponent {
   @ViewChild(SingleButtonAudioPlayerComponent) audioPlayer?: SingleButtonAudioPlayerComponent;
   @Input() textAndAudio?: TextAndAudioComponent;
   @Input() isUploadEnabled: boolean = false;
+  /** Disables recording, attaching and removing audio. The attached audio can still be played. */
+  @Input() disabled: boolean = false;
 
   protected uploadAudioFile: File = {} as File;
 

@@ -3,7 +3,13 @@
     <div class="form-container">
       <mat-form-field appearance="outline" subscriptSizing="dynamic">
         <mat-label>{{ textLabel }}</mat-label>
-        <textarea matInput formControlName="text" id="textarea" (change)="trim($event)"></textarea>
+        <textarea
+          matInput
+          formControlName="text"
+          id="textarea"
+          (change)="trim($event)"
+          [readonly]="readonly"
+        ></textarea>
       </mat-form-field>
     </div>
   </form>
