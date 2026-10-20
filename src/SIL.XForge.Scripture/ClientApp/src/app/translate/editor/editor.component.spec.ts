@@ -3004,6 +3004,28 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('saves a new note to the verse shown in the dialog when no verse is selected', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      env.clickSegmentRef('s_1');
+      env.component.insertNote();
+      env.wait();
+      const [, config] = capture(mockedMatDialog.open).last();
+      expect((config!.data! as NoteDialogData).verseRef!.toString()).toEqual('LUK 1:1');
+
+      const content = 'note added with no verse selected';
+      env.mockNoteDialogRef.close({ noteContent: content });
+      env.wait();
+      verify(mockedSFProjectService.createNoteThread('project01', anything())).once();
+      const [, noteThread] = capture(mockedSFProjectService.createNoteThread).last();
+      expect(noteThread.verseRef).toEqual(fromVerseRef(new VerseRef('LUK 1:1')));
+      expect(noteThread.notes[0].content).toEqual(content);
+      env.dispose();
+    }));
+
     it('deselects a verse when bottom sheet is open and chapter changed', fakeAsync(() => {
       const env = new TestEnvironment();
       env.ngZone.run(() => {
