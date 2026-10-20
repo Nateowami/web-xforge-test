@@ -863,6 +863,14 @@ public partial class MachineApiService(
         // Ensure that the user has permission
         await EnsureProjectPermissionAsync(curUserId, sfProjectId, isServalAdmin: false, cancellationToken);
 
+        // Associate this cancellation with the latest draft generation request now, so that the event metric records
+        // it even if cancelling fails or there is no Serval build yet. It is replaced below if Serval reports a build.
+        string? latestDraftGenerationRequestId = await GetLatestDraftGenerationRequestIdAsync(sfProjectId);
+        if (!string.IsNullOrEmpty(latestDraftGenerationRequestId))
+        {
+            Activity.Current?.SetTag(MachineProjectService.DraftGenerationRequestIdKey, latestDraftGenerationRequestId);
+        }
+
         // If we have pre-translation job information
         if (
             (await projectSecrets.TryGetAsync(sfProjectId, cancellationToken)).TryResult(
@@ -918,7 +926,7 @@ public partial class MachineApiService(
             string? draftGenerationRequestId = await GetDraftGenerationRequestIdForBuildAsync(sfProjectId, buildId);
             if (!string.IsNullOrEmpty(draftGenerationRequestId))
             {
-                Activity.Current?.AddTag(MachineProjectService.DraftGenerationRequestIdKey, draftGenerationRequestId);
+                Activity.Current?.SetTag(MachineProjectService.DraftGenerationRequestIdKey, draftGenerationRequestId);
             }
 
             // Return the build id so it can be logged
@@ -1783,6 +1791,15 @@ public partial class MachineApiService(
                             ? new DateTimeOffset(startEvent.TimeStamp, TimeSpan.Zero).ToUniversalTime()
                             : null;
 
+                    // A request cancelled before it reached Serval has no Serval build, so it is only reported here
+                    EventMetric? cancelEvent = groupEvents
+                        .Where(e => e.EventType == nameof(CancelPreTranslationBuildAsync))
+                        .MinBy(e => e.TimeStamp);
+                    DateTimeOffset? sfUserCancelled =
+                        cancelEvent != null
+                            ? new DateTimeOffset(cancelEvent.TimeStamp, TimeSpan.Zero).ToUniversalTime()
+                            : null;
+
                     // We could add more details to the report if we are finding that it is often occurring to have build requests that
                     // Serval is not reporting on, and it's useful to have those details.
                     reports.Add(
@@ -1799,6 +1816,7 @@ public partial class MachineApiService(
                             Timeline = new BuildReportTimeline
                             {
                                 SFUserRequested = sfUserRequested,
+                                SFUserCancelled = sfUserCancelled,
                                 RequestTime = sfUserRequested,
                             },
                             Config = new BuildReportConfig(),
@@ -4222,6 +4240,30 @@ public partial class MachineApiService(
         );
         EventMetric? buildEvent = buildProjectEvents.Results.FirstOrDefault(e => e.Result?.ToString() == servalBuildId);
         return buildEvent != null ? GetRequestIdFromEvent(buildEvent) : null;
+    }
+
+    /// <summary>
+    /// Gets the SF-specific draft generation request identifier of the most recent draft generation request that was
+    /// accepted for a project, by looking up the StartPreTranslationBuildAsync events.
+    /// </summary>
+    /// <returns>The draft generation request identifier, or null if not found.</returns>
+    private async Task<string?> GetLatestDraftGenerationRequestIdAsync(string sfProjectId)
+    {
+        const int lookupTimeframeDays = 14;
+        DateTime startDate = DateTime.UtcNow.AddDays(-lookupTimeframeDays);
+        QueryResults<EventMetric> startEvents = await eventMetricService.GetEventMetricsAsync(
+            projectId: sfProjectId,
+            scopes: [EventScope.Drafting],
+            eventTypes: [nameof(StartPreTranslationBuildAsync)],
+            fromDate: startDate
+        );
+
+        // The results are ordered newest first. Requests that threw (e.g. a build was already running) were rejected,
+        // so they cannot be what is being cancelled.
+        return startEvents
+            .Results.Where(e => e.Exception is null)
+            .Select(GetRequestIdFromEvent)
+            .FirstOrDefault(requestId => !string.IsNullOrEmpty(requestId));
     }
 
     private async Task<string> GetTranslationIdAsync(string sfProjectId)
