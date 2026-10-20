@@ -303,7 +303,7 @@ export class NoteDialogComponent implements OnInit {
     if (this.threadDoc?.data == null) {
       return this.data.verseRef == null ? undefined : this.data.verseRef;
     }
-    return toVerseRef(this.threadDoc.data.verseRef);
+    return this.threadDoc.currentVerseRef();
   }
 
   editNote(note: Note): void {
