@@ -40,6 +40,11 @@ export class LocationService {
     window.location.href = url;
   }
 
+  /** Navigates to the URL, replacing the current page in the browser history. */
+  replace(url: string): void {
+    window.location.replace(url);
+  }
+
   openInNewTab(url: string): void {
     window.open(url, '_blank');
   }
