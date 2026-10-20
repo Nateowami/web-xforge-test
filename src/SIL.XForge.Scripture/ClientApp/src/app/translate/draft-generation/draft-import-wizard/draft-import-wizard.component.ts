@@ -1,7 +1,7 @@
 import { StepperSelectionEvent } from '@angular/cdk/stepper';
 import { AsyncPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, DestroyRef, Inject, OnInit, ViewChild } from '@angular/core';
+import { ChangeDetectorRef, Component, DestroyRef, Inject, OnInit, ViewChild } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
 import { MatCheckbox } from '@angular/material/checkbox';
@@ -196,6 +196,7 @@ export class DraftImportWizardComponent implements OnInit {
         // SF project exists, just add user to it
         try {
           await this.projectService.onlineAddCurrentUser(this.targetProjectId);
+          this.markProjectConnected(paratextProject, this.targetProjectId);
         } catch (error) {
           if (error instanceof CommandError && error.code === CommandErrorCode.NotFound) {
             // The project was deleted, so just connect to it
@@ -231,12 +232,30 @@ export class DraftImportWizardComponent implements OnInit {
       sourceParatextId: null,
       checkingEnabled: false
     });
+    const paratextProject = this.projects.find(p => p.paratextId === paratextId);
+    if (paratextProject != null) this.markProjectConnected(paratextProject, this.targetProjectId);
 
     // updateConnectStatus() will handle the sync finishing and move to the next step after "connecting"
     this.stepper?.next();
 
     const projectDoc = await this.projectService.get(this.targetProjectId);
     this.targetProjectDoc$.next(projectDoc);
+  }
+
+  /**
+   * Returns from the "connected" step to project selection. The project is connected now, so the connection steps are
+   * removed from the wizard instead of being shown again.
+   */
+  backToProjectSelection(): void {
+    if (this.stepper == null) return;
+    this.stepper.selectedIndex = 0;
+    this.needsConnection = false;
+  }
+
+  /** Records the connection in the project list, so selecting the project again does not ask to connect it again. */
+  private markProjectConnected(paratextProject: ParatextProject, projectId: string): void {
+    paratextProject.projectId = projectId;
+    paratextProject.isConnected = true;
   }
 
   retryProjectConnection(): void {
@@ -320,7 +339,8 @@ export class DraftImportWizardComponent implements OnInit {
     private readonly onlineStatusService: OnlineStatusService,
     private readonly activatedProjectService: ActivatedProjectService,
     private readonly authService: AuthService,
-    private readonly userService: UserService
+    private readonly userService: UserService,
+    private readonly changeDetectorRef: ChangeDetectorRef
   ) {
     this.draftedScriptureRange = VerboseScriptureRange.fromCombinedRanges(
       (this.data.additionalInfo?.translationScriptureRanges ?? []).map(range => range.scriptureRange)
@@ -604,6 +624,8 @@ export class DraftImportWizardComponent implements OnInit {
 
     await this.analyzeBooksForOverwriteConfirmation();
 
+    // The analysis can add the overwrite confirmation step, so render it before advancing to avoid skipping past it
+    this.changeDetectorRef.detectChanges();
     this.stepper?.next();
     this.isLoadingProject = false;
   }
