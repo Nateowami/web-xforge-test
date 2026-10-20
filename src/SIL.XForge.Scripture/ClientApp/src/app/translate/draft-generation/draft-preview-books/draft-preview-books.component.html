@@ -1,6 +1,11 @@
 <ng-container *transloco="let t; read: 'draft_preview_books'">
   @for (book of booksWithDrafts$ | async; track book.bookId) {
-    <button mat-stroked-button class="draft-book-button" (click)="navigate(book)">
+    <button
+      mat-stroked-button
+      class="draft-book-button"
+      [disabled]="isLookingUpDraftedChapter"
+      (click)="navigate(book)"
+    >
       <span>
         @if (book.draftedChapterRange != null) {
           {{ i18n.localizeBookWithChapters(book.bookId, book.draftedChapterRange) }}

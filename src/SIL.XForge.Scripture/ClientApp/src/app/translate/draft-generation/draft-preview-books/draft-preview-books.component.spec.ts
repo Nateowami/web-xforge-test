@@ -162,6 +162,55 @@ describe('DraftPreviewBooks', () => {
     verify(mockedDraftHandlingService.getBookDraft(anything(), anything())).never();
   }));
 
+  it('disables the book buttons while looking for the first drafted chapter', fakeAsync(() => {
+    env = new TestEnvironment({ draftedScriptureRange: 'GEN;EXO' });
+    const resolveBookDraft = env.deferBookDraft();
+
+    env.getBookButtonAtIndex(0).click();
+    env.fixture.detectChanges();
+    expect(env.getBookButtonAtIndex(0).disabled).toBe(true);
+    expect(env.getBookButtonAtIndex(1).disabled).toBe(true);
+    env.getBookButtonAtIndex(0).click();
+    env.getBookButtonAtIndex(1).click();
+
+    resolveBookDraft(new Map([['3', TestEnvironment.chapterOps(3, 'In the beginning')]]));
+    tick();
+    env.fixture.detectChanges();
+
+    verify(mockedDraftHandlingService.getBookDraft(anything(), anything())).once();
+    verify(mockedRouter.navigate(anything(), anything())).once();
+    const [url] = capture(mockedRouter.navigate).first();
+    expect(url).toEqual(['/projects', 'project01', 'translate', 'GEN', '3']);
+    expect(env.getBookButtonAtIndex(0).disabled).toBe(false);
+  }));
+
+  it('does not navigate if the user went elsewhere while the draft was downloading', fakeAsync(() => {
+    env = new TestEnvironment({ draftedScriptureRange: 'GEN' });
+    when(mockedRouter.url).thenReturn('/projects/project01/translate/EXO/1');
+    const resolveBookDraft = env.deferBookDraft();
+
+    env.getBookButtonAtIndex(0).click();
+    when(mockedRouter.url).thenReturn('/projects/project01/translate/EXO/2');
+    resolveBookDraft(new Map([['3', TestEnvironment.chapterOps(3, 'In the beginning')]]));
+    tick();
+    env.fixture.detectChanges();
+
+    verify(mockedRouter.navigate(anything(), anything())).never();
+    expect(env.getBookButtonAtIndex(0).disabled).toBe(false);
+  }));
+
+  it('does not navigate if the book list was closed while the draft was downloading', fakeAsync(() => {
+    env = new TestEnvironment({ draftedScriptureRange: 'GEN' });
+    const resolveBookDraft = env.deferBookDraft();
+
+    env.getBookButtonAtIndex(0).click();
+    env.fixture.destroy();
+    resolveBookDraft(new Map([['3', TestEnvironment.chapterOps(3, 'In the beginning')]]));
+    tick();
+
+    verify(mockedRouter.navigate(anything(), anything())).never();
+  }));
+
   it('does not show a chapter range when the whole book was drafted', fakeAsync(() => {
     // Genesis has 50 chapters; all 50 were drafted, so it is a whole-book draft and no range is shown.
     env = new TestEnvironment({
@@ -253,11 +302,20 @@ class TestEnvironment {
     this.fixture.detectChanges();
   }
 
+  /** Makes the book draft download wait until the returned function is called with the draft. */
+  deferBookDraft(): (chapterDrafts: Map<string, DeltaOperation[]>) => void {
+    let resolveBookDraft: (chapterDrafts: Map<string, DeltaOperation[]>) => void = () => {};
+    when(mockedDraftHandlingService.getBookDraft(anything(), anything())).thenReturn(
+      new Promise(resolve => (resolveBookDraft = resolve))
+    );
+    return chapterDrafts => resolveBookDraft(chapterDrafts);
+  }
+
   draftBookCount(): number {
     return this.fixture.nativeElement.querySelectorAll('.draft-book-button').length;
   }
 
-  getBookButtonAtIndex(index: number): HTMLElement {
+  getBookButtonAtIndex(index: number): HTMLButtonElement {
     return this.fixture.nativeElement.querySelectorAll('.draft-book-button')[index];
   }
 }
