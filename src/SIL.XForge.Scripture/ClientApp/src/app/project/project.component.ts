@@ -1,26 +1,32 @@
 import { Component, DestroyRef, OnInit } from '@angular/core';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Canon } from '@sillsdev/scripture';
+import { User } from 'realtime-server/lib/esm/common/models/user';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SFProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
 import { lastValueFrom, Observable } from 'rxjs';
 import { distinctUntilChanged, filter, first, map } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { NoticeService } from 'xforge-common/notice.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { UserService } from 'xforge-common/user.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { environment } from '../../environments/environment';
 import { ResumeCheckingService } from '../checking/checking/resume-checking.service';
 import { PermissionsService } from '../core/permissions.service';
 import { SFProjectService } from '../core/sf-project.service';
+import { PageNotFoundComponent } from '../shared/page-not-found/page-not-found.component';
 type TaskType = 'translate' | 'checking';
 
 @Component({
   selector: 'app-projects',
   templateUrl: './project.component.html',
-  styleUrls: ['./project.component.scss']
+  styleUrls: ['./project.component.scss'],
+  imports: [PageNotFoundComponent]
 })
 export class ProjectComponent extends DataLoadingComponent implements OnInit {
+  projectNotFound: boolean = false;
+
   constructor(
     private readonly route: ActivatedRoute,
     private readonly projectService: SFProjectService,
@@ -28,6 +34,7 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
     private readonly userService: UserService,
     private readonly permissions: PermissionsService,
     private readonly resumeCheckingService: ResumeCheckingService,
+    private readonly onlineStatusService: OnlineStatusService,
     noticeService: NoticeService,
     private destroyRef: DestroyRef
   ) {
@@ -62,10 +69,21 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
     });
 
     navigateToProject$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(async projectId => {
-      if (userDoc.data?.sites[environment.siteId].projects?.includes(projectId)) {
+      // The user doc can lag behind the server just after the user was added to the project (e.g. when joining with a
+      // share link), so bring it up to date before deciding that the project does not exist
+      if (!this.isUserOnProject(userDoc.data, projectId) && this.onlineStatusService.isOnline) {
+        await userDoc.onlineFetch();
+      }
+
+      this.projectNotFound = !this.isUserOnProject(userDoc.data, projectId);
+      if (!this.projectNotFound) {
         void this.navigateToProject(projectId);
       }
     });
+  }
+
+  private isUserOnProject(user: User | undefined, projectId: string): boolean {
+    return user?.sites[environment.siteId]?.projects?.includes(projectId) ?? false;
   }
 
   private async navigateToProject(projectId: string): Promise<void> {

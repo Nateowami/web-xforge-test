@@ -228,6 +228,16 @@ describe('EditorComponent', () => {
     env.dispose();
   }));
 
+  it('navigates to translate overview when book ID is invalid', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectUserConfig();
+    env.routeWithParams({ projectId: 'project01', bookId: 'blah' });
+    env.wait();
+
+    expect(env.location.path()).toEqual('/projects/project01/translate');
+    env.dispose();
+  }));
+
   it('remote user config should not change segment', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setProjectUserConfig({
