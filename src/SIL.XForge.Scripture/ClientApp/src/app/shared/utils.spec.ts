@@ -194,6 +194,33 @@ describe('shared utils', () => {
         'check unknown <i>text</i>'
       );
     });
+
+    it('should convert urls in xml to links', () => {
+      const link = (href: string, text: string = href): string =>
+        `<a href="${href}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+      expect(XmlUtils.convertXmlToHtml('https://example.com/audio/clip.mp3')).toEqual(
+        link('https://example.com/audio/clip.mp3')
+      );
+      expect(XmlUtils.convertXmlToHtml('<p>Listen: http://example.com/a?b=1&amp;c=2 now</p>')).toEqual(
+        'Listen: ' + link('http://example.com/a?b=1&amp;c=2') + ' now<br />'
+      );
+      expect(XmlUtils.convertXmlToHtml('See www.example.com.')).toEqual(
+        'See ' + link('https://www.example.com', 'www.example.com') + '.'
+      );
+      expect(XmlUtils.convertXmlToHtml('(see https://example.com/page), and https://example.com/b!')).toEqual(
+        '(see ' + link('https://example.com/page') + '), and ' + link('https://example.com/b') + '!'
+      );
+      expect(XmlUtils.convertXmlToHtml('https://en.wikipedia.org/wiki/Mark_(Bible)')).toEqual(
+        link('https://en.wikipedia.org/wiki/Mark_(Bible)')
+      );
+      expect(XmlUtils.convertXmlToHtml('<bold>https://example.com</bold> &lt;https://example.com/x&gt;')).toEqual(
+        '<b>' + link('https://example.com') + '</b> &lt;' + link('https://example.com/x') + '&gt;'
+      );
+      // Not links
+      expect(XmlUtils.convertXmlToHtml('ftp://example.com javascript:alert(1) https:// www. awww.example.com')).toEqual(
+        'ftp://example.com javascript:alert(1) https:// www. awww.example.com'
+      );
+    });
   });
 
   describe('getVerseNumbers function', () => {

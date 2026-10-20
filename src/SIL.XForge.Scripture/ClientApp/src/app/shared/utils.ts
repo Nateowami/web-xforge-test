@@ -236,6 +236,45 @@ export class XmlUtils {
     return htmlString;
   }
 
+  /**
+   * Encode text as html, turning web addresses into links. Paratext stores links in notes as plain text and only
+   * makes them clickable when displaying the note, so we do the same.
+   */
+  private static encodeTextAndLinkUrls(text: string): string {
+    let html = '';
+    let textIndex = 0;
+    for (const match of text.matchAll(/\b(?:https?:\/\/|www\.)[\p{L}\p{N}][^\s<>"]*/giu)) {
+      const url: string = this.trimUrlEnd(match[0]);
+      const href: string = /^www\./i.test(url) ? 'https://' + url : url;
+      html += this.encodeForHtml(text.substring(textIndex, match.index));
+      html += `<a href="${this.encodeForHtml(href)}" target="_blank" rel="noopener noreferrer">`;
+      html += this.encodeForHtml(url) + '</a>';
+      textIndex = match.index + url.length;
+    }
+    return html + this.encodeForHtml(text.substring(textIndex));
+  }
+
+  /**
+   * Removes punctuation that ends the sentence rather than the url, e.g. "See https://example.com." or
+   * "(https://example.com)", while keeping a closing parenthesis that the url itself opened.
+   */
+  private static trimUrlEnd(url: string): string {
+    while (true) {
+      const lastChar: string = url[url.length - 1];
+      const isUnbalancedParenthesis: boolean = lastChar === ')' && url.split(')').length > url.split('(').length;
+      if (!".,;:!?'".includes(lastChar) && !isUnbalancedParenthesis) return url;
+      url = url.substring(0, url.length - 1);
+    }
+  }
+
+  private static encodeForHtml(text: string): string {
+    // get the inner html of the span element to get the encoded text so that < and > symbols are
+    // not lost during html sanitation
+    const span = document.createElement('span');
+    span.textContent = text;
+    return span.innerHTML;
+  }
+
   private static processNode(treeWalker: TreeWalker): string {
     switch (treeWalker.currentNode.nodeName.toLowerCase()) {
       case 'p':
@@ -255,11 +294,7 @@ export class XmlUtils {
         treeWalker.nextNode();
         return '<span>' + this.processNodeAndSiblings(treeWalker) + '</span>';
       case '#text':
-        // get the inner html of the span element to get the encoded text so that < and > symbols are
-        // not lost during html sanitation
-        const span = document.createElement('span');
-        span.textContent = treeWalker.currentNode.nodeValue;
-        return span.innerHTML;
+        return this.encodeTextAndLinkUrls(treeWalker.currentNode.nodeValue ?? '');
       default:
         // the node is for a tag we do not recognize. Show just the text content.
         if (!treeWalker.currentNode.hasChildNodes()) return '';
