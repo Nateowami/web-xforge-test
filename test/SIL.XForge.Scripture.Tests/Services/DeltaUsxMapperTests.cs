@@ -3917,7 +3917,7 @@ public class DeltaUsxMapperTests
     public void ToDelta_SecondChapterInInvalidBook()
     {
         XDocument usxDoc = Usx(
-            "TDX",
+            "ZZZ",
             Chapter("1"),
             Para("q", Verse("1"), "This verse is valid, but in an invalid book"),
             Chapter("2"),
@@ -3931,7 +3931,7 @@ public class DeltaUsxMapperTests
         [
             Delta
                 .New()
-                .InsertBook("TDX", invalid: true)
+                .InsertBook("ZZZ", invalid: true)
                 .InsertChapter("1")
                 .InsertBlank("q_1")
                 .InsertVerse("1")
@@ -3949,6 +3949,41 @@ public class DeltaUsxMapperTests
         Assert.That(chapterDeltas.Count, Is.EqualTo(2));
         Assert.That(chapterDeltas[0].IsValid, Is.False);
         Assert.That(chapterDeltas[1].IsValid, Is.False);
+        Assert.IsTrue(chapterDeltas[0].Delta.DeepEquals(expected[0]));
+        Assert.IsTrue(chapterDeltas[1].Delta.DeepEquals(expected[1]));
+    }
+
+    [TestCase("XXB")]
+    [TestCase("FRT")]
+    [TestCase("GLO")]
+    [TestCase("TDX")]
+    public void ToDelta_PeripheralBookIsValid(string bookCode)
+    {
+        XDocument usxDoc = Usx(
+            bookCode,
+            Chapter("1"),
+            Para("p", "Extra material in the first chapter"),
+            Chapter("2"),
+            Para("p", "Extra material in the second chapter")
+        );
+
+        var mapper = new DeltaUsxMapper(_mapperGuidService, _logger, _exceptionHandler);
+        List<ChapterDelta> chapterDeltas = [.. mapper.ToChapterDeltas(usxDoc)];
+
+        Delta[] expected =
+        [
+            Delta
+                .New()
+                .InsertBook(bookCode)
+                .InsertChapter("1")
+                .InsertText("Extra material in the first chapter", "p_1")
+                .InsertPara("p"),
+            Delta.New().InsertChapter("2").InsertText("Extra material in the second chapter", "p_1").InsertPara("p"),
+        ];
+
+        Assert.That(chapterDeltas.Count, Is.EqualTo(2));
+        Assert.That(chapterDeltas[0].IsValid, Is.True);
+        Assert.That(chapterDeltas[1].IsValid, Is.True);
         Assert.IsTrue(chapterDeltas[0].Delta.DeepEquals(expected[0]));
         Assert.IsTrue(chapterDeltas[1].Delta.DeepEquals(expected[1]));
     }

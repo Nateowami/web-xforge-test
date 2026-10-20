@@ -136,6 +136,21 @@
       <xs:enumeration value="REP"/>
       <xs:enumeration value="4BA"/>
       <xs:enumeration value="LAO"/>
+      <xs:enumeration value="XXA"/>
+      <xs:enumeration value="XXB"/>
+      <xs:enumeration value="XXC"/>
+      <xs:enumeration value="XXD"/>
+      <xs:enumeration value="XXE"/>
+      <xs:enumeration value="XXF"/>
+      <xs:enumeration value="XXG"/>
+      <xs:enumeration value="FRT"/>
+      <xs:enumeration value="BAK"/>
+      <xs:enumeration value="OTH"/>
+      <xs:enumeration value="INT"/>
+      <xs:enumeration value="CNC"/>
+      <xs:enumeration value="GLO"/>
+      <xs:enumeration value="TDX"/>
+      <xs:enumeration value="NDX"/>
     </xs:restriction>
   </xs:simpleType>
   <xs:element name="para">
