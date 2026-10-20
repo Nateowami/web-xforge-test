@@ -100,6 +100,48 @@ describe('JoinComponent', () => {
     expect().nothing();
   }));
 
+  it('does not show offline dialog when connection drops while joining', fakeAsync(() => {
+    let rejectJoin: (reason: any) => void = () => {};
+    const callback = (_: TestEnvironment): void => {
+      when(mockedSFProjectService.onlineJoinWithShareKey(anything())).thenReturn(
+        new Promise<string>((_, reject) => (rejectJoin = reject))
+      );
+    };
+    const env = new TestEnvironment({ callback, isLoggedIn: true });
+    verify(mockedSFProjectService.onlineJoinWithShareKey('abc123')).once();
+
+    env.onlineStatus = false;
+    env.onlineStatus = true;
+    rejectJoin(new CommandError(CommandErrorCode.NotFound, 'project_link_is_invalid'));
+    tick();
+
+    verify(mockedDialogService.message('join.please_connect_to_use_link')).never();
+    verify(mockedDialogService.message('join.project_link_is_invalid')).once();
+    verify(mockedRouter.navigateByUrl('/projects', anything())).once();
+    expect().nothing();
+  }));
+
+  it('does not join when coming online while offline dialog is open', fakeAsync(() => {
+    let closeDialog: () => void = () => {};
+    const callback = (_: TestEnvironment): void => {
+      when(mockedDialogService.message('join.please_connect_to_use_link')).thenReturn(
+        new Promise<void>(resolve => (closeDialog = resolve))
+      );
+    };
+    const env = new TestEnvironment({ callback, isOnline: false, isLoggedIn: true });
+    verify(mockedDialogService.message('join.please_connect_to_use_link')).once();
+
+    env.onlineStatus = true;
+    env.onlineStatus = false;
+    closeDialog();
+    tick();
+
+    verify(mockedSFProjectService.onlineJoinWithShareKey(anything())).never();
+    verify(mockedDialogService.message(anything())).once();
+    verify(mockedRouter.navigateByUrl('/projects', anything())).once();
+    expect().nothing();
+  }));
+
   it('sets locale when not logged in', fakeAsync(() => {
     new TestEnvironment({ isLoggedIn: false, locale: 'fr' });
     verify(mockedI18nService.setLocale('fr')).once();

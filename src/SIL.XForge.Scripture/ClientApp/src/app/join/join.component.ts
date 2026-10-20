@@ -62,6 +62,10 @@ export class JoinComponent extends DataLoadingComponent {
   name: FormControl<string | null> = new FormControl<string | null>('');
   status: 'input' | 'joining' | 'unavailable' = 'unavailable';
   private joiningResponse?: AnonymousShareKeyResponse;
+  /** Whether the share key has been checked or used, which reports its own outcome to the user. */
+  private joinStarted = false;
+  /** Whether a logged in user is being told to connect to the internet and sent back to their projects. */
+  private redirectingOffline = false;
 
   constructor(
     private readonly anonymousService: AnonymousService,
@@ -92,6 +96,9 @@ export class JoinComponent extends DataLoadingComponent {
       distinctUntilChanged()
     );
     checkLinkSharing$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(joining => {
+      if (this.redirectingOffline) {
+        return;
+      }
       // Set locale only if not logged in
       if (this.authService.currentUserId == null) {
         this.i18nService.setLocale(joining.locale);
@@ -170,6 +177,7 @@ export class JoinComponent extends DataLoadingComponent {
   }
 
   private async initialize(shareKey: string): Promise<void> {
+    this.joinStarted = true;
     this.loadingStarted();
     const isLoggedIn: boolean = await this.authService.isLoggedIn;
     if (isLoggedIn) {
@@ -192,6 +200,12 @@ export class JoinComponent extends DataLoadingComponent {
       this.name.enable();
       this.status = 'input';
     } else if (!this.onlineStatusService.isOnline && (await this.authService.isLoggedIn)) {
+      // The connection can drop briefly while the app starts up. A join attempt made while online will show its own
+      // result, so don't also tell the user to connect.
+      if (this.joinStarted || this.redirectingOffline) {
+        return;
+      }
+      this.redirectingOffline = true;
       await this.dialogService.message('join.please_connect_to_use_link');
       void this.router.navigateByUrl('/projects', { replaceUrl: true });
     } else {
