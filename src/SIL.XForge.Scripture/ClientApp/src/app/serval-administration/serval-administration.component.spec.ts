@@ -91,12 +91,23 @@ describe('ServalAdministrationComponent', () => {
       this.settle();
     }
 
+    /** Runs change detection and timers until neither the URL nor the selected tab changes in a round. */
     private settle(): void {
-      // The tab group reports a selection change asynchronously, which can start another navigation
-      for (let i = 0; i < 3; i++) {
+      // The tab group reports a selection change asynchronously, which can start another navigation, which changes
+      // the selected tab again. So the number of rounds needed depends on the component, not on a fixed count.
+      const maxRounds = 10;
+      for (let round = 0; round < maxRounds; round++) {
+        const before: string = this.state;
         this.harness.detectChanges();
         flush();
+        if (this.state === before) return;
       }
+      throw new Error(`URL and selected tab did not settle after ${maxRounds} rounds`);
+    }
+
+    private get state(): string {
+      const component: ServalAdministrationComponent | undefined = this.harness.routeDebugElement?.componentInstance;
+      return `${this.router.url} ${component?.selectedTabIndex}`;
     }
   }
 });
