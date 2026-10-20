@@ -114,6 +114,7 @@ import { NoteDialogComponent, NoteDialogData, NoteDialogResult } from './note-di
 import { EditorTabFactoryService } from './tabs/editor-tab-factory.service';
 import { EditorTabMenuService } from './tabs/editor-tab-menu.service';
 import { EditorTabInfo } from './tabs/editor-tabs.types';
+import { TranslatorSettingsDialogComponent } from './translator-settings-dialog.component';
 
 const mockedAuthService = mock(AuthService);
 const mockedSFProjectService = mock(SFProjectService);
@@ -223,6 +224,32 @@ describe('EditorComponent', () => {
     const textDocId = new TextDocId('project02', 40, 1, 'target');
     env.deleteText(textDocId.toString());
     expect(dialogMessage).toHaveBeenCalledTimes(1);
+    tick();
+    expect(env.location.path()).toEqual('/projects/project02/translate');
+    env.dispose();
+  }));
+
+  it('closes dialogs opened from the editor when the text is remotely deleted', fakeAsync(() => {
+    const env = new TestEnvironment();
+    flush();
+    env.routeWithParams({ projectId: 'project02', bookId: 'MAT' });
+    env.wait();
+
+    const settingsDialogClosed$ = new Subject<void>();
+    const settingsDialogRef = jasmine.createSpyObj<MatDialogRef<TranslatorSettingsDialogComponent>>('MatDialogRef', [
+      'afterClosed',
+      'close'
+    ]);
+    settingsDialogRef.afterClosed.and.returnValue(settingsDialogClosed$);
+    settingsDialogRef.close.and.callFake(() => settingsDialogClosed$.next());
+    when(mockedMatDialog.open(TranslatorSettingsDialogComponent, anything())).thenReturn(settingsDialogRef);
+    env.component.openTranslatorSettings();
+    env.wait();
+    expect(settingsDialogRef.close).not.toHaveBeenCalled();
+
+    env.setupDialogRef();
+    env.deleteText(new TextDocId('project02', 40, 1, 'target').toString());
+    expect(settingsDialogRef.close).toHaveBeenCalledTimes(1);
     tick();
     expect(env.location.path()).toEqual('/projects/project02/translate');
     env.dispose();

@@ -273,6 +273,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   private readonly sourceWordTokenizer: RangeTokenizer;
   private readonly targetWordTokenizer: RangeTokenizer;
   private bottomSheetRef?: MatBottomSheetRef;
+  private readonly openDialogRefs = new Set<MatDialogRef<unknown>>();
   private currentUserDoc?: UserDoc;
   projectDoc?: SFProjectProfileDoc;
   private projectUserConfigDoc?: SFProjectUserConfigDoc;
@@ -1632,6 +1633,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     }
 
     this.onTargetDeleteSub = textDoc.delete$.subscribe(() => {
+      // Dialogs opened from the editor refer to the deleted text and would otherwise stay open after navigating away
+      this.openDialogRefs.forEach(dialogRef => dialogRef.close());
       void this.dialogService.message(this.i18n.translate('editor.text_has_been_deleted')).then(() => {
         void this.router.navigateByUrl('/projects/' + this.projectDoc!.id + '/translate', { replaceUrl: true });
       });
@@ -1794,6 +1797,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     const selection: Range | null | undefined = this.target?.editor?.getSelection();
     const targetScrollTop: number | undefined = this.targetScrollContainer?.scrollTop;
     const dialogRef: MatDialogRef<T, R> = this.dialogService.openMatDialog(component, dialogConfig);
+    this.openDialogRefs.add(dialogRef);
+    dialogRef.afterClosed().subscribe(() => this.openDialogRefs.delete(dialogRef));
 
     if (selection == null || !this.canEdit) {
       return dialogRef;
