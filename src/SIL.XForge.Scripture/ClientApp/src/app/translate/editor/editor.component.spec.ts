@@ -4,6 +4,7 @@ import { TestbedHarnessEnvironment } from '@angular/cdk/testing/testbed';
 import { Location } from '@angular/common';
 import { DebugElement, NgZone } from '@angular/core';
 import { ComponentFixture, discardPeriodicTasks, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import { MatBottomSheet } from '@angular/material/bottom-sheet';
 import { MatDialog, MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
 import { MatTooltipHarness } from '@angular/material/tooltip/testing';
 import { By } from '@angular/platform-browser';
@@ -3044,6 +3045,7 @@ describe('EditorComponent', () => {
       env.insertNoteFab.nativeElement.click();
       env.wait();
       env.component.mobileNoteControl.setValue('unsaved mobile note');
+      tick(650);
 
       env.getNoteThreadIconElement('verse_1_3', 'dataid02')!.click();
       env.wait();
@@ -3056,6 +3058,11 @@ describe('EditorComponent', () => {
       expect(env.mobileNoteTextArea).toBeTruthy();
       expect(env.component.mobileNoteControl.value).toEqual('unsaved mobile note');
       expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
+      // Like when the sheet is first opened, the textarea is focused again after the on-screen keyboard has had time
+      // to resize the page, as that can move focus away from it
+      env.mobileNoteTextArea!.blur();
+      tick(650);
+      expect(document.activeElement).toBe(env.mobileNoteTextArea);
 
       // The restored bottom sheet works as before, and the fab is shown again for the still selected verse
       env.saveMobileNoteButton!.click();
@@ -3098,9 +3105,8 @@ describe('EditorComponent', () => {
       expect(env.insertNoteFabMobile).toBeTruthy();
       expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
 
-      // clean up
-      env.clickSegmentRef('verse_1_3');
-      env.wait();
+      // The bottom sheet is attached to the document, outside the fixture, so close it before the next test
+      TestBed.inject(MatBottomSheet).dismiss();
       env.dispose();
     }));
 

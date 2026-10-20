@@ -1094,9 +1094,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     this.addingMobileNote = !this.addingMobileNote;
     if (this.addingMobileNote) {
       this.mobileNoteControl.reset();
-      // On-screen keyboards appearing can interfere with the resize height logic which then changes the focus
-      // Waiting for 100ms was found to be a good amount of time for that to be resolved
-      setTimeout(() => this.mobileNoteTextarea?.nativeElement.focus(), 650);
+      this.focusMobileNoteTextarea();
     } else if (this.hasEditRight) {
       this.bottomSheetRef?.dismiss();
       this.setNoteFabVisibility('visible');
@@ -1571,12 +1569,19 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         hasBackdrop: false,
         restoreFocus: false
       });
+      this.focusMobileNoteTextarea();
     } else if (wasShowingBottomSheet) {
       this.showAddCommentButton = true;
     } else if (this.isInsertNoteFabEnabled) {
       this.setNoteFabVisibility('visible');
       this.positionInsertNoteFab();
     }
+  }
+
+  private focusMobileNoteTextarea(): void {
+    // On-screen keyboards appearing can interfere with the resize height logic which then changes the focus
+    // Waiting for 100ms was found to be a good amount of time for that to be resolved
+    setTimeout(() => this.mobileNoteTextarea?.nativeElement.focus(), 650);
   }
 
   /** Sets the visibility of the insert note FAB. If the FAB does not exist, this is a no-op. */
