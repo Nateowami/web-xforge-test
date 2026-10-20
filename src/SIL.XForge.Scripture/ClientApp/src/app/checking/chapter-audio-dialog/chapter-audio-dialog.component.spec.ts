@@ -590,6 +590,24 @@ describe('ChapterAudioDialogComponent', () => {
     expect(env.numberOfTimesDialogClosed).toEqual(1);
   }));
 
+  it('closes the dialog if the audio was already deleted elsewhere', fakeAsync(() => {
+    env.component.book = 1;
+    env.component.chapter = 2;
+    const projectServiceSpy = spy(env.component['projectService']);
+    when(projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).thenReject(
+      new CommandError(CommandErrorCode.NotFound, 'The audio timing data does not exist.')
+    );
+
+    // SUT
+    env.component.save();
+    tick();
+    env.fixture.detectChanges();
+    flush();
+
+    verify(projectServiceSpy.onlineDeleteAudioTimingData('project01', 1, 2)).once();
+    expect(env.numberOfTimesDialogClosed).toEqual(1);
+  }));
+
   it('shows a permission message if the user can no longer delete audio', fakeAsync(() => {
     env.component.book = 1;
     env.component.chapter = 2;

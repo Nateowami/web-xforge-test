@@ -329,12 +329,16 @@ export class ChapterAudioDialogComponent implements AfterViewInit, OnDestroy {
       try {
         await this.projectService.onlineDeleteAudioTimingData(this.data.projectId, this.book, this.chapter);
       } catch (error) {
-        this._isSaving = false;
-        if (error instanceof CommandError && error.code === CommandErrorCode.Forbidden) {
-          void this.dialogService.message('chapter_audio_dialog.no_permission');
-          return;
+        // The audio may have been removed elsewhere (another user or tab) after this dialog opened. It is gone, which
+        // is what the user asked for, so close as if the delete succeeded.
+        if (!(error instanceof CommandError && error.code === CommandErrorCode.NotFound)) {
+          this._isSaving = false;
+          if (error instanceof CommandError && error.code === CommandErrorCode.Forbidden) {
+            void this.dialogService.message('chapter_audio_dialog.no_permission');
+            return;
+          }
+          throw error;
         }
-        throw error;
       }
       this.dialogRef.close();
       return;
