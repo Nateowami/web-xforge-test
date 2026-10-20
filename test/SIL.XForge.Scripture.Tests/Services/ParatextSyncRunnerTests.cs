@@ -2455,6 +2455,41 @@ public class ParatextSyncRunnerTests
     }
 
     [Test]
+    public async Task SyncAsync_ResourceDoesNotChangeParatextUserRoles()
+    {
+        var env = new TestEnvironment();
+        env.SetupSFData(true, false, false, new Book("MAT", 2));
+        env.SetupPTData(new Book("MAT", 2));
+        env.ParatextService.IsResource(Arg.Any<string>()).Returns(true);
+        env.ParatextService.SendReceiveAsync(
+                Arg.Any<UserSecret>(),
+                Arg.Any<string>(),
+                Arg.Any<IProgress<ProgressState>>(),
+                Arg.Any<CancellationToken>(),
+                Arg.Any<SyncMetrics>()
+            )
+            .Returns(new ParatextResource());
+
+        // The registry is not queried for resources, so there are no Paratext users
+        env.ParatextService.GetParatextUsersAsync(Arg.Any<UserSecret>(), Arg.Any<SFProject>(), CancellationToken.None)
+            .Returns([]);
+
+        // SUT
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        SFProject project = env.GetProject();
+        Assert.That(project.Sync.LastSyncSuccessful, Is.True);
+        Assert.That(
+            project.ParatextUsers.Single(u => u.Username == "User 1").Role,
+            Is.EqualTo(SFProjectRole.Administrator)
+        );
+        Assert.That(
+            project.ParatextUsers.Single(u => u.Username == "User 2").Role,
+            Is.EqualTo(SFProjectRole.Translator)
+        );
+    }
+
+    [Test]
     public async Task SyncAsync_SyncMetricsSetsDateStartedAndDateFinished()
     {
         var env = new TestEnvironment();
