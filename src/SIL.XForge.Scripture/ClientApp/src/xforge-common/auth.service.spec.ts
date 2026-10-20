@@ -44,7 +44,7 @@ import { SharedbRealtimeRemoteStore } from './sharedb-realtime-remote-store';
 import { provideTestOnlineStatus } from './test-online-status-providers';
 import { TestOnlineStatusService } from './test-online-status.service';
 import { configureTestingModule, getTestTranslocoModule } from './test-utils';
-import { aspCultureCookieValue } from './utils';
+import { ASP_CULTURE_COOKIE_NAME, aspCultureCookieValue } from './utils';
 
 const mockedAuth0Service = mock(Auth0Service);
 const mockedLocationService = mock(LocationService);
@@ -164,7 +164,11 @@ describe('AuthService', () => {
     expect(env.accessToken).withContext('logged out accessToken').toBeUndefined();
     expect(env.service.expiresAt).withContext('logged out expiresAt').toBeUndefined();
     verify(mockedWebAuth.logout(anything())).once();
-    verify(mockedCookieService.deleteAll('/')).once();
+    verify(mockedCookieService.delete(TransparentAuthenticationCookie, '/')).once();
+    verify(mockedCookieService.delete('other.cookie', '/')).once();
+    // The interface language cookie is kept so the landing page stays in the user's language
+    verify(mockedCookieService.delete(ASP_CULTURE_COOKIE_NAME, anything())).never();
+    verify(mockedCookieService.deleteAll(anything())).never();
     verify(mockedDialogService.confirm(anything(), anything(), anything())).never();
     const [logoutOptions] = capture(mockedWebAuth.logout).last();
     expect(logoutOptions).withContext('logged out logoutOptions').toBeDefined();
@@ -830,6 +834,11 @@ class TestEnvironment {
       setTransparentAuthenticationCookie === true
     );
     when(mockedCookieService.get(anyString())).thenReturn(aspCultureCookieValue(this.language));
+    when(mockedCookieService.getAll()).thenReturn({
+      [ASP_CULTURE_COOKIE_NAME]: aspCultureCookieValue(this.language),
+      [TransparentAuthenticationCookie]: 'value',
+      'other.cookie': 'value'
+    });
     when(mockedLocalSettingsService.remoteChanges$).thenReturn(this._localeSettingsRemoveChanges);
     when(mockedLocalSettingsService.get(anyString())).thenCall(key => this.localSettings.get(key));
     when(mockedLocalSettingsService.set(anyString(), anything())).thenCall((key, value) => {

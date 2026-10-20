@@ -275,7 +275,12 @@ export class AuthService {
       );
     }
     if (proceedWithLogout) {
-      this.cookieService.deleteAll('/');
+      // Keep the interface language cookie so the landing page is still shown in the user's language
+      for (const cookieName of Object.keys(this.cookieService.getAll())) {
+        if (cookieName !== ASP_CULTURE_COOKIE_NAME) {
+          this.cookieService.delete(cookieName, '/');
+        }
+      }
       await this.offlineStore.deleteDB();
       this.localSettings.clear();
       this.unscheduleRenewal();
