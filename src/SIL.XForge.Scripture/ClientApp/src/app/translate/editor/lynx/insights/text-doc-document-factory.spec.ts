@@ -46,6 +46,36 @@ describe('TextDocDocumentFactory', () => {
     expect(verseTextOffset(doc)).toBe(8);
   });
 
+  it('keeps the paragraph style when the \\id line becomes an ordinary paragraph', () => {
+    const factory = new TextDocDocumentFactory();
+    const doc = factory.create('uri', { format: 'scripture-delta', version: 1, content: textDocDelta });
+
+    factory.update(doc, {
+      version: 2,
+      contentChanges: new Delta().retain(10).retain(1, { book: null, para: { style: 'mt1' } }).ops
+    });
+
+    // Not 'p', which is what Lynx makes of a newline that has lost its para attribute
+    const para = doc.children[0] as ScriptureParagraph;
+    expect(para.type).toBe(ScriptureNodeType.Paragraph);
+    expect(para.style).toBe('mt1');
+    expect(verseTextOffset(doc)).toBe(13);
+  });
+
+  it('removes the \\id paragraph style when the book attribute is removed', () => {
+    const factory = new TextDocDocumentFactory();
+    const doc = factory.create('uri', { format: 'scripture-delta', version: 1, content: textDocDelta });
+
+    factory.update(doc, { version: 2, contentChanges: new Delta().retain(10).retain(1, { book: null }).ops });
+
+    // Lynx treats a newline without attributes as an implicit 'p' paragraph
+    expect([...doc.findNodes(ScriptureNodeType.Paragraph)].map(n => (n as ScriptureParagraph).style)).toEqual([
+      'p',
+      'p'
+    ]);
+    expect(verseTextOffset(doc)).toBe(13);
+  });
+
   it('accepts content as a JSON string', () => {
     const doc = new TextDocDocumentFactory().create('uri', {
       format: 'scripture-delta',
