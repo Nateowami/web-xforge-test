@@ -1422,6 +1422,32 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('shows note on a verse that has been combined with another verse', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.addParatextNoteThread(6, 'LUK 1:2', '', { start: 0, length: 0 }, ['user01']);
+      env.addParatextNoteThread(7, 'LUK 1:3', '', { start: 0, length: 0 }, ['user01']);
+      env.addParatextNoteThread(8, 'LUK 1:6', '', { start: 0, length: 0 }, ['user01']);
+      env.wait();
+
+      expect(env.getNoteThreadIconElement('verse_1_2-3', 'dataid06')).not.toBeNull();
+      expect(env.getNoteThreadIconElement('verse_1_2-3', 'dataid07')).not.toBeNull();
+      // Verses with letters must still match exactly, so the note on verse 6 is not shown on verse 6a
+      expect(env.getNoteThreadIconElement('verse_1_6a', 'dataid08')).toBeNull();
+      env.dispose();
+    }));
+
+    it('shows note on a combined verse that has been separated', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.addParatextNoteThread(6, 'MAT 1:2-3', '', { start: 0, length: 0 }, ['user01']);
+      env.setProjectUserConfig();
+      env.wait();
+
+      expect(env.getNoteThreadIconElement('verse_1_2', 'dataid06')).not.toBeNull();
+      env.dispose();
+    }));
+
     it('highlights note icons when new content is unread', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setCurrentUser('user02');

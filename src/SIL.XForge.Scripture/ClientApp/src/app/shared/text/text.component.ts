@@ -57,6 +57,8 @@ import { EditorRange, TextViewModel } from './text-view-model';
 // When a user is active in the editor a timer starts to mark them as inactive for remote presences
 export const PRESENCE_EDITOR_ACTIVE_TIMEOUT = 3500;
 export const EDITOR_READY_TIMEOUT = 100;
+/** Matches a verse string with a letter part, e.g. 6a */
+const VERSE_LETTER_REGEX = /[a-z]/i;
 
 export interface TextUpdatedEvent {
   delta?: Delta;
@@ -760,11 +762,16 @@ export class TextComponent implements AfterViewInit, OnDestroy {
    * Get segments compatible for a given verseRef. For verses with letters, only return the segments
    * that explicitly contain the letter or non-verse segment in the range.
    * i.e. LUK 1:1a will match segments verse_1_1a, verse_1_1a/p1, s_1 but not verse_1_1 or verse_1_1b.
+   * Verses without letters match combined verses, so LUK 1:3 matches verse_1_2-3, and LUK 1:2-3 matches verse_1_2.
    */
   getCompatibleSegments(verseRef: VerseRef): string[] {
     const segments: string[] = this.getVerseSegments(verseRef);
     const defaultValue: string = verseRef.verse;
-    return segments.filter(s => verseRef.verse === (getVerseStrFromSegmentRef(s) ?? defaultValue));
+    return segments.filter(s => {
+      const segmentVerse: string = getVerseStrFromSegmentRef(s) ?? defaultValue;
+      if (segmentVerse === verseRef.verse) return true;
+      return !VERSE_LETTER_REGEX.test(segmentVerse) && !VERSE_LETTER_REGEX.test(verseRef.verse);
+    });
   }
 
   getVerseSegmentsNoHeadings(verseRef: VerseRef): string[] {
