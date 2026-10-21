@@ -2743,8 +2743,33 @@ describe('EditorComponent', () => {
       expect(noteThread.notes[0].ownerRef).toEqual(userId);
       expect(noteThread.notes[0].content).toEqual(content);
       expect(noteThread.notes[0].tagId).toEqual(2);
+      expect(noteThread.originalSelectedText).toEqual('target: chapter 1, verse 4.');
       expect(env.isNoteIconHighlighted(noteThread.dataId)).toBeFalse();
       expect(env.component.target!.segment!.ref).toBe('verse_1_4');
+
+      env.dispose();
+    }));
+
+    it('inserts note with verse text on first verse when cursor is in paragraph before first verse', fakeAsync(() => {
+      const projectId: string = 'project01';
+      const env = new TestEnvironment();
+      env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_1' });
+      env.wait();
+      env.setSelectionAndInsertNote('p_1');
+      expect(env.component.target!.segment!.ref).toBe('p_1');
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).once();
+      const [, config] = capture(mockedMatDialog.open).last();
+      expect((config as MatDialogConfig).data!.verseRef.toString()).toEqual('MAT 1:1');
+
+      const content: string = 'note made from the paragraph start';
+      // SUT
+      env.mockNoteDialogRef.close({ noteContent: content });
+      env.wait();
+      verify(mockedSFProjectService.createNoteThread(projectId, anything())).once();
+      const [, noteThread] = capture(mockedSFProjectService.createNoteThread).last();
+      expect(noteThread.verseRef).toEqual(fromVerseRef(new VerseRef('MAT 1:1')));
+      expect(noteThread.originalSelectedText).toEqual('target: chapter 1, verse 1.');
+      expect(noteThread.notes[0].content).toEqual(content);
 
       env.dispose();
     }));

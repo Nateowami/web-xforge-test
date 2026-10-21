@@ -1349,6 +1349,13 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     };
     if (params.threadDataId == null) {
       if (params.verseRef == null) return;
+      // Use the text of the verse the note is on, not of the segment the cursor is in, which can be a different
+      // segment, such as the blank segment at the start of the paragraph before verse 1
+      let verseText: string = '';
+      if (this.target != null) {
+        const verseSegmentRef: string | undefined = this.target.getCompatibleSegments(params.verseRef)[0];
+        if (verseSegmentRef != null) verseText = this.target.getSegmentText(verseSegmentRef);
+      }
       // Create a new thread
       const noteThread: NoteThread = {
         dataId: objectId(),
@@ -1359,7 +1366,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         notes: [note],
         position: { start: 0, length: 0 },
         originalContextBefore: '',
-        originalSelectedText: this.target?.segmentText!,
+        originalSelectedText: verseText,
         originalContextAfter: '',
         status: NoteStatus.Todo,
         publishedToSF: true
@@ -1540,7 +1547,6 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       data: noteDialogData
     });
 
-    const currentVerseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
     this.setNoteFabVisibility('hidden');
     const result: NoteDialogResult | undefined = await lastValueFrom(dialogRef.afterClosed());
 
@@ -1550,7 +1556,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
           content: result.noteContent,
           threadDataId: threadDataId,
           dataId: result.noteDataId,
-          verseRef: currentVerseRef,
+          // The verse the dialog was opened for, which is the first verse when no verse was selected
+          verseRef: verseRef,
           status: result.status
         });
       }
