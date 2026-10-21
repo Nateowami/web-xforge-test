@@ -2621,6 +2621,26 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('deselects verse and removes insert note button when a commenter loses the right to add comments on desktop', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.setCommenterUser();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      env.clickSegmentRef('verse_1_1');
+      env.wait();
+      const verseElem: HTMLElement = env.getSegmentElement('verse_1_1')!;
+      expect(verseElem.classList).toContain('commenter-selection');
+      expect(env.insertNoteFab).toBeTruthy();
+
+      env.changeUserRole('project01', 'user05', SFProjectRole.Viewer);
+      expect(verseElem.classList).not.toContain('commenter-selection');
+      expect(env.insertNoteFab).toBeNull();
+
+      env.dispose();
+    }));
+
     it('shows current selected verse on bottom sheet', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
