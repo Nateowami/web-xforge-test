@@ -600,7 +600,12 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                 quietTakeUntilDestroyed(this.destroyRef)
               )
               .subscribe(() => {
-                if (this.hideChapterText) this.showScriptureAudioPlayer = true;
+                if (this.hideChapterText) {
+                  this.showScriptureAudioPlayer = true;
+                } else if (this.showScriptureAudioPlayer && !this.isAudioPlaying()) {
+                  // Close the player that was opened only because the text was hidden, so the answers show again
+                  this.hideChapterAudio();
+                }
                 this.calculateScriptureSliderPosition();
               });
 
@@ -1793,7 +1798,6 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     this.questionsRemoteChangesSub?.unsubscribe();
     this.questionsQuery?.dispose();
     this.textAudioQuery?.dispose();
-    this.hideTextSub?.unsubscribe();
     this.textAudioSub?.unsubscribe();
     this.defaultQuestionsQuery?.dispose();
     this.defaultQuestionsQuerySub?.unsubscribe();
