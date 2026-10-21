@@ -38,6 +38,19 @@ describe('OwnerComponent', () => {
     expect(env.userName).toBe('checking.unknown_author');
   }));
 
+  it('displays the new owner when ownerRef changes', fakeAsync(() => {
+    const template = '<app-owner #checkingOwner ownerRef="user01"></app-owner>';
+    const env = new TestEnvironment(template);
+    tick();
+    env.fixture.detectChanges();
+    expect(env.userName).toBe('User 01');
+
+    env.fixture.componentInstance.checkingOwner.ownerRef = 'user02';
+    tick();
+    env.fixture.detectChanges();
+    expect(env.userName).toBe('User 02');
+  }));
+
   it('displays avatar', () => {
     const template = '<app-owner #checkingOwner ownerRef="user01" [includeAvatar]="true"></app-owner>';
     const env = new TestEnvironment(template);
@@ -110,6 +123,10 @@ class TestEnvironment {
     this.realtimeService.addSnapshot<UserProfile>(UserProfileDoc.COLLECTION, {
       id: 'user01',
       data: createTestUserProfile({ displayName: 'User 01' })
+    });
+    this.realtimeService.addSnapshot<UserProfile>(UserProfileDoc.COLLECTION, {
+      id: 'user02',
+      data: createTestUserProfile({ displayName: 'User 02' })
     });
     when(this.mockedTranslocoService.translate<string>(anything())).thenCall(
       (translationStringKey: string) => translationStringKey

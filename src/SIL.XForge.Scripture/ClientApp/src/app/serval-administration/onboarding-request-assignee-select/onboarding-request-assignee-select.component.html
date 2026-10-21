@@ -5,10 +5,7 @@
       @if (select.value === "") {
         Unassigned
       } @else {
-        <!-- Keyed on the ID so that a new owner component (which only loads its user in ngOnInit) is created -->
-        @for (userId of [select.value]; track userId) {
-          <app-owner [ownerRef]="userId"></app-owner>
-        }
+        <app-owner class="selected-owner" [ownerRef]="select.value"></app-owner>
       }
     </mat-select-trigger>
     <mat-option value="">
