@@ -372,6 +372,18 @@ describe('AppComponent', () => {
     expect(env.location.path()).toEqual('/projects');
   }));
 
+  it('tells a removed user only once when their removal arrives as several ops', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.navigate(['/projects', 'project01']);
+    env.init();
+
+    env.removeUserWithPermissionsFromProject('project01');
+    tick();
+    verify(mockedDialogService.message('app.project_has_been_deleted')).once();
+    verify(mockedSFProjectService.localDelete('project01')).once();
+    expect(env.location.path()).toEqual('/projects');
+  }));
+
   it('response to remote project change for serval admin', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setCurrentUser('user05');
@@ -1012,6 +1024,17 @@ class TestEnvironment {
   removeUserFromProject(projectId: string): void {
     const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, projectId);
     projectDoc.submitJson0Op(op => op.unset<string>(p => p.userRoles['user01']), false);
+    this.wait();
+  }
+
+  removeUserWithPermissionsFromProject(projectId: string): void {
+    const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, projectId);
+    projectDoc.submitJson0Op(op => op.set(p => p.userPermissions['user01'], ['questions.create']), false);
+    this.wait();
+    // The backend unsets the role and then the permissions in separate ops, which arrive before the app leaves the
+    // project
+    projectDoc.submitJson0Op(op => op.unset(p => p.userRoles['user01']), false);
+    projectDoc.submitJson0Op(op => op.unset(p => p.userPermissions['user01']), false);
     this.wait();
   }
 
