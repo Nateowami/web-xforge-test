@@ -114,12 +114,9 @@ a {
 mat-radio-group.tool-setting {
   .radio-options {
     display: flex;
-
-    // Side by side, the options cannot shrink narrower than their longest words, which pushes the last one
-    // off the edge of a phone screen.
-    @include breakpoints.media-breakpoint-down(xs) {
-      flex-direction: column;
-    }
+    // Wrap rather than overflow when the options don't fit on one line, as on a phone or with long labels.
+    flex-wrap: wrap;
+    column-gap: 10px;
   }
 
   mat-radio-button {
