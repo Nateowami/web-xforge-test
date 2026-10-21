@@ -139,7 +139,7 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
   }
 
   async create(data: T, type?: string): Promise<void> {
-    void this.adapter.create(data, type).then(() => this.updateOfflineData(true));
+    void this.submitCreate(data, type);
     this.loadOfflineDataPromise = Promise.resolve();
     await this.updateOfflineData(true);
     await this.realtimeService.onLocalDocUpdate(this);
@@ -251,18 +251,31 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     const offlineData = await this.realtimeService.offlineStore.get<RealtimeOfflineData>(this.collection, this.id);
     if (offlineData != null) {
       if (offlineData.v == null) {
-        // A record with no version is a create that has not been acknowledged yet. Another tab may have written it, in
-        // which case this tab can already have the doc from the server, and creating it again would fail.
-        if (this.isLoaded) {
-          return;
-        }
-        void this.adapter.create(offlineData.data, offlineData.type).then(() => this.updateOfflineData(true));
+        void this.submitCreate(offlineData.data, offlineData.type);
       } else {
         await this.adapter.ingestSnapshot(offlineData);
         this.offlineSnapshotVersion = this.adapter.version;
         this.adapter.updatePendingOps(offlineData.pendingOps);
       }
     }
+  }
+
+  /**
+   * Submits a create op for this doc. Tabs share the offline store, so a create that has not been acknowledged yet
+   * (stored without a version) may be submitted by both the tab that created the doc and another tab that loaded it from
+   * the offline store. Whichever create loses is rejected because the doc already exists. ShareDB then holds the
+   * server's snapshot of the doc, which was created from the same data, so that rejection is not an error.
+   */
+  private async submitCreate(data: T, type?: string): Promise<void> {
+    try {
+      await this.adapter.create(data, type);
+    } catch (err) {
+      // ShareDB's error typings declare a numeric code, but ShareDB 5 uses string codes.
+      if ((err as { code?: unknown } | undefined)?.code !== 'ERR_DOC_ALREADY_CREATED') {
+        throw err;
+      }
+    }
+    await this.updateOfflineData(true);
   }
 
   private async subscribeToChanges(): Promise<void> {
