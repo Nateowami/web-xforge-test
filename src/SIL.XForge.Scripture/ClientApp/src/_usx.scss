@@ -384,6 +384,13 @@ usx-char {
       content: ')';
     }
   }
+
+  &[data-style~='vp'] {
+    font-size: 70%;
+    color: var(--sf-usx-vp-color);
+    top: -0.5em;
+    position: relative;
+  }
 }
 
 usx-chapter {
@@ -425,6 +432,13 @@ usx-verse {
       &:after {
         content: ')';
       }
+    }
+    span[data-style='vp'] {
+      font-size: 85%;
+      color: var(--sf-usx-vp-color);
+      top: -0.25em;
+      position: relative;
+      margin-left: 0.15em;
     }
   }
 }

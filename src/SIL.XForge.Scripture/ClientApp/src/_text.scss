@@ -28,6 +28,7 @@
   --sf-usx-toc1-color: #{if($is-dark, #4bb74b, #004000)};
   --sf-usx-toc2-color: #{if($is-dark, #4bb74b, #004000)};
   --sf-usx-toc3-color: #{if($is-dark, #cf2f2f, #800000)};
+  --sf-usx-vp-color: #{if($is-dark, #7aa2ff, #1c4fd8)};
 
   $invalid-color: mat.get-theme-color($theme, error, if($is-dark, 70, 40));
   $invalid-color-hex: string.slice(meta.inspect($invalid-color), 2);

@@ -708,6 +708,15 @@ describe('Quill blots', () => {
       expect(altSpan?.innerText).toBe('2');
     });
 
+    it('should create verse node with pubnumber', () => {
+      const verseValue = { number: '1', pubnumber: '1a' };
+      const node = VerseEmbed.create(verseValue) as HTMLElement;
+
+      const pubSpan = node.querySelector('[data-style="vp"]') as HTMLElement | null;
+      expect(pubSpan?.innerText).toBe('1a');
+      expect(VerseEmbed.value(node)).toEqual(verseValue);
+    });
+
     it('should retrieve verse value from node', () => {
       const verseValue = { number: '1' };
       const node = VerseEmbed.create(verseValue) as HTMLElement;
