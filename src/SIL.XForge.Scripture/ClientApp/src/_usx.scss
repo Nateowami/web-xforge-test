@@ -429,13 +429,6 @@ usx-verse {
   }
 }
 
-span.commenter-selection > usx-verse {
-  span > span > span {
-    color: white;
-    background-color: $greyDark;
-  }
-}
-
 usx-note {
   > span {
     // superscript
@@ -520,5 +513,14 @@ quill-editor.read-only-editor {
   usx-verse > span > span > span {
     background-color: var(--sf-usx-readonly-verse-background);
     color: var(--sf-usx-readonly-verse-color);
+  }
+}
+
+// Must come after the read-only verse style above, which has the same specificity; commenters always have a
+// read-only editor and would otherwise never see their selected verse number highlighted.
+span.commenter-selection > usx-verse {
+  span > span > span {
+    color: white;
+    background-color: $greyDark;
   }
 }
