@@ -199,7 +199,7 @@
 
         @case ("invalid_file_type") {
           <div>
-            {{ t("invalid_file_type", { fileName: invalidFileName, fileTypes: fileExtensions.split(",").join(", ") }) }}
+            {{ t("invalid_file_type", { fileName: invalidFileName, fileTypes: fileExtensionsForDisplay }) }}
           </div>
         }
 
