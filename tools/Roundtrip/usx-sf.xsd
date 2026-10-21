@@ -728,6 +728,7 @@
       <xs:choice minOccurs="0" maxOccurs="unbounded">
         <xs:group ref="NoteChar"/>
         <xs:element ref="link"/>
+        <xs:element ref="optbreak"/>
         <xs:element ref="unmatched"/>
       </xs:choice>
       <xs:attribute name="style" use="required">
@@ -753,6 +754,7 @@
             <xs:group ref="Char"/>
             <xs:element ref="link"/>
             <xs:element ref="ref"/>
+            <xs:element ref="optbreak"/>
             <xs:element ref="unmatched"/>
           </xs:choice>
           <xs:attribute name="style" use="required">
