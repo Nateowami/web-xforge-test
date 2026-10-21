@@ -16,8 +16,10 @@
         <mat-panel-description>
           <span class="status" [ngClass]="getStatus(entry.state).color">
             <app-display-confidence [showIconAndText]="hasLowConfidence(entry)"></app-display-confidence>
-            <mat-icon class="status-icon">{{ getStatus(entry.state).icons }}</mat-icon>
-            {{ t(getStatus(entry.state).text) }}
+            <span class="state">
+              <mat-icon class="status-icon">{{ getStatus(entry.state).icons }}</mat-icon>
+              {{ t(getStatus(entry.state).text) }}
+            </span>
           </span>
         </mat-panel-description>
       </mat-expansion-panel-header>
