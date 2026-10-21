@@ -18,7 +18,7 @@ import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { TranslocoModule } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
-import { cloneDeep } from 'lodash-es';
+import { cloneDeep, union } from 'lodash-es';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { Answer, AnswerStatus } from 'realtime-server/lib/esm/scriptureforge/models/answer';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
@@ -186,6 +186,10 @@ export class CheckingAnswersComponent implements OnInit {
       this.hideAnswerForm();
     }
     this._questionDoc = questionDoc;
+    if (this.projectUserConfigDoc != null && this.projectUserConfigDoc.data != null) {
+      this.userAnswerRefsRead = cloneDeep(this.projectUserConfigDoc.data.answerRefsRead);
+    }
+
     this.showRemoteAnswers();
     if (questionDoc == null) {
       return;
@@ -365,8 +369,8 @@ export class CheckingAnswersComponent implements OnInit {
     if (this.projectUserConfigDoc == null || this.projectUserConfigDoc.data == null) {
       return;
     }
-    // update read answers list so when the answers are rendered again after editing they won't be shown as unread
-    this.userAnswerRefsRead = cloneDeep(this.projectUserConfigDoc.data.answerRefsRead);
+    // So that when the answers are rendered again after editing they won't be shown as unread
+    this.markShownAnswersAsSeen();
     this.activeAnswer = cloneDeep(answer);
     if (this.activeAnswer.verseRef != null) {
       this.verseRef = toVerseRef(this.activeAnswer.verseRef);
@@ -560,11 +564,7 @@ export class CheckingAnswersComponent implements OnInit {
     if (this.questionDoc == null || this.questionDoc.data == null) {
       return;
     }
-    // Answers already on screen were marked as read when they were shown, so take a fresh copy of the read answers.
-    // Otherwise revealing new answers would spotlight the answers the user has already read as well.
-    if (this.projectUserConfigDoc?.data != null) {
-      this.userAnswerRefsRead = cloneDeep(this.projectUserConfigDoc.data.answerRefsRead);
-    }
+    this.markShownAnswersAsSeen();
     this._answersToShow = this.questionDoc.getAnswers().map(answer => answer.dataId);
     this.refreshAnswersHighlightStatus();
     this.justEditedAnswer = false;
@@ -635,6 +635,17 @@ export class CheckingAnswersComponent implements OnInit {
       // Reuse any existing object URL, since a new one would stop the audio if it is playing
       this.fileSources.set(audioUrl, URL.createObjectURL(audio));
     }
+  }
+
+  /**
+   * Adds the answers on screen to the answers the user has read, so they are not spotlighted again. This is used rather
+   * than re-reading answerRefsRead, which can also contain answers that are still held back and so not yet seen.
+   */
+  private markShownAnswersAsSeen(): void {
+    this.userAnswerRefsRead = union(
+      this.userAnswerRefsRead,
+      this.answers.map(answer => answer.dataId)
+    );
   }
 
   private refreshAnswersHighlightStatus(): void {

@@ -2015,6 +2015,30 @@ describe('CheckingComponent', () => {
       expect(env.getAnswer(1).classes['attention']).toBeUndefined();
     }));
 
+    it('highlights a held back answer that was marked read while proj admin added an answer', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      env.selectQuestion(6);
+      env.simulateNewRemoteAnswer('remoteAnswerId123');
+      // Saving an answer marks every answer on the question as read, including the one still held back
+      env.answerQuestion('Admin answer');
+      tick(env.questionReadTimer);
+      expect(env.component.answersPanel!.projectUserConfigDoc!.data!.answerRefsRead)
+        .withContext('setup: held back answer is marked read')
+        .toContain('remoteAnswerId123');
+
+      env.clickButton(env.showUnreadAnswersButton);
+      tick(env.questionReadTimer);
+      env.fixture.detectChanges();
+
+      const answerIds: string[] = env.component.answersPanel!.answers.map(a => a.dataId);
+      expect(answerIds).toContain('remoteAnswerId123');
+      for (let i = 0; i < answerIds.length; i++) {
+        expect(env.getAnswer(i).classes['attention'] === true)
+          .withContext(answerIds[i])
+          .toBe(answerIds[i] === 'remoteAnswerId123');
+      }
+    }));
+
     it('proj admin sees total answer count if >0 answers', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER });
       // Select a question with at least one answer, but with no answers
