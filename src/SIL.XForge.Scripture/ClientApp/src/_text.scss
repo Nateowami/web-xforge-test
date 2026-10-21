@@ -213,8 +213,13 @@ quill-editor {
       width: 1.25rem;
       height: 1.25rem;
       display: inline-block;
-      background: var(--icon-file) no-repeat;
+      background: var(--icon-file) no-repeat center;
       margin: 0 0.1em;
+      // The icon has a constant size, so with a small font it is taller than the line. Cancel its height (including
+      // borders) so it never makes its line taller than the others, and lower it by the gap below the centered 16px
+      // image so the image stands on the baseline.
+      margin-top: calc(-1.25rem - 2px);
+      vertical-align: -3px;
       border: solid 1px transparent;
     }
     &.note-thread-highlight {

@@ -32,6 +32,7 @@ import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextDoc, TextDocId } from '../../core/models/text-doc';
 import { SFProjectService } from '../../core/sf-project.service';
 import { getCombinedVerseTextDoc, getEmptyChapterDoc, getPoetryVerseTextDoc, getTextDoc } from '../test-utils';
+import { formatFontSizeToRems } from '../utils';
 import { provideQuillRegistrations } from './quill-editor-registration/quill-providers';
 import { getAttributesAtPosition } from './quill-util';
 import { TextNoteDialogComponent, TextNoteType } from './text-note-dialog/text-note-dialog.component';
@@ -579,6 +580,27 @@ describe('TextComponent', () => {
     // the paragraph break following the segment must still be intact
     expect(textDoc.data!.ops![0].insert).toEqual('Title for chapter 1');
     expect(textDoc.data!.ops![1].insert).toEqual('\n');
+
+    TestEnvironment.waitForPresenceTimer();
+    flush();
+  }));
+
+  it('does not make a line taller when it has a note icon and the font is small', fakeAsync(() => {
+    const env = new TestEnvironment();
+    // The smallest font size Paratext allows (8pt) is shorter than the note icon
+    env.hostComponent.fontSize = formatFontSizeToRems(8);
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    const paragraph: HTMLElement = env.getSegment('verse_1_1')!.closest('usx-para')!;
+    const heightWithoutNote: number = paragraph.getBoundingClientRect().height;
+
+    env.embedNoteAtVerse(1);
+    tick();
+    env.fixture.detectChanges();
+
+    expect(paragraph.querySelector('display-note')).not.toBeNull();
+    expect(paragraph.getBoundingClientRect().height).toEqual(heightWithoutNote);
 
     TestEnvironment.waitForPresenceTimer();
     flush();
@@ -1870,6 +1892,7 @@ class MockQuill extends Quill {
     [isRightToLeft]="isTextRightToLeft"
     [isReadOnly]="isReadOnly"
     [enablePresence]="enablePresence"
+    [fontSize]="fontSize"
     (presenceChange)="onPresenceChange($event)"
   ></app-text>`,
   imports: [TextComponent]
@@ -1881,6 +1904,7 @@ class HostComponent {
   initialPlaceHolder: string | undefined;
   isTextRightToLeft: boolean = false;
   isReadOnly: boolean = false;
+  fontSize?: string;
   id?: TextDocId;
   remotePresences?: RemotePresences;
 
