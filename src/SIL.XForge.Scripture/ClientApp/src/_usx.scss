@@ -429,6 +429,15 @@ usx-verse {
   }
 }
 
+// The quill-editor prefix outranks the quill-editor.read-only-editor verse style below, so the verse number selected
+// for a comment is also highlighted in read-only editors, such as for commenters or chapters without edit permission.
+quill-editor span.commenter-selection > usx-verse {
+  span > span > span {
+    color: var(--sf-usx-selected-verse-color);
+    background-color: var(--sf-usx-selected-verse-background);
+  }
+}
+
 usx-note {
   > span {
     // superscript
@@ -513,14 +522,5 @@ quill-editor.read-only-editor {
   usx-verse > span > span > span {
     background-color: var(--sf-usx-readonly-verse-background);
     color: var(--sf-usx-readonly-verse-color);
-  }
-}
-
-// Must come after the read-only verse style above, which has the same specificity; commenters always have a
-// read-only editor and would otherwise never see their selected verse number highlighted.
-span.commenter-selection > usx-verse {
-  span > span > span {
-    color: white;
-    background-color: $greyDark;
   }
 }

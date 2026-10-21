@@ -2919,6 +2919,29 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('highlights the verse number selected by a commenter', fakeAsync(() => {
+      // The theme stylesheets that define these colors are not loaded in tests
+      const rootStyle: CSSStyleDeclaration = document.documentElement.style;
+      rootStyle.setProperty('--sf-usx-readonly-verse-background', 'rgb(1, 1, 1)');
+      rootStyle.setProperty('--sf-usx-selected-verse-background', 'rgb(2, 2, 2)');
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.setCommenterUser();
+      env.wait();
+      expect(env.targetTextEditor.closest('quill-editor')!.classList).toContain('read-only-editor');
+      const verseNumberBackground = (): string =>
+        window.getComputedStyle(env.getVerseNumberElement('1')!).backgroundColor;
+      expect(verseNumberBackground()).toEqual('rgb(1, 1, 1)');
+
+      env.getSegmentElement('verse_1_1')!.click();
+      env.wait();
+      expect(verseNumberBackground()).toEqual('rgb(2, 2, 2)');
+
+      rootStyle.removeProperty('--sf-usx-readonly-verse-background');
+      rootStyle.removeProperty('--sf-usx-selected-verse-background');
+      env.dispose();
+    }));
+
     it('does not select verse when opening a note thread', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
@@ -4892,6 +4915,14 @@ class TestEnvironment {
 
   getSegmentElement(segmentRef: string): HTMLElement | null {
     return this.targetEditor.container.querySelector('usx-segment[data-segment="' + segmentRef + '"]');
+  }
+
+  /** Gets the badge that shows the verse number. */
+  getVerseNumberElement(verseNumber: string): HTMLElement | undefined {
+    const verse: Element | undefined = Array.from(this.targetEditor.container.querySelectorAll('usx-verse')).find(
+      v => v.textContent?.trim() === verseNumber
+    );
+    return verse?.querySelector<HTMLElement>(':scope > span > span > span') ?? undefined;
   }
 
   getTextDoc(textId: TextDocId): TextDoc {
