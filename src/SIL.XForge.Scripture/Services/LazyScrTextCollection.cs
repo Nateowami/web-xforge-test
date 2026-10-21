@@ -1,9 +1,11 @@
+using System;
 using System.IO;
 using System.Linq;
 using System.Xml.Linq;
 using Paratext.Data;
 using Paratext.Data.ProjectFileAccess;
 using Paratext.Data.ProjectSettingsAccess;
+using PtxUtils;
 using SIL.Scripture;
 using SIL.XForge.Scripture.Models;
 using SIL.XForge.Services;
@@ -29,7 +31,7 @@ public class LazyScrTextCollection : IScrTextCollection
         ScrTextCollection.Implementation = new SFScrTextCollection();
         ScrTextCollection.Initialize(projectsPath);
         // Allow use of custom versification systems
-        Versification.Table.Implementation = new ParatextVersificationTable();
+        Versification.Table.Implementation = new SFVersificationTable(GetCustomVersification);
     }
 
     /// <summary>
@@ -70,10 +72,10 @@ public class LazyScrTextCollection : IScrTextCollection
             if (baseSettingsFile is null)
                 return scrText;
 
-            scrText.Settings.Versification = GetVersificationFromSettings(
-                baseSettingsFile,
-                scrText.Settings.TranslationInfo.BaseProjectGuid
-            );
+            // Only the versification type is set here, as setting a customized versification would store it as
+            // Unknown. The SFVersificationTable applies the base project's customizations when the versification is
+            // loaded.
+            scrText.Settings.Versification = GetVersificationFromSettings(baseSettingsFile);
         }
 
         // Return the Scripture Text object
@@ -140,12 +142,11 @@ public class LazyScrTextCollection : IScrTextCollection
     }
 
     /// <summary>
-    /// Gets the versification of the project from its Settings file.
+    /// Gets the versification type of the project from its Settings file.
     /// </summary>
     /// <param name="settingsFilePath">The path to the settings file.</param>
-    /// <param name="guid">The project's GUID.</param>
-    /// <returns>The project versification, or null if missing.</returns>
-    private ScrVers? GetVersificationFromSettings(string settingsFilePath, HexId guid)
+    /// <returns>The project versification type, without any customizations.</returns>
+    private ScrVers GetVersificationFromSettings(string settingsFilePath)
     {
         string contents = FileSystemService.FileReadText(settingsFilePath);
         XElement root = XElement.Parse(contents);
@@ -153,12 +154,64 @@ public class LazyScrTextCollection : IScrTextCollection
         if (
             string.IsNullOrEmpty(versificationElem?.Value)
             || !int.TryParse(versificationElem.Value, out int versification)
+            || !Enum.IsDefined((ScrVersType)versification)
+            || (ScrVersType)versification == ScrVersType.Unknown
         )
         {
             return ScrVers.English;
         }
 
-        // Get versification along with any project-specific customizations.
-        return new ScrVers((ScrVersType)versification + "-" + guid);
+        return new ScrVers((ScrVersType)versification);
+    }
+
+    /// <summary>
+    /// Gets the base project ID of a derived translation (e.g. a back translation) from its Settings file.
+    /// </summary>
+    /// <param name="settingsFilePath">The path to the settings file.</param>
+    /// <returns>The base project ID, or null if the project is not a derived translation.</returns>
+    private HexId? GetBaseProjectIdFromSettings(string settingsFilePath)
+    {
+        string contents = FileSystemService.FileReadText(settingsFilePath);
+        XElement root = XElement.Parse(contents);
+        string? translationInfo =
+            root.Element(nameof(Setting.TranslationInfo))?.Value
+            ?? root.Element(nameof(Setting.BaseTranslation))?.Value;
+
+        // This is in the format "{project type}:{base project name}:{base project id}"
+        string[] parts = translationInfo?.Split(':', 3) ?? [];
+        if (parts.Length != 3 || string.IsNullOrEmpty(parts[1]) || !new Enum<ProjectType>(parts[0]).IsDerivedType())
+            return null;
+        return HexId.FromStrSafe(parts[2]);
+    }
+
+    /// <summary>
+    /// Gets the custom versification file that applies to a project.
+    /// </summary>
+    /// <param name="projectId">The Paratext project identifier.</param>
+    /// <returns>The path and contents of the custom.vrs file, or null if the versification is not customized.</returns>
+    /// <remarks>
+    /// Paratext uses the base project's versification for a derived translation, so the base project's custom.vrs
+    /// is used if the base project is present.
+    /// </remarks>
+    private (string Path, string Contents)? GetCustomVersification(string projectId)
+    {
+        string? projectPath = GetProjectPath(projectId);
+        if (projectPath is null)
+            return null;
+
+        string? settingsFile = GetSettingsFilePath(projectPath);
+        if (
+            settingsFile is not null
+            && GetBaseProjectIdFromSettings(settingsFile) is HexId baseProjectId
+            && GetProjectPath(baseProjectId.Id) is string baseProjectPath
+        )
+        {
+            projectPath = baseProjectPath;
+        }
+
+        string customVersificationPath = Path.Join(projectPath, ParatextVersificationTable.customVersFilename);
+        if (!FileSystemService.FileExists(customVersificationPath))
+            return null;
+        return (customVersificationPath, FileSystemService.FileReadText(customVersificationPath));
     }
 }
