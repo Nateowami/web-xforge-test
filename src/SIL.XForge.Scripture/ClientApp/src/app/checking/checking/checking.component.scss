@@ -7,6 +7,10 @@ $questionsPanelBreakpoint: 700px;
 
 $questionsHeaderInlineStartPadding: 8px;
 
+// Narrowest text panel in which the labelled Add Question button and the labelled previous/next buttons fit on one
+// line in every locale (the longest labels are Indonesian and Western Kayah Li)
+$labelledAddQuestionMinWidth: 560px;
+
 :host {
   display: flex;
   flex: 1;
@@ -130,6 +134,9 @@ header {
   flex-grow: 1;
   // setting min width prevents the element from overflowing the flex parent
   min-width: 0;
+  // The panel's width depends on whether the navigation drawer and questions panel are shown, not just on the
+  // viewport width, so #question-nav sizes its buttons with a container query
+  container-type: inline-size;
 
   .chapter-select {
     cursor: pointer;
@@ -246,7 +253,7 @@ header {
       }
     }
 
-    @include media-breakpoint('<=', sm) {
+    @mixin icon-only-add-question-button {
       .add-question-button.mat-mdc-button {
         display: none;
       }
@@ -254,6 +261,15 @@ header {
       .add-question-button.mat-mdc-icon-button {
         display: block;
       }
+    }
+
+    // The View Questions button also needs room once the questions panel becomes an overlay
+    @include media-breakpoint('<=', sm, $questionsPanelBreakpoint) {
+      @include icon-only-add-question-button;
+    }
+
+    @container (width < #{$labelledAddQuestionMinWidth}) {
+      @include icon-only-add-question-button;
     }
 
     .question-nav-wrapper {
