@@ -135,6 +135,81 @@ public class LazyScrTextCollectionTests
             versification.GetLastChapter(Canon.BookIdToNumber("MAL")),
             Is.EqualTo(ScrVers.Vulgate.GetLastChapter(Canon.BookIdToNumber("MAL")))
         );
+
+        // Like Paratext, the back translation shares the base project's versification
+        ScrVers baseVersification = env.Service.FindById(User01, _project02.Id)!.Settings.Versification;
+        Assert.That(versification.Name, Is.EqualTo($"{ScrVersType.Vulgate}-{_project02.Id}"));
+        Assert.That(versification, Is.EqualTo(baseVersification));
+    }
+
+    [Test]
+    public void FindById_BaseProject_UsesBaseCustomVersificationWithLegacyBaseTranslationSetting()
+    {
+        // Setup
+        var env = new TestEnvironment();
+        env.ConfigureProject(
+            User01,
+            _project01,
+            Project01Name,
+            SettingsFormat.Paratext8,
+            baseProjectId: _project02,
+            baseProjectName: Project02Name,
+            useLegacyBaseTranslationSetting: true
+        );
+        env.ConfigureProject(
+            User01,
+            _project02,
+            Project02Name,
+            SettingsFormat.Paratext8,
+            ScrVers.Vulgate,
+            customVersification: TestEnvironment.CustomVersificationWithOneJohnChapter
+        );
+
+        // SUT
+        ScrText? scrText = env.Service.FindById(User01, _project01.Id);
+
+        Assert.That(scrText!.Settings.Versification.GetLastChapter(Canon.BookIdToNumber("JHN")), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void FindById_BaseProject_CustomVersificationReloadedWhenBaseChanged()
+    {
+        // Setup
+        var env = new TestEnvironment();
+        env.ConfigureProject(
+            User01,
+            _project01,
+            Project01Name,
+            SettingsFormat.Paratext8,
+            baseProjectId: _project02,
+            baseProjectName: Project02Name
+        );
+        string basePath = env.ConfigureProject(
+            User01,
+            _project02,
+            Project02Name,
+            SettingsFormat.Paratext8,
+            ScrVers.English,
+            customVersification: TestEnvironment.CustomVersificationWithOneJohnChapter
+        );
+        Assert.That(
+            env.Service.FindById(User01, _project01.Id)!
+                .Settings.Versification.GetLastChapter(Canon.BookIdToNumber("JHN")),
+            Is.EqualTo(1)
+        );
+
+        // Simulate a sync of the base project changing, then removing, its custom versification
+        string customVersificationPath = Path.Join(basePath, ParatextVersificationTable.customVersFilename);
+        env.FileSystemService.FileReadText(customVersificationPath)
+            .Returns(TestEnvironment.CustomVersificationWithTwoMalachiChapters);
+        ScrVers versification = env.Service.FindById(User01, _project01.Id)!.Settings.Versification;
+        Assert.That(versification.GetLastChapter(Canon.BookIdToNumber("JHN")), Is.EqualTo(21));
+        Assert.That(versification.GetLastChapter(Canon.BookIdToNumber("MAL")), Is.EqualTo(2));
+
+        env.FileSystemService.FileExists(customVersificationPath).Returns(false);
+        versification = env.Service.FindById(User01, _project01.Id)!.Settings.Versification;
+        Assert.That(versification.IsCustomized, Is.False);
+        Assert.That(versification.Type, Is.EqualTo(ScrVersType.English));
     }
 
     [Test]
@@ -158,6 +233,7 @@ public class LazyScrTextCollectionTests
         Assert.That(versification.IsCustomized, Is.True);
         Assert.That(versification.BaseVersification.Type, Is.EqualTo(ScrVersType.Original));
         Assert.That(versification.GetLastChapter(Canon.BookIdToNumber("JHN")), Is.EqualTo(1));
+        Assert.That(Versification.Table.Implementation.VersificationFileExists(versification.Name), Is.True);
     }
 
     [Test]
@@ -304,6 +380,9 @@ public class LazyScrTextCollectionTests
         /// <param name="baseProjectId">Optional. The base project identifier.</param>
         /// <param name="baseProjectName">Optional. The base project name.</param>
         /// <param name="customVersification">Optional. The contents of the project's custom.vrs file.</param>
+        /// <param name="useLegacyBaseTranslationSetting">
+        /// Optional. Write the base project to the legacy BaseTranslation setting, with an empty TranslationInfo.
+        /// </param>
         /// <returns>
         /// The path to the project.
         /// </returns>
@@ -315,7 +394,8 @@ public class LazyScrTextCollectionTests
             ScrVers? scrVers = null,
             HexId? baseProjectId = null,
             string baseProjectName = "",
-            string? customVersification = null
+            string? customVersification = null,
+            bool useLegacyBaseTranslationSetting = false
         )
         {
             // Configure the project "on disk"
@@ -324,8 +404,10 @@ public class LazyScrTextCollectionTests
             string versification = scrVers is null
                 ? string.Empty
                 : $"<Versification>{(int)scrVers.Type}</Versification>";
-            string translationInfo = baseProjectId is null
-                ? string.Empty
+            string translationInfo =
+                baseProjectId is null ? string.Empty
+                : useLegacyBaseTranslationSetting
+                    ? $"<TranslationInfo></TranslationInfo><BaseTranslation>BackTranslation:{baseProjectName}:{baseProjectId.Id}</BaseTranslation>"
                 : $"<TranslationInfo>BackTranslation:{baseProjectName}:{baseProjectId.Id}</TranslationInfo>";
             string content =
                 $"<ScriptureText><Name>{projectName}</Name><Guid>{projectId.Id}</Guid>{versification}{translationInfo}</ScriptureText>";

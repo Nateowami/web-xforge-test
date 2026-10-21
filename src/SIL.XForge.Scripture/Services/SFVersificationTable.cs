@@ -16,11 +16,16 @@ namespace SIL.XForge.Scripture.Services;
 /// <see cref="ScrTextCollection.FindById"/>, but Scripture Forge does not add its projects to the
 /// <see cref="ScrTextCollection"/>, so without this class the versification customizations are ignored.
 /// </remarks>
-/// <param name="getCustomVersification">
-/// Gets the path and contents of the custom.vrs file to use for a project ID, or <c>null</c> if there is none.
+/// <param name="getVersificationProjectId">
+/// Gets the ID of the project whose versification a project uses, i.e. the base project of a derived translation.
 /// </param>
-public class SFVersificationTable(Func<string, (string Path, string Contents)?> getCustomVersification)
-    : ParatextVersificationTable
+/// <param name="getCustomVersification">
+/// Gets the path and contents of a project's custom.vrs file, or <c>null</c> if there is none.
+/// </param>
+public class SFVersificationTable(
+    Func<string, string> getVersificationProjectId,
+    Func<string, (string Path, string Contents)?> getCustomVersification
+) : ParatextVersificationTable
 {
     private readonly object _syncObj = new object();
 
@@ -33,11 +38,16 @@ public class SFVersificationTable(Func<string, (string Path, string Contents)?> 
         if (parts.Length != 2)
             return base.Get(versName);
 
+        // Paratext gives a derived translation the base project's own versification, so that they are equal.
+        string versificationProjectId = getVersificationProjectId(parts[1]);
+        string ownerVersName = $"{parts[0]}-{versificationProjectId}";
+
+        // The files are read outside the lock so that concurrent requests do not wait on each other's file access
+        (string Path, string Contents)? customVersification = getCustomVersification(versificationProjectId);
         lock (_syncObj)
         {
-            (string Path, string Contents)? customVersification = getCustomVersification(parts[1]);
             if (
-                _loadedContents.TryGetValue(versName, out string? loadedContents)
+                _loadedContents.TryGetValue(ownerVersName, out string? loadedContents)
                 && loadedContents != customVersification?.Contents
             )
             {
@@ -47,7 +57,7 @@ public class SFVersificationTable(Func<string, (string Path, string Contents)?> 
                 _loadedContents.Clear();
             }
 
-            if (customVersification is not null && !Exists(versName))
+            if (customVersification is not null && !Exists(ownerVersName))
             {
                 if (
                     !Enum.TryParse(parts[0], out ScrVersType type)
@@ -56,12 +66,22 @@ public class SFVersificationTable(Func<string, (string Path, string Contents)?> 
                 )
                     type = ScrVersType.English;
                 using var reader = new StringReader(customVersification.Value.Contents);
-                Load(reader, customVersification.Value.Path, new ScrVers(type), versName);
-                _loadedContents[versName] = customVersification.Value.Contents;
+                Load(reader, customVersification.Value.Path, new ScrVers(type), ownerVersName);
+                _loadedContents[ownerVersName] = customVersification.Value.Contents;
             }
 
             // If there is no custom versification, this falls back to the standard versification type
-            return base.Get(versName);
+            return base.Get(ownerVersName);
         }
+    }
+
+    public override bool VersificationFileExists(string versName)
+    {
+        string[] parts = versName.Split('-', 2);
+        if (parts.Length != 2)
+            return base.VersificationFileExists(versName);
+
+        // Like ParatextVersificationTable, this checks the named project's own custom.vrs
+        return getCustomVersification(parts[1]) is not null || base.VersificationFileExists(versName);
     }
 }
