@@ -659,6 +659,60 @@ describe('TextComponent', () => {
     expect(env.component.segmentRef).toEqual('verse_1_3');
   }));
 
+  it('selects the current segment on triple click', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    const editor: Quill = env.component.editor!;
+    const verse4Range: QuillRange = env.component.getSegmentRange('verse_1_4')!;
+    editor.setSelection(verse4Range.index + 2, 0, 'user');
+    tick();
+    expect(env.component.segmentRef).toEqual('verse_1_4');
+
+    const tripleClick = new MouseEvent('mousedown', { bubbles: true, cancelable: true, detail: 3 });
+    const cancelled: boolean = !env.getSegment('verse_1_4')!.dispatchEvent(tripleClick);
+    tick();
+
+    // The browser's own triple-click selection is suppressed, as it can collapse onto the verse number of verse 4,
+    // which is the end of verse 3
+    expect(cancelled).toBeTrue();
+    const selection: QuillRange = editor.getSelection()!;
+    expect({ index: selection.index, length: selection.length }).toEqual(verse4Range);
+    expect(env.component.segmentRef).toEqual('verse_1_4');
+  }));
+
+  it('leaves single and double clicks to the browser', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    const editor: Quill = env.component.editor!;
+    editor.setSelection(env.component.getSegmentRange('verse_1_4')!.index + 2, 0, 'user');
+    tick();
+
+    for (const detail of [1, 2]) {
+      const click = new MouseEvent('mousedown', { bubbles: true, cancelable: true, detail });
+      expect(env.getSegment('verse_1_4')!.dispatchEvent(click)).withContext(`detail ${detail}`).toBeTrue();
+    }
+    tick();
+    expect(editor.getSelection()!.length).toEqual(0);
+  }));
+
+  it('leaves triple clicks to the browser in a read-only text', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    env.hostComponent.isReadOnly = true;
+    env.fixture.detectChanges();
+    env.component.setSegment('verse_1_4');
+    tick();
+
+    const tripleClick = new MouseEvent('mousedown', { bubbles: true, cancelable: true, detail: 3 });
+    expect(env.getSegment('verse_1_4')!.dispatchEvent(tripleClick)).toBeTrue();
+  }));
+
   describe('MultiCursor Presence', () => {
     it('should update presence if the user moves the cursor', fakeAsync(() => {
       const env: TestEnvironment = new TestEnvironment();

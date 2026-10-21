@@ -701,6 +701,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     this.viewModel.editor = editor;
     void this.bindQuill(); // not awaited
     editor.container.addEventListener('beforeinput', (ev: Event) => this.onBeforeinput(ev));
+    editor.root.addEventListener('mousedown', (ev: MouseEvent) => this.onMousedown(ev));
     this.editorCreated.next();
   }
 
@@ -1984,6 +1985,35 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     if (!this.isValidSelectionForCurrentSegment(sel)) {
       ev.preventDefault();
     }
+  }
+
+  /**
+   * Handler for mousedown event on quill DOM element. A triple click would normally select the paragraph, but when the
+   * paragraph holds several verses the browser collapses that selection onto a verse number, which can move the cursor
+   * into the previous segment. Select the whole current segment instead.
+   */
+  private onMousedown(ev: MouseEvent): void {
+    if (
+      ev.detail < 3 ||
+      ev.button !== 0 ||
+      this._editor == null ||
+      !this._editor.isEnabled() ||
+      this._segment == null
+    ) {
+      return;
+    }
+    const clickedSegmentRef: string | null | undefined = (ev.target as Element | null)
+      ?.closest?.('usx-segment')
+      ?.getAttribute('data-segment');
+    if (clickedSegmentRef != null && clickedSegmentRef !== this._segment.ref) {
+      return;
+    }
+    const sel: Range | null = this.conformToValidSelectionForCurrentSegment(this._segment.range);
+    if (sel == null) {
+      return;
+    }
+    ev.preventDefault();
+    this._editor.setSelection(sel, 'user');
   }
 
   private calculateNextEmbedIndex(content: Delta): number {
