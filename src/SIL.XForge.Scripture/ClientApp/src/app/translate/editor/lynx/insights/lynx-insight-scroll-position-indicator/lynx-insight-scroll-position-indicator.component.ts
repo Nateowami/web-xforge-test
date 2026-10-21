@@ -1,5 +1,5 @@
 import { NgClass } from '@angular/common';
-import { Component, DestroyRef, Input, OnInit } from '@angular/core';
+import { Component, DestroyRef, Input, NgZone, OnInit } from '@angular/core';
 import { LynxInsightType } from 'realtime-server/lib/esm/scriptureforge/models/lynx-insight';
 import { combineLatest, debounceTime, filter, map, startWith, switchMap } from 'rxjs';
 import { fromElementResize, quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
@@ -14,6 +14,9 @@ interface LynxInsightScrollPosition {
   type: LynxInsightType;
   percent: number | undefined;
 }
+
+/** How long the editor must stop resizing before the scroll markers are repositioned. */
+export const SCROLL_POSITION_RESIZE_DEBOUNCE_MS = 200;
 
 @Component({
   selector: 'app-lynx-insight-scroll-position-indicator',
@@ -34,7 +37,8 @@ export class LynxInsightScrollPositionIndicatorComponent implements OnInit {
     private readonly destroyRef: DestroyRef,
     private readonly editorInsightState: LynxInsightStateService,
     private readonly editorReadyService: EditorReadyService,
-    private readonly lynxEditorAdapterFactory: LynxEditorAdapterFactory
+    private readonly lynxEditorAdapterFactory: LynxEditorAdapterFactory,
+    private readonly ngZone: NgZone
   ) {}
 
   ngOnInit(): void {
@@ -44,7 +48,10 @@ export class LynxInsightScrollPositionIndicatorComponent implements OnInit {
 
     combineLatest([
       this.editorReadyService.listenEditorReadyState(this.lynxEditor.getEditor()).pipe(filter(loaded => loaded)),
-      fromElementResize(this.lynxEditor.getScrollingContainer()).pipe(debounceTime(200), startWith(undefined))
+      fromElementResize(this.lynxEditor.getScrollingContainer(), this.ngZone).pipe(
+        debounceTime(SCROLL_POSITION_RESIZE_DEBOUNCE_MS),
+        startWith(undefined)
+      )
     ])
       .pipe(
         switchMap(() => this.editorInsightState.filteredChapterInsights$),

@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnDestroy } from '@angular/core';
+import { Component, DestroyRef, NgZone, OnDestroy } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, from, Observable } from 'rxjs';
 import { filterNullish, fromElementResize, quietTakeUntilDestroyed } from './rxjs-util';
@@ -86,7 +86,9 @@ describe('fromElementResize', () => {
 
   it('should emit when the element is resized without the window being resized', async () => {
     const emissions: ResizeObserverEntry[][] = [];
-    const subscription = fromElementResize(element).subscribe(entries => emissions.push(entries));
+    const subscription = fromElementResize(element, TestBed.inject(NgZone)).subscribe(entries =>
+      emissions.push(entries)
+    );
     await nextFrames();
     const emissionCountBeforeResize = emissions.length;
 
@@ -100,7 +102,9 @@ describe('fromElementResize', () => {
 
   it('should stop observing when unsubscribed', async () => {
     const emissions: ResizeObserverEntry[][] = [];
-    const subscription = fromElementResize(element).subscribe(entries => emissions.push(entries));
+    const subscription = fromElementResize(element, TestBed.inject(NgZone)).subscribe(entries =>
+      emissions.push(entries)
+    );
     await nextFrames();
     const emissionCountBeforeUnsubscribe = emissions.length;
     subscription.unsubscribe();
@@ -109,6 +113,19 @@ describe('fromElementResize', () => {
     await nextFrames();
 
     expect(emissions.length).toBe(emissionCountBeforeUnsubscribe);
+  });
+
+  it('should emit inside the Angular zone so that change detection runs', async () => {
+    const insideAngularZone: boolean[] = [];
+    const subscription = fromElementResize(element, TestBed.inject(NgZone)).subscribe(() =>
+      insideAngularZone.push(NgZone.isInAngularZone())
+    );
+    element.style.width = '300px';
+    await nextFrames();
+
+    expect(insideAngularZone.length).toBeGreaterThan(0);
+    expect(insideAngularZone.every(inZone => inZone)).toBeTrue();
+    subscription.unsubscribe();
   });
 });
 

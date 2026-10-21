@@ -1,5 +1,5 @@
 import { Directionality } from '@angular/cdk/bidi';
-import { Component, DestroyRef, ElementRef, Input, OnInit, Renderer2 } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Input, NgZone, OnInit, Renderer2 } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 import { Bounds } from 'quill';
 import {
@@ -22,6 +22,9 @@ import { LynxEditorAdapterFactory } from '../lynx-editor-adapter-factory';
 import { LynxInsight } from '../lynx-insight';
 import { LynxInsightStateService } from '../lynx-insight-state.service';
 import { getMostNestedInsight } from '../lynx-insight-util';
+
+/** How long the editor must stop resizing before the prompt is repositioned. */
+export const PROMPT_RESIZE_DEBOUNCE_MS = 100;
 
 @Component({
   selector: 'app-lynx-insight-action-prompt',
@@ -53,7 +56,8 @@ export class LynxInsightActionPromptComponent implements OnInit {
     private readonly editorInsightState: LynxInsightStateService,
     private readonly editorReadyService: EditorReadyService,
     private readonly lynxEditorAdapterFactory: LynxEditorAdapterFactory,
-    private readonly dir: Directionality
+    private readonly dir: Directionality,
+    private readonly ngZone: NgZone
   ) {}
 
   ngOnInit(): void {
@@ -91,7 +95,10 @@ export class LynxInsightActionPromptComponent implements OnInit {
         })
       );
 
-    const editorResize$ = fromElementResize(this.lynxEditor.getRoot()).pipe(debounceTime(100), startWith(undefined));
+    const editorResize$ = fromElementResize(this.lynxEditor.getRoot(), this.ngZone).pipe(
+      debounceTime(PROMPT_RESIZE_DEBOUNCE_MS),
+      startWith(undefined)
+    );
 
     const editorScroll$ = iif(
       () => this.lynxEditor?.getScrollingContainer() != null,
