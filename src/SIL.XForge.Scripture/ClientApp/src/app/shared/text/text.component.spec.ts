@@ -455,7 +455,20 @@ describe('TextComponent', () => {
       { insert: 'Verse three. ', attributes: { segment: 'verse_2_3' } },
       { insert: { verse: { number: '4', style: 'v' } } },
       { insert: 'Verse four.', attributes: { segment: 'verse_2_4' } },
-      { insert: '\n', attributes: { para: { style: 'v-', status: 'unknown' }, 'invalid-block': true } }
+      { insert: '\n', attributes: { para: { style: 'v-', status: 'unknown' }, 'invalid-block': true } },
+      // as in DeltaUsxMapper, a paragraph after it does not continue the last verse
+      { insert: { blank: true }, attributes: { segment: 'p_2' } },
+      { insert: { verse: { number: '5', style: 'v' } } },
+      { insert: 'Verse five.', attributes: { segment: 'verse_2_5' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } },
+      { insert: '6 Verse six. ', attributes: { segment: 'v-_2' } },
+      { insert: { verse: { number: '7', style: 'v' } } },
+      { insert: 'Verse seven.', attributes: { segment: 'verse_2_7' } },
+      { insert: '\n', attributes: { para: { style: 'v-', status: 'unknown' }, 'invalid-block': true } },
+      { insert: 'Text after. ', attributes: { segment: 'p_3' } },
+      { insert: { verse: { number: '8', style: 'v' } } },
+      { insert: 'Verse eight.', attributes: { segment: 'verse_2_8' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } }
     ];
     const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
     env.waitForEditor();
@@ -465,10 +478,18 @@ describe('TextComponent', () => {
       'verse_2_1',
       'v-_1',
       'verse_2_3',
-      'verse_2_4'
+      'verse_2_4',
+      'p_2',
+      'verse_2_5',
+      'v-_2',
+      'verse_2_7',
+      'p_3',
+      'verse_2_8'
     ]);
     expect(env.component.getSegmentText('v-_1')).toEqual('2 Verse two. ');
     expect(env.component.getSegmentText('verse_2_4')).toEqual('Verse four.');
+    expect(env.component.getSegmentText('p_3')).toEqual('Text after. ');
+    expect(env.getSegment('p_3')).not.toBeNull();
 
     env.embedThreadAt('MAT 2:4', { start: 0, length: 0 });
     tick();

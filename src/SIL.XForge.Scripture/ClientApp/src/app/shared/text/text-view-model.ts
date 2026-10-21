@@ -716,6 +716,10 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
             paraSegments = [];
             curIndex++;
           }
+          if (style != null && !canParaContainVerseText(style)) {
+            // as with a title/header, the next paragraph does not continue the last verse
+            curSegment = undefined;
+          }
         } else if (style === 'b') {
           // blank line
           paraSegments = [];
