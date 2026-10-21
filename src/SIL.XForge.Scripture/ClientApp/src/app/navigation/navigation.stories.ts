@@ -2,6 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ActivatedRoute, Router } from '@angular/router';
 import { SwUpdate } from '@angular/service-worker';
 import { Meta, StoryObj } from '@storybook/angular';
+import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
@@ -13,6 +14,7 @@ import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
 import { createTestFeatureFlag, FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
 import { provideI18nStory } from 'xforge-common/i18n-story';
+import { UserDoc } from 'xforge-common/models/user-doc';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
@@ -61,6 +63,11 @@ function setUpMocks(args: StoryState): void {
   when(mockedAuthService.isLoggedIn).thenResolve(true);
   when(mockedAuthService.currentUserRoles).thenReturn([]);
   when(mockedUserService.currentUserId).thenReturn(userId);
+  // The guards that decide which menu items show only read projects listed on the user
+  when(mockedUserService.getCurrentUser()).thenResolve({
+    id: userId,
+    data: createTestUser({ sites: { sf: { projects: [projectId] } } })
+  } as UserDoc);
   when(onlineStatusService.isOnline).thenReturn(args.online);
   when(mockedFeatureFlagService.stillness).thenReturn(createTestFeatureFlag(false));
   when(mockedRouter.url).thenReturn(`/projects/${projectId}/${args.path}`);
