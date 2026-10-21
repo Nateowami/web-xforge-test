@@ -165,6 +165,26 @@ describe('SFProjectService', () => {
       await expectAsync(syncPromise).toBeRejectedWithError('Forbidden');
       expect(env.service.isSyncRequestPending('project01')).toBe(false);
     }));
+
+    it('keeps reporting the sync request as pending while an overlapping request is still awaiting a response', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      let rejectFirstSync: (reason: Error) => void = () => {};
+      let resolveSecondSync: () => void = () => {};
+      when(mockedCommandService.onlineInvoke(anything(), 'sync', anything()))
+        .thenReturn(new Promise<void>((_, reject) => (rejectFirstSync = reject)))
+        .thenReturn(new Promise<void>(resolve => (resolveSecondSync = resolve)));
+
+      const firstSyncPromise: Promise<void> = env.service.onlineSync('project01');
+      const secondSyncPromise: Promise<void> = env.service.onlineSync('project01');
+
+      rejectFirstSync(new Error('Forbidden'));
+      await expectAsync(firstSyncPromise).toBeRejectedWithError('Forbidden');
+      expect(env.service.isSyncRequestPending('project01')).toBe(true);
+
+      resolveSecondSync();
+      await secondSyncPromise;
+      expect(env.service.isSyncRequestPending('project01')).toBe(false);
+    }));
   });
 
   describe('onlineEventMetrics', () => {
