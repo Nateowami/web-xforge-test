@@ -8,7 +8,6 @@ import {
   OnChanges,
   OnInit,
   Output,
-  SimpleChanges,
   ViewChild
 } from '@angular/core';
 import { MatProgressBar } from '@angular/material/progress-bar';
@@ -25,7 +24,11 @@ import { SFProjectService } from '../../../core/sf-project.service';
 import { NoticeComponent } from '../../../shared/notice/notice.component';
 import { TextComponent } from '../../../shared/text/text.component';
 import { EditorHistoryService } from './editor-history.service';
-import { HistoryChooserComponent, RevisionSelectEvent } from './history-chooser/history-chooser.component';
+import {
+  HistoryChooserComponent,
+  HistoryTabState,
+  RevisionSelectEvent
+} from './history-chooser/history-chooser.component';
 @Component({
   selector: 'app-editor-history',
   templateUrl: './editor-history.component.html',
@@ -54,8 +57,7 @@ export class EditorHistoryComponent implements OnChanges, OnInit, AfterViewInit 
   @Input() isRightToLeft!: boolean;
   @Input() fontSize?: string;
   @Input() diffText?: TextComponent;
-  /** The revision to select when the history is first loaded, instead of the latest revision. */
-  @Input() initialRevision?: Revision;
+  @Input() historyState?: HistoryTabState;
   @Output() revisionSelect = new EventEmitter<Revision | undefined>();
 
   @ViewChild(HistoryChooserComponent) historyChooser?: HistoryChooserComponent;
@@ -73,12 +75,7 @@ export class EditorHistoryComponent implements OnChanges, OnInit, AfterViewInit 
     private readonly projectService: SFProjectService
   ) {}
 
-  ngOnChanges(changes: SimpleChanges): void {
-    // The initial revision is updated with each selection, which is not a reason to clear the loaded revision
-    if (Object.keys(changes).every(key => key === 'initialRevision')) {
-      return;
-    }
-
+  ngOnChanges(): void {
     // Clear any loaded revision if chapter changes
     this.loadedRevision = undefined;
 

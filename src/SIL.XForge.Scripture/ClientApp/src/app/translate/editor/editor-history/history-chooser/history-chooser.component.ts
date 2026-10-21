@@ -6,6 +6,7 @@ import {
   EventEmitter,
   Input,
   OnChanges,
+  OnInit,
   Output,
   SimpleChanges
 } from '@angular/core';
@@ -59,6 +60,17 @@ export interface RevisionSelectEvent {
   snapshot: Snapshot<TextData> | undefined;
 }
 
+/**
+ * The state of a history tab that must outlive its components, which are recreated when the tab is moved to another
+ * tab group. The history chooser updates this object in place, so the same object must be passed in for the life of
+ * the tab.
+ */
+export interface HistoryTabState {
+  /** The selected revision, and the chapter it was selected in. */
+  selection?: { bookNum: number; chapter: number; revision: Revision };
+  showDiff?: boolean;
+}
+
 @Component({
   selector: 'app-history-chooser',
   templateUrl: './history-chooser.component.html',
@@ -78,7 +90,7 @@ export interface RevisionSelectEvent {
     HistoryRevisionFormatPipe
   ]
 })
-export class HistoryChooserComponent implements AfterViewInit, OnChanges {
+export class HistoryChooserComponent implements AfterViewInit, OnChanges, OnInit {
   private _projectId?: string;
   private projectId$: Subject<string> = new Subject<string>();
   @Input() set projectId(id: string | undefined) {
@@ -95,8 +107,7 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
   @Input() bookNum?: number;
   @Input() chapter?: number;
   @Input() showDiff = true;
-  /** The revision to select when the history is first loaded, instead of the latest revision. */
-  @Input() initialRevision?: Revision;
+  @Input() historyState?: HistoryTabState;
   @Output() showDiffChange = new EventEmitter<boolean>();
   @Output() revisionSelect = new EventEmitter<RevisionSelectEvent>();
 
@@ -128,7 +139,7 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
 
   private inputChanged$ = new Subject<void>();
   private bookId = '';
-  private revisionToRestore?: Revision;
+  private selectionToRestore?: HistoryTabState['selection'];
   private projectDoc: SFProjectProfileDoc | undefined;
 
   constructor(
@@ -170,15 +181,12 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
     return this.selectedSnapshot?.data.ops != null && this.selectedSnapshot.isValid;
   }
 
-  ngOnChanges(changes: SimpleChanges): void {
-    if (changes.initialRevision?.firstChange) {
-      this.revisionToRestore = changes.initialRevision.currentValue;
-    }
-    // Later changes to the initial revision only reflect the current selection, so do not reload the history
-    if (Object.keys(changes).every(key => key === 'initialRevision')) {
-      return;
-    }
+  ngOnInit(): void {
+    this.showDiff = this.historyState?.showDiff ?? this.showDiff;
+    this.selectionToRestore = this.historyState?.selection;
+  }
 
+  ngOnChanges(changes: SimpleChanges): void {
     if (changes.bookNum) {
       this.bookId = Canon.bookNumberToId(changes.bookNum.currentValue, '');
     }
@@ -215,14 +223,12 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
             (await this.paratextService.getRevisions(this.projectId, this.bookId, this.chapter)) ?? [];
 
           if (this.historyRevisions.length > 0) {
-            const revisionToRestore: Revision | undefined = this.historyRevisions.find(
-              r => r.timestamp === this.revisionToRestore?.timestamp
-            );
-            this.revisionToRestore = undefined;
-            await this.selectRevision(revisionToRestore ?? this.historyRevisions[0]);
+            await this.selectRevision(this.getRevisionToRestore() ?? this.historyRevisions[0]);
           }
         }
       } finally {
+        // Only restore on the first load, so later loads (e.g. after a draft is applied) select the latest revision
+        this.selectionToRestore = undefined;
         this.loading$.next(false);
       }
     }
@@ -297,6 +303,9 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
 
   toggleDiff(): void {
     this.showDiff = !this.showDiff;
+    if (this.historyState != null) {
+      this.historyState.showDiff = this.showDiff;
+    }
     this.showDiffChange.emit(this.showDiff);
   }
 
@@ -308,6 +317,9 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
     // Set the revision and clear the snapshot
     this.selectedRevision = revision;
     this.selectedSnapshot = undefined;
+    if (this.historyState != null) {
+      this.historyState.selection = { bookNum: this.bookNum, chapter: this.chapter, revision };
+    }
 
     // Get the snapshot from the paratext service
     await this.paratextService
@@ -317,5 +329,14 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
         this.selectedSnapshot = snapshot;
         this.revisionSelect.emit({ revision, snapshot });
       });
+  }
+
+  private getRevisionToRestore(): Revision | undefined {
+    // A Paratext commit has the same timestamp in every chapter it changed, so the chapter must match as well
+    const selection: HistoryTabState['selection'] = this.selectionToRestore;
+    if (selection == null || selection.bookNum !== this.bookNum || selection.chapter !== this.chapter) {
+      return undefined;
+    }
+    return this.historyRevisions.find(r => r.timestamp === selection.revision.timestamp);
   }
 }

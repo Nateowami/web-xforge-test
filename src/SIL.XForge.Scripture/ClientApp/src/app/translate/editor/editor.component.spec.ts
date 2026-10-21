@@ -76,7 +76,7 @@ import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SFProjectUserConfigDoc } from '../../core/models/sf-project-user-config-doc';
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextDoc, TextDocId } from '../../core/models/text-doc';
-import { ParatextService, Revision } from '../../core/paratext.service';
+import { ParatextService } from '../../core/paratext.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { ProjectNotificationService } from '../../core/project-notification.service';
 import { SFProjectService } from '../../core/sf-project.service';
@@ -4054,25 +4054,6 @@ describe('EditorComponent', () => {
         await tooltipHarness.show();
         expect(await tooltipHarness.getTooltipText()).toBe(targetProjectDoc.data?.name!);
         tooltipHarness.hide();
-        env.dispose();
-      }));
-    });
-
-    describe('history tab', () => {
-      it('should remember the selected revision so it can be restored if the tab is recreated', fakeAsync(() => {
-        const env = new TestEnvironment();
-        env.wait();
-        const tab: EditorTabInfo = env.tabFactory.createTab('history');
-        const revision: Revision = { timestamp: '2024-11-06T08:33:50.000Z' };
-
-        env.component.onHistoryTabRevisionSelect(tab, revision);
-        tick();
-        expect(tab.historyRevision).toBe(revision);
-
-        // A history tab emits undefined on init and chapter change, which should not lose the selection
-        env.component.onHistoryTabRevisionSelect(tab, undefined);
-        tick();
-        expect(tab.historyRevision).toBe(revision);
         env.dispose();
       }));
     });
