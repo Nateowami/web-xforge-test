@@ -73,6 +73,7 @@ import { DialogService } from 'xforge-common/dialog.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { FontService } from 'xforge-common/font.service';
 import { I18nService } from 'xforge-common/i18n.service';
+import { LocalSettingsService } from 'xforge-common/local-settings.service';
 import { Breakpoint, MediaBreakpointService } from 'xforge-common/media-breakpoints/media-breakpoint.service';
 import { LocaleDirection } from 'xforge-common/models/i18n-locale';
 import { RealtimeQuery } from 'xforge-common/models/realtime-query';
@@ -338,7 +339,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     private readonly breakpointObserver: BreakpointObserver,
     private readonly mediaBreakpointService: MediaBreakpointService,
     private readonly permissionsService: PermissionsService,
-    readonly editorInsightState: LynxInsightStateService
+    readonly editorInsightState: LynxInsightStateService,
+    private readonly localSettings: LocalSettingsService
   ) {
     super(noticeService, 'EditorComponent');
     const wordTokenizer = new LatinWordTokenizer();
@@ -399,7 +401,18 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   setBook(book: number): void {
-    void this.router.navigate(['projects', this.projectId, 'translate', Canon.bookNumberToId(book)]);
+    const route: (string | number | undefined)[] = [
+      'projects',
+      this.projectId,
+      'translate',
+      Canon.bookNumberToId(book)
+    ];
+    // Return to the chapter the user was last in for this book, rather than to the first chapter
+    const lastChapter: number | undefined = this.getLastChapters()[book];
+    if (lastChapter != null && Number.isInteger(lastChapter) && lastChapter > 0) {
+      route.push(lastChapter);
+    }
+    void this.router.navigate(route);
   }
 
   get bookNum(): number | undefined {
@@ -1777,10 +1790,27 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     }
     this.toggleNoteThreadVerses(false);
     this.chapter$.next(chapter);
+    this.setLastChapter(bookNum, chapter);
     await this.changeText();
     this.toggleNoteThreadVerses(true);
     await this.updateDraftTabVisibility();
     await this.updateBiblicalTermsTabVisibility();
+  }
+
+  /** The local settings key holding the last chapter the user viewed in each book of the current project. */
+  private lastChaptersSettingKey(): string {
+    return `translate_last_chapters:${this.projectId}:${this.userService.currentUserId}`;
+  }
+
+  private getLastChapters(): Record<number, number> {
+    return this.localSettings.get<Record<number, number>>(this.lastChaptersSettingKey()) ?? {};
+  }
+
+  private setLastChapter(bookNum: number, chapter: number): void {
+    const lastChapters: Record<number, number> = this.getLastChapters();
+    if (lastChapters[bookNum] === chapter) return;
+    lastChapters[bookNum] = chapter;
+    this.localSettings.set(this.lastChaptersSettingKey(), lastChapters);
   }
 
   /**
