@@ -41,6 +41,7 @@
             "allowedCommonJsDependencies": [
               "@bugsnag/browser",
               "@bugsnag/js",
+              "@bugsnag/safe-json-stringify",
               "arraydiff",
               "bowser",
               "bson-objectid",
