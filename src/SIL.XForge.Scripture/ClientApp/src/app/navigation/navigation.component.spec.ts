@@ -221,7 +221,7 @@ describe('NavigationComponent', () => {
     flush();
   }));
 
-  it('spins the sync icon as soon as a sync is requested, before the server queues it', fakeAsync(() => {
+  it('spins the sync icon and hides the failed sync badge as soon as a sync is requested', fakeAsync(() => {
     const env = new TestEnvironment();
     when(mockedProjectService.isSyncRequestPending('project01')).thenReturn(true);
     env.canSync$.next(true);
@@ -231,6 +231,20 @@ describe('NavigationComponent', () => {
     } as SFProjectProfileDoc);
 
     expect(env.syncIcon.classList).toContain('sync-in-progress');
+    expect(env.syncIcon.classList).toContain('mat-badge-hidden');
+    flush();
+  }));
+
+  it('shows the failed sync badge when the last sync failed and no sync is queued or requested', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.canSync$.next(true);
+    env.emitProjectChange({
+      id: 'project01',
+      data: createTestProjectProfile({ sync: { queuedCount: 0, lastSyncSuccessful: false } })
+    } as SFProjectProfileDoc);
+
+    expect(env.syncIcon.classList).not.toContain('sync-in-progress');
+    expect(env.syncIcon.classList).not.toContain('mat-badge-hidden');
     flush();
   }));
 
