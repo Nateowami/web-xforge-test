@@ -2323,6 +2323,27 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('note icon is changed after remote update to the project note tags', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+
+      const verse1Segment: HTMLElement = env.getSegmentElement('verse_1_1')!;
+      let verse1Note = verse1Segment.querySelector('display-note') as HTMLElement;
+      expect(verse1Note.getAttribute('style')).toEqual('--icon-file: url(/assets/icons/TagIcons/01flag1.png);');
+
+      // Simulate a sync bringing in a change to the To Do note type's icon made in Paratext
+      const projectDoc: SFProjectProfileDoc = env.getProjectDoc('project01');
+      const noteTags: NoteTag[] = cloneDeep(projectDoc.data!.noteTags!);
+      noteTags.find(t => t.tagId === 1)!.icon = '11rectangle1';
+      projectDoc.submitJson0Op(op => op.set(p => p.noteTags!, noteTags), false);
+      env.wait();
+
+      verse1Note = verse1Segment.querySelector('display-note') as HTMLElement;
+      expect(verse1Note.getAttribute('style')).toEqual('--icon-file: url(/assets/icons/TagIcons/11rectangle1.png);');
+      env.dispose();
+    }));
+
     it('note dialog appears after undo delete-a-note', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();

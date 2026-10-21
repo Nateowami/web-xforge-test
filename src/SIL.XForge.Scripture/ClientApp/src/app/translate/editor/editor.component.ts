@@ -56,6 +56,7 @@ import {
   asyncScheduler,
   BehaviorSubject,
   combineLatest,
+  EMPTY,
   firstValueFrom,
   fromEvent,
   lastValueFrom,
@@ -1743,7 +1744,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       this.toggleNoteThreadVerseRefs$,
       this.noteThreadQuery.ready$.pipe(filter(isReady => isReady)),
       this.noteThreadQuery.remoteChanges$,
-      this.noteThreadQuery.remoteDocChanges$
+      this.noteThreadQuery.remoteDocChanges$,
+      // Note icons are resolved from the project's note tags when they are embedded, so redraw them when a sync
+      // changes the note tags (e.g. a note type was deleted or its icon changed in Paratext)
+      this.projectDoc?.remoteChanges$.pipe(filter(ops => ops.some(op => op.p[0] === 'noteTags'))) ?? EMPTY
     )
       .pipe(quietTakeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
