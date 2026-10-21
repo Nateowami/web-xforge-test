@@ -1,8 +1,8 @@
 import { NgClass } from '@angular/common';
 import { Component, DestroyRef, Input, OnInit } from '@angular/core';
 import { LynxInsightType } from 'realtime-server/lib/esm/scriptureforge/models/lynx-insight';
-import { combineLatest, debounceTime, filter, fromEvent, map, startWith, switchMap } from 'rxjs';
-import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
+import { combineLatest, debounceTime, filter, map, startWith, switchMap } from 'rxjs';
+import { fromElementResize, quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { EditorReadyService } from '../base-services/editor-ready.service';
 import { LynxableEditor, LynxEditor } from '../lynx-editor';
 import { LynxEditorAdapterFactory } from '../lynx-editor-adapter-factory';
@@ -44,7 +44,7 @@ export class LynxInsightScrollPositionIndicatorComponent implements OnInit {
 
     combineLatest([
       this.editorReadyService.listenEditorReadyState(this.lynxEditor.getEditor()).pipe(filter(loaded => loaded)),
-      fromEvent(window, 'resize').pipe(debounceTime(200), startWith(undefined))
+      fromElementResize(this.lynxEditor.getScrollingContainer()).pipe(debounceTime(200), startWith(undefined))
     ])
       .pipe(
         switchMap(() => this.editorInsightState.filteredChapterInsights$),

@@ -1,7 +1,7 @@
 import { Component, DestroyRef, OnDestroy } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { BehaviorSubject, from, Observable } from 'rxjs';
-import { filterNullish, quietTakeUntilDestroyed } from './rxjs-util';
+import { filterNullish, fromElementResize, quietTakeUntilDestroyed } from './rxjs-util';
 
 describe('filterNullUndefined', () => {
   it('should filter out only null and undefined values', () => {
@@ -62,6 +62,53 @@ describe('quietTakeUntilDestroyed', () => {
     fixture.destroy();
     expect(component.mainSubjectCompleted).toBeTrue();
     expect(component.subjectCreatedAfterDestroyCompleted).toBeTrue();
+  });
+});
+
+describe('fromElementResize', () => {
+  let element: HTMLElement;
+
+  beforeEach(() => {
+    element = document.createElement('div');
+    element.style.width = '100px';
+    element.style.height = '50px';
+    document.body.appendChild(element);
+  });
+
+  afterEach(() => {
+    element.remove();
+  });
+
+  /** ResizeObserver notifications are delivered after layout, so wait until a frame has been rendered. */
+  function nextFrames(): Promise<void> {
+    return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+  }
+
+  it('should emit when the element is resized without the window being resized', async () => {
+    const emissions: ResizeObserverEntry[][] = [];
+    const subscription = fromElementResize(element).subscribe(entries => emissions.push(entries));
+    await nextFrames();
+    const emissionCountBeforeResize = emissions.length;
+
+    element.style.width = '300px';
+    await nextFrames();
+
+    expect(emissions.length).toBe(emissionCountBeforeResize + 1);
+    expect(emissions[emissions.length - 1][0].contentRect.width).toBe(300);
+    subscription.unsubscribe();
+  });
+
+  it('should stop observing when unsubscribed', async () => {
+    const emissions: ResizeObserverEntry[][] = [];
+    const subscription = fromElementResize(element).subscribe(entries => emissions.push(entries));
+    await nextFrames();
+    const emissionCountBeforeUnsubscribe = emissions.length;
+    subscription.unsubscribe();
+
+    element.style.width = '300px';
+    await nextFrames();
+
+    expect(emissions.length).toBe(emissionCountBeforeUnsubscribe);
   });
 });
 

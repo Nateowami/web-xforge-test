@@ -1,6 +1,6 @@
 import { DestroyRef } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
-import { MonoTypeOperatorFunction, OperatorFunction } from 'rxjs';
+import { MonoTypeOperatorFunction, Observable, OperatorFunction } from 'rxjs';
 import { filter } from 'rxjs/operators';
 import { hasStringProp } from '../../type-utils';
 
@@ -38,4 +38,16 @@ export function quietTakeUntilDestroyed<T>(
     destroyed: destroyRef.destroyed
   };
   return takeUntilDestroyed(wrappedDestroyRef);
+}
+
+/**
+ * Creates an observable that emits whenever the size of the element changes, including changes that come from layout
+ * around the element (such as a neighbouring pane being shown or hidden) rather than from the window being resized.
+ */
+export function fromElementResize(element: Element): Observable<ResizeObserverEntry[]> {
+  return new Observable<ResizeObserverEntry[]>(subscriber => {
+    const resizeObserver = new ResizeObserver(entries => subscriber.next(entries));
+    resizeObserver.observe(element);
+    return () => resizeObserver.disconnect();
+  });
 }
