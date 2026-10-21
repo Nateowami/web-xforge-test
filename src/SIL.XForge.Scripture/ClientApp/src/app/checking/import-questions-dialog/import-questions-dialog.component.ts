@@ -311,6 +311,10 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
       .split('\n');
   }
 
+  get fileExtensionsForDisplay(): string {
+    return this.i18n.enumerateList(this.fileExtensions.split(','));
+  }
+
   get showDuplicateImportNote(): boolean {
     return this.filteredList.some(item => item.checked && item.sfVersionOfQuestion != null);
   }
@@ -684,9 +688,8 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     this.questionSource = 'csv_file';
     this.invalidFileName = file.name;
     // Excel files are only filtered out because they cannot be converted while offline
-    const upperCaseFileName = file.name.toUpperCase();
-    const isExcelFile = upperCaseFileName.endsWith('.XLS') || upperCaseFileName.endsWith('.XLSX');
-    this.errorState = isExcelFile && !this.onlineStatusService.isOnline ? 'offline_conversion' : 'invalid_file_type';
+    this.errorState =
+      this.isExcelFile(file) && !this.onlineStatusService.isOnline ? 'offline_conversion' : 'invalid_file_type';
   }
 
   async fileSelected(file: File): Promise<void> {
@@ -698,8 +701,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     const defaultBookId = possibleBookIds.length === 1 ? possibleBookIds[0].toUpperCase() : undefined;
 
     let result: string[][];
-    const upperCaseFileName = file.name.toUpperCase();
-    if (upperCaseFileName.endsWith('.XLS') || upperCaseFileName.endsWith('.XLSX')) {
+    if (this.isExcelFile(file)) {
       if (!this.onlineStatusService.isOnline) {
         this.errorState = 'offline_conversion';
         return;
@@ -765,6 +767,11 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     await this.setUpQuestionList(questions, false);
     this.questionSource = 'csv_file';
     this.loading = false;
+  }
+
+  private isExcelFile(file: File): boolean {
+    const upperCaseFileName = file.name.toUpperCase();
+    return upperCaseFileName.endsWith('.XLS') || upperCaseFileName.endsWith('.XLSX');
   }
 
   // TODO should consider verse ranges, rather than just starting verse

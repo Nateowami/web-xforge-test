@@ -428,7 +428,7 @@ describe('ImportQuestionsDialogComponent', () => {
 
     expect(env.component.errorState).toBe('invalid_file_type');
     expect(env.bodyText).toContain(
-      'The file "questions.txt" cannot be imported. Please select a file of one of these types: .csv, .tsv, .xls, .xlsx'
+      'The file "questions.txt" cannot be imported. Please select a file of one of these types: .csv, .tsv, .xls, and .xlsx'
     );
     verify(mockedCsvService.parse(anything())).never();
     env.click(env.backButton);
@@ -444,6 +444,8 @@ describe('ImportQuestionsDialogComponent', () => {
 
     expect(env.component.errorState).toBe('offline_conversion');
     verify(mockedCsvService.convert(anything())).never();
+    // The dialog actions are only shown once a question source is chosen, so this checks it was set
+    expect(env.closeButton).toBeTruthy();
   }));
 
   it('accepts a CSV file selected through the file picker', fakeAsync(() => {
