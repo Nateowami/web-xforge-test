@@ -585,22 +585,29 @@ describe('TextComponent', () => {
     flush();
   }));
 
-  it('does not make a line taller when it has a note icon and the font is small', fakeAsync(() => {
+  it('keeps a note icon within its line when the font is small', fakeAsync(() => {
     const env = new TestEnvironment();
-    // The smallest font size Paratext allows (8pt) is shorter than the note icon
+    // The smallest font size Paratext allows (8pt) is shorter than the note icon at its usual size
     env.hostComponent.fontSize = formatFontSizeToRems(8);
     env.fixture.detectChanges();
     env.id = new TextDocId('project01', 40, 1);
     env.waitForEditor();
-    const paragraph: HTMLElement = env.getSegment('verse_1_1')!.closest('usx-para')!;
+    // Verse 5 is short and alone in its paragraph, so the paragraph is one line however wide the window is
+    const paragraph: HTMLElement = env.getSegment('verse_1_5')!.closest('usx-para')!;
     const heightWithoutNote: number = paragraph.getBoundingClientRect().height;
 
-    env.embedNoteAtVerse(1);
+    env.embedNoteAtVerse(5);
     tick();
     env.fixture.detectChanges();
 
-    expect(paragraph.querySelector('display-note')).not.toBeNull();
-    expect(paragraph.getBoundingClientRect().height).toEqual(heightWithoutNote);
+    const note: HTMLElement = paragraph.querySelector('display-note')!;
+    const line: DOMRect = paragraph.getBoundingClientRect();
+    expect(line.height).toEqual(heightWithoutNote);
+    // Hit-test the icon, which is drawn by display-note::before, to check that it is on the line but not above it
+    const noteRect: DOMRect = note.getBoundingClientRect();
+    const iconX: number = noteRect.left + noteRect.width / 2;
+    expect(document.elementFromPoint(iconX, line.top + line.height / 2)).toBe(note);
+    expect(document.elementFromPoint(iconX, line.top - 1)).not.toBe(note);
 
     TestEnvironment.waitForPresenceTimer();
     flush();
