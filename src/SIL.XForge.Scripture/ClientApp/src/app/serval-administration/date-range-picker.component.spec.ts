@@ -73,6 +73,68 @@ describe('DateRangePickerComponent', () => {
     expect(env.component.isDefaultRange).toBe(true);
   });
 
+  describe('incomplete range error', () => {
+    it('shows an error when the start date is erased and the user leaves the control', () => {
+      const env = new TestEnvironment({ startWithEmptyRange: true });
+      env.setRange(env.daysAgo(5), env.daysAgo(1));
+      expect(env.errorText).toBeNull();
+
+      env.typeInto(env.startInput, '');
+      // Still composing
+      expect(env.errorText).toBeNull();
+      env.focus(env.endInput);
+      // Moving between the start and end inputs is still composing
+      expect(env.errorText).toBeNull();
+      env.blur(env.endInput);
+
+      expect(env.component.isIncompleteRangeLeft).toBe(true);
+      expect(env.errorText).toContain('Select a valid date range');
+      expect(env.formField.classList).toContain('mat-form-field-invalid');
+
+      // Completing the range clears the error
+      env.typeInto(env.startInput, env.formatDate(env.daysAgo(3)));
+      env.blur(env.startInput);
+      expect(env.errorText).toBeNull();
+    });
+
+    it('shows an error when only the start date is filled in and the user leaves the control', () => {
+      const env = new TestEnvironment({ startWithEmptyRange: true });
+      env.typeInto(env.startInput, env.formatDate(env.daysAgo(3)));
+      env.blur(env.startInput);
+
+      expect(env.errorText).toContain('Select a valid date range');
+    });
+
+    it('does not show an error for an empty range when empty is the default', () => {
+      const env = new TestEnvironment({ startWithEmptyRange: true });
+      env.setRange(env.daysAgo(5), env.daysAgo(1));
+      env.typeInto(env.startInput, '');
+      env.typeInto(env.endInput, '');
+      env.blur(env.endInput);
+
+      expect(env.component.isIncompleteRangeLeft).toBe(false);
+      expect(env.errorText).toBeNull();
+    });
+
+    it('shows an error for an empty range when there is a default range', () => {
+      const env = new TestEnvironment({ startWithEmptyRange: false });
+      env.typeInto(env.startInput, '');
+      env.typeInto(env.endInput, '');
+      env.blur(env.endInput);
+
+      expect(env.errorText).toContain('Select a valid date range');
+    });
+
+    it('does not show an error for an untouched control', () => {
+      const env = new TestEnvironment({ startWithEmptyRange: false });
+      env.component.dateRangeForm.setValue({ start: null, end: env.daysAgo(1) });
+      env.fixture.detectChanges();
+
+      expect(env.component.isIncompleteRangeLeft).toBe(false);
+      expect(env.errorText).toBeNull();
+    });
+  });
+
   it('should disable future dates', () => {
     const env = new TestEnvironment();
     const today = new Date();
@@ -149,6 +211,58 @@ class TestEnvironment {
     this.component.startWithEmptyRange = startWithEmptyRange;
     // Spy before the first change detection so that emissions from ngOnInit are recorded.
     this.emitSpy = spyOn(this.component.dateRangeChange, 'emit').and.callThrough();
+    this.fixture.detectChanges();
+  }
+
+  get startInput(): HTMLInputElement {
+    return this.fixture.nativeElement.querySelector('input[matStartDate]');
+  }
+
+  get endInput(): HTMLInputElement {
+    return this.fixture.nativeElement.querySelector('input[matEndDate]');
+  }
+
+  get formField(): HTMLElement {
+    return this.fixture.nativeElement.querySelector('mat-form-field');
+  }
+
+  get errorText(): string | null {
+    const errors: HTMLElement[] = Array.from(this.fixture.nativeElement.querySelectorAll('mat-error'));
+    return errors.length === 0 ? null : errors.map(e => e.textContent).join(' ');
+  }
+
+  daysAgo(days: number): Date {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    return date;
+  }
+
+  /** Formats a date the way the native date adapter parses it for the en-US locale. */
+  formatDate(date: Date): string {
+    return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
+  }
+
+  setRange(start: Date, end: Date): void {
+    this.component.dateRangeForm.setValue({ start, end });
+    this.fixture.detectChanges();
+  }
+
+  typeInto(input: HTMLInputElement, text: string): void {
+    this.focus(input);
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+    this.fixture.detectChanges();
+  }
+
+  focus(input: HTMLInputElement): void {
+    input.focus();
+    input.dispatchEvent(new FocusEvent('focus'));
+    this.fixture.detectChanges();
+  }
+
+  blur(input: HTMLInputElement): void {
+    input.blur();
+    input.dispatchEvent(new FocusEvent('blur'));
     this.fixture.detectChanges();
   }
 }

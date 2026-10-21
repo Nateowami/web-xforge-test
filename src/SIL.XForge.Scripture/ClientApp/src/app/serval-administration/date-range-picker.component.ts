@@ -1,15 +1,17 @@
-import { Component, DestroyRef, EventEmitter, Input, OnInit, Output } from '@angular/core';
+import { Component, DestroyRef, EventEmitter, Input, OnInit, Output, ViewChild } from '@angular/core';
 import {
   AbstractControl,
   FormBuilder,
   FormControl,
   FormGroup,
+  FormGroupDirective,
+  NgForm,
   ReactiveFormsModule,
   ValidationErrors,
   ValidatorFn
 } from '@angular/forms';
 import { MatIconButton } from '@angular/material/button';
-import { DateAdapter } from '@angular/material/core';
+import { DateAdapter, ErrorStateMatcher } from '@angular/material/core';
 import {
   MatDatepickerToggle,
   MatDateRangeInput,
@@ -80,6 +82,18 @@ export class DateRangePickerComponent implements OnInit {
 
   private readonly defaultDaysBack = 14;
 
+  /**
+   * Error state matcher for the start and end inputs. Besides the usual validation errors, it flags a range that the user
+   * left without completing (see `isIncompleteRangeLeft`).
+   */
+  readonly errorStateMatcher: ErrorStateMatcher = {
+    isErrorState: (control: AbstractControl | null, form: FormGroupDirective | NgForm | null): boolean =>
+      this.defaultErrorStateMatcher.isErrorState(control, form) || this.isIncompleteRangeLeft
+  };
+
+  @ViewChild(MatDateRangeInput) private rangeInput?: MatDateRangeInput<Date>;
+  @ViewChild(MatDateRangePicker) private rangePicker?: MatDateRangePicker<Date>;
+
   /** Event emitted when the date range changes with a valid normalized range */
   @Output() dateRangeChange = new EventEmitter<NormalizedDateRange | undefined>();
 
@@ -92,7 +106,8 @@ export class DateRangePickerComponent implements OnInit {
     private formBuilder: FormBuilder,
     private dateAdapter: DateAdapter<Date>,
     private i18nService: I18nService,
-    private destroyRef: DestroyRef
+    private destroyRef: DestroyRef,
+    private defaultErrorStateMatcher: ErrorStateMatcher
   ) {
     this.maxSelectableDate = this.endOfTheDayOf(new Date());
 
@@ -164,6 +179,22 @@ export class DateRangePickerComponent implements OnInit {
         const range = { start: value.start, end: value.end };
         this.emitNormalizedIfValid(range);
       });
+  }
+
+  /**
+   * Whether the user has interacted with the control and moved on, leaving it without a date range that can be emitted
+   * because a date is missing. While the user is still in the inputs or the calendar popup, they are treated as still
+   * composing a range.
+   */
+  get isIncompleteRangeLeft(): boolean {
+    const { start, end } = this.dateRangeForm.controls;
+    const isStartEmpty: boolean = start.value == null;
+    const isEndEmpty: boolean = end.value == null;
+    const isBothEmpty: boolean = isStartEmpty && isEndEmpty;
+    // An entirely empty range is only acceptable when that is the default.
+    const isIncomplete: boolean = isBothEmpty ? this.defaultRange != null : isStartEmpty || isEndEmpty;
+    if (!isIncomplete || !(start.touched || end.touched)) return false;
+    return !(this.rangeInput?.focused ?? false) && !(this.rangePicker?.opened ?? false);
   }
 
   protected resetToDefaultDateRange(): void {

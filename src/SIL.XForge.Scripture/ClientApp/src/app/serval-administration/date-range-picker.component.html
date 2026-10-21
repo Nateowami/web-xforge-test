@@ -1,8 +1,22 @@
 <mat-form-field class="date-range-field" [class.date-range-field-active]="showReset && !isDefaultRange">
   <mat-label>Date range</mat-label>
   <mat-date-range-input [formGroup]="dateRangeForm" [rangePicker]="dateRangePicker" [dateFilter]="disableFutureDates">
-    <input matStartDate matInput formControlName="start" [max]="maxSelectableDate" placeholder="Start date" />
-    <input matEndDate matInput formControlName="end" [max]="maxSelectableDate" placeholder="End date" />
+    <input
+      matStartDate
+      matInput
+      formControlName="start"
+      [max]="maxSelectableDate"
+      [errorStateMatcher]="errorStateMatcher"
+      placeholder="Start date"
+    />
+    <input
+      matEndDate
+      matInput
+      formControlName="end"
+      [max]="maxSelectableDate"
+      [errorStateMatcher]="errorStateMatcher"
+      placeholder="End date"
+    />
   </mat-date-range-input>
   @if (showReset && !isDefaultRange) {
     <button
@@ -27,7 +41,7 @@
   @if (dateRangeForm.get("end")?.hasError("futureDate")) {
     <mat-error>End date cannot be in the future.</mat-error>
   }
-  @if (dateRangeForm.invalid) {
+  @if (dateRangeForm.invalid || isIncompleteRangeLeft) {
     <mat-error>Select a valid date range ending no later than today.</mat-error>
   }
 </mat-form-field>
