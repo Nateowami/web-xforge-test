@@ -938,11 +938,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       this.syncScrollRequested$.next();
     }
 
-    if (this.commenterSelectedVerseRef != null && this.target.commenterSelection.length === 0) {
-      // if we're here, the state hasn't been updated, and we need to re-toggle the selected verse
-      const correctVerseRef = this.commenterSelectedVerseRef;
-      this.commenterSelectedVerseRef = undefined;
-      this.toggleVerseRefElement(correctVerseRef);
+    if (this.commenterSelectedVerseRef != null && !this.target.isVerseSelected(this.commenterSelectedVerseRef)) {
+      // the selected verse lost its formatting, e.g. from an undo, so re-apply it
+      this.target.setVerseSelection(this.commenterSelectedVerseRef, true);
     }
 
     if (delta != null && this.shouldNoteThreadsRespondToEdits) {
