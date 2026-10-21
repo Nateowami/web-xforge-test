@@ -500,6 +500,35 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  it('keeps a verse selection styled and removable when quill wraps the verse number in new para contents', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 43, 1);
+    env.waitForEditor();
+    const verseRef = new VerseRef('JHN 1:2');
+    expect(env.component.toggleVerseSelection(verseRef)).withContext('setup').toBe(true);
+    const verseNumberIndex: number = env.component.getSegmentRange('verse_1_2')!.index - 1;
+    const editor: Quill = env.component.editor!;
+    expect(editor.container.querySelector('span.commenter-selection > usx-verse')).withContext('setup').not.toBeNull();
+
+    // SUT - as some undos do, take the selected verse number out of its para contents and wrap it in a new one
+    editor.formatText(verseNumberIndex, 1, { 'para-contents': null }, 'api');
+    editor.formatText(verseNumberIndex, 1, { 'para-contents': true }, 'api');
+    tick();
+    env.fixture.detectChanges();
+
+    // The verse number is still highlighted, and the selection is not stranded on the para contents element
+    expect(editor.container.querySelector('span.commenter-selection > usx-verse')).not.toBeNull();
+    expect(editor.container.querySelector('usx-para-contents.commenter-selection')).toBeNull();
+    expect(editor.getFormat(verseNumberIndex, 1)['commenter-selection']).toBe(true);
+    // Deselecting the verse clears it, so that moving back into the verse selects it again
+    expect(env.component.toggleVerseSelection(verseRef)).toBe(false);
+    expect(editor.container.querySelector('.commenter-selection')).toBeNull();
+    expect(env.component.toggleVerseSelection(verseRef)).toBe(true);
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('pastes text with proper attributes', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();

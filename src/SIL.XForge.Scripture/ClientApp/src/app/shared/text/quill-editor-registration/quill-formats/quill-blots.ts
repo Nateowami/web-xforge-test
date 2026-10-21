@@ -499,6 +499,31 @@ export class ParaInline extends QuillInlineBlot {
     }
   }
 
+  optimize(context: { [key: string]: any }): void {
+    this.moveAttributesToChildren();
+    super.optimize(context);
+  }
+
+  /**
+   * Formatting belongs on the children of a para contents element (see formatAt). But when quill wraps formatted
+   * content in a new para contents element, such as while applying an undo, parchment moves the attributes of the
+   * wrapped content onto the new wrapper. Move them back down, so that they are styled and can be updated as usual.
+   */
+  private moveAttributesToChildren(): void {
+    const attributes: { [name: string]: any } = omit(this.attributes.values(), 'invalid-inline');
+    if (Object.keys(attributes).length === 0) return;
+    this.children.forEach(child => {
+      const inline =
+        child instanceof QuillInlineBlot ? child : (child.wrap(QuillInlineBlot.blotName, true) as QuillInlineBlot);
+      for (const [name, value] of Object.entries(attributes)) {
+        inline.format(name, value);
+      }
+    });
+    for (const name of Object.keys(attributes)) {
+      this.format(name, null);
+    }
+  }
+
   insertAt(index: number, value: string, def?: any): void {
     // force verse embeds to not get inserted inside of segments
     if (value === 'verse') {
