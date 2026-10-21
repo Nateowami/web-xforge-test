@@ -193,6 +193,32 @@ describe('ScriptureChooserDialog', () => {
     expect(env.dialogText).not.toContain(nonexistentVerseOfRomans11);
   }));
 
+  it('explains why no verses are shown for a chapter without verse markers', fakeAsync(() => {
+    env = new TestEnvironment({
+      textsInProject: [
+        {
+          bookNum: 8,
+          chapters: [
+            { number: 1, lastVerse: 22, isValid: true, permissions: {} },
+            { number: 2, lastVerse: 0, isValid: true, permissions: {} }
+          ],
+          hasSource: false,
+          permissions: {}
+        }
+      ]
+    });
+    env.click(env.buttonWithText('2'));
+    expect(env.reference).toEqual('Ruth 2');
+    expect(env.noVersesMessage).not.toBeNull();
+    expect(env.noVersesMessage.nativeElement.textContent).toContain('no verse markers');
+
+    env.click(env.backoutButton);
+    env.click(env.buttonWithText('1'));
+    expect(env.reference).toEqual('Ruth 1');
+    expect(env.noVersesMessage).toBeNull();
+    expect(env.buttonWithText('22')).withContext('missing verse 22 button').not.toBeUndefined();
+  }));
+
   it('splits input books by OT and NT', () => {
     env = new TestEnvironment();
     expect(env.component.otBooks.includes('EXO')).toBe(true);
@@ -507,6 +533,10 @@ describe('ScriptureChooserDialog', () => {
 
     get backoutButton(): DebugElement {
       return this.fixture.debugElement.query(By.css('.backout-button'));
+    }
+
+    get noVersesMessage(): DebugElement {
+      return this.fixture.debugElement.query(By.css('.no-verses'));
     }
 
     get highlightedButton(): DebugElement {

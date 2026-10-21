@@ -427,7 +427,8 @@
     "choose_book": "Choose book",
     "choose_chapter": "Choose chapter",
     "choose_end_verse": "Choose end verse",
-    "choose_verse": "Choose verse"
+    "choose_verse": "Choose verse",
+    "no_verses_in_chapter": "This chapter has no verse markers. Add them in Paratext and sync before choosing a verse in this chapter."
   },
   "share": {
     "share": "Share"

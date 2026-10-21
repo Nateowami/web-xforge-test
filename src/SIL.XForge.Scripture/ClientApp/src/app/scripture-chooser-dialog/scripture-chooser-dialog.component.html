@@ -71,6 +71,8 @@
               } @else {
                 <button mat-button (click)="onClickVerse(verse)">{{ verse }}</button>
               }
+            } @empty {
+              <p class="no-verses">{{ t("no_verses_in_chapter") }}</p>
             }
           </div>
         </div>
