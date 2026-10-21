@@ -400,14 +400,16 @@ public class ParatextSyncRunnerTests
 
         await env.Runner.RunAsync("project02", "user01", "project02", false, CancellationToken.None);
         await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+        // The note thread positions are compared with the SF text from before the sync, which still has MRK 2
         env.ParatextService.Received()
             .GetNoteThreadChanges(
                 Arg.Any<UserSecret>(),
                 "target",
                 41,
                 Arg.Is<IEnumerable<IDocument<NoteThread>>>(threads => threads.Any(t => t.Id == "project01:dataId01")),
-                Arg.Any<Dictionary<int, ChapterDelta>>(),
-                Arg.Any<Dictionary<string, ParatextUserProfile>>()
+                Arg.Is<Dictionary<int, ChapterDelta>>(d => d.Keys.SequenceEqual(new[] { 1 })),
+                Arg.Any<Dictionary<string, ParatextUserProfile>>(),
+                Arg.Is<Dictionary<int, Delta>>(d => d.Keys.Order().SequenceEqual(new[] { 1, 2 }))
             );
 
         Assert.That(env.ContainsText("project01", "MAT", 3), Is.True);
@@ -1793,7 +1795,8 @@ public class ParatextSyncRunnerTests
                 40,
                 Arg.Is<IEnumerable<IDocument<NoteThread>>>(t => t.Single().Data.Notes.All(n => n.OwnerRef == "user03")),
                 Arg.Any<Dictionary<int, ChapterDelta>>(),
-                Arg.Any<Dictionary<string, ParatextUserProfile>>()
+                Arg.Any<Dictionary<string, ParatextUserProfile>>(),
+                Arg.Any<Dictionary<int, Delta>>()
             );
         SFProject project = env.GetProject();
         NoteThread noteThread = env.GetNoteThread("project01", "dataId01");
@@ -2021,7 +2024,8 @@ public class ParatextSyncRunnerTests
                 40,
                 Arg.Any<IEnumerable<IDocument<NoteThread>>>(),
                 Arg.Any<Dictionary<int, ChapterDelta>>(),
-                Arg.Any<Dictionary<string, ParatextUserProfile>>()
+                Arg.Any<Dictionary<string, ParatextUserProfile>>(),
+                Arg.Any<Dictionary<int, Delta>>()
             );
         NoteThread noteThread = env.GetNoteThread("project01", dataId);
         // The note was created on the newly created book
@@ -2822,7 +2826,8 @@ public class ParatextSyncRunnerTests
                 null,
                 Arg.Is<IEnumerable<IDocument<NoteThread>>>(t => t.Single().Data.Notes.All(n => n.OwnerRef == "user03")),
                 Arg.Any<Dictionary<int, ChapterDelta>>(),
-                Arg.Any<Dictionary<string, ParatextUserProfile>>()
+                Arg.Any<Dictionary<string, ParatextUserProfile>>(),
+                Arg.Any<Dictionary<int, Delta>>()
             );
         SFProject project = env.GetProject();
         NoteThread noteThread = env.GetNoteThread("project01", "dataId01");
@@ -4117,7 +4122,8 @@ public class ParatextSyncRunnerTests
                         40,
                         Arg.Any<IEnumerable<IDocument<NoteThread>>>(),
                         Arg.Any<Dictionary<int, ChapterDelta>>(),
-                        Arg.Any<Dictionary<string, ParatextUserProfile>>()
+                        Arg.Any<Dictionary<string, ParatextUserProfile>>(),
+                        Arg.Any<Dictionary<int, Delta>>()
                     )
                     .Returns(new[] { noteThreadChange });
                 ParatextService
@@ -4241,7 +4247,8 @@ public class ParatextSyncRunnerTests
                     40,
                     Arg.Any<IEnumerable<IDocument<NoteThread>>>(),
                     Arg.Any<Dictionary<int, ChapterDelta>>(),
-                    Arg.Any<Dictionary<string, ParatextUserProfile>>()
+                    Arg.Any<Dictionary<string, ParatextUserProfile>>(),
+                    Arg.Any<Dictionary<int, Delta>>()
                 )
                 .Returns(new[] { noteThreadChange });
         }
@@ -4675,7 +4682,8 @@ public class ParatextSyncRunnerTests
                     bookNum,
                     Arg.Any<IEnumerable<IDocument<NoteThread>>>(),
                     Arg.Any<Dictionary<int, ChapterDelta>>(),
-                    Arg.Any<Dictionary<string, ParatextUserProfile>>()
+                    Arg.Any<Dictionary<string, ParatextUserProfile>>(),
+                    Arg.Any<Dictionary<int, Delta>>()
                 )
                 .Returns(noteThreadChanges);
         }

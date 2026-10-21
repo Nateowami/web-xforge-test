@@ -38,6 +38,7 @@ using SIL.XForge.Configuration;
 using SIL.XForge.DataAccess;
 using SIL.XForge.Models;
 using SIL.XForge.Realtime;
+using SIL.XForge.Realtime.Json0;
 using SIL.XForge.Realtime.RichText;
 using SIL.XForge.Scripture.Models;
 using SIL.XForge.Scripture.Realtime;
@@ -2481,6 +2482,210 @@ public class ParatextServiceTests
         // The context of the original note thread is not what the thread was reattached and un-reattached to
         Assert.That(change5.ContextBefore, Is.Not.EqualTo(rti.contextBefore));
         Assert.That(change5.SelectedText, Is.Not.EqualTo(rti.selectedText));
+        TextAnchor originalAnchor = new TextAnchor
+        {
+            Start = change5.ContextBefore.Length,
+            Length = change5.SelectedText.Length,
+        };
+        Assert.That(change5.Position, Is.EqualTo(originalAnchor));
+    }
+
+    [Test]
+    public async Task GetNoteThreadChanges_TextEditedWithinSelection_KeepsSFPosition()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        env.AddNoteThreadData([new ThreadComponents { threadNum = 1, noteCount = 1 }]);
+        env.AddParatextComments([
+            new ThreadComponents
+            {
+                threadNum = 1,
+                noteCount = 1,
+                username = env.Username01,
+            },
+        ]);
+
+        // An SF user inserted "Test" after the first letter of the selected text "Text selected thread1", and SF grew
+        // the anchor to match
+        Dictionary<int, ChapterDelta> chapterDeltas = env.GetChapterDeltasByBook(
+            1,
+            env.ContextBefore,
+            "TTestext selected"
+        );
+        Dictionary<int, Delta> sfChapterDeltasBeforeSync = chapterDeltas.ToDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value.Delta
+        );
+        TextAnchor sfTextAnchor = new TextAnchor
+        {
+            Start = env.ContextBefore.Length,
+            Length = "TTestext selected thread1".Length,
+        };
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        IDocument<NoteThread> noteThreadDoc = await TestEnvironment.GetNoteThreadDocAsync(conn, "dataId1");
+        await noteThreadDoc.SubmitJson0OpAsync(op => op.Set(t => t.Position, sfTextAnchor));
+
+        Dictionary<string, ParatextUserProfile> syncUsers = new Dictionary<string, ParatextUserProfile>
+        {
+            {
+                env.Username01,
+                new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 }
+            },
+        };
+        IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+            userSecret,
+            ptProjectId,
+            40,
+            [noteThreadDoc],
+            chapterDeltas,
+            syncUsers,
+            sfChapterDeltasBeforeSync
+        );
+
+        // The Paratext comment's selected text no longer appears in the verse, but the note stays where SF had it
+        Assert.That(changes.SingleOrDefault(c => c.ThreadId == "thread1")?.Position, Is.Null);
+    }
+
+    [Test]
+    public async Task GetNoteThreadChanges_TextEditedWithinSelection_FollowsParatextEditBeforeNote()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        env.AddNoteThreadData([new ThreadComponents { threadNum = 1, noteCount = 1 }]);
+        env.AddParatextComments([
+            new ThreadComponents
+            {
+                threadNum = 1,
+                noteCount = 1,
+                username = env.Username01,
+            },
+        ]);
+
+        // SF grew the anchor around an edit inside the selected text, then the sync brought in text that a
+        // Paratext user inserted earlier in the verse
+        Dictionary<int, Delta> sfChapterDeltasBeforeSync = env.GetChapterDeltasByBook(
+                1,
+                env.ContextBefore,
+                "TTestext selected"
+            )
+            .ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Delta);
+        string contextBefore = "Inserted in Paratext. " + env.ContextBefore;
+        Dictionary<int, ChapterDelta> chapterDeltas = env.GetChapterDeltasByBook(1, contextBefore, "TTestext selected");
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        IDocument<NoteThread> noteThreadDoc = await TestEnvironment.GetNoteThreadDocAsync(conn, "dataId1");
+        await noteThreadDoc.SubmitJson0OpAsync(op =>
+            op.Set(
+                t => t.Position,
+                new TextAnchor { Start = env.ContextBefore.Length, Length = "TTestext selected thread1".Length }
+            )
+        );
+
+        Dictionary<string, ParatextUserProfile> syncUsers = new Dictionary<string, ParatextUserProfile>
+        {
+            {
+                env.Username01,
+                new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 }
+            },
+        };
+        IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+            userSecret,
+            ptProjectId,
+            40,
+            [noteThreadDoc],
+            chapterDeltas,
+            syncUsers,
+            sfChapterDeltasBeforeSync
+        );
+
+        NoteThreadChange change1 = changes.Single(c => c.ThreadId == "thread1");
+        TextAnchor expected = new TextAnchor
+        {
+            Start = contextBefore.Length,
+            Length = "TTestext selected thread1".Length,
+        };
+        Assert.That(change1.Position, Is.EqualTo(expected));
+    }
+
+    [Test]
+    public async Task GetNoteThreadChanges_ReattachmentChangedInParatext_IgnoresSFPosition()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        string verseStr = "MAT 1:7";
+        ReattachedThreadInfo rti = env.GetReattachedThreadInfo(verseStr);
+        env.AddNoteThreadData([
+            new ThreadComponents { threadNum = 1, noteCount = 1 },
+            new ThreadComponents
+            {
+                threadNum = 5,
+                noteCount = 1,
+                reattachedVerseStr = verseStr,
+            },
+        ]);
+        env.AddParatextComments([
+            // Reattached in Paratext since the last sync
+            new ThreadComponents
+            {
+                threadNum = 1,
+                noteCount = 1,
+                username = env.Username01,
+                reattachedVerseStr = verseStr,
+            },
+            // Reattachment removed in Paratext since the last sync
+            new ThreadComponents
+            {
+                threadNum = 5,
+                noteCount = 1,
+                username = env.Username01,
+            },
+        ]);
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        IEnumerable<IDocument<NoteThread>> noteThreadDocs = await TestEnvironment.GetNoteThreadDocsAsync(
+            conn,
+            ["dataId1", "dataId5"]
+        );
+        TextAnchor reattachedAnchor = new TextAnchor
+        {
+            Start = rti.contextBefore.Length,
+            Length = rti.selectedText.Length,
+        };
+        // SF last had thread5 at the location it was reattached to
+        await noteThreadDocs
+            .Single(t => t.Data.DataId == "dataId5")
+            .SubmitJson0OpAsync(op => op.Set(t => t.Position, reattachedAnchor));
+        Dictionary<int, ChapterDelta> chapterDeltas = env.GetChapterDeltasByBook(1, env.ContextBefore, "Text selected");
+        Dictionary<int, Delta> sfChapterDeltasBeforeSync = chapterDeltas.ToDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value.Delta
+        );
+
+        Dictionary<string, ParatextUserProfile> syncUsers = new Dictionary<string, ParatextUserProfile>
+        {
+            {
+                env.Username01,
+                new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 }
+            },
+        };
+        IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+            userSecret,
+            ptProjectId,
+            40,
+            noteThreadDocs,
+            chapterDeltas,
+            syncUsers,
+            sfChapterDeltasBeforeSync
+        );
+
+        NoteThreadChange change1 = changes.Single(c => c.ThreadId == "thread1");
+        Assert.That(change1.Position, Is.EqualTo(reattachedAnchor));
+        NoteThreadChange change5 = changes.Single(c => c.ThreadId == "thread5");
         TextAnchor originalAnchor = new TextAnchor
         {
             Start = change5.ContextBefore.Length,
