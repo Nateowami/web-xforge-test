@@ -383,7 +383,9 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
           this.targetProject = projectDoc!.data;
         }),
         filter(([isOnline, _]) => {
-          return isOnline && this.doesLatestCompletedHaveDraft;
+          // The build history is needed for any drafted chapter, not just those in the latest build, as older draft
+          // revisions show the low confidence warning from the build that produced them
+          return isOnline && this.projectService.hasDraft(this.targetProject, this.bookNum, this.chapter, false);
         })
       )
       .subscribe(([_, projectDoc]) => this.refreshBuildHistory(projectDoc!.id));
