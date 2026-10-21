@@ -60,8 +60,8 @@ as-split > .as-split-gutter .as-split-gutter-icon {
 }
 
 .menu-drawer-over-content > .cdk-global-overlay-wrapper > .cdk-overlay-pane.hide-under-menu-drawer {
-  // See AppComponent.updateDrawerOverContentClass(). Hiding the pane rather than the content inside it also stops the
-  // pane from intercepting taps on the drawer.
+  // See app/shared/menu-drawer-overlay.ts. Hiding the pane rather than the content inside it also stops the pane from
+  // intercepting taps on the drawer.
   visibility: hidden;
 }
 

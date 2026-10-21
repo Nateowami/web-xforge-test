@@ -48,6 +48,7 @@ import { SF_TYPE_REGISTRY } from './core/models/sf-type-registry';
 import { SFProjectService } from './core/sf-project.service';
 import { NavigationComponent } from './navigation/navigation.component';
 import { GlobalNoticesComponent } from './shared/global-notices/global-notices.component';
+import { MENU_DRAWER_OVER_CONTENT_CLASS } from './shared/menu-drawer-overlay';
 import { NmtDraftAuthGuard, SettingsAuthGuard, SyncAuthGuard, UsersAuthGuard } from './shared/project-router.guard';
 import { paratextUsersFromRoles } from './shared/test-utils';
 
@@ -251,19 +252,19 @@ describe('AppComponent', () => {
     const overlayContainerClasses: DOMTokenList = TestBed.inject(OverlayContainer).getContainerElement().classList;
     env.breakpointObserver.emitObserveValue(false);
     env.navigateFully(['/projects', 'project01']);
-    expect(overlayContainerClasses).not.toContain('menu-drawer-over-content');
+    expect(overlayContainerClasses).not.toContain(MENU_DRAWER_OVER_CONTENT_CLASS);
 
     env.click(env.hamburgerMenuButton);
-    expect(overlayContainerClasses).toContain('menu-drawer-over-content');
+    expect(overlayContainerClasses).toContain(MENU_DRAWER_OVER_CONTENT_CLASS);
 
     env.click(env.hamburgerMenuButton);
-    expect(overlayContainerClasses).not.toContain('menu-drawer-over-content');
+    expect(overlayContainerClasses).not.toContain(MENU_DRAWER_OVER_CONTENT_CLASS);
 
     // A permanent drawer sits beside the content, so overlays need not be hidden
     env.click(env.hamburgerMenuButton);
     env.breakpointObserver.emitObserveValue(true);
     env.wait();
-    expect(overlayContainerClasses).not.toContain('menu-drawer-over-content');
+    expect(overlayContainerClasses).not.toContain(MENU_DRAWER_OVER_CONTENT_CLASS);
 
     discardPeriodicTasks();
     flush();

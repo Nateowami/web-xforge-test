@@ -85,6 +85,7 @@ import { BuildDto } from '../../machine-api/build-dto';
 import { BuildStates } from '../../machine-api/build-states';
 import { CopyrightBannerComponent } from '../../shared/copyright-banner/copyright-banner.component';
 import { provideCustomIcons } from '../../shared/custom-icons';
+import { HIDE_UNDER_MENU_DRAWER_PANEL_CLASS } from '../../shared/menu-drawer-overlay';
 import {
   provideSFTabs,
   TabComponent,
@@ -2504,6 +2505,7 @@ describe('EditorComponent', () => {
       env.wait();
       expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('hidden');
       expect(env.mobileNoteTextArea).toBeTruthy();
+      expect(env.bottomSheetOverlayPane?.classList).toContain(HIDE_UNDER_MENU_DRAWER_PANEL_CLASS);
       expect(env.component.currentSegmentReference).toEqual('Matthew 1:2');
       verify(mockedMatDialog.open(NoteDialogComponent, anything())).never();
       // Close the bottom sheet
@@ -2604,6 +2606,7 @@ describe('EditorComponent', () => {
       env.clickSegmentRef('verse_1_1');
       env.wait();
       expect(env.insertNoteFabMobile).toBeTruthy();
+      expect(env.bottomSheetOverlayPane?.classList).toContain(HIDE_UNDER_MENU_DRAWER_PANEL_CLASS);
       env.insertNoteFabMobile!.click();
       expect(env.bottomSheetVerseReference?.textContent).toEqual('Luke 1:1');
       const content = 'commenter leaving mobile note';
@@ -4648,6 +4651,10 @@ class TestEnvironment {
 
   get bottomSheetVerseReference(): HTMLElement | null {
     return document.querySelector('.fab-bottom-sheet > b');
+  }
+
+  get bottomSheetOverlayPane(): HTMLElement | null {
+    return document.querySelector('.fab-bottom-sheet')?.closest<HTMLElement>('.cdk-overlay-pane') ?? null;
   }
 
   get insertNoteFabMobile(): HTMLButtonElement | null {
