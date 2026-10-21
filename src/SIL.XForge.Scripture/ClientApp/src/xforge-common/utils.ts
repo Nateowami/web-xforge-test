@@ -18,9 +18,13 @@ export interface UserAgentHighEntropyValues {
 // real OS and browser versions are only available from the async client hints API. Request them as soon as the app
 // loads so they are available synchronously by the time an issue email link is generated.
 let userAgentHighEntropyValues: UserAgentHighEntropyValues | undefined;
-(window.navigator as any).userAgentData
+(
+  window.navigator as Navigator & {
+    userAgentData?: { getHighEntropyValues(hints: string[]): Promise<UserAgentHighEntropyValues> };
+  }
+).userAgentData
   ?.getHighEntropyValues(['platformVersion', 'fullVersionList'])
-  .then((values: UserAgentHighEntropyValues) => (userAgentHighEntropyValues = values))
+  .then(values => (userAgentHighEntropyValues = values))
   .catch(() => {});
 
 export function nameof<T>(name: Extract<keyof T, string>): string {
@@ -110,13 +114,14 @@ export function audioRecordingMimeType(): string {
 }
 
 /**
- * Gets the browser and OS names and versions to include in an issue report. Values from the User-Agent Client Hints
- * API are preferred over the user agent string, as Chromium-based browsers report frozen values in the latter.
+ * Gets the browser name and version, and the OS name followed by its version when known (e.g. "Android 14.0.0", or
+ * just "Linux"), to include in an issue report. Values from the User-Agent Client Hints API are preferred over the user
+ * agent string, as Chromium-based browsers report frozen values in the latter.
  */
 export function getBrowserAndOsInfo(
   userAgent: string,
   highEntropyValues?: UserAgentHighEntropyValues
-): { browserName: string; browserVersion: string | undefined; osName: string; osVersion: string | undefined } {
+): { browserName: string; browserVersion: string | undefined; os: string | undefined } {
   const bowser = Bowser.getParser(userAgent);
   const browserName: string = bowser.getBrowserName();
   const osName: string = bowser.getOSName();
@@ -128,7 +133,9 @@ export function getBrowserAndOsInfo(
 
   let osVersion: string | undefined = bowser.getOSVersion();
   const platformVersion: string | undefined = highEntropyValues?.platformVersion;
-  if (platformVersion != null && platformVersion !== '') {
+  // Browsers do not expose the Linux distribution or version. Chromium sends an empty platform version on Linux, but
+  // ignore it in case a browser sends something else, such as the kernel version.
+  if (platformVersion != null && platformVersion !== '' && osName !== 'Linux') {
     if (osName === 'Windows') {
       // On Windows the platform version is the Windows.Foundation.UniversalApiContract version, not the OS version.
       // See https://learn.microsoft.com/en-us/microsoft-edge/web-platform/how-to-detect-win11
@@ -140,11 +147,12 @@ export function getBrowserAndOsInfo(
     }
   }
 
-  return { browserName, browserVersion, osName, osVersion };
+  const os: string = [osName, osVersion].filter(s => s != null && s !== '').join(' ');
+  return { browserName, browserVersion, os: os === '' ? undefined : os };
 }
 
 export function issuesEmailTemplate(errorInfo?: { errorMessage: string; errorId: string }): string {
-  const { browserName, browserVersion, osName, osVersion } = getBrowserAndOsInfo(
+  const { browserName, browserVersion, os } = getBrowserAndOsInfo(
     window.navigator.userAgent,
     userAgentHighEntropyValues
   );
@@ -153,7 +161,7 @@ export function issuesEmailTemplate(errorInfo?: { errorMessage: string; errorId:
     [environment.siteName]: versionData.version,
     [browserName]: browserVersion ?? translate('issue_email.unknown'),
     ...(isBrave() ? { Brave: 'Yes' } : {}),
-    [osName]: osVersion ?? translate('issue_email.unknown'),
+    OS: os ?? translate('issue_email.unknown'),
     URL: location.href,
     ...(errorInfo?.errorId ? { 'Error ID': errorInfo?.errorId } : {}),
     ...(errorInfo?.errorMessage ? { 'Error Message': errorInfo?.errorMessage } : {})

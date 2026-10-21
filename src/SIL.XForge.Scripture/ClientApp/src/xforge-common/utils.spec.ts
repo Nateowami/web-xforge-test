@@ -40,14 +40,12 @@ describe('xforge-common utils', () => {
       expect(getBrowserAndOsInfo(androidChromeUserAgent)).toEqual({
         browserName: 'Chrome',
         browserVersion: '155.0.0.0',
-        osName: 'Android',
-        osVersion: '10'
+        os: 'Android 10'
       });
       expect(getBrowserAndOsInfo(linuxFirefoxUserAgent)).toEqual({
         browserName: 'Firefox',
         browserVersion: '157.0',
-        osName: 'Linux',
-        osVersion: undefined
+        os: 'Linux'
       });
     });
 
@@ -61,7 +59,7 @@ describe('xforge-common utils', () => {
             { brand: 'Google Chrome', version: '155.0.8059.41' }
           ]
         })
-      ).toEqual({ browserName: 'Chrome', browserVersion: '155.0.8059.41', osName: 'Android', osVersion: '14.0.0' });
+      ).toEqual({ browserName: 'Chrome', browserVersion: '155.0.8059.41', os: 'Android 14.0.0' });
     });
 
     it('should map the Windows platform version to the Windows release', () => {
@@ -72,22 +70,27 @@ describe('xforge-common utils', () => {
       expect(getBrowserAndOsInfo(windowsEdgeUserAgent, { platformVersion: '15.0.0', fullVersionList })).toEqual({
         browserName: 'Microsoft Edge',
         browserVersion: '155.0.3400.12',
-        osName: 'Windows',
-        osVersion: '11'
+        os: 'Windows 11'
       });
-      expect(getBrowserAndOsInfo(windowsEdgeUserAgent, { platformVersion: '10.0.0', fullVersionList }).osVersion).toBe(
-        '10'
+      expect(getBrowserAndOsInfo(windowsEdgeUserAgent, { platformVersion: '10.0.0', fullVersionList }).os).toBe(
+        'Windows 10'
       );
       // Windows 7/8/8.1 report 0.x; keep what the user agent string says
-      expect(getBrowserAndOsInfo(windowsEdgeUserAgent, { platformVersion: '0.3.0', fullVersionList }).osVersion).toBe(
-        'NT 10.0'
+      expect(getBrowserAndOsInfo(windowsEdgeUserAgent, { platformVersion: '0.3.0', fullVersionList }).os).toBe(
+        'Windows NT 10.0'
       );
     });
 
-    it('should ignore an empty platform version', () => {
+    it('should report Linux without a version', () => {
       const linuxChromeUserAgent =
         'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36';
-      expect(getBrowserAndOsInfo(linuxChromeUserAgent, { platformVersion: '' }).osVersion).toBeUndefined();
+      expect(getBrowserAndOsInfo(linuxChromeUserAgent, { platformVersion: '' }).os).toBe('Linux');
+      // A kernel version would be mistaken for the distribution version
+      expect(getBrowserAndOsInfo(linuxChromeUserAgent, { platformVersion: '6.8.0' }).os).toBe('Linux');
+    });
+
+    it('should report an unrecognized OS as unknown', () => {
+      expect(getBrowserAndOsInfo('Mozilla/5.0').os).toBeUndefined();
     });
   });
 });
