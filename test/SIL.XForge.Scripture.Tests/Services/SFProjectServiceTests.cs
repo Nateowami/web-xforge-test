@@ -3069,35 +3069,21 @@ public class SFProjectServiceTests
         await env.MachineProjectService.Received().RemoveProjectAsync(Project01, CancellationToken.None);
         env.FileSystemService.Received().DeleteDirectory(ptProjectDir);
         Assert.That(env.ProjectSecrets.Contains(Project01), Is.False);
+    }
 
-        ptProjectDir = Path.Join("xforge", "sync", "pt_source_no_suggestions");
-        env.FileSystemService.DirectoryExists(ptProjectDir).Returns(true);
-        Assert.That(env.GetProject(Project03).TranslateConfig.Source, Is.Not.Null);
+    [Test]
+    public async Task DeleteProjectAsync_SourceProject()
+    {
+        var env = new TestEnvironment();
+        Assert.That(env.GetProject(Project03).TranslateConfig.Source?.ProjectRef, Is.EqualTo(SourceOnly), "setup");
 
-        // SUT 2
-        await env.Service.DeleteProjectAsync(User01, SourceOnly);
+        // SUT
+        await Assert.ThrowsAsync<InvalidOperationException>(() => env.Service.DeleteProjectAsync(User01, SourceOnly));
 
-        env.Logger.AssertHasEvent(
-            e => e.Message!.Contains(SourceOnly) && e.Message.Contains(User01),
-            "The deletion should be logged"
-        );
-        await env
-            .EventMetricService.Received(1)
-            .SaveEventMetricAsync(
-                SourceOnly,
-                User01,
-                nameof(SFProjectService.DeleteProjectAsync),
-                EventScope.Settings,
-                Arg.Any<Dictionary<string, object>>(),
-                Arg.Any<object?>(),
-                Arg.Any<TimeSpan?>(),
-                Arg.Any<Exception?>()
-            );
-        await env.MachineProjectService.Received().RemoveProjectAsync(SourceOnly, CancellationToken.None);
-        env.FileSystemService.Received().DeleteDirectory(ptProjectDir);
-        Assert.That(env.ContainsProject(SourceOnly), Is.False);
-        Assert.That(env.GetUser(User01).Sites[SiteId].Projects, Does.Not.Contain(SourceOnly));
-        Assert.That(env.GetProject(Project02).TranslateConfig.Source, Is.Null);
+        Assert.That(env.ContainsProject(SourceOnly), Is.True);
+        Assert.That(env.ProjectSecrets.Contains(SourceOnly), Is.True);
+        Assert.That(env.GetProject(Project03).TranslateConfig.Source?.ProjectRef, Is.EqualTo(SourceOnly));
+        await env.MachineProjectService.DidNotReceiveWithAnyArgs().RemoveProjectAsync(default!, default);
     }
 
     [Test]
