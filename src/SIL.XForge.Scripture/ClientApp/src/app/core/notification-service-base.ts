@@ -1,4 +1,5 @@
 import { AbortError, HubConnection, HubConnectionState, IHttpConnectionOptions } from '@microsoft/signalr';
+import { Observable, Subject } from 'rxjs';
 import { AuthService } from 'xforge-common/auth.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 
@@ -8,17 +9,38 @@ import { OnlineStatusService } from 'xforge-common/online-status.service';
  * NOTE: You will need to build the connection in your constructor.
  */
 export abstract class NotificationServiceBase {
-  protected connection!: HubConnection;
   protected options: IHttpConnectionOptions = {
     accessTokenFactory: async () => (await this.authService.getAccessToken()) ?? ''
   };
   private openConnections: number = 0;
   private startPromise: Promise<void> | null = null;
+  private _connection!: HubConnection;
+  private readonly connectionLostSubject = new Subject<void>();
+  /** The projects subscribed to since the connection was started, so that they can be resubscribed after a reconnect. */
+  private readonly subscribedProjectIds = new Set<string>();
 
   constructor(
     private authService: AuthService,
     private readonly onlineService: OnlineStatusService
   ) {}
+
+  protected get connection(): HubConnection {
+    return this._connection;
+  }
+
+  protected set connection(connection: HubConnection) {
+    this._connection = connection;
+    connection.onreconnecting(() => this.connectionLostSubject.next());
+    connection.onclose(() => this.connectionLostSubject.next());
+    connection.onreconnected(() => void this.resubscribeToProjects());
+  }
+
+  /**
+   * Emits when the connection drops or closes. Notifications sent until it is connected again are never received.
+   */
+  get connectionLost$(): Observable<void> {
+    return this.connectionLostSubject.asObservable();
+  }
 
   get appOnline(): boolean {
     return this.onlineService.isOnline && this.onlineService.isBrowserOnline;
@@ -36,10 +58,13 @@ export abstract class NotificationServiceBase {
       return;
     }
 
-    // After the connection drops, automatic reconnect can wait up to 30 seconds between attempts, and a reconnected
-    // connection has lost its project subscriptions. Restart it now so that the caller gets a usable connection.
-    if (this.connection.state === HubConnectionState.Reconnecting) {
+    // The connection is only in the Reconnecting state once any stateful reconnect has failed. Automatic reconnect can
+    // then wait up to 30 seconds between attempts, so if we are online, restart it now so that the caller gets a usable
+    // connection. If we are offline, leave automatic reconnect running, as a restart would fail and not be retried.
+    let restarted = false;
+    if (this.connection.state === HubConnectionState.Reconnecting && this.appOnline) {
       await this.connection.stop();
+      restarted = true;
     }
 
     // Only start the connection if we are disconnected
@@ -62,6 +87,7 @@ export abstract class NotificationServiceBase {
       })();
 
       await this.startPromise;
+      if (restarted) await this.resubscribeToProjects();
     }
 
     // If already connected or connecting, we do not need to restart the connection
@@ -78,10 +104,13 @@ export abstract class NotificationServiceBase {
         }
       }
       await this.connection.stop();
+      this.subscribedProjectIds.clear();
     }
   }
 
   async subscribeToProject(projectId: string): Promise<void> {
+    this.subscribedProjectIds.add(projectId);
+
     // Wait until connection is fully started
     if (this.startPromise != null) {
       await this.startPromise;
@@ -103,6 +132,21 @@ export abstract class NotificationServiceBase {
         return;
       } else {
         throw err;
+      }
+    }
+  }
+
+  /**
+   * Subscribes to the projects again, as a connection that was reconnected or restarted has a new connection id, so it
+   * is no longer in the projects' groups on the server.
+   */
+  private async resubscribeToProjects(): Promise<void> {
+    for (const projectId of this.subscribedProjectIds) {
+      try {
+        await this.subscribeToProject(projectId);
+      } catch (err) {
+        // The user may no longer have access to a project they were subscribed to
+        console.error(err);
       }
     }
   }
