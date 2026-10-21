@@ -425,6 +425,52 @@ describe('Quill blots', () => {
       expect(node.title).toBe('text1\ntext2');
     });
 
+    it('should mark note as invalid when its contents contain invalid formatting', () => {
+      const value = {
+        caller: '+',
+        style: 'f',
+        contents: {
+          ops: [
+            { insert: '1:1 ', attributes: { char: { style: 'fr' } } },
+            { insert: 'special text', attributes: { char: { style: 'add' }, 'invalid-inline': true } }
+          ]
+        }
+      };
+      const node = NoteEmbed.create(value) as HTMLElement;
+      expect(node.classList).toContain('invalid-inline');
+    });
+
+    it('should mark note as invalid when a link in its contents contains invalid formatting', () => {
+      const value = {
+        caller: '-',
+        style: 'x',
+        contents: {
+          ops: [
+            {
+              insert: {
+                link: {
+                  style: 'xt',
+                  contents: { ops: [{ insert: 'link text', attributes: { 'invalid-inline': true } }] }
+                }
+              }
+            }
+          ]
+        }
+      };
+      const node = NoteEmbed.create(value) as HTMLElement;
+      expect(node.classList).toContain('invalid-inline');
+    });
+
+    it('should not mark note as invalid when its contents are valid', () => {
+      const value = {
+        caller: '+',
+        style: 'f',
+        contents: { ops: [{ insert: 'note text', attributes: { char: { style: 'ft' } } }] }
+      };
+      const node = NoteEmbed.create(value) as HTMLElement;
+      expect(node.classList).not.toContain('invalid-inline');
+    });
+
     it('should retrieve stored note value', () => {
       const value = { caller: 'a', style: 'footnote' };
       const node = NoteEmbed.create(value) as HTMLElement;
