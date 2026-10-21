@@ -126,6 +126,24 @@ describe('TranslateOverviewComponent', () => {
     discardPeriodicTasks();
   }));
 
+  it('should stop recalculating progress after the page is left', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setLocalProgress({ bookId: 'MAT', verseSegments: 4, blankVerseSegments: 1 }, true);
+    env.wait();
+    verify(mockedProgressService.getProgress(anything(), anything())).once();
+
+    env.fixture.destroy();
+    env.testOnlineStatusService.setIsOnline(false);
+    tick();
+    env.testOnlineStatusService.setIsOnline(true);
+    tick();
+
+    verify(mockedProgressService.getLocalProgress(anything())).never();
+    verify(mockedProgressService.getProgress(anything(), anything())).once();
+
+    discardPeriodicTasks();
+  }));
+
   it('progress card should list all books in project', fakeAsync(() => {
     const env = new TestEnvironment();
     env.wait();

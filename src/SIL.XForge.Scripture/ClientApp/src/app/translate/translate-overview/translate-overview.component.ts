@@ -135,7 +135,9 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
                   return EMPTY;
                 })
               )
-            )
+            ),
+            // onlineStatus$ outlives this page, so stop recalculating once the page is left
+            quietTakeUntilDestroyed(this.destroyRef)
           )
           .subscribe(({ progress, isComplete }) => {
             this.projectProgress = progress;
