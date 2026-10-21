@@ -41,6 +41,9 @@ describe('EditorTabFactoryService', () => {
     expect(tab.closeable).toEqual(true);
     expect(tab.movable).toEqual(true);
     expect(tab.unique).toBeFalsy();
+    // Each history tab needs its own state object, as the history chooser updates it in place
+    expect(tab.historyState).toEqual({});
+    expect(tab.historyState).not.toBe(service.createTab('history').historyState);
     tab.headerText$.subscribe(headerText => {
       expect(headerText).toEqual('Test Header Text');
       done();

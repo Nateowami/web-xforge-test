@@ -1,6 +1,6 @@
 import { EditorTabType } from 'realtime-server/lib/esm/scriptureforge/models/editor-tab';
-import { Revision } from '../../../core/paratext.service';
 import { TabInfo } from '../../../shared/sf-tab-group';
+import { HistoryTabState } from '../editor-history/history-chooser/history-chooser.component';
 
 export interface EditorTabInfo extends TabInfo<EditorTabType> {
   /**
@@ -19,8 +19,8 @@ export interface EditorTabInfo extends TabInfo<EditorTabType> {
   projectId?: string;
 
   /**
-   * The revision selected in a history tab, so the selection can be restored if the tab is recreated (e.g. when it is
+   * The state of a history tab, so it can be restored if the tab's components are recreated (e.g. when the tab is
    * moved to another tab group).
    */
-  historyRevision?: Revision;
+  historyState?: HistoryTabState;
 }

@@ -56,7 +56,8 @@ export class EditorTabFactoryService implements TabFactoryService<EditorTabType,
             headerText$: this.i18n.translate('editor_tab_factory.default_history_tab_header'),
             closeable: true,
             movable: true,
-            persist: true
+            persist: true,
+            historyState: {}
           },
           tabOptions
         );
