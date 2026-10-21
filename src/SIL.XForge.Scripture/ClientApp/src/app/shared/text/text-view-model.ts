@@ -1,6 +1,6 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { VerseRef } from '@sillsdev/scripture';
-import { cloneDeep } from 'lodash-es';
+import { cloneDeep, omit } from 'lodash-es';
 import Quill, { Delta, EmitterSource, Range } from 'quill';
 import { DeltaOperation, StringMap } from 'rich-text';
 import { BehaviorSubject, Subject, Subscription } from 'rxjs';
@@ -967,7 +967,10 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
         }
         previousOp = 'delete';
       } else if (cloneOp.insert != null) {
-        cloneOp.attributes = getAttributesAtPosition(this.checkEditor(), editorStartPos);
+        // The surrounding view attributes (segment, highlights, etc.) come from the editor, but the character style
+        // belongs to the inserted content, so it must come from the op rather than from the neighbouring text.
+        const viewAttributes: StringMap = omit(getAttributesAtPosition(this.checkEditor(), editorStartPos), 'char');
+        cloneOp.attributes = { ...viewAttributes, ...cloneOp.attributes };
         previousOp = 'insert';
       }
       (adjustedDelta as any).push(cloneOp);

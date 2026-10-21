@@ -1,4 +1,4 @@
-import { omit } from 'lodash-es';
+import { isEqual, omit } from 'lodash-es';
 import { Blot, Scope } from 'parchment';
 import QuillBlockBlot, { BlockEmbed as QuillBlockEmbedBlot } from 'quill/blots/block';
 import QuillEmbedBlot from 'quill/blots/embed';
@@ -223,6 +223,18 @@ export class CharInline extends QuillInlineBlot {
       setUsxValue(elem, usxStyle);
     } else {
       super.format(name, value);
+    }
+  }
+
+  optimize(context: { [key: string]: any }): void {
+    super.optimize(context);
+    // Parchment only merges neighbouring inlines whose format values are the same object, but each part of a char
+    // span (such as the text and a footnote inside a \va ... \va*) has its own copy of the char value. Merge equal
+    // neighbours so the span is rendered as one element instead of one per part.
+    const next = this.next;
+    if (next instanceof CharInline && next.prev === this && isEqual(this.formats(), next.formats())) {
+      next.moveChildren(this);
+      next.remove();
     }
   }
 }
