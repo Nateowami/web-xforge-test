@@ -1,5 +1,16 @@
 <mat-form-field class="assignee-field" subscriptSizing="dynamic">
-  <mat-select [value]="value" (selectionChange)="onSelectionChange($event.value)">
+  <mat-select #select [value]="value" (selectionChange)="onSelectionChange($event.value)">
+    <!-- Without a custom trigger, mat-select shows the option's text content, which includes the avatar's initials -->
+    <mat-select-trigger>
+      @if (select.value === "") {
+        Unassigned
+      } @else {
+        <!-- Keyed on the ID so that a new owner component (which only loads its user in ngOnInit) is created -->
+        @for (userId of [select.value]; track userId) {
+          <app-owner [ownerRef]="userId"></app-owner>
+        }
+      }
+    </mat-select-trigger>
     <mat-option value="">
       <span class="unassigned-option">Unassigned</span>
     </mat-option>
