@@ -679,7 +679,10 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
       const len = typeof op.insert === 'string' ? op.insert.length : 1;
       if (op.insert === '\n' || op.attributes?.para != null || op.attributes?.book != null) {
         const style: string | null = (op.attributes?.para ?? (op.attributes?.book as any))?.style;
-        if (style == null || canParaContainVerseText(style)) {
+        // Invalid USFM can put verses in a paragraph whose style cannot contain verse text (e.g. "\v- 2" is parsed as
+        // an unknown "v-" paragraph holding the verses that follow). Segment it like a verse paragraph, as the backend
+        // does, so that those verses keep their own segments.
+        if (style == null || canParaContainVerseText(style) || paraSegments.length > 0) {
           // paragraph
           for (const _ch of op.insert as any) {
             if (curSegment != null) {
@@ -692,7 +695,8 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
               if (paraSegments.length === 0) {
                 const paraRef = getParagraphRef(nextIds, style, style);
                 paraSegments.push(new SegmentInfo(paraRef, curIndex));
-              } else if (paraSegments[0].ref === '') {
+              } else if (paraSegments[0].ref === '' || !canParaContainVerseText(style)) {
+                // text before the first verse of a paragraph that cannot contain verse text is not part of a verse
                 const paraRef = getParagraphRef(nextIds, style, style);
                 paraSegments[0].ref = paraRef;
               }
