@@ -208,18 +208,20 @@ quill-editor {
   position: relative;
   & display-note {
     &:before {
+      // The icon keeps a constant size (SF-1586) except with fonts smaller than the default 12pt (1rem), where it shrinks
+      // with the text so that it fits in its line instead of reaching into the line above
+      --note-icon-size: min(1rem, 1em);
       cursor: pointer;
       content: '';
-      width: 1.25rem;
-      height: 1.25rem;
+      width: calc(var(--note-icon-size) * 1.25);
+      height: calc(var(--note-icon-size) * 1.25);
       display: inline-block;
-      background: var(--icon-file) no-repeat center;
+      background: var(--icon-file) no-repeat center / var(--note-icon-size);
       margin: 0 0.1em;
-      // The icon has a constant size, so with a small font it is taller than the line. Cancel its height (including
-      // borders) so it never makes its line taller than the others, and lower it by the gap below the centered 16px
-      // image so the image stands on the baseline.
-      margin-top: calc(-1.25rem - 2px);
-      vertical-align: -3px;
+      // Cancel the icon's height (including borders) so it never makes its line taller than the others, and lower it by
+      // the gap and border below the centered image so the image stands on the baseline
+      margin-top: calc(var(--note-icon-size) * -1.25 - 2px);
+      vertical-align: calc(var(--note-icon-size) * -0.125 - 1px);
       border: solid 1px transparent;
     }
     &.note-thread-highlight {
