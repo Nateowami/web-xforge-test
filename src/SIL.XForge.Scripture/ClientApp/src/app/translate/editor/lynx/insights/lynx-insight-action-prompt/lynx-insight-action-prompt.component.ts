@@ -15,7 +15,7 @@ import {
   switchMap,
   tap
 } from 'rxjs';
-import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
+import { fromElementResize, quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { EditorReadyService } from '../base-services/editor-ready.service';
 import { LynxableEditor, LynxEditor, LynxTextModelConverter } from '../lynx-editor';
 import { LynxEditorAdapterFactory } from '../lynx-editor-adapter-factory';
@@ -91,7 +91,7 @@ export class LynxInsightActionPromptComponent implements OnInit {
         })
       );
 
-    const windowResize$ = fromEvent(window, 'resize').pipe(debounceTime(100), startWith(undefined));
+    const editorResize$ = fromElementResize(this.lynxEditor.getRoot()).pipe(debounceTime(100), startWith(undefined));
 
     const editorScroll$ = iif(
       () => this.lynxEditor?.getScrollingContainer() != null,
@@ -99,7 +99,7 @@ export class LynxInsightActionPromptComponent implements OnInit {
       EMPTY
     );
 
-    combineLatest([activeInsights$, windowResize$, editorScroll$])
+    combineLatest([activeInsights$, editorResize$, editorScroll$])
       .pipe(quietTakeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
         this.updatePosition();
