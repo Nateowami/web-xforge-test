@@ -656,7 +656,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       this.setNoteFabVisibility('hidden');
       if (value) {
         if (this.bottomSheetRef?.containerInstance == null) {
-          this.bottomSheetRef = this.bottomSheet.open(this.TemplateBottomSheet, { hasBackdrop: false });
+          this.bottomSheetRef = this.bottomSheet.open(this.TemplateBottomSheet, {
+            hasBackdrop: false,
+            panelClass: 'hide-under-menu-drawer'
+          });
         }
       } else {
         this.bottomSheet.dismiss();
@@ -1073,7 +1076,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     if (this.breakpointObserver.isMatched(this.mediaBreakpointService.width('<', Breakpoint.LG))) {
       this.toggleAddingMobileNote();
       this.setNoteFabVisibility('hidden');
-      this.bottomSheetRef = this.bottomSheet.open(this.TemplateBottomSheet, { hasBackdrop: false });
+      this.bottomSheetRef = this.bottomSheet.open(this.TemplateBottomSheet, {
+        hasBackdrop: false,
+        panelClass: 'hide-under-menu-drawer'
+      });
     } else {
       void this.showNoteThread(undefined, verseRef);
     }
