@@ -29,6 +29,9 @@ header {
   flex-wrap: nowrap;
   flex: 1;
   height: 100%;
+  // Without this, the min-content width of the text panel header (e.g. a long localized book name) widens the
+  // container past the screen on mobile, pushing the action icons and question navigation off the right edge
+  min-width: 0;
 }
 
 #questions-panel {
@@ -171,6 +174,7 @@ header {
       display: flex;
       justify-content: space-between;
       flex: 1;
+      min-width: 0;
 
       > div {
         display: flex;
@@ -200,8 +204,15 @@ header {
           }
         }
 
+        // Let the book name shrink (it is truncated with an ellipsis) so the action icons stay on screen
+        &.book-chapter,
+        app-book-chapter-chooser {
+          min-width: 0;
+        }
+
         &.action-icons {
           justify-content: flex-end;
+          flex-shrink: 0;
         }
       }
     }
