@@ -1,7 +1,7 @@
 import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
 import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { DebugElement } from '@angular/core';
-import { ComponentFixture, fakeAsync, flush, TestBed } from '@angular/core/testing';
+import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { MatDialog, MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
 import { Canon, VerseRef } from '@sillsdev/scripture';
@@ -243,9 +243,48 @@ describe('ScriptureChooserDialog', () => {
     env = new TestEnvironment({ projectId: 'project01', verseNumbersInText: [] });
     env.click(env.bookEphesians);
     env.click(env.chapter3);
+    flush();
+    env.fixture.detectChanges();
 
     verify(mockedProjectService.getText(anything())).once();
     expect(env.versePaneButtons.length).toEqual(21);
+  }));
+
+  it('offers no verses until the chapter text loads, then every verse if it does not load in time', fakeAsync(() => {
+    env = new TestEnvironment({ projectId: 'project01', textNeverLoads: true });
+    env.click(env.bookEphesians);
+    env.clickWithoutWaiting(env.chapter3);
+
+    expect(env.versePaneButtons.length).toEqual(0);
+    tick(1500);
+    env.fixture.detectChanges();
+    expect(env.versePaneButtons.length).toEqual(21);
+  }));
+
+  it('filters the verses of the chapter that is showing when an earlier chapter loads last', fakeAsync(() => {
+    env = new TestEnvironment({ projectId: 'project01' });
+    let resolveChapter11: (textDoc: TextDoc) => void = () => {};
+    let resolveChapter12: (textDoc: TextDoc) => void = () => {};
+    when(mockedProjectService.getText(deepEqual(new TextDocId('project01', 45, 11)))).thenReturn(
+      new Promise<TextDoc>(resolve => (resolveChapter11 = resolve))
+    );
+    when(mockedProjectService.getText(deepEqual(new TextDocId('project01', 45, 12)))).thenReturn(
+      new Promise<TextDoc>(resolve => (resolveChapter12 = resolve))
+    );
+    env.click(env.bookRomans);
+    env.clickWithoutWaiting(env.chapter11);
+    env.clickWithoutWaiting(env.backoutButton);
+    env.clickWithoutWaiting(env.buttonWithText('12'));
+
+    resolveChapter12(TestEnvironment.textDocWithVerses(TestEnvironment.versesWithout(21, 5)));
+    tick();
+    resolveChapter11(TestEnvironment.textDocWithVerses(TestEnvironment.versesWithout(36, 11)));
+    tick();
+    env.fixture.detectChanges();
+
+    expect(env.reference).toEqual('Romans 12');
+    expect(env.versePaneButtons.length).toEqual(20);
+    expect(env.versePaneButtons.slice(3, 5)).toEqual(['4', '6']);
   }));
 
   it('splits input books by OT and NT', () => {
@@ -464,17 +503,27 @@ describe('ScriptureChooserDialog', () => {
       return Array.from({ length: lastVerse }, (_, index) => index + 1).filter(verse => verse !== missingVerse);
     }
 
+    /** A chapter text whose verse markers are for the given verse numbers. */
+    static textDocWithVerses(verseNumbers: number[]): TextDoc {
+      return { getVerseNumbers: (): Set<number> => new Set(verseNumbers) } as TextDoc;
+    }
+
     constructor(args?: {
       inputScriptureReference?: VerseRef;
       textsInProject?: TextInfo[];
       rangeStart?: VerseRef;
       projectId?: string;
       verseNumbersInText?: number[];
+      textNeverLoads?: boolean;
     }) {
       resetCalls(mockedProjectService);
-      when(mockedProjectService.getText(anything())).thenResolve({
-        getVerseNumbers: (): Set<number> => new Set(args?.verseNumbersInText ?? [])
-      } as TextDoc);
+      if (args?.textNeverLoads === true) {
+        when(mockedProjectService.getText(anything())).thenReturn(new Promise<TextDoc>(() => {}));
+      } else {
+        when(mockedProjectService.getText(anything())).thenResolve(
+          TestEnvironment.textDocWithVerses(args?.verseNumbersInText ?? [])
+        );
+      }
       this.fixture = TestBed.createComponent(ChildViewContainerComponent);
       const viewContainerRef = this.fixture.componentInstance.childViewContainer;
 
@@ -599,6 +648,13 @@ describe('ScriptureChooserDialog', () => {
       element!.nativeElement.click();
       this.fixture.detectChanges();
       flush();
+    }
+
+    /** Clicks without flushing timers, so that a chapter text that is still loading does not time out. */
+    clickWithoutWaiting(element: DebugElement): void {
+      element.nativeElement.click();
+      this.fixture.detectChanges();
+      tick();
     }
 
     buttonWithText(text: string): DebugElement {
