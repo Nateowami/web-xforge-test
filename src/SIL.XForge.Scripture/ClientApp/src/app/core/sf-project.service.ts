@@ -50,6 +50,9 @@ import { TranslateMetrics } from './models/translate-metrics';
 export class SFProjectService extends ProjectService<SFProject, SFProjectDoc> {
   protected readonly collection = SFProjectDoc.COLLECTION;
 
+  /** Ids of projects for which this client has requested a sync and is still awaiting the server's response. */
+  private readonly projectIdsWithSyncRequestPending = new Set<string>();
+
   constructor(
     realtimeService: RealtimeService,
     commandService: CommandService,
@@ -235,8 +238,22 @@ export class SFProjectService extends ProjectService<SFProject, SFProjectDoc> {
     return this.realtimeService.subscribeQuery(NoteThreadDoc.COLLECTION, parameters, destroyRef);
   }
 
-  onlineSync(id: string): Promise<void> {
-    return this.onlineInvoke('sync', { projectId: id });
+  /**
+   * Whether this client has requested a sync of the project and is still awaiting the server's response. Before the
+   * server queues a sync and increments the project's sync queued count, it checks that the user can access the
+   * Paratext servers, which can take several seconds.
+   */
+  isSyncRequestPending(projectId: string): boolean {
+    return this.projectIdsWithSyncRequestPending.has(projectId);
+  }
+
+  async onlineSync(id: string): Promise<void> {
+    this.projectIdsWithSyncRequestPending.add(id);
+    try {
+      await this.onlineInvoke('sync', { projectId: id });
+    } finally {
+      this.projectIdsWithSyncRequestPending.delete(id);
+    }
   }
 
   onlineCancelSync(id: string): Promise<void> {

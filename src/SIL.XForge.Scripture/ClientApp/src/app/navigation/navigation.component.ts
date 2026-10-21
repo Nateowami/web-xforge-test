@@ -23,6 +23,7 @@ import { ResumeTranslateService } from '../checking/checking/resume-translate.se
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { roleCanAccessCommunityChecking, roleCanAccessTranslate } from '../core/models/sf-project-role-info';
 import { PermissionsService } from '../core/permissions.service';
+import { SFProjectService } from '../core/sf-project.service';
 import { NmtDraftAuthGuard, SettingsAuthGuard, SyncAuthGuard, UsersAuthGuard } from '../shared/project-router.guard';
 
 @Component({
@@ -83,6 +84,7 @@ export class NavigationComponent {
     private readonly router: Router,
     private readonly activatedProjectService: ActivatedProjectService,
     private readonly permissionsService: PermissionsService,
+    private readonly projectService: SFProjectService,
     readonly featureFlags: FeatureFlagService
   ) {}
 
@@ -115,7 +117,9 @@ export class NavigationComponent {
   }
 
   get syncInProgress(): boolean {
-    return this.selectedProjectDoc?.data != null && this.selectedProjectDoc.data.sync.queuedCount > 0;
+    const projectDoc: SFProjectProfileDoc | undefined = this.selectedProjectDoc;
+    if (projectDoc?.data == null) return false;
+    return projectDoc.data.sync.queuedCount > 0 || this.projectService.isSyncRequestPending(projectDoc.id);
   }
 
   get selectedProjectId(): string | undefined {

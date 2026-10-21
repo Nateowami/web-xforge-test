@@ -137,6 +137,36 @@ describe('SFProjectService', () => {
     }));
   });
 
+  describe('onlineSync', () => {
+    it('reports the sync request as pending until the server responds', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      let resolveSync: () => void = () => {};
+      when(mockedCommandService.onlineInvoke(anything(), 'sync', anything())).thenReturn(
+        new Promise<void>(resolve => (resolveSync = resolve))
+      );
+
+      expect(env.service.isSyncRequestPending('project01')).toBe(false);
+      const syncPromise: Promise<void> = env.service.onlineSync('project01');
+      expect(env.service.isSyncRequestPending('project01')).toBe(true);
+      expect(env.service.isSyncRequestPending('project02')).toBe(false);
+
+      resolveSync();
+      await syncPromise;
+      expect(env.service.isSyncRequestPending('project01')).toBe(false);
+    }));
+
+    it('stops reporting the sync request as pending when the request fails', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      when(mockedCommandService.onlineInvoke(anything(), 'sync', anything())).thenReject(new Error('Forbidden'));
+
+      const syncPromise: Promise<void> = env.service.onlineSync('project01');
+      expect(env.service.isSyncRequestPending('project01')).toBe(true);
+
+      await expectAsync(syncPromise).toBeRejectedWithError('Forbidden');
+      expect(env.service.isSyncRequestPending('project01')).toBe(false);
+    }));
+  });
+
   describe('onlineEventMetrics', () => {
     it('should invoke the command service', fakeAsync(async () => {
       const env = new TestEnvironment();
