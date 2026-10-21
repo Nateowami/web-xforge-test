@@ -105,7 +105,9 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
         await this.navigateToChecking(projectId);
       } else {
         // Nothing in the project is accessible right now (e.g. a community checker while checking is disabled), so
-        // try again when the project changes (e.g. checking is re-enabled)
+        // try again when the project changes (e.g. checking is re-enabled). Calls can overlap, so drop any retry that
+        // another call subscribed while this one was loading.
+        this.projectChangesSub?.unsubscribe();
         this.projectChangesSub = projectDoc.remoteChanges$
           .pipe(first(), quietTakeUntilDestroyed(this.destroyRef))
           .subscribe(() => void this.navigateToProject(projectId));
