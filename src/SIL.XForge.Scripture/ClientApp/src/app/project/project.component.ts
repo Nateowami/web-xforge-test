@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from '@angular/router';
 import { Canon } from '@sillsdev/scripture';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SFProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
-import { lastValueFrom, Observable } from 'rxjs';
+import { lastValueFrom, Observable, Subscription } from 'rxjs';
 import { distinctUntilChanged, filter, first, map } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { NoticeService } from 'xforge-common/notice.service';
@@ -21,6 +21,8 @@ type TaskType = 'translate' | 'checking';
   styleUrls: ['./project.component.scss']
 })
 export class ProjectComponent extends DataLoadingComponent implements OnInit {
+  private projectChangesSub?: Subscription;
+
   constructor(
     private readonly route: ActivatedRoute,
     private readonly projectService: SFProjectService,
@@ -69,6 +71,7 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
   }
 
   private async navigateToProject(projectId: string): Promise<void> {
+    this.projectChangesSub?.unsubscribe();
     this.loadingStarted();
 
     try {
@@ -100,6 +103,12 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
         this.navigateToTranslate(projectId, project, projectUserConfig);
       } else if (task === 'checking') {
         await this.navigateToChecking(projectId);
+      } else {
+        // Nothing in the project is accessible right now (e.g. a community checker while checking is disabled), so
+        // try again when the project changes (e.g. checking is re-enabled)
+        this.projectChangesSub = projectDoc.remoteChanges$
+          .pipe(first(), quietTakeUntilDestroyed(this.destroyRef))
+          .subscribe(() => void this.navigateToProject(projectId));
       }
     } finally {
       this.loadingFinished();
