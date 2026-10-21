@@ -3720,6 +3720,11 @@ public class ParatextService : DisposableBase, IParatextService
         return tagInUse;
     }
 
+    /// <summary>
+    /// Gets the text of a verse for placing note thread text anchors. It keeps every paragraph break, whatever the
+    /// paragraph's style, because the editor counts one position for the end of every segment in the verse when it
+    /// places a note icon.
+    /// </summary>
     private static string GetVerseText(Delta delta, VerseRef verseRef)
     {
         string vref = string.IsNullOrEmpty(verseRef.Verse) ? verseRef.VerseNum.ToString() : verseRef.Verse;
