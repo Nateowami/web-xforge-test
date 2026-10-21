@@ -1,3 +1,4 @@
+import { PENDING_ERROR_REPORTS } from 'xforge-common/error-reporting.service';
 import { FileType } from 'xforge-common/models/file-offline-data';
 import { UserDoc } from 'xforge-common/models/user-doc';
 import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
@@ -28,5 +29,5 @@ export const SF_TYPE_REGISTRY = new TypeRegistry(
     TrainingDataDoc
   ],
   [FileType.Audio, FileType.TrainingData],
-  [EDITED_SEGMENTS]
+  [EDITED_SEGMENTS, PENDING_ERROR_REPORTS]
 );
