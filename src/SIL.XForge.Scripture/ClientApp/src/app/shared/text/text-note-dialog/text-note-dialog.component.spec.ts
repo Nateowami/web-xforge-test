@@ -72,6 +72,18 @@ describe('TextNoteDialogComponent', () => {
     expect(env.links.every(link => link.getAttribute('target') === '_blank')).toBe(true);
   }));
 
+  it('Keeps closing parentheses that are part of a web address', fakeAsync(() => {
+    const text =
+      'See https://en.wikipedia.org/wiki/Mark_(Gospel). (Or https://example.org/a_(b)_c.) (www.example.com/(x))';
+    env = new TestEnvironment({ type: TextNoteType.Footnote, text, isRightToLeft: false });
+    expect(env.text).toBe(text);
+    expect(env.links.map(link => link.textContent)).toEqual([
+      'https://en.wikipedia.org/wiki/Mark_(Gospel)',
+      'https://example.org/a_(b)_c',
+      'www.example.com/(x)'
+    ]);
+  }));
+
   it('Does not display text without web addresses as links', fakeAsync(() => {
     const text = 'Some manuscripts read example.org: or https:';
     env = new TestEnvironment({ type: TextNoteType.Footnote, text, isRightToLeft: false });

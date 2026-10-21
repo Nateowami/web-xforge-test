@@ -4130,7 +4130,7 @@ public class DeltaUsxMapperTests
     [Test]
     public void Roundtrip_UrlInFootnote()
     {
-        AssertRoundtrips(
+        List<ChapterDelta> chapterDeltas = AssertRoundtrips(
             """
             \id PHM
             \c 1
@@ -4139,6 +4139,8 @@ public class DeltaUsxMapperTests
             \v 2 to Apphia\f + https://example.org\f*,
             """
         );
+        // Invalid markup also roundtrips, so check that Paratext's optbreaks in the notes did not invalidate the chapter
+        Assert.That(chapterDeltas.Where(cd => !cd.IsValid).Select(cd => cd.Number), Is.Empty);
     }
 
     [Test]
@@ -4406,7 +4408,7 @@ public class DeltaUsxMapperTests
 
                 // Read and stream the contents of the text file
                 string bookUsfm = await reader.ReadToEndAsync();
-                if (!DoesRoundtrip(bookUsfm, out string errorMessage))
+                if (!DoesRoundtrip(bookUsfm, out string errorMessage, out _))
                 {
                     allBooksRoundtrip = false;
                     errorMessages.Add(errorMessage);
@@ -4416,10 +4418,17 @@ public class DeltaUsxMapperTests
         Assert.That(allBooksRoundtrip, Is.True, string.Join(Environment.NewLine, errorMessages));
     }
 
-    private void AssertRoundtrips(string bookUsfm) =>
-        Assert.That(DoesRoundtrip(bookUsfm, out string errorMessage), Is.True, errorMessage);
+    private List<ChapterDelta> AssertRoundtrips(string bookUsfm)
+    {
+        Assert.That(
+            DoesRoundtrip(bookUsfm, out string errorMessage, out List<ChapterDelta> chapterDeltas),
+            Is.True,
+            errorMessage
+        );
+        return chapterDeltas;
+    }
 
-    private bool DoesRoundtrip(string bookUsfm, out string errorMessage)
+    private bool DoesRoundtrip(string bookUsfm, out string errorMessage, out List<ChapterDelta> chapterDeltas)
     {
         string bookCode = DeltaUsxMapper.ExtractBookId(bookUsfm);
 
@@ -4439,7 +4448,7 @@ public class DeltaUsxMapperTests
         DeltaUsxMapper mapper = new(_mapperGuidService, _logger, _exceptionHandler);
 
         // SUT part 1
-        List<ChapterDelta> chapterDeltas = [.. mapper.ToChapterDeltas(bookUsx)];
+        chapterDeltas = [.. mapper.ToChapterDeltas(bookUsx)];
 
         IEnumerable<XElement> chaptersToProcess = bookUsx
             .Elements("usx")
