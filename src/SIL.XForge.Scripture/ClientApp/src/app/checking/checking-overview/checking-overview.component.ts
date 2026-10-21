@@ -535,6 +535,8 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
 
   private async loadShowFeedbackNotice(projectId: string): Promise<void> {
     await this.onlineStatusService.online;
+    // The user may have left the page while offline
+    if (this.destroyRef.destroyed) return;
     try {
       const showFeedbackNotice: boolean = await this.projectService.onlineShouldShowCheckingFeedbackNotice(projectId);
       // The user may have switched to another project while waiting
