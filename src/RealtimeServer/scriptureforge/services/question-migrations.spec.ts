@@ -32,6 +32,46 @@ describe('QuestionMigrations', () => {
       expect(questionDoc.data.answers.length).toBe(0);
     });
   });
+
+  describe('version 2', () => {
+    it('removes repeated likes by the same user', async () => {
+      const env = new TestEnvironment(1);
+      const conn = env.server.connect();
+      await createDoc(conn, QUESTIONS_COLLECTION, 'question01', {
+        answers: [
+          {
+            likes: [
+              { ownerRef: 'user01' },
+              { ownerRef: 'user02' },
+              { ownerRef: 'user01' },
+              { ownerRef: 'user02' },
+              { ownerRef: 'user01' },
+              { ownerRef: 'user03' }
+            ]
+          },
+          { likes: [{ ownerRef: 'user01' }, { ownerRef: 'user01' }] },
+          { likes: [{ ownerRef: 'user01' }, { ownerRef: 'user02' }] },
+          { likes: [] }
+        ]
+      });
+      await createDoc(conn, QUESTIONS_COLLECTION, 'question02', {
+        answers: []
+      });
+      await env.server.migrateIfNecessary();
+
+      let questionDoc = await fetchDoc(conn, QUESTIONS_COLLECTION, 'question01');
+      expect(questionDoc.data.answers[0].likes).toEqual([
+        { ownerRef: 'user01' },
+        { ownerRef: 'user02' },
+        { ownerRef: 'user03' }
+      ]);
+      expect(questionDoc.data.answers[1].likes).toEqual([{ ownerRef: 'user01' }]);
+      expect(questionDoc.data.answers[2].likes).toEqual([{ ownerRef: 'user01' }, { ownerRef: 'user02' }]);
+      expect(questionDoc.data.answers[3].likes).toEqual([]);
+      questionDoc = await fetchDoc(conn, QUESTIONS_COLLECTION, 'question02');
+      expect(questionDoc.data.answers.length).toBe(0);
+    });
+  });
 });
 
 class TestEnvironment {
