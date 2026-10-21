@@ -1433,8 +1433,9 @@ describe('EditorComponent', () => {
 
       expect(env.getNoteThreadIconElement('verse_1_2-3', 'dataid06')).not.toBeNull();
       expect(env.getNoteThreadIconElement('verse_1_2-3', 'dataid07')).not.toBeNull();
-      // Verses with letters must still match exactly, so the note on verse 6 is not shown on verse 6a
-      expect(env.getNoteThreadIconElement('verse_1_6a', 'dataid08')).toBeNull();
+      // The text has no verse 6, so the note on verse 6 is shown on the first part of it
+      expect(env.getNoteThreadIconElement('verse_1_6a', 'dataid08')).not.toBeNull();
+      expect(env.getNoteThreadIconElement('verse_1_6b', 'dataid08')).toBeNull();
       env.dispose();
     }));
 

@@ -1610,6 +1610,43 @@ describe('TextComponent', () => {
     expect(segments.length).withContext('should be no matching segments when chapter does not match').toBe(0);
   }));
 
+  it('embeds a note on a verse that is now inside a combined verse at the start of the combined verse', fakeAsync(() => {
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: '1', style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'Verse 1 text.', attributes: { segment: 'verse_1_1' } },
+      { insert: { verse: { number: '2-4', style: 'v' } } },
+      { insert: 'Verses 2 to 4 text.', attributes: { segment: 'verse_1_2-4' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } },
+      { insert: 'Verses 2 to 4, second paragraph.', attributes: { segment: 'verse_1_2-4/p_1' } },
+      { insert: { verse: { number: '5', style: 'v' } } },
+      { insert: 'Verse 5 text.', attributes: { segment: 'verse_1_5' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } }
+    ];
+    const env = new TestEnvironment({ chapterNum: 1, textDoc: textDocOps });
+    env.waitForEditor();
+
+    expect(env.component.getVerseSegments(new VerseRef('MAT 1:3'))).toEqual(['verse_1_2-4', 'verse_1_2-4/p_1']);
+    expect(env.component.getCompatibleSegments(new VerseRef('MAT 1:3'))).toEqual(['verse_1_2-4', 'verse_1_2-4/p_1']);
+    // The note's verse is in the text, so the anchor is used
+    env.embedThreadAt('MAT 1:1', { start: 6, length: 1 });
+    // The anchor is relative to the text of verse 3, which cannot be found inside the combined verse
+    env.embedThreadAt('MAT 1:3', { start: 10, length: 5 });
+    tick();
+    env.fixture.detectChanges();
+
+    const verse1Index: number = env.component.getSegmentRange('verse_1_1')!.index;
+    const verse2To4Index: number = env.component.getSegmentRange('verse_1_2-4')!.index;
+    expect(Array.from(env.component.embeddedElements.values())).toEqual([verse1Index + 6, verse2To4Index]);
+    const verse2To4Contents: Delta = env.component.getSegmentContents('verse_1_2-4')!;
+    const anchoredText: unknown[] = verse2To4Contents
+      .filter(op => typeof op.insert === 'string' && op.attributes?.['text-anchor'] != null)
+      .map(op => op.insert);
+    expect(anchoredText).toEqual([]);
+    TestEnvironment.waitForPresenceTimer();
+    flush();
+  }));
+
   it('does not match segments when verse ref is from a different book', fakeAsync(() => {
     const env = new TestEnvironment();
     env.id = new TextDocId('project01', 40, 1);
