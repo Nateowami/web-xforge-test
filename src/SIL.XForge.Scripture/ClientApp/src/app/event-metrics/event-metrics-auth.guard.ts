@@ -1,10 +1,12 @@
 import { Injectable } from '@angular/core';
+import { Router } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
+import { PermissionsService } from '../core/permissions.service';
 import { SFProjectService } from '../core/sf-project.service';
 import { RouterGuard } from '../shared/project-router.guard';
 
@@ -13,12 +15,14 @@ import { RouterGuard } from '../shared/project-router.guard';
 })
 export class EventMetricsAuthGuard extends RouterGuard {
   constructor(
-    readonly authGuard: AuthGuard,
+    authGuard: AuthGuard,
     private readonly authService: AuthService,
-    readonly projectService: SFProjectService,
+    projectService: SFProjectService,
+    permissionsService: PermissionsService,
+    router: Router,
     private readonly userService: UserService
   ) {
-    super(authGuard, projectService);
+    super(authGuard, projectService, permissionsService, router);
   }
 
   check(projectDoc: SFProjectProfileDoc): boolean {

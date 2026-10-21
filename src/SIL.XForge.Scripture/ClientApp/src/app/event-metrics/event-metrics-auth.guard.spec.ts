@@ -1,12 +1,14 @@
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { ActivatedRouteSnapshot, RouterStateSnapshot } from '@angular/router';
+import { ActivatedRouteSnapshot, RedirectCommand, RouterStateSnapshot } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
+import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { of } from 'rxjs';
 import { anything, mock, when } from 'ts-mockito';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
+import { UserDoc } from 'xforge-common/models/user-doc';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
@@ -75,7 +77,7 @@ describe('EventMetricsAuthGuard', () => {
     const env = new TestEnvironment(true, SystemRole.User);
 
     env.service.canActivate(env.getActivatedRouteSnapshot(project02), {} as RouterStateSnapshot).subscribe(result => {
-      expect(result).toBe(false);
+      expect(result).toBeInstanceOf(RedirectCommand);
     });
 
     env.wait();
@@ -90,12 +92,15 @@ describe('EventMetricsAuthGuard', () => {
       when(mockedAuthGuard.allowTransition()).thenReturn(of(isLoggedIn));
       when(mockedAuthService.currentUserRoles).thenReturn([role]);
       when(mockedUserService.currentUserId).thenReturn(user01);
+      when(mockedUserService.getCurrentUser()).thenResolve({
+        data: createTestUser({ sites: { sf: { projects: [project01, project02] } } })
+      } as UserDoc);
 
       when(mockedProjectService.getProfile(project01)).thenResolve({
         data: createTestProjectProfile({ userRoles: { user01: SFProjectRole.ParatextAdministrator } })
       } as SFProjectProfileDoc);
       when(mockedProjectService.getProfile(project02)).thenResolve({
-        data: createTestProjectProfile()
+        data: createTestProjectProfile({ userRoles: { user01: SFProjectRole.ParatextTranslator } })
       } as SFProjectProfileDoc);
     }
 
