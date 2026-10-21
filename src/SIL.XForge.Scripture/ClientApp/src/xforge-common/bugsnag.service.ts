@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import Bugsnag, { BreadcrumbType, BrowserConfig, Client } from '@bugsnag/js';
+import Bugsnag, { BreadcrumbType, BrowserConfig, Client, Event, NotifiableError, OnErrorCallback } from '@bugsnag/js';
 import { NodeConfig } from '@bugsnag/node';
 
 /**
@@ -15,6 +15,14 @@ export class BugsnagService {
 
   leaveBreadcrumb(message: string, metadata?: { [key: string]: any }, type?: BreadcrumbType): void {
     if (Bugsnag.isStarted()) Bugsnag.leaveBreadcrumb(message, metadata, type);
+  }
+
+  notify(
+    error: NotifiableError,
+    onError?: OnErrorCallback,
+    postReportCallback?: (err: any, event: Event) => void
+  ): void {
+    if (Bugsnag.isStarted()) Bugsnag.notify(error, onError, postReportCallback);
   }
 
   setUser(id?: string, email?: string, name?: string): void {

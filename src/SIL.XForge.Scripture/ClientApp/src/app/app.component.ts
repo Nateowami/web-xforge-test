@@ -163,6 +163,14 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
       }
     });
 
+    // Send error reports that could not be delivered while offline (including in a previous session)
+    onlineStatusService.onlineStatus$
+      .pipe(
+        filter(isOnline => isOnline),
+        quietTakeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => void this.reportingService.sendPendingReports());
+
     // Check browser online status to allow checks with Auth0
     onlineStatusService.onlineBrowserStatus$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(status => {
       // Check authentication when coming back online
