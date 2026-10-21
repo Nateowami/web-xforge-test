@@ -664,6 +664,23 @@ describe('SettingsComponent', () => {
       expect(env.location.path()).toEqual('/projects');
     }));
 
+    it('should not delete project if it became a source project while the dialog was open', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject();
+      env.setDialogResponse(true);
+      env.wait();
+      expect(env.deleteProjectButton.disabled).toBe(false);
+
+      when(mockedSFProjectService.onlineIsSourceProject('project01')).thenResolve(true);
+      env.clickElement(env.deleteProjectButton);
+      verify(mockedSFProjectService.onlineDelete(anything())).never();
+      verify(mockedUserService.setCurrentProjectId(anything(), undefined)).never();
+      verify(mockedNoticeService.show(anything())).once();
+      env.fixture.detectChanges();
+      expect(env.deleteProjectButton.disabled).toBe(true);
+      expect(env.sourceProjectMessage).not.toBeNull();
+    }));
+
     it('should not delete project if user cancels', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setupProject();
