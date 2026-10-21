@@ -2008,7 +2008,11 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     if (clickedSegmentRef != null && clickedSegmentRef !== this._segment.ref) {
       return;
     }
-    const sel: Range | null = this.conformToValidSelectionForCurrentSegment(this._segment.range);
+    // The first pass moves the start past any embeds at the start of the segment, the second ends the selection at the
+    // next note embed, as adjustSelection() would
+    const segmentSel: Range | null = this.conformToValidSelectionForCurrentSegment(this._segment.range);
+    const sel: Range | null =
+      segmentSel == null ? null : this.conformToValidSelectionForCurrentSegment(segmentSel, false);
     if (sel == null) {
       return;
     }
