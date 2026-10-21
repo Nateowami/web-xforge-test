@@ -1,7 +1,8 @@
-import { Component, DestroyRef, DOCUMENT, ElementRef, Inject, Input, NgZone, OnInit, ViewChild } from '@angular/core';
+import { Component, DestroyRef, ElementRef, Inject, Input, NgZone, OnInit, ViewChild } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { filter, fromEvent } from 'rxjs';
+import { DOCUMENT } from 'xforge-common/browser-globals';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { ICONS_TO_MIRROR_RTL } from '../utils';
 
@@ -31,12 +32,13 @@ export class InfoComponent implements OnInit {
 
   ngOnInit(): void {
     // A tooltip opened by tapping stays open until the next tap, and MatTooltip only follows the window and containers
-    // marked cdkScrollable. Close the tooltip when anything containing this icon scrolls, so it is not left floating over
-    // unrelated content.
+    // marked cdkScrollable. Close the tooltip when anything containing this icon scrolls, so it is not left floating
+    // over unrelated content.
     this.ngZone.runOutsideAngular(() =>
       fromEvent(this.document, 'scroll', { capture: true, passive: true })
         .pipe(
-          filter(event => this.isScrollAncestor(event.target) && this.tooltip?._isTooltipVisible() === true),
+          // Check visibility first: it is cheap and usually false, and every app-info on the page sees each scroll.
+          filter(event => this.tooltip?._isTooltipVisible() === true && this.isScrollAncestor(event.target)),
           quietTakeUntilDestroyed(this.destroyRef)
         )
         .subscribe(() => this.ngZone.run(() => this.tooltip?.hide(0)))
