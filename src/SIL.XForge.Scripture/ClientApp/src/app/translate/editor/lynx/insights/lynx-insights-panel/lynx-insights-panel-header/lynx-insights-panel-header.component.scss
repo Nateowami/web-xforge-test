@@ -3,7 +3,9 @@
   align-items: center;
   background-color: var(--lynx-insights-header-background);
   color: var(--lynx-insights-header-text-color);
-  gap: 2em;
+  // Move the tabs below the title when the panel is too narrow to show both on one line
+  flex-wrap: wrap;
+  column-gap: 2em;
   padding: 0 0.5em;
 
   &::ng-deep {
@@ -12,7 +14,6 @@
       min-width: auto;
     }
 
-    // TODO: make responsive (tabs header is cut off on small screens)
     .mat-mdc-tab-header {
       --mat-tab-container-height: 2.2em;
       --mat-tab-label-text-size: 0.9em;
@@ -29,6 +30,11 @@
       height: 0; // Prevent height glitch while animating tab change
     }
   }
+}
+
+// Allow shrinking below the tabs' width so pagination arrows appear when the panel is too narrow for the tabs alone
+mat-tab-group {
+  min-width: 0;
 }
 
 .title {
