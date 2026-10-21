@@ -99,6 +99,7 @@ import { TextDocService } from '../../core/text-doc.service';
 import { BuildDto } from '../../machine-api/build-dto';
 import { BookChapterChooserComponent } from '../../shared/book-chapter-chooser/book-chapter-chooser.component';
 import { CopyrightBannerComponent } from '../../shared/copyright-banner/copyright-banner.component';
+import { HIDE_UNDER_MENU_DRAWER_PANEL_CLASS } from '../../shared/menu-drawer-overlay';
 import { NoticeComponent } from '../../shared/notice/notice.component';
 import { expectedBookChapters } from '../../shared/progress-service/progress.service';
 import {
@@ -656,10 +657,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       this.setNoteFabVisibility('hidden');
       if (value) {
         if (this.bottomSheetRef?.containerInstance == null) {
-          this.bottomSheetRef = this.bottomSheet.open(this.TemplateBottomSheet, {
-            hasBackdrop: false,
-            panelClass: 'hide-under-menu-drawer'
-          });
+          this.openBottomSheet(this.TemplateBottomSheet);
         }
       } else {
         this.bottomSheet.dismiss();
@@ -1076,13 +1074,18 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     if (this.breakpointObserver.isMatched(this.mediaBreakpointService.width('<', Breakpoint.LG))) {
       this.toggleAddingMobileNote();
       this.setNoteFabVisibility('hidden');
-      this.bottomSheetRef = this.bottomSheet.open(this.TemplateBottomSheet, {
-        hasBackdrop: false,
-        panelClass: 'hide-under-menu-drawer'
-      });
+      this.openBottomSheet(this.TemplateBottomSheet);
     } else {
       void this.showNoteThread(undefined, verseRef);
     }
+  }
+
+  private openBottomSheet(template: TemplateRef<any>): void {
+    // The bottom sheet has no backdrop, so it would otherwise stay above the navigation drawer on narrow screens
+    this.bottomSheetRef = this.bottomSheet.open(template, {
+      hasBackdrop: false,
+      panelClass: HIDE_UNDER_MENU_DRAWER_PANEL_CLASS
+    });
   }
 
   removeEmbeddedElements(): void {

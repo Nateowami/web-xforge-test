@@ -60,6 +60,7 @@ import { roleCanAccessTranslate } from './core/models/sf-project-role-info';
 import { SFProjectService } from './core/sf-project.service';
 import { NavigationComponent } from './navigation/navigation.component';
 import { GlobalNoticesComponent } from './shared/global-notices/global-notices.component';
+import { MENU_DRAWER_OVER_CONTENT_CLASS } from './shared/menu-drawer-overlay';
 import { checkAppAccess } from './shared/utils';
 
 declare function gtag(...args: any): void;
@@ -495,12 +496,12 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   /**
    * Overlays such as the editor's add comment bottom sheet are rendered in the CDK overlay container, which is always
    * above the drawer. Flag on the container when the drawer slides over the page content, so that overlays with the
-   * `hide-under-menu-drawer` panel class can be hidden instead of covering the drawer's menu items.
+   * HIDE_UNDER_MENU_DRAWER_PANEL_CLASS panel class can be hidden instead of covering the drawer's menu items.
    */
   private updateDrawerOverContentClass(): void {
     this.overlayContainer
       .getContainerElement()
-      .classList.toggle('menu-drawer-over-content', this._isExpanded && !this._isDrawerPermanent);
+      .classList.toggle(MENU_DRAWER_OVER_CONTENT_CLASS, this._isExpanded && !this._isDrawerPermanent);
   }
 
   reloadWithUpdates(): void {
