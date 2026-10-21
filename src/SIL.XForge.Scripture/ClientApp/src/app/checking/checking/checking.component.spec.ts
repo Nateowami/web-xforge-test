@@ -2689,7 +2689,9 @@ describe('CheckingComponent', () => {
 
       expect(env.component.hideChapterText).toBe(false);
       expect(env.component.showScriptureAudioPlayer).toBe(false);
-      expect(env.answerPanel).not.toBeNull();
+      // The answer panel stays in the DOM while its split area is hidden, so check the area itself
+      const answersArea: HTMLElement = env.answerPanel.nativeElement.closest('as-split-area');
+      expect(answersArea.classList).not.toContain('as-hidden');
       flush();
       discardPeriodicTasks();
     }));
