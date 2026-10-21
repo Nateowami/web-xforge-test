@@ -377,9 +377,14 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
             }
             // See if the user was removed from the project
             if (!(this.currentUserDoc.id in this._selectedProjectDoc.data.userRoles)) {
-              // The user has been removed from the project
+              // The user has been removed from the project. Stop listening to it, as the sync that removed the user
+              // goes on to change the project several more times before we have navigated away, and each change
+              // would otherwise show the dialog again.
+              this.selectedProjectChangedSub?.unsubscribe();
+              this.selectedProjectDeleteSub?.unsubscribe();
               void this.showProjectDeletedDialog();
               void this.projectService.localDelete(this._selectedProjectDoc.id);
+              return;
             }
 
             checkAppAccess(
