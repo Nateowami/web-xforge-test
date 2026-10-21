@@ -44,7 +44,10 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
         if (this.subscribePromise != null) {
           await this.subscribePromise;
         }
-        void this.updateOfflineData();
+        // ShareDB sends a query's results diff before the op that changed the results, so the op that removes a doc
+        // from its last query arrives after the doc is no longer subscribed. Still store it if the doc is stored
+        // offline, otherwise local queries keep matching the stale copy (e.g. an archived question reappears).
+        void this.updateOfflineData(this.offlineSnapshotVersion != null);
       }
     );
     this.onDeleteSub = this.adapter.delete$.subscribe(() => this.onDelete());
