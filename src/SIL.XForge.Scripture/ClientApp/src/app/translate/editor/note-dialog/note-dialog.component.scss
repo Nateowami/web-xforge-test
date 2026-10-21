@@ -52,12 +52,16 @@ h1 {
   .note {
     padding: 20px 0;
     display: flex;
+    // Reversed so the note icon and author sit at the end edge, under the edit and delete buttons. The
+    // direction is set on the whole note (not only its content) for RTL projects, so the author row is
+    // laid out in the same direction as the content even when the interface direction differs.
+    flex-direction: row-reverse;
     flex-wrap: wrap;
     .content {
       flex: 1 1 100%;
       // A URL (or a script without word spaces) has no break opportunity, so without this the note
-      // text is laid out wider than the dialog. The note is `row-reverse` in LTR, so the overflow
-      // spills past the start edge where it is clipped and cannot be scrolled to.
+      // text is laid out wider than the dialog. The note is `row-reverse`, so the overflow spills
+      // past the start edge where it is clipped and cannot be scrolled to.
       overflow-wrap: anywhere;
     }
     &:first-child {
@@ -102,13 +106,8 @@ h1 {
   .text {
     direction: rtl;
   }
-  .note .content {
-    direction: rtl;
-  }
-}
-.ltr {
   .note {
-    flex-direction: row-reverse;
+    direction: rtl;
   }
 }
 
