@@ -88,7 +88,6 @@
                   [chapter]="chapter"
                   [segmentRef]="target?.segmentRef"
                   [highlightSegment]="targetFocused"
-                  (focused)="onReadOnlyTextFocused($event)"
                 ></app-editor-resource>
               }
               @case ("project-source") {
@@ -106,7 +105,6 @@
                       [isReadOnly]="true"
                       [highlightSegment]="targetFocused"
                       (loaded)="onTextLoaded('source')"
-                      (focused)="onReadOnlyTextFocused($event)"
                       (updated)="onSourceUpdated($event.delta != null)"
                       [isRightToLeft]="isSourceRightToLeft"
                       [fontSize]="sourceFontSize"

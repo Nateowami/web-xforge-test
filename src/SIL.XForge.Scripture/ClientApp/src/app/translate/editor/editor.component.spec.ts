@@ -96,6 +96,7 @@ import {
 } from '../../shared/sf-tab-group';
 import { getCombinedVerseTextDoc, paratextUsersFromRoles } from '../../shared/test-utils';
 import { provideQuillRegistrations } from '../../shared/text/quill-editor-registration/quill-providers';
+import { TextNoteDialogComponent } from '../../shared/text/text-note-dialog/text-note-dialog.component';
 import { PRESENCE_EDITOR_ACTIVE_TIMEOUT } from '../../shared/text/text.component';
 import { XmlUtils } from '../../shared/utils';
 import { BiblicalTermsComponent } from '../biblical-terms/biblical-terms.component';
@@ -2377,24 +2378,32 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
-    it('does not highlight source verses after a footnote dialog opened from the source is closed', fakeAsync(() => {
+    it('does not keep the target focused while a footnote dialog opened from the source is open', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
+      when(mockedMatDialog.open(TextNoteDialogComponent, anything())).thenCall(() => {
+        const dialogRef = new MockNoteDialogRef(env.fixture.nativeElement);
+        env.openNoteDialogs.push(dialogRef);
+        return dialogRef;
+      });
       env.wait();
       env.targetEditor.setSelection(env.component.target!.getSegmentRange('verse_1_1')!.index);
       env.wait();
       expect(env.component.targetFocused).toBe(true);
 
-      // Clicking a footnote in the source opens the footnote dialog before the focus events of the click arrive
-      const dialog = instance(mockedMatDialog);
-      dialog.open(NoteDialogComponent, {});
-      env.component.source!.focused.emit(true);
-      env.component.target!.focused.emit(false);
+      const footnote: HTMLElement = env.sourceTextEditor.querySelector('usx-note')!;
+      // the test note embed has no footnote text, which the footnote dialog needs
+      footnote.setAttribute('title', 'footnote text');
+      footnote.setAttribute('data-style', 'f');
+      footnote.click();
+      // In the browser, the target's blur arrives after the footnote dialog has opened. It comes from a native
+      // selectionchange event that fakeAsync does not flush, so it is triggered here.
+      env.targetEditor.blur();
       env.wait();
+      verify(mockedMatDialog.open(TextNoteDialogComponent, anything())).once();
       expect(env.component.targetFocused).withContext('dialog opened').toBe(false);
 
-      dialog.closeAll();
-      env.wait();
+      instance(mockedMatDialog).closeAll();
       env.component.source!.editor!.setSelection(env.component.source!.getSegmentRange('verse_1_3')!.index, 'user');
       env.wait();
       expect(env.component.targetFocused).withContext('dialog closed').toBe(false);
@@ -4364,7 +4373,7 @@ class TestEnvironment {
     user06: TextInfoPermission.Read,
     user07: TextInfoPermission.Read
   };
-  private openNoteDialogs: MockNoteDialogRef[] = [];
+  openNoteDialogs: MockNoteDialogRef[] = [];
   private noteTags: NoteTag[] = [
     { tagId: 1, name: 'PT Translation Note 1', icon: '01flag1', creatorResolve: false },
     { tagId: 2, name: 'PT Translation Note 2', icon: '02tag1', creatorResolve: false },
