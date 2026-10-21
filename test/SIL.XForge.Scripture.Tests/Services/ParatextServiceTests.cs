@@ -1650,6 +1650,81 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task GetNoteThreadChanges_IntroductionNote_TextAnchorCountsEveryParagraphBreak()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        const string idText = "- Test project";
+        const string usfmText = "3.0";
+        const string sectionText = "Introduction";
+        const string textBefore = "The story of ";
+        const string selected = "RAYMOND";
+        const string textAfter = " and his family.";
+
+        var comment = new Paratext.Data.ProjectComments.Comment(associatedPtUser)
+        {
+            Thread = "thread1",
+            VerseRefStr = "MAT 1:0",
+            SelectedText = selected,
+            ContextBefore = textBefore,
+            ContextAfter = textAfter,
+            StartPosition = textBefore.Length,
+            Contents = null,
+            Date = "2019-12-31T08:00:00.0000000+00:00",
+            Deleted = false,
+            Status = NoteStatus.Todo,
+            Type = NoteType.Normal,
+            ConflictType = NoteConflictType.None,
+            AssignedUser = CommentThread.unassignedUser,
+        };
+        env.AddParatextComment(comment);
+
+        await using (await env.RealtimeService.ConnectAsync())
+        {
+            // These deltas represent the following USFM:
+            // \id MAT - Test project
+            // \usfm 3.0
+            // \is Introduction
+            // \ip The story of RAYMOND and his family.
+            // \c 1
+            var delta = Delta
+                .New()
+                .InsertText(idText, "id_1")
+                .Insert("\n", new { book = new { code = "MAT", style = "id" } })
+                .InsertText(usfmText, "usfm_1")
+                .InsertPara("usfm")
+                .InsertText(sectionText, "is_1")
+                .InsertPara("is")
+                .InsertText(textBefore + selected + textAfter, "ip_1")
+                .InsertPara("ip")
+                .InsertChapter("1");
+            Dictionary<int, ChapterDelta> chapterDeltas = new Dictionary<int, ChapterDelta>
+            {
+                { 1, new ChapterDelta(1, 0, true, delta) },
+            };
+            Dictionary<string, ParatextUserProfile> ptProjectUsers = new[]
+            {
+                new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 },
+            }.ToDictionary(u => u.Username);
+            IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+                userSecret,
+                ptProjectId,
+                40,
+                Array.Empty<IDocument<NoteThread>>(),
+                chapterDeltas,
+                ptProjectUsers
+            );
+            Assert.That(changes.Count, Is.EqualTo(1));
+            // The editor counts one position for the end of each paragraph, including the \usfm one
+            int startPos = idText.Length + 1 + usfmText.Length + 1 + sectionText.Length + 1 + textBefore.Length;
+            TextAnchor expected = new TextAnchor { Start = startPos, Length = selected.Length };
+            Assert.That(changes.First().Position, Is.EqualTo(expected));
+        }
+    }
+
+    [Test]
     public async Task GetNoteThreadChanges_LineBreak_TextAnchorUpdated()
     {
         var env = new TestEnvironment();
