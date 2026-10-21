@@ -1,3 +1,4 @@
+import { Direction } from '@angular/cdk/bidi';
 import { HttpClient } from '@angular/common/http';
 import { DebugElement } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
@@ -294,7 +295,7 @@ describe('NoteDialogComponent', () => {
     // RTL is detected and applied.
     expect(env.dialogContentArea.classes.rtl).toBeTrue();
     expect(env.dialogContentArea.classes.ltr).toBeUndefined();
-    // The whole note, including the author row, is laid out RTL regardless of the interface direction
+    // The whole note, including the author row, takes the project direction, not only its content
     const noteStyle: CSSStyleDeclaration = getComputedStyle(env.notes[0].nativeElement);
     expect(noteStyle.direction).toEqual('rtl');
     expect(noteStyle.flexDirection).toEqual('row-reverse');
@@ -308,6 +309,33 @@ describe('NoteDialogComponent', () => {
     const noteStyle: CSSStyleDeclaration = getComputedStyle(env.notes[0].nativeElement);
     expect(noteStyle.direction).toEqual('ltr');
     expect(noteStyle.flexDirection).toEqual('row-reverse');
+  }));
+
+  it('shows the note author under the edit buttons for every interface and project direction', fakeAsync(() => {
+    for (const interfaceDirection of ['ltr', 'rtl'] as const) {
+      for (const isRightToLeftProject of [false, true]) {
+        const context = `${interfaceDirection} interface, ${isRightToLeftProject ? 'rtl' : 'ltr'} project`;
+        // The last note is by the current user, so it has edit and delete buttons
+        env = new TestEnvironment({
+          noteThread: TestEnvironment.getNoteThread(undefined, undefined, true),
+          isRightToLeftProject,
+          interfaceDirection
+        });
+        const note: HTMLElement = env.notes.find(n => n.query(By.css('.edit-actions')) != null)!.nativeElement;
+        const noteRect: DOMRect = note.getBoundingClientRect();
+        const noteCenter: number = noteRect.left + noteRect.width / 2;
+        const isInRightHalf = (selector: string): boolean => {
+          const rect: DOMRect = note.querySelector(selector)!.getBoundingClientRect();
+          return rect.left + rect.width / 2 > noteCenter;
+        };
+        // The note icon is not checked: its image does not load in tests, so it has no width and does not wrap
+        // onto the author row the way it does in the app.
+        expect(isInRightHalf('.note-user'))
+          .withContext(`${context}: author row on the same side as the edit buttons`)
+          .toBe(isInRightHalf('.edit-actions'));
+        env.closeDialog();
+      }
+    }
   }));
 
   it('show insert note dialog content', fakeAsync(() => {
@@ -784,6 +812,7 @@ interface TestEnvironmentConstructorArgs {
   biblicalTerm?: BiblicalTerm;
   userProfile?: UserProfile;
   userProfileId?: string;
+  interfaceDirection?: Direction;
 }
 
 class TestEnvironment {
@@ -1044,7 +1073,8 @@ class TestEnvironment {
     combinedVerseTextDoc,
     biblicalTerm,
     userProfile,
-    userProfileId
+    userProfileId,
+    interfaceDirection
   }: TestEnvironmentConstructorArgs = {}) {
     this.fixture = TestBed.createComponent(ChildViewContainerComponent);
     const textDocId = new TextDocId(TestEnvironment.PROJECT01, 40, 1);
@@ -1059,7 +1089,10 @@ class TestEnvironment {
     TestEnvironment.testProject.isRightToLeft = isRightToLeftProject;
     TestEnvironment.testProjectProfile.translateConfig.defaultNoteTagId = noteTagId;
     TestEnvironment.testProject.translateConfig.defaultNoteTagId = noteTagId;
-    this.dialogRef = TestBed.inject(MatDialog).open(NoteDialogComponent, { data: configData });
+    this.dialogRef = TestBed.inject(MatDialog).open(NoteDialogComponent, {
+      data: configData,
+      direction: interfaceDirection
+    });
     this.component = this.dialogRef.componentInstance;
 
     if (includeSnapshots) {
