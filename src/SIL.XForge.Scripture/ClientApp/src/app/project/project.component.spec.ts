@@ -181,6 +181,27 @@ describe('ProjectComponent', () => {
     verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate', 'MAT']), anything())).once();
     expect().nothing();
   }));
+
+  it('navigates a checker to checking once checking is re-enabled', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectData({
+      memberProjectIdSuffixes: [1],
+      role: SFProjectRole.CommunityChecker,
+      checkingEnabled: false
+    });
+    env.fixture.detectChanges();
+    tick();
+
+    verify(mockedRouter.navigate(anything(), anything())).never();
+
+    // A change that leaves checking disabled should not navigate
+    env.setCheckingEnabled(false);
+    verify(mockedRouter.navigate(anything(), anything())).never();
+
+    env.setCheckingEnabled(true);
+    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'checking', 'JHN', '1']), anything())).once();
+    expect().nothing();
+  }));
 });
 
 class TestEnvironment {
@@ -281,6 +302,12 @@ class TestEnvironment {
     this.setProjectData({ memberProjectIdSuffixes: [projectIdSuffix] });
     const userDoc: UserDoc = this.realtimeService.get(UserDoc.COLLECTION, 'user01');
     userDoc.submitJson0Op(op => op.set(u => u.sites, { sf: { projects: [`project${projectIdSuffix}`] } }), false);
+    tick();
+  }
+
+  setCheckingEnabled(checkingEnabled: boolean): void {
+    const projectDoc: SFProjectProfileDoc = this.realtimeService.get(SFProjectProfileDoc.COLLECTION, 'project1');
+    projectDoc.submitJson0Op(op => op.set(p => p.checkingConfig.checkingEnabled, checkingEnabled), false);
     tick();
   }
 }
