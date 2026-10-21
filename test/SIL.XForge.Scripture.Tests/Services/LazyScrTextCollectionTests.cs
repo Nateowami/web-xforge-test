@@ -95,9 +95,102 @@ public class LazyScrTextCollectionTests
         Assert.That(scrText, Is.Not.Null);
         Assert.That(scrText?.Name, Is.EqualTo(Project01Name));
         Assert.That(scrText?.Directory, Is.EqualTo(path));
-        Assert.That(scrText?.Settings.Versification.Type, Is.EqualTo(ScrVers.Vulgate.Type));
         env.FileSystemService.Received(1).FileExists(Path.Join(path, ProjectSettings.fileName));
         env.FileSystemService.Received(1).FileExists(Path.Join(basePath, ProjectSettings.fileName));
+        Assert.That(scrText?.Settings.Versification.Type, Is.EqualTo(ScrVers.Vulgate.Type));
+    }
+
+    [Test]
+    public void FindById_BaseProject_UsesBaseCustomVersification()
+    {
+        // Setup
+        var env = new TestEnvironment();
+        env.ConfigureProject(
+            User01,
+            _project01,
+            Project01Name,
+            SettingsFormat.Paratext8,
+            baseProjectId: _project02,
+            baseProjectName: Project02Name,
+            customVersification: TestEnvironment.CustomVersificationWithTwoMalachiChapters
+        );
+        env.ConfigureProject(
+            User01,
+            _project02,
+            Project02Name,
+            SettingsFormat.Paratext8,
+            ScrVers.Vulgate,
+            customVersification: TestEnvironment.CustomVersificationWithOneJohnChapter
+        );
+
+        // SUT
+        ScrText? scrText = env.Service.FindById(User01, _project01.Id);
+
+        // The base project's customizations are used, not the derived project's
+        ScrVers versification = scrText!.Settings.Versification;
+        Assert.That(versification.IsCustomized, Is.True);
+        Assert.That(versification.BaseVersification.Type, Is.EqualTo(ScrVersType.Vulgate));
+        Assert.That(versification.GetLastChapter(Canon.BookIdToNumber("JHN")), Is.EqualTo(1));
+        Assert.That(
+            versification.GetLastChapter(Canon.BookIdToNumber("MAL")),
+            Is.EqualTo(ScrVers.Vulgate.GetLastChapter(Canon.BookIdToNumber("MAL")))
+        );
+    }
+
+    [Test]
+    public void FindById_CustomVersification()
+    {
+        // Setup
+        var env = new TestEnvironment();
+        env.ConfigureProject(
+            User01,
+            _project01,
+            Project01Name,
+            SettingsFormat.Paratext8,
+            ScrVers.Original,
+            customVersification: TestEnvironment.CustomVersificationWithOneJohnChapter
+        );
+
+        // SUT
+        ScrText? scrText = env.Service.FindById(User01, _project01.Id);
+
+        ScrVers versification = scrText!.Settings.Versification;
+        Assert.That(versification.IsCustomized, Is.True);
+        Assert.That(versification.BaseVersification.Type, Is.EqualTo(ScrVersType.Original));
+        Assert.That(versification.GetLastChapter(Canon.BookIdToNumber("JHN")), Is.EqualTo(1));
+    }
+
+    [Test]
+    public void FindById_CustomVersification_ReloadedWhenChanged()
+    {
+        // Setup
+        var env = new TestEnvironment();
+        string path = env.ConfigureProject(
+            User01,
+            _project01,
+            Project01Name,
+            SettingsFormat.Paratext8,
+            ScrVers.English,
+            customVersification: TestEnvironment.CustomVersificationWithOneJohnChapter
+        );
+        Assert.That(
+            env.Service.FindById(User01, _project01.Id)!
+                .Settings.Versification.GetLastChapter(Canon.BookIdToNumber("JHN")),
+            Is.EqualTo(1)
+        );
+
+        // Simulate a sync changing, then removing, the custom versification
+        string customVersificationPath = Path.Join(path, ParatextVersificationTable.customVersFilename);
+        env.FileSystemService.FileReadText(customVersificationPath)
+            .Returns(TestEnvironment.CustomVersificationWithTwoMalachiChapters);
+        ScrVers versification = env.Service.FindById(User01, _project01.Id)!.Settings.Versification;
+        Assert.That(versification.GetLastChapter(Canon.BookIdToNumber("JHN")), Is.EqualTo(21));
+        Assert.That(versification.GetLastChapter(Canon.BookIdToNumber("MAL")), Is.EqualTo(2));
+
+        env.FileSystemService.FileExists(customVersificationPath).Returns(false);
+        versification = env.Service.FindById(User01, _project01.Id)!.Settings.Versification;
+        Assert.That(versification.IsCustomized, Is.False);
+        Assert.That(versification.Type, Is.EqualTo(ScrVersType.English));
     }
 
     [Test]
@@ -184,6 +277,9 @@ public class LazyScrTextCollectionTests
     {
         private readonly string _testDirectory;
 
+        public const string CustomVersificationWithOneJohnChapter = "JHN 1:51 END\n";
+        public const string CustomVersificationWithTwoMalachiChapters = "MAL 1:14 2:17 END\n";
+
         public TestEnvironment()
         {
             _testDirectory = Path.Join(Path.GetTempPath(), Path.GetRandomFileName());
@@ -207,6 +303,7 @@ public class LazyScrTextCollectionTests
         /// <param name="scrVers">Optional. The project versification.</param>
         /// <param name="baseProjectId">Optional. The base project identifier.</param>
         /// <param name="baseProjectName">Optional. The base project name.</param>
+        /// <param name="customVersification">Optional. The contents of the project's custom.vrs file.</param>
         /// <returns>
         /// The path to the project.
         /// </returns>
@@ -217,7 +314,8 @@ public class LazyScrTextCollectionTests
             SettingsFormat settingsFormat,
             ScrVers? scrVers = null,
             HexId? baseProjectId = null,
-            string baseProjectName = ""
+            string baseProjectName = "",
+            string? customVersification = null
         )
         {
             // Configure the project "on disk"
@@ -226,11 +324,20 @@ public class LazyScrTextCollectionTests
             string versification = scrVers is null
                 ? string.Empty
                 : $"<Versification>{(int)scrVers.Type}</Versification>";
+            string translationInfo = baseProjectId is null
+                ? string.Empty
+                : $"<TranslationInfo>BackTranslation:{baseProjectName}:{baseProjectId.Id}</TranslationInfo>";
             string content =
-                $"<ScriptureText><Name>{projectName}</Name><Guid>{projectId.Id}</Guid>{versification}</ScriptureText>";
+                $"<ScriptureText><Name>{projectName}</Name><Guid>{projectId.Id}</Guid>{versification}{translationInfo}</ScriptureText>";
             FileSystemService
                 .FileReadText(Arg.Is<string>(s => !string.IsNullOrEmpty(s) && s.StartsWith(targetPath)))
                 .Returns(content);
+            if (customVersification is not null)
+            {
+                string customVersificationPath = Path.Join(targetPath, ParatextVersificationTable.customVersFilename);
+                FileSystemService.FileExists(customVersificationPath).Returns(true);
+                FileSystemService.FileReadText(customVersificationPath).Returns(customVersification);
+            }
             FileSystemService
                 .DirectoryExists(Arg.Is<string>(s => !string.IsNullOrEmpty(s) && s.StartsWith(projectPath)))
                 .Returns(true);
@@ -250,23 +357,31 @@ public class LazyScrTextCollectionTests
                     break;
             }
 
-            // Configure the service to return the scripture text
-            var scrText = new MockScrText(
-                new SFParatextUser(userId),
-                new ProjectName { ProjectPath = targetPath, ShortName = projectName }
-            );
-            if (baseProjectId is not null)
-            {
-                scrText.Settings.TranslationInfo = new TranslationInformation(
-                    ProjectType.BackTranslation,
-                    baseProjectName,
-                    baseProjectId
-                );
-            }
+            // Configure the service to return the scripture text. A new one is created each time, like ScrText.
             Service
                 .Configure()
                 .CreateScrText(Arg.Any<string>(), Arg.Is<ProjectName>(p => p.ShortName == projectName))
-                .Returns(scrText);
+                .Returns(_ =>
+                {
+                    var scrText = new MockScrText(
+                        new SFParatextUser(userId),
+                        new ProjectName { ProjectPath = targetPath, ShortName = projectName }
+                    )
+                    {
+                        CachedGuid = projectId,
+                    };
+                    if (scrVers is not null)
+                        scrText.Settings.Versification = scrVers;
+                    if (baseProjectId is not null)
+                    {
+                        scrText.Settings.TranslationInfo = new TranslationInformation(
+                            ProjectType.BackTranslation,
+                            baseProjectName,
+                            baseProjectId
+                        );
+                    }
+                    return scrText;
+                });
 
             return targetPath;
         }
