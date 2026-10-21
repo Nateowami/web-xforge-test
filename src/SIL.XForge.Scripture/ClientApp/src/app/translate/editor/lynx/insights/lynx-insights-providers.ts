@@ -1,6 +1,6 @@
 import { EnvironmentProviders, inject, makeEnvironmentProviders, provideAppInitializer } from '@angular/core';
 import { DocumentManager, DocumentReader } from '@sillsdev/lynx';
-import { ScriptureDeltaDocument, ScriptureDeltaDocumentFactory } from '@sillsdev/lynx-delta';
+import { ScriptureDeltaDocument } from '@sillsdev/lynx-delta';
 import Delta, { Op } from 'quill-delta';
 import { QuillFormatRegistryService } from '../../../../shared/text/quill-editor-registration/quill-format-registry.service';
 import { EditorReadyService } from './base-services/editor-ready.service';
@@ -11,6 +11,7 @@ import { lynxInsightBlots } from './quill-services/blots/lynx-insight-blot';
 import { QuillEditorReadyService } from './quill-services/quill-editor-ready.service';
 import { QuillEditorSegmentService } from './quill-services/quill-editor-segment.service';
 import { QuillInsightRenderService } from './quill-services/quill-insight-render.service';
+import { TextDocDocumentFactory } from './text-doc-document-factory';
 
 /**
  * Lynx Insights services' providers and initialization.
@@ -39,6 +40,6 @@ export function provideLynxInsights(): EnvironmentProviders {
 function createLynxDocumentManager(
   documentReader: DocumentReader<Delta>
 ): DocumentManager<ScriptureDeltaDocument, Op, Delta> {
-  const documentFactory = new ScriptureDeltaDocumentFactory();
+  const documentFactory = new TextDocDocumentFactory();
   return new DocumentManager<ScriptureDeltaDocument, Op, Delta>(documentFactory, documentReader);
 }
