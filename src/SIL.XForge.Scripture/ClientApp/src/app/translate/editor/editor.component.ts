@@ -285,6 +285,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   private sourceLoaded: boolean = false;
   private targetLoaded: boolean = false;
   private _targetFocused: boolean = false;
+  /** Whether the user last focused the source text or a resource tab, rather than the target. */
+  private readOnlyTextFocused: boolean = false;
   private chapter$ = new BehaviorSubject<number | undefined>(undefined);
   private _verse: string = '0';
   private onTargetDeleteSub?: Subscription;
@@ -352,10 +354,24 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   set targetFocused(focused: boolean) {
-    // both the note dialog and the bottom sheet causes the editor to lose focus,
-    // but the editor should still keep the highlighting in both situations
-    focused = this.dialogService.openDialogCount > 0 || this.bottomSheetRef != null ? true : focused;
+    if (focused) {
+      this.readOnlyTextFocused = false;
+    } else if (!this.readOnlyTextFocused && (this.dialogService.openDialogCount > 0 || this.bottomSheetRef != null)) {
+      // both the note dialog and the bottom sheet causes the editor to lose focus,
+      // but the editor should still keep the highlighting in both situations
+      focused = true;
+    }
     this._targetFocused = focused;
+  }
+
+  /** Handles focus changes in the source text or in a resource tab. */
+  onReadOnlyTextFocused(focused: boolean): void {
+    if (focused) {
+      // Clicking a footnote in a read-only text opens a dialog before the target's blur event arrives, so the
+      // blur cannot be relied on to clear targetFocused.
+      this.readOnlyTextFocused = true;
+      this._targetFocused = false;
+    }
   }
 
   get isTargetTextRight(): boolean {
