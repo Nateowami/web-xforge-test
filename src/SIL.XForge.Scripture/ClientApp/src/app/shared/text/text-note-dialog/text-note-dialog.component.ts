@@ -21,23 +21,32 @@ export interface NoteDialogData {
   isRightToLeft: boolean;
 }
 
+/** A run of note text, which is a web address if url is set. */
+export interface NoteTextSegment {
+  text: string;
+  url?: string;
+}
+
+// Matches web addresses, excluding trailing punctuation that is more likely to end the sentence than the address
+const URL_REGEX = /\b(?:https?:\/\/|www\.)[^\s<>"]*[^\s<>".,;:!?'()[\]]/gi;
+
 @Component({
   templateUrl: './text-note-dialog.component.html',
   styleUrls: ['./text-note-dialog.component.scss'],
   imports: [MatDialogTitle, MatIconButton, MatDialogClose, MatIcon, CdkScrollable, MatDialogContent, Dir]
 })
 export class TextNoteDialogComponent {
+  readonly segments: NoteTextSegment[];
+
   constructor(
     @Inject(MAT_DIALOG_DATA) private readonly data: NoteDialogData,
     private readonly translocoService: TranslocoService
-  ) {}
+  ) {
+    this.segments = splitUrls(data.text ?? '');
+  }
 
   get direction(): LocaleDirection {
     return this.data.isRightToLeft ? 'rtl' : 'ltr';
-  }
-
-  get text(): string {
-    return this.data.text;
   }
 
   get type(): string {
@@ -56,4 +65,18 @@ export class TextNoteDialogComponent {
     }
     return this.translocoService.translate(`text_note_dialog.${translateKey}`);
   }
+}
+
+/** Splits text so that web addresses can be displayed as links. */
+export function splitUrls(text: string): NoteTextSegment[] {
+  const segments: NoteTextSegment[] = [];
+  let index = 0;
+  for (const match of text.matchAll(URL_REGEX)) {
+    if (match.index > index) segments.push({ text: text.substring(index, match.index) });
+    const url: string = match[0];
+    segments.push({ text: url, url: url.toLowerCase().startsWith('www.') ? `https://${url}` : url });
+    index = match.index + url.length;
+  }
+  if (index < text.length) segments.push({ text: text.substring(index) });
+  return segments;
 }

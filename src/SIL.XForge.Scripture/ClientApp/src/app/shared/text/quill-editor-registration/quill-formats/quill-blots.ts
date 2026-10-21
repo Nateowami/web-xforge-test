@@ -287,6 +287,11 @@ export class NoteEmbed extends QuillEmbedBlot {
           return text + linkText;
         }
 
+        // Paratext converts the "//" in a URL to an optbreak, so display the USFM for it
+        if (op.insert?.optbreak != null) {
+          return text + '//';
+        }
+
         return text;
       }, '');
     }

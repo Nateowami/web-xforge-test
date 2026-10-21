@@ -3,5 +3,11 @@
   <button mat-icon-button mat-dialog-close><mat-icon>close</mat-icon></button>
 </h1>
 <mat-dialog-content class="content-padding" [dir]="direction">
-  {{ text }}
+  @for (segment of segments; track $index) {
+    @if (segment.url != null) {
+      <a [href]="segment.url" target="_blank" rel="noopener noreferrer">{{ segment.text }}</a>
+    } @else {
+      <span>{{ segment.text }}</span>
+    }
+  }
 </mat-dialog-content>

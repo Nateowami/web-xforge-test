@@ -54,6 +54,30 @@ describe('TextNoteDialogComponent', () => {
     expect(env.title).toBe('text_note_dialog.cross_reference');
     expect(env.text).toBe(text);
   }));
+
+  it('Displays web addresses as links', fakeAsync(() => {
+    const text = 'See https://example.org/notes?id=1, www.example.com and http://example.net.';
+    env = new TestEnvironment({ type: TextNoteType.Footnote, text, isRightToLeft: false });
+    expect(env.text).toBe(text);
+    expect(env.links.map(link => link.getAttribute('href'))).toEqual([
+      'https://example.org/notes?id=1',
+      'https://www.example.com',
+      'http://example.net'
+    ]);
+    expect(env.links.map(link => link.textContent)).toEqual([
+      'https://example.org/notes?id=1',
+      'www.example.com',
+      'http://example.net'
+    ]);
+    expect(env.links.every(link => link.getAttribute('target') === '_blank')).toBe(true);
+  }));
+
+  it('Does not display text without web addresses as links', fakeAsync(() => {
+    const text = 'Some manuscripts read example.org: or https:';
+    env = new TestEnvironment({ type: TextNoteType.Footnote, text, isRightToLeft: false });
+    expect(env.text).toBe(text);
+    expect(env.links.length).toBe(0);
+  }));
 });
 
 class TestEnvironment {
@@ -79,6 +103,12 @@ class TestEnvironment {
 
   get text(): string {
     return this.overlayContainerElement.query(By.css('mat-dialog-content'))!.nativeElement.textContent.trim();
+  }
+
+  get links(): HTMLAnchorElement[] {
+    return this.overlayContainerElement
+      .queryAll(By.css('mat-dialog-content a'))
+      .map(debugElement => debugElement.nativeElement);
   }
 
   closeDialog(): void {
