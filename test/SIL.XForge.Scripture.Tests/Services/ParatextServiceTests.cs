@@ -1725,6 +1725,80 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task GetNoteThreadChanges_VerseNoteAfterCustomParagraph_TextAnchorCountsEveryParagraphBreak()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        const string verseText = "Text in first verse.";
+        const string customText = "Custom paragraph.";
+        const string textBefore = "More of the verse with ";
+        const string selected = "RAYMOND";
+        const string textAfter = " in it.";
+
+        var comment = new Paratext.Data.ProjectComments.Comment(associatedPtUser)
+        {
+            Thread = "thread1",
+            VerseRefStr = "MAT 1:1",
+            SelectedText = selected,
+            ContextBefore = textBefore,
+            ContextAfter = textAfter,
+            StartPosition = textBefore.Length,
+            Contents = null,
+            Date = "2019-12-31T08:00:00.0000000+00:00",
+            Deleted = false,
+            Status = NoteStatus.Todo,
+            Type = NoteType.Normal,
+            ConflictType = NoteConflictType.None,
+            AssignedUser = CommentThread.unassignedUser,
+        };
+        env.AddParatextComment(comment);
+
+        await using (await env.RealtimeService.ConnectAsync())
+        {
+            // These deltas represent the following USFM:
+            // \c 1
+            // \p
+            // \v 1 Text in first verse.
+            // \zp Custom paragraph.
+            // \p More of the verse with RAYMOND in it.
+            var delta = Delta
+                .New()
+                .InsertChapter("1")
+                .InsertBlank("p_1")
+                .InsertVerse("1")
+                .InsertText(verseText, "verse_1_1")
+                .InsertPara("p")
+                .InsertText(customText, "zp_1")
+                .InsertPara("zp")
+                .InsertText(textBefore + selected + textAfter, "p_2")
+                .InsertPara("p");
+            Dictionary<int, ChapterDelta> chapterDeltas = new Dictionary<int, ChapterDelta>
+            {
+                { 1, new ChapterDelta(1, 1, true, delta) },
+            };
+            Dictionary<string, ParatextUserProfile> ptProjectUsers = new[]
+            {
+                new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 },
+            }.ToDictionary(u => u.Username);
+            IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+                userSecret,
+                ptProjectId,
+                40,
+                Array.Empty<IDocument<NoteThread>>(),
+                chapterDeltas,
+                ptProjectUsers
+            );
+            Assert.That(changes.Count, Is.EqualTo(1));
+            // The \zp segment carries no verse number, so the editor treats it as part of verse 1 and counts its end
+            int startPos = verseText.Length + 1 + customText.Length + 1 + textBefore.Length;
+            TextAnchor expected = new TextAnchor { Start = startPos, Length = selected.Length };
+            Assert.That(changes.First().Position, Is.EqualTo(expected));
+        }
+    }
+
+    [Test]
     public async Task GetNoteThreadChanges_LineBreak_TextAnchorUpdated()
     {
         var env = new TestEnvironment();

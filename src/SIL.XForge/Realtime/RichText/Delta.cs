@@ -228,8 +228,7 @@ public class Delta
     /// The reference to the verse. For example: "1". If the verses in the text data is combined, "1-2".
     /// </param>
     /// <remarks>
-    /// Every paragraph break is included, whatever its style, because the editor counts one position for the end of
-    /// every segment when it places a note thread's text anchor.
+    /// Every paragraph break in the verse is included as a newline, whatever the paragraph's style.
     /// </remarks>
     public bool TryConcatenateInserts(out string opStr, string verseRef)
     {
