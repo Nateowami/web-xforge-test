@@ -26,9 +26,12 @@ import { DialogService } from './dialog.service';
 import { ErrorReportingService } from './error-reporting.service';
 import { LocalSettingsService } from './local-settings.service';
 import { LocationService } from './location.service';
+import { FileOfflineData } from './models/file-offline-data';
+import { RealtimeOfflineData } from './models/realtime-offline-data';
 import { OfflineStore } from './offline-store';
 import { OnlineStatusService } from './online-status.service';
 import { SharedbRealtimeRemoteStore } from './sharedb-realtime-remote-store';
+import { TypeRegistry } from './type-registry';
 import { USERS_URL } from './url-constants';
 import { filterNullish } from './util/rxjs-util';
 import { ASP_CULTURE_COOKIE_NAME, getAspCultureCookieLanguage } from './utils';
@@ -111,7 +114,8 @@ export class AuthService {
     private readonly localSettings: LocalSettingsService,
     private readonly onlineStatusService: OnlineStatusService,
     private readonly dialogService: DialogService,
-    private readonly reportingService: ErrorReportingService
+    private readonly reportingService: ErrorReportingService,
+    private readonly typeRegistry: TypeRegistry
   ) {
     // Listen for changes to the auth state. If the user logs out in another tab/window, redirect to the home page.
     // When localStorage is cleared event.key is null. The logic below may be more specific than necessary, but we can't
@@ -267,7 +271,15 @@ export class AuthService {
 
   async logOut(): Promise<void> {
     let proceedWithLogout: boolean = true;
-    if (await this.isLoggedInUserAnonymous) {
+    if (!this.onlineStatusService.isOnline && (await this.hasUnsavedOfflineChanges())) {
+      proceedWithLogout = await this.dialogService.confirmWithOptions({
+        title: 'warnings.unsaved_offline_changes',
+        affirmative: 'warnings.logout_and_discard_offline_changes',
+        negative: 'warnings.stay_logged_in',
+        highlightAffirmative: false
+      });
+    }
+    if (proceedWithLogout && (await this.isLoggedInUserAnonymous)) {
       proceedWithLogout = await this.dialogService.confirm(
         'warnings.login_cookie_deletion',
         'warnings.logout',
@@ -281,6 +293,27 @@ export class AuthService {
       this.unscheduleRenewal();
       void this.auth0.logout({ logoutParams: { returnTo: this.locationService.origin + '/' } } as LogoutOptions);
     }
+  }
+
+  /**
+   * Checks the offline store for changes that have not yet been sent to the server, which would be lost when the offline
+   * store is deleted on log out. Pending ops are written to the offline store as soon as they are submitted, so this
+   * includes changes to docs that are not currently loaded.
+   */
+  private async hasUnsavedOfflineChanges(): Promise<boolean> {
+    for (const docType of this.typeRegistry.docTypes) {
+      const docs = await this.offlineStore.getAll<RealtimeOfflineData>(docType.COLLECTION);
+      // A doc with no version was created locally and the server has not yet acknowledged its creation
+      if (docs.some(doc => doc.v == null || doc.pendingOps?.length > 0)) return true;
+    }
+    for (const fileType of this.typeRegistry.fileTypes) {
+      const files = await this.offlineStore.getAll<FileOfflineData>(fileType);
+      // These are the uploads and deletions that FileService will send to the server when it comes back online
+      if (files.some(file => file.projectRef != null && (file.deleteRef != null || file.onlineUrl == null))) {
+        return true;
+      }
+    }
+    return false;
   }
 
   pullAuthUserProfile(): Promise<void> {
