@@ -5,6 +5,7 @@ import { Location } from '@angular/common';
 import { DebugElement, NgZone } from '@angular/core';
 import { ComponentFixture, discardPeriodicTasks, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { MatDialog, MatDialogConfig, MatDialogRef } from '@angular/material/dialog';
+import { MatSelectChange } from '@angular/material/select';
 import { MatTooltipHarness } from '@angular/material/tooltip/testing';
 import { By } from '@angular/platform-browser';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
@@ -76,7 +77,7 @@ import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SFProjectUserConfigDoc } from '../../core/models/sf-project-user-config-doc';
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextDoc, TextDocId } from '../../core/models/text-doc';
-import { ParatextService } from '../../core/paratext.service';
+import { ParatextService, Revision } from '../../core/paratext.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { ProjectNotificationService } from '../../core/project-notification.service';
 import { SFProjectService } from '../../core/sf-project.service';
@@ -104,6 +105,7 @@ import { DraftNotificationService } from '../draft-generation/draft-notification
 import { DraftOptionsService } from '../draft-generation/draft-options.service';
 import { DraftPreviewBooksComponent } from '../draft-generation/draft-preview-books/draft-preview-books.component';
 import { EditorDraftComponent } from './editor-draft/editor-draft.component';
+import { HistoryChooserComponent } from './editor-history/history-chooser/history-chooser.component';
 import { HistoryRevisionFormatPipe } from './editor-history/history-chooser/history-revision-format.pipe';
 import { EditorComponent } from './editor.component';
 import { LynxInsightEditorObjectsComponent } from './lynx/insights/lynx-insight-editor-objects/lynx-insight-editor-objects.component';
@@ -3620,6 +3622,86 @@ describe('EditorComponent', () => {
         flush();
       }));
 
+      it('should keep the selected history revision when the history tab moves to another tab group', fakeAsync(() => {
+        const env = new TestEnvironment();
+        const revisions: Revision[] = [{ timestamp: '2026-07-31T10:43:00Z' }, { timestamp: '2026-07-31T10:33:00Z' }];
+        when(mockedParatextService.getRevisions(anything(), anything(), anything())).thenResolve(revisions);
+        when(mockedParatextService.getSnapshot(anything(), anything(), anything(), anything())).thenResolve({
+          data: { ops: [] },
+          id: 'id',
+          type: '',
+          v: 1,
+          isValid: true
+        });
+        env.wait();
+        env.breakpointObserver.emitObserveValue(false);
+        env.component['tabStateInitialized$'].next(true);
+        env.component['targetEditorLoaded$'].next();
+        env.wait();
+        const historyTab: EditorTabInfo = env.tabFactory.createTab('history') as EditorTabInfo;
+        env.component.tabState.addTab('source', historyTab);
+        env.wait();
+        expect(env.historyChooser.selectedRevision).toEqual(revisions[0]);
+
+        // The user selects the older revision
+        void env.historyChooser.onSelectionChanged({ value: revisions[1] } as MatSelectChange);
+        env.wait();
+        expect(historyTab.revisionTimestamp).toBe(revisions[1].timestamp);
+        const historyChooserBefore: HistoryChooserComponent = env.historyChooser;
+
+        // Moving the tab to the target tab group recreates the history chooser, which shows the same revision
+        env.breakpointObserver.emitObserveValue(true);
+        env.wait();
+        expect(env.component.tabState.getTabGroup('target')?.tabs).toContain(historyTab);
+        expect(env.historyChooser).not.toBe(historyChooserBefore);
+        expect(env.historyChooser.selectedRevision).toEqual(revisions[1]);
+        expect(historyTab.revisionTimestamp).toBe(revisions[1].timestamp);
+        discardPeriodicTasks();
+        env.dispose();
+      }));
+
+      it('should keep the selected draft revision when the draft tab moves to another tab group', fakeAsync(() => {
+        const env = new TestEnvironment();
+        const revisions: Revision[] = [{ timestamp: '2026-07-31T10:43:00Z' }, { timestamp: '2026-07-01T10:33:00Z' }];
+        when(mockedDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), anything())).thenReturn(
+          of(revisions)
+        );
+        when(
+          mockedDraftGenerationService.getGeneratedDraftBookDeltaOperations(
+            anything(),
+            anything(),
+            anything(),
+            anything()
+          )
+        ).thenReturn(of(new Map()));
+        env.wait();
+        env.breakpointObserver.emitObserveValue(false);
+        env.component['tabStateInitialized$'].next(true);
+        env.component['targetEditorLoaded$'].next();
+        env.wait();
+        const draftTab: EditorTabInfo = env.tabFactory.createTab('draft') as EditorTabInfo;
+        env.component.tabState.addTab('source', draftTab);
+        env.wait();
+        expect(env.editorDraft.selectedRevision).toEqual(revisions[0]);
+        expect(draftTab.revisionTimestamp).toBe(revisions[0].timestamp);
+
+        // The user selects the older revision
+        env.editorDraft.onSelectionChanged({ value: revisions[1] } as MatSelectChange);
+        env.wait();
+        expect(draftTab.revisionTimestamp).toBe(revisions[1].timestamp);
+        const editorDraftBefore: EditorDraftComponent = env.editorDraft;
+
+        // Moving the tab to the target tab group recreates the draft component, which shows the same revision
+        env.breakpointObserver.emitObserveValue(true);
+        env.wait();
+        expect(env.component.tabState.getTabGroup('target')?.tabs).toContain(draftTab);
+        expect(env.editorDraft).not.toBe(editorDraftBefore);
+        expect(env.editorDraft.selectedRevision).toEqual(revisions[1]);
+        expect(draftTab.revisionTimestamp).toBe(revisions[1].timestamp);
+        discardPeriodicTasks();
+        env.dispose();
+      }));
+
       it('should remove the source tab when the source project is removed and tab groups are consolidated', fakeAsync(() => {
         const env = new TestEnvironment();
         env.wait();
@@ -4969,6 +5051,14 @@ class TestEnvironment {
     tick(100); // Give the editor time to respond
     this.fixture.detectChanges();
     tick();
+  }
+
+  get historyChooser(): HistoryChooserComponent {
+    return this.fixture.debugElement.query(By.directive(HistoryChooserComponent)).componentInstance;
+  }
+
+  get editorDraft(): EditorDraftComponent {
+    return this.fixture.debugElement.query(By.directive(EditorDraftComponent)).componentInstance;
   }
 
   waitForPresenceTimer(): void {

@@ -460,6 +460,29 @@ describe('EditorDraftComponent', () => {
     flush();
   }));
 
+  it('should not show the initial revision after a first load of a chapter without drafts', fakeAsync(() => {
+    const testProjectDoc: SFProjectProfileDoc = {
+      data: createTestProjectProfile()
+    } as SFProjectProfileDoc;
+    when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), 1)).thenReturn(of([]));
+    when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), 2)).thenReturn(of(draftHistory));
+    when(mockActivatedProjectService.changes$).thenReturn(of(testProjectDoc));
+    spyOn<any>(component, 'getTargetOps').and.returnValue(of(targetDelta.ops!));
+    component.initialRevisionTimestamp = draftHistory[1].timestamp;
+
+    // SUT
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+    expect(component.selectedRevision).toBeUndefined();
+
+    component.chapter = 2;
+    component.ngOnChanges({ chapter: new SimpleChange(1, 2, false) });
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+    expect(component.selectedRevision).toEqual(draftHistory[0]);
+    flush();
+  }));
+
   it('should not reload the draft when only the initial revision changes', fakeAsync(() => {
     const testProjectDoc: SFProjectProfileDoc = {
       data: createTestProjectProfile()

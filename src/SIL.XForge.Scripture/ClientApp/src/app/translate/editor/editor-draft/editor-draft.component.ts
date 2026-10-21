@@ -320,16 +320,18 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
               .getGeneratedDraftHistory(textDocId.projectId, textDocId.bookNum, textDocId.chapterNum)
               .pipe(
                 map(revisions => {
+                  const isInitialLoad: boolean = this.isInitialLoad;
+                  // Cleared even if this chapter has no drafts, so the initial revision is not used for a later chapter
+                  this.isInitialLoad = false;
                   if (revisions != null && revisions.length > 0) {
                     // Sort revisions by timestamp descending
                     this.draftRevisions = [...revisions].sort((a, b) => {
                       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
                     });
                     const date = this.timestamp ?? new Date();
-                    const initialRevision: Revision | undefined = this.isInitialLoad
+                    const initialRevision: Revision | undefined = isInitialLoad
                       ? this.draftRevisions.find(r => r.timestamp === this.initialRevisionTimestamp)
                       : undefined;
-                    this.isInitialLoad = false;
                     // Don't emit this.selectedRevision$, as the merge will handle this
                     this.selectedRevision = initialRevision ?? this.findClosestRevision(date, this.draftRevisions);
                     if (this.selectedRevision != null) {

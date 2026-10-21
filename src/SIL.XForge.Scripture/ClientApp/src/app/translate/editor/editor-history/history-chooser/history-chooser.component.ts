@@ -213,12 +213,13 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
         if (this.historyRevisions.length === 0) {
           this.historyRevisions =
             (await this.paratextService.getRevisions(this.projectId, this.bookId, this.chapter)) ?? [];
+          const initialRevision: Revision | undefined = this.isInitialLoad
+            ? this.historyRevisions.find(r => r.timestamp === this.initialRevisionTimestamp)
+            : undefined;
+          // Cleared even if this chapter has no history, so the initial revision is not used for a later chapter
+          this.isInitialLoad = false;
 
           if (this.historyRevisions.length > 0) {
-            const initialRevision: Revision | undefined = this.isInitialLoad
-              ? this.historyRevisions.find(r => r.timestamp === this.initialRevisionTimestamp)
-              : undefined;
-            this.isInitialLoad = false;
             await this.selectRevision(initialRevision ?? this.historyRevisions[0]);
           }
         }
