@@ -363,6 +363,22 @@ describe('Quill blots', () => {
       expect(node.title).toBe('note text link text');
     });
 
+    it('should set title from contents with an optbreak in a URL', () => {
+      const value = {
+        caller: 'a',
+        contents: {
+          ops: [
+            { insert: 'See https:', attributes: { char: { style: 'ft' } } },
+            { insert: { optbreak: {} }, attributes: { char: { style: 'ft' } } },
+            { insert: 'example.org', attributes: { char: { style: 'ft' } } }
+          ]
+        }
+      };
+      const node = NoteEmbed.create(value) as HTMLElement;
+
+      expect(node.title).toBe('See https://example.org');
+    });
+
     it('should set title from contents ignoring an link with no text', () => {
       const value = {
         caller: 'a',

@@ -3055,6 +3055,67 @@ public class DeltaUsxMapperTests
     }
 
     [Test]
+    public void ToDelta_OptBreakInNote()
+    {
+        // Paratext converts the "//" in a URL such as https://example.org into an optbreak
+        XDocument usxDoc = Usx(
+            "PHM",
+            Chapter("1"),
+            Para(
+                "p",
+                Verse("1"),
+                "This is a verse with a footnote",
+                Note(
+                    "f",
+                    "+",
+                    Char("ft", "See https:", OptBreak(), "example.org"),
+                    " or ftp:",
+                    OptBreak(),
+                    "example.org"
+                )
+            )
+        );
+
+        var mapper = new DeltaUsxMapper(_mapperGuidService, _logger, _exceptionHandler);
+        List<ChapterDelta> chapterDeltas = [.. mapper.ToChapterDeltas(usxDoc)];
+
+        string ftCid = _testGuidService.Generate();
+        var expected = Delta
+            .New()
+            .InsertBook("PHM")
+            .InsertChapter("1")
+            .InsertBlank("p_1")
+            .InsertVerse("1")
+            .InsertText("This is a verse with a footnote", "verse_1_1")
+            .InsertNote(
+                Delta
+                    .New()
+                    .InsertChar("See https:", "ft", ftCid)
+                    .InsertEmbed(
+                        "optbreak",
+                        [],
+                        attributes: new JObject(
+                            new JProperty(
+                                "char",
+                                new JObject(new JProperty("style", "ft"), new JProperty("cid", ftCid))
+                            )
+                        )
+                    )
+                    .InsertChar("example.org", "ft", ftCid)
+                    .Insert(" or ftp:")
+                    .InsertOptBreak()
+                    .Insert("example.org"),
+                "f",
+                "+",
+                "verse_1_1"
+            )
+            .InsertPara("p");
+
+        Assert.That(chapterDeltas[0].IsValid, Is.True);
+        Assert.IsTrue(chapterDeltas[0].Delta.DeepEquals(expected));
+    }
+
+    [Test]
     public void ToDelta_Milestone()
     {
         XDocument usxDoc = Usx(
@@ -4062,6 +4123,20 @@ public class DeltaUsxMapperTests
             \s \f + \fr 1: \ft Chapter A 1-17 corresponds to chapters 11.2—12.6 in a number of English translations.\f* Mordecai's Strange Dream
             \p
             \v 1 Mordecai, a Jew who belonged to the tribe of Benjamin,
+            """
+        );
+    }
+
+    [Test]
+    public void Roundtrip_UrlInFootnote()
+    {
+        AssertRoundtrips(
+            """
+            \id PHM
+            \c 1
+            \p
+            \v 1 Paul\f + \fr 1:1 \ft See https://www.example.org/notes?id=1 for details.\f* and Timothy\x - \xo 1:1 \xt http://example.org\x*,
+            \v 2 to Apphia\f + https://example.org\f*,
             """
         );
     }
