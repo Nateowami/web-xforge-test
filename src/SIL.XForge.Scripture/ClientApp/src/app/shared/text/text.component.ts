@@ -942,17 +942,11 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     return ret;
   }
 
-  toggleVerseSelection(verseRef: VerseRef): boolean {
-    if (this.editor == null) return false;
+  /** Adds or removes the commenter selection formatting on the verse text and its verse number. */
+  setVerseSelection(verseRef: VerseRef, selected: boolean): void {
+    if (this.editor == null) return;
     const verseSegments: string[] = this.filterSegments(this.getCompatibleSegments(verseRef));
-    const verseRange: Range | undefined = this.getSegmentRange(verseSegments[0]);
-    let selectionValue: true | null = true;
-    if (verseRange != null) {
-      const formats: StringMap = getAttributesAtPosition(this.editor, verseRange.index);
-      selectionValue = formats['commenter-selection'] ? null : true;
-    }
-
-    const format: StringMap = { ['commenter-selection']: selectionValue };
+    const format: StringMap = { ['commenter-selection']: selected ? true : null };
     let verseEmbedFormatted: boolean = false;
     for (const segment of verseSegments) {
       // only underline the selection if it is part of the verse text i.e. not a section heading
@@ -967,7 +961,6 @@ export class TextComponent implements AfterViewInit, OnDestroy {
         this.editor.formatText(range.index, range.length, format, 'api');
       }
     }
-    return selectionValue === true;
   }
 
   /** Respond to text changes in the quill editor. */

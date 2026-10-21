@@ -1976,7 +1976,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       allowToggleVerseSelection = !this.hasEditRight;
     }
     if (allowToggleVerseSelection) {
-      this.showAddCommentButton = this.target.toggleVerseSelection(verseRef);
+      const isSelected: boolean =
+        this.commenterSelectedVerseRef == null || !verseRef.equals(this.commenterSelectedVerseRef);
+      this.target.setVerseSelection(verseRef, isSelected);
+      this.showAddCommentButton = isSelected;
       this.positionInsertNoteFab();
     }
     if (!this.isInsertNoteFabEnabled) {
@@ -1991,7 +1994,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         return;
       }
       // un-select previously selected verses since a note can apply to only one verse.
-      this.target.toggleVerseSelection(this.commenterSelectedVerseRef);
+      this.target.setVerseSelection(this.commenterSelectedVerseRef, false);
     }
     this.commenterSelectedVerseRef = verseRef;
   }
@@ -2233,7 +2236,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
 
   private resetCommenterVerseSelection(): void {
     if (this.target != null && this.commenterSelectedVerseRef != null) {
-      this.target.toggleVerseSelection(this.commenterSelectedVerseRef);
+      this.target.setVerseSelection(this.commenterSelectedVerseRef, false);
       this.commenterSelectedVerseRef = undefined;
     }
     this.showAddCommentButton = false;

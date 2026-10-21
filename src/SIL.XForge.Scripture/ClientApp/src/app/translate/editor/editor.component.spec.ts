@@ -3161,6 +3161,29 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('shows FAB and selects verse when verse numbers have a stale selection format', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+
+      env.clickSegmentRef('verse_1_1');
+      env.wait();
+      // Undo can leave the commenter selection format on verses that are no longer selected
+      for (const segmentRef of ['verse_1_2', 'verse_1_3']) {
+        const range: Range = env.component.target!.getSegmentRange(segmentRef)!;
+        env.component.target!.editor!.formatText(range.index - 1, 1, { 'commenter-selection': true }, 'api');
+      }
+      env.wait();
+
+      env.clickSegmentRef('verse_1_2');
+      env.wait();
+      expect(env.getSegmentElement('verse_1_2')!.classList).toContain('commenter-selection');
+      expect(env.getSegmentElement('verse_1_1')!.classList).not.toContain('commenter-selection');
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('visible');
+
+      env.dispose();
+    }));
+
     it('should position FAB beside selected segment when scrolling segment in view', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
