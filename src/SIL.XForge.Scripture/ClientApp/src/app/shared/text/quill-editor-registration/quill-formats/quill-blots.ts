@@ -116,6 +116,13 @@ export class VerseEmbed extends QuillEmbedBlot {
       verseSpan.appendChild(verseAltSpan);
     }
 
+    if (value.pubnumber != null) {
+      const versePubSpan: HTMLSpanElement = document.createElement('span');
+      versePubSpan.setAttribute(customAttributeName('style'), 'vp');
+      versePubSpan.innerText = value.pubnumber;
+      verseSpan.appendChild(versePubSpan);
+    }
+
     node.appendChild(containerSpan);
     setUsxValue(node, value);
     return node;
