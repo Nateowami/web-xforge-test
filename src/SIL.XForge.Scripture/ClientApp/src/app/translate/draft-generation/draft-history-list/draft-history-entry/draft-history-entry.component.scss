@@ -6,12 +6,11 @@ mat-panel-title {
   display: flex;
   align-items: flex-start;
   flex-direction: column;
-  flex-grow: 1;
-  flex: 0 1 50;
+  flex: 1 1 50%;
 }
 
 mat-panel-description {
-  flex-grow: 0;
+  flex: 0 1 auto;
 }
 
 .title {
@@ -45,12 +44,18 @@ mat-panel-description {
 
 .status {
   display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 4px;
+  white-space: nowrap;
+}
+
+.state {
+  display: flex;
   align-items: center;
   gap: 4px;
-  white-space: nowrap;
-  app-display-confidence {
-    margin-inline-end: 16px;
-  }
 }
 
 .expand-icon {
