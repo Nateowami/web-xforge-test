@@ -227,7 +227,14 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
       this.projectId = projectId;
       try {
         this.projectDoc = await projectDocPromise;
-        this.projectUserConfigDoc = await this.projectService.getUserConfig(projectId, this.userService.currentUserId);
+        // Offline, the user config only loads once the app is back online unless it is stored offline. It is only used
+        // to show which questions the user has read, so don't wait for it.
+        const userId = this.userService.currentUserId;
+        const isUserConfigAvailable =
+          this.onlineStatusService.isOnline || (await this.projectService.isUserConfigStoredOffline(projectId, userId));
+        this.projectUserConfigDoc = isUserConfigAvailable
+          ? await this.projectService.getUserConfig(projectId, userId)
+          : undefined;
         this.questionsQuery?.dispose();
         this.questionsQuery = await this.checkingQuestionsService.queryQuestions(
           projectId,

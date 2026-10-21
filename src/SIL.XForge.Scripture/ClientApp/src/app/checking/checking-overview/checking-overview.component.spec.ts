@@ -393,6 +393,32 @@ describe('CheckingOverviewComponent', () => {
       expect(env.reviewerQuestionPanel).not.toBeNull();
     }));
 
+    it('should display progress when offline and the user config is not stored offline', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setCurrentUser(env.checkerUser);
+      // Offline, subscribing to a doc that is not stored offline only resolves once the app is back online
+      when(mockedProjectService.getUserConfig(anything(), anything())).thenReturn(new Promise(() => {}));
+      env.onlineStatus = false;
+      env.waitForQuestions();
+
+      verify(mockedProjectService.getUserConfig(anything(), anything())).never();
+      expect(env.component.isLoadingData).toBe(false);
+      expect(env.overallProgressChart).not.toBeNull();
+      expect(env.reviewerQuestionPanel).not.toBeNull();
+    }));
+
+    it('should load the user config when offline if it is stored offline', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setCurrentUser(env.checkerUser);
+      env.storeUserConfigsOffline();
+      env.onlineStatus = false;
+      env.waitForQuestions();
+
+      verify(mockedProjectService.getUserConfig('project01', env.checkerUser.id)).once();
+      expect(env.component.isLoadingData).toBe(false);
+      expect(env.overallProgressChart).not.toBeNull();
+    }));
+
     it('should calculate the right progress proportions and stats', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setCurrentUser(env.checkerUser);
@@ -982,20 +1008,7 @@ class TestEnvironment {
         data: this.testProject
       }
     ]);
-    this.realtimeService.addSnapshots<SFProjectUserConfig>(SFProjectUserConfigDoc.COLLECTION, [
-      {
-        id: getSFProjectUserConfigDocId('project01', this.adminUser.id),
-        data: this.adminProjectUserConfig
-      },
-      {
-        id: getSFProjectUserConfigDocId('project01', this.checkerUser.id),
-        data: this.reviewerProjectUserConfig
-      },
-      {
-        id: getSFProjectUserConfigDocId('project01', this.translatorUser.id),
-        data: this.translatorProjectUserConfig
-      }
-    ]);
+    this.addUserConfigs();
     if (withChapterAudioData) {
       this.addChapterAudio();
     }
@@ -1008,6 +1021,13 @@ class TestEnvironment {
     );
     when(mockedProjectService.getUserConfig(anything(), anything())).thenCall((id, userId) =>
       this.realtimeService.subscribe(SFProjectUserConfigDoc.COLLECTION, getSFProjectUserConfigDocId(id, userId))
+    );
+    when(mockedProjectService.isUserConfigStoredOffline(anything(), anything())).thenCall(
+      async (id, userId) =>
+        (await this.realtimeService.offlineStore.get(
+          SFProjectUserConfigDoc.COLLECTION,
+          getSFProjectUserConfigDocId(id, userId)
+        )) != null
     );
     when(mockedQuestionsService.queryQuestions('project01', anything(), anything())).thenCall(() =>
       this.realtimeService.subscribeQuery(QuestionDoc.COLLECTION, {}, noopDestroyRef)
@@ -1187,6 +1207,10 @@ class TestEnvironment {
     return this.textRows[row].query(By.css('.book-chapter-heading'));
   }
 
+  storeUserConfigsOffline(): void {
+    this.addUserConfigs(true);
+  }
+
   waitForQuestions(): void {
     this.realtimeService.updateQueryAdaptersRemote();
     this.fixture.detectChanges();
@@ -1295,5 +1319,26 @@ class TestEnvironment {
       ),
       role
     };
+  }
+
+  private addUserConfigs(addToOfflineStore: boolean = false): void {
+    this.realtimeService.addSnapshots<SFProjectUserConfig>(
+      SFProjectUserConfigDoc.COLLECTION,
+      [
+        {
+          id: getSFProjectUserConfigDocId('project01', this.adminUser.id),
+          data: this.adminProjectUserConfig
+        },
+        {
+          id: getSFProjectUserConfigDocId('project01', this.checkerUser.id),
+          data: this.reviewerProjectUserConfig
+        },
+        {
+          id: getSFProjectUserConfigDocId('project01', this.translatorUser.id),
+          data: this.translatorProjectUserConfig
+        }
+      ],
+      addToOfflineStore
+    );
   }
 }
