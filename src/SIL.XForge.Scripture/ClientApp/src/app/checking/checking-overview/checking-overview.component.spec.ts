@@ -695,6 +695,18 @@ describe('CheckingOverviewComponent', () => {
       expect(env.feedbackNotice).not.toBeNull();
     }));
 
+    it('does not ask the backend if the page is left before coming online', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.testOnlineStatusService.setIsOnline(false);
+      env.waitForQuestions();
+
+      env.fixture.destroy();
+      env.testOnlineStatusService.setIsOnline(true);
+      tick();
+
+      verify(mockedProjectService.onlineShouldShowCheckingFeedbackNotice(anything())).never();
+    }));
+
     it('records the dismissal on the project user config', fakeAsync(() => {
       const env = new TestEnvironment();
       when(mockedProjectService.onlineShouldShowCheckingFeedbackNotice('project01')).thenResolve(true);
