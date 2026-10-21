@@ -5,6 +5,7 @@ import QuillEmbedBlot from 'quill/blots/embed';
 import QuillInlineBlot from 'quill/blots/inline';
 import QuillScrollBlot from 'quill/blots/scroll';
 import QuillTextBlot from 'quill/blots/text';
+import { DeltaOperation } from 'rich-text';
 import { isString } from '../../../../../type-utils';
 import {
   Book,
@@ -35,6 +36,22 @@ function getUsxValue<T>(node: HTMLElement): T {
 /** Record textdoc data that was used to make this node, to help later write back to the textdoc. */
 function setUsxValue(node: HTMLElement, value: any): void {
   node[USX_VALUE] = value;
+}
+
+/** Whether any of the ops, or the contents of any embed within them, is marked as invalid USFM. */
+function containsInvalidOp(ops: DeltaOperation[]): boolean {
+  return ops.some(op => {
+    if (op.attributes?.['invalid-inline'] != null || op.attributes?.['invalid-block'] != null) {
+      return true;
+    }
+    if (op.insert == null || typeof op.insert !== 'object') {
+      return false;
+    }
+    // Embeds inside a note, such as links, have their own contents
+    return Object.values(op.insert).some(
+      (embed: any) => embed?.contents?.ops != null && containsInvalidOp(embed.contents.ops)
+    );
+  });
 }
 
 function customAttributeName(key: string): string {
@@ -289,6 +306,10 @@ export class NoteEmbed extends QuillEmbedBlot {
 
         return text;
       }, '');
+      // The note's own op is not marked invalid when only its contents are, so mark the note here
+      if (containsInvalidOp(value.contents.ops)) {
+        node.classList.add('invalid-inline');
+      }
     }
     setUsxValue(node, value);
     return node;
