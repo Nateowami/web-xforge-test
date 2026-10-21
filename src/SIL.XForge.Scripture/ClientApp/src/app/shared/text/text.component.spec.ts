@@ -441,6 +441,43 @@ describe('TextComponent', () => {
     expect(segmentText).toEqual('Poetry third line');
   }));
 
+  it('keeps verse segments in a paragraph whose style cannot contain verse text', fakeAsync(() => {
+    // Paratext parses "\v- 2" as an unknown "v-" paragraph that holds the verses after it (an invalid chapter)
+    const chapterNum = 2;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { blank: true }, attributes: { segment: 'p_1' } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'Verse one. ', attributes: { segment: 'verse_2_1' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } },
+      { insert: '2 Verse two. ', attributes: { segment: 'v-_1' } },
+      { insert: { verse: { number: '3', style: 'v' } } },
+      { insert: 'Verse three. ', attributes: { segment: 'verse_2_3' } },
+      { insert: { verse: { number: '4', style: 'v' } } },
+      { insert: 'Verse four.', attributes: { segment: 'verse_2_4' } },
+      { insert: '\n', attributes: { para: { style: 'v-', status: 'unknown' }, 'invalid-block': true } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+
+    expect(Array.from(env.component.segments).map(([ref]) => ref)).toEqual([
+      'p_1',
+      'verse_2_1',
+      'v-_1',
+      'verse_2_3',
+      'verse_2_4'
+    ]);
+    expect(env.component.getSegmentText('v-_1')).toEqual('2 Verse two. ');
+    expect(env.component.getSegmentText('verse_2_4')).toEqual('Verse four.');
+
+    env.embedThreadAt('MAT 2:4', { start: 0, length: 0 });
+    tick();
+    env.fixture.detectChanges();
+    expect(env.getSegment('verse_2_4')!.querySelector('display-note')).not.toBeNull();
+    expect(env.getSegment('verse_2_4')!.classList).toContain('note-thread-segment');
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('can undo when segment is blank', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();
