@@ -1,4 +1,4 @@
-import { AfterViewInit, Component, DestroyRef, EventEmitter, Input, OnChanges, Output, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, Input, OnChanges, ViewChild } from '@angular/core';
 import { combineLatest, EMPTY, startWith, Subject, switchMap } from 'rxjs';
 import { FontService } from 'xforge-common/font.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
@@ -20,7 +20,6 @@ export class EditorResourceComponent implements AfterViewInit, OnChanges {
   @Input() chapter?: number;
   @Input() segmentRef?: string;
   @Input() highlightSegment?: boolean;
-  @Output() focused = new EventEmitter<boolean>();
 
   @ViewChild(TextComponent) resourceText!: TextComponent;
 

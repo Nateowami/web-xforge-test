@@ -285,8 +285,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   private sourceLoaded: boolean = false;
   private targetLoaded: boolean = false;
   private _targetFocused: boolean = false;
-  /** Whether the user last focused the source text or a resource tab, rather than the target. */
-  private readOnlyTextFocused: boolean = false;
+  /** The number of dialogs opened by the editor itself (via openMatDialog) that are still open. */
+  private editorDialogCount: number = 0;
   private chapter$ = new BehaviorSubject<number | undefined>(undefined);
   private _verse: string = '0';
   private onTargetDeleteSub?: Subscription;
@@ -354,24 +354,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   set targetFocused(focused: boolean) {
-    if (focused) {
-      this.readOnlyTextFocused = false;
-    } else if (!this.readOnlyTextFocused && (this.dialogService.openDialogCount > 0 || this.bottomSheetRef != null)) {
-      // both the note dialog and the bottom sheet causes the editor to lose focus,
-      // but the editor should still keep the highlighting in both situations
-      focused = true;
-    }
+    // both the note dialog and the bottom sheet causes the editor to lose focus,
+    // but the editor should still keep the highlighting in both situations.
+    // Dialogs opened elsewhere, such as the footnote dialog of the source text, do not count, as the user has
+    // moved on from the target.
+    focused = this.editorDialogCount > 0 || this.bottomSheetRef != null ? true : focused;
     this._targetFocused = focused;
-  }
-
-  /** Handles focus changes in the source text or in a resource tab. */
-  onReadOnlyTextFocused(focused: boolean): void {
-    if (focused) {
-      // Clicking a footnote in a read-only text opens a dialog before the target's blur event arrives, so the
-      // blur cannot be relied on to clear targetFocused.
-      this.readOnlyTextFocused = true;
-      this._targetFocused = false;
-    }
   }
 
   get isTargetTextRight(): boolean {
@@ -1810,6 +1798,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     const selection: Range | null | undefined = this.target?.editor?.getSelection();
     const targetScrollTop: number | undefined = this.targetScrollContainer?.scrollTop;
     const dialogRef: MatDialogRef<T, R> = this.dialogService.openMatDialog(component, dialogConfig);
+    this.editorDialogCount++;
+    dialogRef.afterClosed().subscribe(() => this.editorDialogCount--);
 
     if (selection == null || !this.canEdit) {
       return dialogRef;
