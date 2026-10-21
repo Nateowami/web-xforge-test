@@ -899,6 +899,11 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
     // Include formatting from the current insert position as well as any unique formatting
     format = { ...insertFormat, ...format };
+    // Quill's change for insertEmbed never matches what the editor reads back: the embed is read back without the
+    // value keys only its create() uses (e.g. highlight) and with the formats of the segment it lands in. So Quill
+    // diffs the whole document instead, and moves the selection through that diff. When the paragraph is all embeds
+    // (verse markers and blank segments), the diff is ambiguous and carries the selection to the end of the paragraph.
+    // Work out where a plain one-character insert would leave the selection, so onContentChanged can put it there.
     const selection: Range | null = this.editor.getSelection();
     if (selection != null) {
       const embedInsert: Delta = new Delta().retain(embedInsertPos).insert({ [formatName]: format });
@@ -906,8 +911,11 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       const end: number = embedInsert.transformPosition(selection.index + selection.length, true);
       this.selectionAfterEmbedInsert = { index: start, length: end - start };
     }
-    this.editor.insertEmbed(embedInsertPos, formatName, format, 'api');
-    this.selectionAfterEmbedInsert = undefined;
+    try {
+      this.editor.insertEmbed(embedInsertPos, formatName, format, 'api');
+    } finally {
+      this.selectionAfterEmbedInsert = undefined;
+    }
     const textAnchorRange = this.viewModel.getEditorContentRange(embedInsertPos, textAnchor.length);
     const formatLength: number = textAnchorRange.editorLength;
 
@@ -983,9 +991,9 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   /** Respond to text changes in the quill editor. */
   onContentChanged(delta: Delta, source: string): void {
     if (this.selectionAfterEmbedInsert != null) {
-      // Quill could not predict the change from inserting the embed, so it diffed the whole document and moved the
-      // selection through that diff. With no text to anchor it, the diff replaces the rest of the paragraph, which
-      // puts the selection at the end of the paragraph. Put it back before anything reads it.
+      // Quill could not predict the change from inserting the embed (see embedElementInline), so it may have moved the
+      // selection to the end of the paragraph. Put it back before this component's update logic reads it. Quill's own
+      // editor-change listeners have already seen the moved range.
       this.editor?.setSelection(this.selectionAfterEmbedInsert, 'silent');
       this.selectionAfterEmbedInsert = undefined;
     }
