@@ -105,7 +105,7 @@ import { DraftOptionsService } from '../draft-generation/draft-options.service';
 import { DraftPreviewBooksComponent } from '../draft-generation/draft-preview-books/draft-preview-books.component';
 import { EditorDraftComponent } from './editor-draft/editor-draft.component';
 import { HistoryRevisionFormatPipe } from './editor-history/history-chooser/history-revision-format.pipe';
-import { EditorComponent } from './editor.component';
+import { EditorComponent, LAST_CHAPTERS_SETTING_PREFIX } from './editor.component';
 import { LynxInsightEditorObjectsComponent } from './lynx/insights/lynx-insight-editor-objects/lynx-insight-editor-objects.component';
 import { LynxInsightsPanelComponent } from './lynx/insights/lynx-insights-panel/lynx-insights-panel.component';
 import { provideLynxInsights } from './lynx/insights/lynx-insights-providers';
@@ -5006,7 +5006,7 @@ class TestEnvironment {
   /** Forgets, in browser local storage, the last chapter viewed in each book, which persists between tests. */
   clearLastChaptersViewed(): void {
     for (const key of Object.keys(localStorage)) {
-      if (key.startsWith('translate_last_chapters:')) localStorage.removeItem(key);
+      if (key.startsWith(`${LAST_CHAPTERS_SETTING_PREFIX}:`)) localStorage.removeItem(key);
     }
   }
 
