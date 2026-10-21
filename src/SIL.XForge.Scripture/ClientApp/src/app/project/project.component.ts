@@ -108,7 +108,8 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
       }
 
       if (projectUserConfig == null) {
-        // Without the user's last location, go to the task's overview page, which explains what is unavailable offline
+        // Without the user's last location, go to the task's overview page. Both overview pages load offline without
+        // the user config.
         void this.router.navigate(['projects', projectId, task], { replaceUrl: true });
       } else if (task === 'translate') {
         this.navigateToTranslate(projectId, project, projectUserConfig);

@@ -27,6 +27,7 @@ import { ResumeCheckingService } from '../checking/checking/resume-checking.serv
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { SFProjectUserConfigDoc } from '../core/models/sf-project-user-config-doc';
 import { SF_TYPE_REGISTRY } from '../core/models/sf-type-registry';
+import { SFProjectService } from '../core/sf-project.service';
 import { ProjectComponent } from './project.component';
 
 const mockedAuthService = mock(AuthService);
@@ -149,24 +150,24 @@ describe('ProjectComponent', () => {
   it('navigates to translate overview when offline and the user config is not stored offline', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setProjectData({ selectedTask: 'translate', selectedBooknum: 41, memberProjectIdSuffixes: [1] });
-    env.onlineStatusService.setIsOnline(false);
+    env.goOfflineWithUserConfigNotStoredOffline();
     env.fixture.detectChanges();
     tick();
 
+    expect(env.getUserConfigSpy).not.toHaveBeenCalled();
     verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate']), anything())).once();
     verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate', 'MRK']), anything())).never();
-    expect().nothing();
   }));
 
   it('navigates to checking overview when offline and the user config is not stored offline', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setProjectData({ role: SFProjectRole.CommunityChecker, memberProjectIdSuffixes: [1] });
-    env.onlineStatusService.setIsOnline(false);
+    env.goOfflineWithUserConfigNotStoredOffline();
     env.fixture.detectChanges();
     tick();
 
+    expect(env.getUserConfigSpy).not.toHaveBeenCalled();
     verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'checking']), anything())).once();
-    expect().nothing();
   }));
 
   it('navigates to last text when offline and the user config is stored offline', fakeAsync(() => {
@@ -181,8 +182,8 @@ describe('ProjectComponent', () => {
     env.fixture.detectChanges();
     tick();
 
+    expect(env.getUserConfigSpy).toHaveBeenCalledWith('project1', 'user01');
     verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate', 'MRK']), anything())).once();
-    expect().nothing();
   }));
 
   it('do not navigate when project does not exist', fakeAsync(() => {
@@ -228,6 +229,7 @@ class TestEnvironment {
   readonly fixture: ComponentFixture<ProjectComponent>;
   readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
   readonly onlineStatusService = TestBed.inject(OnlineStatusService) as TestOnlineStatusService;
+  readonly getUserConfigSpy = spyOn(TestBed.inject(SFProjectService), 'getUserConfig').and.callThrough();
 
   constructor(enableSharing = false) {
     when(mockedActivatedRoute.params).thenReturn(of({ projectId: 'project1' }));
@@ -248,6 +250,12 @@ class TestEnvironment {
 
     this.fixture = TestBed.createComponent(ProjectComponent);
     this.component = this.fixture.componentInstance;
+  }
+
+  goOfflineWithUserConfigNotStoredOffline(): void {
+    this.onlineStatusService.setIsOnline(false);
+    // Offline, subscribing to a doc that is not stored offline only resolves once the app is back online
+    this.getUserConfigSpy.and.returnValue(new Promise(() => {}));
   }
 
   setProjectData(
