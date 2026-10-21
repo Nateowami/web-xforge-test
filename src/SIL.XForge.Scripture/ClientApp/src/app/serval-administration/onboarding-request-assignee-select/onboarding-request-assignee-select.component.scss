@@ -7,6 +7,11 @@
   width: 200px;
   font-size: 14px;
 
+  // Match the size of "Unassigned" rather than the smaller owner text used in lists
+  .selected-owner ::ng-deep .owner-text {
+    font-size: inherit;
+  }
+
   .unassigned-option {
     font-style: italic;
     color: var(--color-text-secondary);

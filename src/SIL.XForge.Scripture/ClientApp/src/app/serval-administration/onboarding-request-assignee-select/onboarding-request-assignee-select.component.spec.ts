@@ -153,7 +153,6 @@ describe('OnboardingRequestAssigneeSelectComponent', () => {
       expect(env.selectedText).toBe('Me');
 
       env.host.value = ASSIGNEE_USER_ID;
-      // Creates the owner component for the new assignee, which then loads its profile
       env.fixture.detectChanges();
       env.wait();
 
