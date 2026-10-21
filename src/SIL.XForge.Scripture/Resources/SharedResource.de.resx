@@ -218,4 +218,10 @@
   <data name="DraftNotGeneratedEmailSubject" xml:space="preserve">
     <value>Entwurf {0} konnte nicht generiert werden</value>
   </data>
+  <data name="PageNotFound" xml:space="preserve">
+    <value>Seite nicht gefunden</value>
+  </data>
+  <data name="RedirectingInAFewMoments" xml:space="preserve">
+    <value>In wenigen Augenblicken umgeleitet...</value>
+  </data>
 </root>

@@ -218,4 +218,12 @@
   <data name="DraftNotGeneratedEmailSubject" xml:space="preserve">
     <value>{0} draft was not generated</value>
   </data>
+  <data name="PageNotFound" xml:space="preserve">
+    <value>Page not found</value>
+    <comment>Heading of the page shown when a web address does not exist</comment>
+  </data>
+  <data name="RedirectingInAFewMoments" xml:space="preserve">
+    <value>Redirecting in a few moments...</value>
+    <comment>Shown on the page not found page before the user is sent to the home page</comment>
+  </data>
 </root>

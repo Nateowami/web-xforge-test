@@ -1,4 +1,4 @@
-@model ErrorModel
-<h1>@Model.Localizer["PageNotFound"]</h1>
-<p>@Model.Localizer["RedirectingInAFewMoments"]</p>
+@inject IHtmlLocalizer<SharedResource> SharedLocalizer
+<h1>@SharedLocalizer[SharedResource.Keys.PageNotFound]</h1>
+<p>@SharedLocalizer[SharedResource.Keys.RedirectingInAFewMoments]</p>
 <div id="redirect-progress-bar"><span></span></div>

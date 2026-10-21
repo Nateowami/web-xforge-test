@@ -1,7 +1,5 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Microsoft.Extensions.Localization;
-using NSubstitute;
 using NUnit.Framework;
 using SIL.XForge.Scripture.Pages.Status;
 
@@ -10,19 +8,6 @@ namespace SIL.XForge.Scripture.Pages;
 [TestFixture]
 public class ErrorModelTests
 {
-    [Test]
-    public void Localizer_CreatedByFactory()
-    {
-        var env = new TestEnvironment();
-        env.StringLocalizerFactory.Create("Pages.NotFound", Arg.Any<string>())
-            .Returns(Substitute.For<IStringLocalizer>());
-
-        // SUT
-        IStringLocalizer actual = env.Service.Localizer;
-        Assert.NotNull(actual);
-        env.StringLocalizerFactory.Received(1).Create("Pages.NotFound", Arg.Any<string>());
-    }
-
     [Test]
     public void OnGet_NotFound()
     {
@@ -72,9 +57,6 @@ public class ErrorModelTests
 
     private class TestEnvironment
     {
-        public TestEnvironment() => Service = new ErrorModel(StringLocalizerFactory);
-
-        public IStringLocalizerFactory StringLocalizerFactory { get; } = Substitute.For<IStringLocalizerFactory>();
-        public ErrorModel Service { get; }
+        public ErrorModel Service { get; } = new ErrorModel();
     }
 }

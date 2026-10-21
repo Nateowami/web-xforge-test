@@ -45,7 +45,9 @@ public class SharedResource
         public const string LogIn = "LogIn";
         public const string MessageMissing = "MessageMissing";
         public const string NameMissing = "NameMissing";
+        public const string PageNotFound = "PageNotFound";
         public const string Privacy = "Privacy";
+        public const string RedirectingInAFewMoments = "RedirectingInAFewMoments";
         public const string RoleMissing = "RoleMissing";
         public const string SignUp = "SignUp";
         public const string Terms = "Terms";

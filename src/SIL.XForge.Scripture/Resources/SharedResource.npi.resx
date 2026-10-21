@@ -218,4 +218,10 @@
   <data name="DraftNotGeneratedEmailSubject" xml:space="preserve">
     <value>{0} draft was not generated</value>
   </data>
+  <data name="PageNotFound" xml:space="preserve">
+    <value>पृष्ठ फेला परेन</value>
+  </data>
+  <data name="RedirectingInAFewMoments" xml:space="preserve">
+    <value>केही क्षणमा पुनः निर्देशित गर्दै...</value>
+  </data>
 </root>
