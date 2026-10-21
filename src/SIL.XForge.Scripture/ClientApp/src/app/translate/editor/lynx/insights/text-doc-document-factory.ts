@@ -10,6 +10,9 @@ import Delta, { Op } from 'quill-delta';
  * \id line into the chapter's first line, and an edit to the \id text corrupts the document's line offsets, which
  * displaces every insight after it by the length of the \id line. Lynx is given the \id line as a paragraph instead.
  * The rename preserves the length of every op, so offsets in the Lynx document still match the text doc.
+ *
+ * TODO: Remove this class once `ScriptureDeltaDocument` in @sillsdev/lynx-delta handles the `book` attribute itself
+ * (as a `ScriptureBook` node). Until then Lynx reports the \id line as a paragraph with style `id`, not a book node.
  */
 export class TextDocDocumentFactory extends ScriptureDeltaDocumentFactory {
   create(uri: string, data: DocumentData<Delta | string>): ScriptureDeltaDocument {
@@ -28,5 +31,7 @@ function bookToPara(op: Op): Op {
     return op;
   }
   const { book, ...attributes } = op.attributes;
-  return { ...op, attributes: { ...attributes, para: book } };
+  // When one attribute is removed and the other is set, as when the \id line becomes an ordinary paragraph
+  // ({ book: null, para: X }), keep the one that is set
+  return { ...op, attributes: { ...attributes, para: attributes.para ?? book } };
 }
