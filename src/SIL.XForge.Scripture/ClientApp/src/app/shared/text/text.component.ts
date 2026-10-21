@@ -49,6 +49,7 @@ import { MultiCursorViewer } from '../../translate/editor/multi-viewer/multi-vie
 import { attributeFromMouseEvent } from '../utils';
 import { getBaseVerse, getVerseRefFromSegmentRef, getVerseStrFromSegmentRef, VERSE_REGEX } from '../verse-utils';
 import { QuillFormatRegistryService } from './quill-editor-registration/quill-format-registry.service';
+import { NoteEmbed } from './quill-editor-registration/quill-formats/quill-blots';
 import { getAttributesAtPosition, getRetainCount } from './quill-util';
 import { Segment } from './segment';
 import { NoteDialogData, TextNoteDialogComponent } from './text-note-dialog/text-note-dialog.component';
@@ -243,6 +244,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
             } else if (this.isRtl && this.isSelectionAtSegmentStart) {
               this.movePrevSegment(true);
               return false;
+            } else if (this.moveCursorOverAdjacentNote(!this.isRtl)) {
+              return false;
             }
             return true;
           }
@@ -255,6 +258,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
               return false;
             } else if (this.isLtr && this.isSelectionAtSegmentStart) {
               this.movePrevSegment(true);
+            } else if (this.moveCursorOverAdjacentNote(this.isRtl)) {
+              return false;
             }
             return true;
           }
@@ -1558,6 +1563,25 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     if (nextRef != null) {
       this.setSegment(nextRef, undefined, true, end);
     }
+  }
+
+  /**
+   * Moves a collapsed cursor over the footnote or cross-reference immediately after it (or before it, if not
+   * `forward`). Returns whether the cursor was moved. Without this, the browser moves the caret into the note's
+   * guard nodes instead, so the cursor cannot get past the note with the arrow keys.
+   */
+  private moveCursorOverAdjacentNote(forward: boolean): boolean {
+    const sel: Range | null | undefined = this._editor?.getSelection();
+    if (this._editor == null || sel == null || sel.length > 0) {
+      return false;
+    }
+    // getLeaf(index) returns the leaf that ends at index
+    const [leaf] = this._editor.getLeaf(forward ? sel.index + 1 : sel.index);
+    if (!(leaf instanceof NoteEmbed)) {
+      return false;
+    }
+    this._editor.setSelection(forward ? sel.index + 1 : sel.index - 1, 0, 'user');
+    return true;
   }
 
   private movePrevSegment(end: boolean = true): void {
