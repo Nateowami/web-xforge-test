@@ -4,9 +4,11 @@ import { Component, DebugElement, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { By } from '@angular/platform-browser';
 import { TranslocoService } from '@ngneat/transloco';
-import { UserProfile } from 'realtime-server/lib/esm/common/models/user';
-import { createTestUserProfile } from 'realtime-server/lib/esm/common/models/user-test-data';
+import { User, UserProfile } from 'realtime-server/lib/esm/common/models/user';
+import { createTestUser, createTestUserProfile } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { anything, instance, mock, when } from 'ts-mockito';
+import { AuthService } from 'xforge-common/auth.service';
+import { UserDoc } from 'xforge-common/models/user-doc';
 import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
@@ -36,6 +38,16 @@ describe('OwnerComponent', () => {
     tick();
     env.fixture.detectChanges();
     expect(env.userName).toBe('checking.unknown_author');
+  }));
+
+  it('displays current user as me when their profile is not available', fakeAsync(() => {
+    // Offline, the current user's profile may never have been cached, but their user doc is.
+    const template = '<app-owner ownerRef="user02" [includeAvatar]="true"></app-owner>';
+    const env = new TestEnvironment(template, 'user02');
+    tick();
+    env.fixture.detectChanges();
+    expect(env.userName).toBe('checking.me');
+    expect(env.fixture.componentInstance.checkingOwner.owner?.displayName).toBe('User 02');
   }));
 
   it('displays avatar', () => {
@@ -91,15 +103,17 @@ class TestEnvironment {
   readonly fixture: ComponentFixture<HostComponent>;
 
   readonly mockedTranslocoService = mock(TranslocoService);
+  readonly mockedAuthService = mock(AuthService);
 
   private readonly realtimeService: TestRealtimeService;
 
-  constructor(template: string) {
+  constructor(template: string, currentUserId: string = 'user-not-in-template') {
     TestBed.configureTestingModule({
       imports: [OwnerComponent, HostComponent],
       providers: [
         provideTestRealtime(SF_TYPE_REGISTRY),
         { provide: TranslocoService, useFactory: () => instance(this.mockedTranslocoService) },
+        { provide: AuthService, useFactory: () => instance(this.mockedAuthService) },
         provideHttpClient(withInterceptorsFromDi()),
         provideHttpClientTesting()
       ]
@@ -111,6 +125,12 @@ class TestEnvironment {
       id: 'user01',
       data: createTestUserProfile({ displayName: 'User 01' })
     });
+    // user02 has a user doc but no profile doc
+    this.realtimeService.addSnapshot<User>(UserDoc.COLLECTION, {
+      id: 'user02',
+      data: createTestUser({ displayName: 'User 02' })
+    });
+    when(this.mockedAuthService.currentUserId).thenReturn(currentUserId);
     when(this.mockedTranslocoService.translate<string>(anything())).thenCall(
       (translationStringKey: string) => translationStringKey
     );
