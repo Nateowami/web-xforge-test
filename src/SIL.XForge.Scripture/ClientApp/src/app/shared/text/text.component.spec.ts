@@ -468,7 +468,7 @@ describe('TextComponent', () => {
     env.waitForEditor();
 
     const range: QuillRange = env.component.getSegmentRange('verse_1_1')!;
-    env.component.toggleVerseSelection(new VerseRef('JHN 1:1'));
+    env.component.setVerseSelection(new VerseRef('JHN 1:1'), true);
     env.component.editor!.setSelection(range.index + 1, 'user');
     tick();
     env.fixture.detectChanges();
@@ -482,8 +482,8 @@ describe('TextComponent', () => {
     expect(contents.ops![0].attributes!['commenter-selection']).toBe(true);
     const verse2Range: QuillRange = env.component.getSegmentRange('verse_1_2')!;
     env.component.editor!.setSelection(verse2Range.index + 1, 'user');
-    env.component.toggleVerseSelection(new VerseRef('JHN 1:2'));
-    env.component.toggleVerseSelection(new VerseRef('JHN 1:1'));
+    env.component.setVerseSelection(new VerseRef('JHN 1:2'), true);
+    env.component.setVerseSelection(new VerseRef('JHN 1:1'), false);
     tick();
     env.fixture.detectChanges();
     contents = env.component.getSegmentContents('verse_1_1')!;
@@ -491,8 +491,8 @@ describe('TextComponent', () => {
 
     // SUT
     env.triggerUndo();
-    env.component.toggleVerseSelection(new VerseRef('JHN 1:2'));
-    env.component.toggleVerseSelection(new VerseRef('JHN 1:1'));
+    env.component.setVerseSelection(new VerseRef('JHN 1:2'), false);
+    env.component.setVerseSelection(new VerseRef('JHN 1:1'), true);
     contents = env.component.getSegmentContents('verse_1_1')!;
     expect(contents.ops![0].attributes!['commenter-selection']).toBe(true);
     expect((contents.ops![0].insert as any).blank).toBe(true);
