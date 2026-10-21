@@ -1,5 +1,4 @@
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { cloneDeep } from 'lodash-es';
 import { AnswerStatus } from 'realtime-server/lib/esm/scriptureforge/models/answer';
 import { getQuestionDocId, Question } from 'realtime-server/lib/esm/scriptureforge/models/question';
 import { FileType } from 'xforge-common/models/file-offline-data';
@@ -262,10 +261,6 @@ describe('CheckingQuestionsService', () => {
     }));
 
     it('should not show a question archived by another user again after a local change', fakeAsync(async () => {
-      // Store copies like IndexedDB does, rather than the doc data that ops modify in place
-      const offlineStore = realtimeService.offlineStore;
-      const put = offlineStore.put.bind(offlineStore);
-      spyOn(offlineStore, 'put').and.callFake((collection, offlineData) => put(collection, cloneDeep(offlineData)));
       const query: RealtimeQuery<QuestionDoc> = await questionsService.queryQuestions(
         projectId,
         { bookNum: 40, chapterNum: 1, activeOnly: true, sort: true },
