@@ -2377,6 +2377,32 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('does not highlight source verses after a footnote dialog opened from the source is closed', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+      env.targetEditor.setSelection(env.component.target!.getSegmentRange('verse_1_1')!.index);
+      env.wait();
+      expect(env.component.targetFocused).toBe(true);
+
+      // Clicking a footnote in the source opens the footnote dialog before the focus events of the click arrive
+      const dialog = instance(mockedMatDialog);
+      dialog.open(NoteDialogComponent, {});
+      env.component.source!.focused.emit(true);
+      env.component.target!.focused.emit(false);
+      env.wait();
+      expect(env.component.targetFocused).withContext('dialog opened').toBe(false);
+
+      dialog.closeAll();
+      env.wait();
+      env.component.source!.editor!.setSelection(env.component.source!.getSegmentRange('verse_1_3')!.index, 'user');
+      env.wait();
+      expect(env.component.targetFocused).withContext('dialog closed').toBe(false);
+      const element: HTMLElement = env.sourceTextEditor.querySelector('usx-segment[data-segment="verse_1_3"]')!;
+      expect(element.classList).not.toContain('highlight-segment');
+      env.dispose();
+    }));
+
     it('shows only note threads published in Scripture Forge', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
