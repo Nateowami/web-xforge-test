@@ -5,54 +5,48 @@
     <app-font-unsupported-message></app-font-unsupported-message>
   }
 
-  @if (isOnline) {
-    <div class="card-wrapper">
-      <mat-card class="books-card">
-        <mat-card-header id="translate-overview-title" class="books-card-title">
-          <mat-card-title class="progress-header">
-            {{ t("progress") }}
-            <div class="progress" [matTooltip]="projectProgress?.ratio ?? 0 | l10nPercent">
-              <app-donut-chart
-                [colors]="['var(--sf-translate-progress-complete)', 'var(--sf-translate-progress-remaining)']"
-                [data]="[projectProgress?.translatedVerseSegments ?? 0, projectProgress?.blankVerseSegments ?? 0]"
-                backgroundColor="var(--sf-translate-progress-track)"
-                [innerThicknessDelta]="0"
-                [thickness]="22"
-              ></app-donut-chart>
-            </div>
-          </mat-card-title>
-        </mat-card-header>
-        <mat-divider></mat-divider>
-        @if (projectProgress != null) {
-          <mat-list role="list">
-            @for (bookProgress of projectProgress.books; track bookProgress.bookId) {
-              <mat-list-item role="listitem" [appRouterLink]="['./', bookProgress.bookId]">
-                <mat-icon matListItemIcon class="mirror-rtl">book</mat-icon>
-                <span matListItemTitle>{{ getBookNameFromId(bookProgress.bookId) }}</span>
-                <span matListItemLine>{{
-                  t("translated_segments", {
-                    translatedSegments: (bookTranslatedSegments(bookProgress) | l10nNumber),
-                    total: (bookProgress.verseSegments | l10nNumber)
-                  })
-                }}</span>
-                <div class="progress" matListItemMeta [matTooltip]="bookTranslationRatio(bookProgress) | l10nPercent">
-                  <app-donut-chart
-                    [colors]="['var(--sf-translate-progress-complete)', 'var(--sf-translate-progress-remaining)']"
-                    [data]="[bookTranslatedSegments(bookProgress), bookProgress.blankVerseSegments]"
-                    backgroundColor="var(--sf-translate-progress-track)"
-                    [innerThicknessDelta]="0"
-                    [thickness]="22"
-                  ></app-donut-chart>
-                </div>
-              </mat-list-item>
-            }
-          </mat-list>
-        }
-      </mat-card>
-    </div>
-  } @else {
-    <app-notice type="info" icon="cloud_off" mode="fill-dark">
-      {{ t("progress_not_available_offline") }}
-    </app-notice>
-  }
+  <div class="card-wrapper">
+    <mat-card class="books-card">
+      <mat-card-header id="translate-overview-title" class="books-card-title">
+        <mat-card-title class="progress-header">
+          {{ t("progress") }}
+          <div class="progress" [matTooltip]="projectProgress?.ratio ?? 0 | l10nPercent">
+            <app-donut-chart
+              [colors]="['var(--sf-translate-progress-complete)', 'var(--sf-translate-progress-remaining)']"
+              [data]="[projectProgress?.translatedVerseSegments ?? 0, projectProgress?.blankVerseSegments ?? 0]"
+              backgroundColor="var(--sf-translate-progress-track)"
+              [innerThicknessDelta]="0"
+              [thickness]="22"
+            ></app-donut-chart>
+          </div>
+        </mat-card-title>
+      </mat-card-header>
+      <mat-divider></mat-divider>
+      @if (projectProgress != null) {
+        <mat-list role="list">
+          @for (bookProgress of projectProgress.books; track bookProgress.bookId) {
+            <mat-list-item role="listitem" [appRouterLink]="['./', bookProgress.bookId]">
+              <mat-icon matListItemIcon class="mirror-rtl">book</mat-icon>
+              <span matListItemTitle>{{ getBookNameFromId(bookProgress.bookId) }}</span>
+              <span matListItemLine>{{
+                t("translated_segments", {
+                  translatedSegments: (bookTranslatedSegments(bookProgress) | l10nNumber),
+                  total: (bookProgress.verseSegments | l10nNumber)
+                })
+              }}</span>
+              <div class="progress" matListItemMeta [matTooltip]="bookTranslationRatio(bookProgress) | l10nPercent">
+                <app-donut-chart
+                  [colors]="['var(--sf-translate-progress-complete)', 'var(--sf-translate-progress-remaining)']"
+                  [data]="[bookTranslatedSegments(bookProgress), bookProgress.blankVerseSegments]"
+                  backgroundColor="var(--sf-translate-progress-track)"
+                  [innerThicknessDelta]="0"
+                  [thickness]="22"
+                ></app-donut-chart>
+              </div>
+            </mat-list-item>
+          }
+        </mat-list>
+      }
+    </mat-card>
+  </div>
 </ng-container>

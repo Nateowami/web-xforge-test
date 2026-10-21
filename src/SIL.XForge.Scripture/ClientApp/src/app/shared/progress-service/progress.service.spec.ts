@@ -1,11 +1,22 @@
 import { fakeAsync, flushMicrotasks } from '@angular/core/testing';
+import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
+import { TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
+import { DeltaOperation } from 'rich-text';
 import { anything, instance, mock, reset, verify, when } from 'ts-mockito';
+import { MemoryOfflineStore } from 'xforge-common/memory-offline-store';
+import { MemoryRealtimeRemoteStore } from 'xforge-common/memory-realtime-remote-store';
+import { RealtimeOfflineData } from 'xforge-common/models/realtime-offline-data';
 import { NoticeService } from 'xforge-common/notice.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
+import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
+import { TextDoc } from '../../core/models/text-doc';
 import { SFProjectService } from '../../core/sf-project.service';
 import {
   BookProgress,
   BookProgressWithChapterProgress,
+  countVerseSegments,
   estimatedActualBookProgress,
   ProgressService,
   ProjectProgress,
@@ -14,11 +25,13 @@ import {
 
 const mockedNoticeService = mock(NoticeService);
 const mockedProjectService = mock(SFProjectService);
+const mockedOnlineStatusService = mock(OnlineStatusService);
 
 describe('ProgressService', () => {
   beforeEach(() => {
     reset(mockedNoticeService);
     reset(mockedProjectService);
+    reset(mockedOnlineStatusService);
   });
 
   it('should get fresh progress data', fakeAsync(() => {
@@ -339,20 +352,147 @@ describe('ProgressService', () => {
     verify(mockedProjectService.getProjectProgress('project1')).once();
     verify(mockedProjectService.getProjectProgress('project2')).once();
   }));
+
+  describe('offline', () => {
+    it('calculates progress from texts stored on the device instead of asking the server', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectTexts('project1', [
+        { bookNum: 40, chapters: [1, 2] },
+        { bookNum: 1, chapters: [1] }
+      ]);
+      env.addOfflineText('project1:MAT:1:target', [
+        { insert: { verse: { number: '1' } } },
+        { insert: 'text', attributes: { segment: 'verse_1_1' } },
+        { insert: { blank: true }, attributes: { segment: 'verse_1_2' } }
+      ]);
+      env.addOfflineText('project1:MAT:2:target', [{ insert: { blank: true }, attributes: { segment: 'verse_2_1' } }]);
+      env.addOfflineText('project1:GEN:1:target', [{ insert: 'text', attributes: { segment: 'verse_1_1' } }]);
+      env.isOnline = false;
+
+      let result: ProjectProgressWithChapterProgress | undefined;
+      env.service.getProgressWithChapterProgress('project1', { maxStalenessMs: 30_000 }).then(r => (result = r));
+      flushMicrotasks();
+
+      verify(mockedProjectService.getProjectProgress(anything())).never();
+      expect(result?.books).toEqual([
+        {
+          bookId: 'GEN',
+          verseSegments: 1,
+          blankVerseSegments: 0,
+          chapters: [{ chapterNumber: 1, verseSegments: 1, blankVerseSegments: 0 }]
+        },
+        {
+          bookId: 'MAT',
+          verseSegments: 3,
+          blankVerseSegments: 2,
+          chapters: [
+            { chapterNumber: 1, verseSegments: 2, blankVerseSegments: 1 },
+            { chapterNumber: 2, verseSegments: 1, blankVerseSegments: 1 }
+          ]
+        }
+      ]);
+      expect(result?.translatedVerseSegments).toBe(2);
+    }));
+
+    it('leaves out chapters and books that are not stored on the device', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectTexts('project1', [
+        { bookNum: 40, chapters: [1, 2] },
+        { bookNum: 41, chapters: [1] }
+      ]);
+      env.addOfflineText('project1:MAT:2:target', [{ insert: 'text', attributes: { segment: 'verse_2_1' } }]);
+      env.isOnline = false;
+
+      let result: ProjectProgressWithChapterProgress | undefined;
+      env.service.getProgressWithChapterProgress('project1', { maxStalenessMs: 30_000 }).then(r => (result = r));
+      flushMicrotasks();
+
+      expect(result?.books).toEqual([
+        {
+          bookId: 'MAT',
+          verseSegments: 1,
+          blankVerseSegments: 0,
+          chapters: [{ chapterNumber: 2, verseSegments: 1, blankVerseSegments: 0 }]
+        }
+      ]);
+    }));
+
+    it('does not serve progress calculated offline once back online', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectTexts('project1', [{ bookNum: 40, chapters: [1] }]);
+      env.addOfflineText('project1:MAT:1:target', [{ insert: 'text', attributes: { segment: 'verse_1_1' } }]);
+      const serverBooks: BookProgressWithChapterProgress[] = [
+        { bookId: 'MAT', verseSegments: 10, blankVerseSegments: 4, chapters: [] }
+      ];
+      when(mockedProjectService.getProjectProgress('project1')).thenResolve(serverBooks);
+
+      env.isOnline = false;
+      env.service.getProgress('project1', { maxStalenessMs: 30_000 });
+      flushMicrotasks();
+      env.isOnline = true;
+      let result: ProjectProgress | undefined;
+      env.service.getProgress('project1', { maxStalenessMs: 30_000 }).then(r => (result = r));
+      flushMicrotasks();
+
+      expect(result?.books).toEqual(serverBooks);
+      verify(mockedProjectService.getProjectProgress('project1')).once();
+    }));
+  });
 });
 
 class TestEnvironment {
   readonly service: ProgressService;
   /** sync.dateLastSuccessfulSync per project; change a project's value to simulate a completed sync. */
   private readonly lastSyncDateStrings = new Map<string, string>();
+  private readonly projectTexts = new Map<string, { bookNum: number; chapters: number[] }[]>();
+  private readonly realtimeService = new TestRealtimeService(
+    SF_TYPE_REGISTRY,
+    new MemoryRealtimeRemoteStore(),
+    new MemoryOfflineStore()
+  );
 
   constructor() {
     when(mockedProjectService.getProfile(anything())).thenCall((projectId: string) =>
       Promise.resolve({
-        data: { sync: { dateLastSuccessfulSync: this.lastSyncDateStrings.get(projectId) ?? 'initial-sync' } }
+        id: projectId,
+        data: createTestProjectProfile({
+          sync: { dateLastSuccessfulSync: this.lastSyncDateStrings.get(projectId) ?? 'initial-sync' },
+          texts: (this.projectTexts.get(projectId) ?? []).map(t => ({
+            bookNum: t.bookNum,
+            hasSource: false,
+            permissions: {},
+            chapters: t.chapters.map(number => ({ number, lastVerse: 1, isValid: true, permissions: {} }))
+          }))
+        })
       } as unknown as SFProjectProfileDoc)
     );
-    this.service = new ProgressService(instance(mockedNoticeService), instance(mockedProjectService));
+    this.isOnline = true;
+    this.service = new ProgressService(
+      instance(mockedNoticeService),
+      instance(mockedProjectService),
+      instance(mockedOnlineStatusService),
+      this.realtimeService
+    );
+  }
+
+  set isOnline(value: boolean) {
+    when(mockedOnlineStatusService.isOnline).thenReturn(value);
+  }
+
+  setProjectTexts(projectId: string, texts: { bookNum: number; chapters: number[] }[]): void {
+    this.projectTexts.set(projectId, texts);
+  }
+
+  /** Stores a chapter on the device, without it being available from the server. */
+  addOfflineText(textDocId: string, ops: DeltaOperation[]): void {
+    const offlineData: RealtimeOfflineData = {
+      id: textDocId,
+      v: 1,
+      type: 'rich-text',
+      data: { ops } as TextData,
+      pendingOps: []
+    };
+    (this.realtimeService.offlineStore as MemoryOfflineStore).addData(TextDoc.COLLECTION, offlineData);
   }
 
   setLastSyncDateString(projectId: string, dateString: string): void {
@@ -507,5 +647,27 @@ describe('estimatedActualBookProgress', () => {
       const translatedSegments: number = testCase.verseSegments - testCase.blankVerseSegments;
       expect(result).toBeCloseTo(translatedSegments / testCase.expectedVerses);
     });
+  });
+});
+
+describe('countVerseSegments', () => {
+  it('counts verse segment ops the same way the back end does', () => {
+    const ops: DeltaOperation[] = [
+      { insert: { blank: true }, attributes: { segment: 's_1' } },
+      { insert: { verse: { number: '1' } } },
+      { insert: 'In the ', attributes: { segment: 'verse_1_1' } },
+      // A verse split into two ops by character formatting counts twice, as on the back end
+      { insert: 'beginning', attributes: { segment: 'verse_1_1', char: { style: 'wj' } } },
+      { insert: { blank: true }, attributes: { segment: 'verse_1_2' } },
+      { insert: { blank: true }, attributes: { segment: 'verse_1_2/p_1' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } }
+    ];
+
+    expect(countVerseSegments(ops)).toEqual({ verseSegments: 4, blankVerseSegments: 2 });
+  });
+
+  it('handles a chapter with no ops', () => {
+    expect(countVerseSegments(undefined)).toEqual({ verseSegments: 0, blankVerseSegments: 0 });
+    expect(countVerseSegments([])).toEqual({ verseSegments: 0, blankVerseSegments: 0 });
   });
 });
