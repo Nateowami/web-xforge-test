@@ -19,6 +19,7 @@ import { combineLatest, firstValueFrom } from 'rxjs';
 import { map, tap } from 'rxjs/operators';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { AuthService } from 'xforge-common/auth.service';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ExternalUrlService } from 'xforge-common/external-url.service';
@@ -307,21 +308,31 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
     const config: MatDialogConfig<any> = { data: { name: this.projectDoc.data.name } };
     const dialogRef = this.dialogService.openMatDialog(DeleteProjectDialogComponent, config);
     dialogRef.afterClosed().subscribe(async result => {
-      if (result === 'accept' && this.projectDoc != null) {
-        // Another project may have started using this one as a source since the page loaded
-        this.isActiveSourceProject = await this.projectService.onlineIsSourceProject(this.projectDoc.id);
-        if (this.isActiveSourceProject) {
-          this.noticeService.show(this.i18n.translateStatic('settings.source_projects_cannot_be_deleted'));
-          return;
-        }
+      if (result !== 'accept' || this.projectDoc == null) return;
+      const projectId: string = this.projectDoc.id;
 
-        const user: UserDoc = await this.userService.getCurrentUser();
-        await this.userService.setCurrentProjectId(user, undefined);
-        if (this.projectDoc != null) {
-          await this.projectService.onlineDelete(this.projectDoc.id);
-          void this.router.navigateByUrl('/projects', { replaceUrl: true });
-        }
+      // Another project may have started using this one as a source since the page loaded
+      if (await this.projectService.onlineIsSourceProject(projectId)) {
+        this.showSourceProjectCannotBeDeleted();
+        return;
       }
+
+      const user: UserDoc = await this.userService.getCurrentUser();
+      await this.userService.setCurrentProjectId(user, undefined);
+      try {
+        await this.projectService.onlineDelete(projectId);
+      } catch (error) {
+        // The server also refuses to delete a source project, in case one was set up after the check above
+        const isSourceProjectError: boolean =
+          error instanceof CommandError &&
+          error.code === CommandErrorCode.InvalidParams &&
+          (await this.projectService.onlineIsSourceProject(projectId));
+        if (!isSourceProjectError) throw error;
+        await this.userService.setCurrentProjectId(user, projectId);
+        this.showSourceProjectCannotBeDeleted();
+        return;
+      }
+      void this.router.navigateByUrl('/projects', { replaceUrl: true });
     });
   }
 
@@ -341,6 +352,11 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
   set loading(loading: boolean) {
     loading ? this.loadingStarted() : this.loadingFinished();
     this.updateFormEnabled();
+  }
+
+  private showSourceProjectCannotBeDeleted(): void {
+    this.isActiveSourceProject = true;
+    this.noticeService.show(this.i18n.translateStatic('settings.source_projects_cannot_be_deleted'));
   }
 
   private onFormValueChanges(newValue: SFProjectSettings): void {

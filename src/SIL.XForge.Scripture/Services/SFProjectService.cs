@@ -280,6 +280,11 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
             if (projectDoc.Data.Sync.QueuedCount > 0)
                 throw new InvalidOperationException("A project cannot be deleted while it is syncing.");
 
+            // Do not delete a project that another project uses as a source. The client checks this too, but another
+            // admin may have made this project a source since then.
+            if (IsSourceProject(projectId))
+                throw new InvalidOperationException("A source project cannot be deleted.");
+
             // Get the user information who is deleting the project
             IDocument<User> userDoc = await conn.FetchAsync<User>(curUserId);
             if (!userDoc.IsLoaded)

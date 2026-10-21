@@ -20,6 +20,7 @@ import { createTestTextAudio } from 'realtime-server/lib/esm/scriptureforge/mode
 import { of } from 'rxjs';
 import { anything, deepEqual, instance, mock, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
+import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
 import { createTestFeatureFlag, FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
 import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -676,6 +677,27 @@ describe('SettingsComponent', () => {
       verify(mockedSFProjectService.onlineDelete(anything())).never();
       verify(mockedUserService.setCurrentProjectId(anything(), undefined)).never();
       verify(mockedNoticeService.show(anything())).once();
+      env.fixture.detectChanges();
+      expect(env.deleteProjectButton.disabled).toBe(true);
+      expect(env.sourceProjectMessage).not.toBeNull();
+    }));
+
+    it('should show the source project message if the server refuses to delete a source project', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject();
+      env.setDialogResponse(true);
+      env.wait();
+
+      // Not a source when the dialog closes, but one by the time the server handles the delete
+      when(mockedSFProjectService.onlineIsSourceProject('project01')).thenResolve(false, true);
+      when(mockedSFProjectService.onlineDelete('project01')).thenReject(
+        new CommandError(CommandErrorCode.InvalidParams, 'A source project cannot be deleted.')
+      );
+      env.clickElement(env.deleteProjectButton);
+      verify(mockedSFProjectService.onlineDelete('project01')).once();
+      verify(mockedUserService.setCurrentProjectId(anything(), 'project01')).once();
+      verify(mockedNoticeService.show(anything())).once();
+      expect(env.location.path()).not.toEqual('/projects');
       env.fixture.detectChanges();
       expect(env.deleteProjectButton.disabled).toBe(true);
       expect(env.sourceProjectMessage).not.toBeNull();
