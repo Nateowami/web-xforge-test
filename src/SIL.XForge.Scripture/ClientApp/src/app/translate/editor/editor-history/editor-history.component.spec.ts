@@ -1,4 +1,4 @@
-import { EventEmitter } from '@angular/core';
+import { EventEmitter, SimpleChange } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import Quill from 'quill';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
@@ -61,10 +61,22 @@ describe('EditorHistoryComponent', () => {
     component.isViewInitialized = true;
     spyOn(component.revisionSelect, 'emit');
 
-    component.ngOnChanges();
+    component.ngOnChanges({});
 
     expect(component.loadedRevision).toBeUndefined();
     expect(component.revisionSelect.emit).toHaveBeenCalledWith(undefined);
+  });
+
+  it('should keep loadedRevision when only initialRevisionTimestamp changes', () => {
+    const revision = { timestamp: 'older' } as Revision;
+    component.loadedRevision = revision;
+    component.isViewInitialized = true;
+    spyOn(component.revisionSelect, 'emit');
+
+    component.ngOnChanges({ initialRevisionTimestamp: new SimpleChange(undefined, 'older', false) });
+
+    expect(component.loadedRevision).toBe(revision);
+    expect(component.revisionSelect.emit).not.toHaveBeenCalled();
   });
 
   it('should not emit revisionSelect on ngOnChanges when isViewInitialized is false', () => {
@@ -72,7 +84,7 @@ describe('EditorHistoryComponent', () => {
     component.isViewInitialized = false;
     spyOn(component.revisionSelect, 'emit');
 
-    component.ngOnChanges();
+    component.ngOnChanges({});
 
     expect(component.loadedRevision).toBeUndefined();
     expect(component.revisionSelect.emit).not.toHaveBeenCalled();

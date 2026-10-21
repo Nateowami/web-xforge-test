@@ -1,3 +1,4 @@
+import { SimpleChange } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
 import { MatIcon } from '@angular/material/icon';
 import { MatProgressBar } from '@angular/material/progress-bar';
@@ -11,7 +12,7 @@ import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { ParagraphBreakFormat, QuoteFormat } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
 import { BehaviorSubject, firstValueFrom, of } from 'rxjs';
-import { anything, mock, resetCalls, verify, when } from 'ts-mockito';
+import { anything, deepEqual, mock, resetCalls, verify, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { AuthService } from 'xforge-common/auth.service';
 import { CommandError, CommandErrorCode } from 'xforge-common/command.service';
@@ -143,7 +144,7 @@ describe('EditorDraftComponent', () => {
     component.bookNum = 1;
     component.chapter = 1;
     component.isRightToLeft = false;
-    component.ngOnChanges();
+    component.ngOnChanges({});
   });
 
   it('should handle offline when component created', fakeAsync(() => {
@@ -255,7 +256,7 @@ describe('EditorDraftComponent', () => {
 
     // Changing chapter triggers another draft retrieval call.
     component.chapter = 2;
-    component.ngOnChanges();
+    component.ngOnChanges({});
     fixture.detectChanges();
     tick(EDITOR_READY_TIMEOUT);
     verify(mockDraftHandlingService.getBookDraft(anything(), anything())).twice();
@@ -263,7 +264,7 @@ describe('EditorDraftComponent', () => {
     // Changing book triggers one more draft retrieval call.
     component.bookNum = 2;
     component.chapter = 1;
-    component.ngOnChanges();
+    component.ngOnChanges({});
     fixture.detectChanges();
     tick(EDITOR_READY_TIMEOUT);
     verify(mockDraftHandlingService.getBookDraft(anything(), anything())).thrice();
@@ -425,6 +426,73 @@ describe('EditorDraftComponent', () => {
     expect(component.draftCheckState).toEqual('draft-present');
     expect(component.draftText.editor!.getContents().ops).toEqual(draftDelta.ops);
     flush();
+  }));
+
+  it('should show the initial revision on the first load only', fakeAsync(() => {
+    const testProjectDoc: SFProjectProfileDoc = {
+      data: createTestProjectProfile()
+    } as SFProjectProfileDoc;
+    when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), anything())).thenReturn(
+      of(draftHistory)
+    );
+    when(mockActivatedProjectService.changes$).thenReturn(of(testProjectDoc));
+    spyOn<any>(component, 'getTargetOps').and.returnValue(of(targetDelta.ops!));
+    const revisionSelectSpy = spyOn(component.revisionSelect, 'emit');
+    component.initialRevisionTimestamp = draftHistory[1].timestamp;
+
+    // SUT
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+
+    expect(component.selectedRevision).toEqual(draftHistory[1]);
+    expect(revisionSelectSpy).toHaveBeenCalledWith(draftHistory[1]);
+    verify(
+      mockDraftHandlingService.getBookDraft(anything(), deepEqual({ timestamp: new Date(draftHistory[1].timestamp) }))
+    ).once();
+
+    // Changing chapter shows the latest draft
+    component.chapter = 2;
+    component.ngOnChanges({ chapter: new SimpleChange(1, 2, false) });
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+    expect(component.selectedRevision).toEqual(draftHistory[0]);
+    expect(revisionSelectSpy).toHaveBeenCalledWith(draftHistory[0]);
+    flush();
+  }));
+
+  it('should not reload the draft when only the initial revision changes', fakeAsync(() => {
+    const testProjectDoc: SFProjectProfileDoc = {
+      data: createTestProjectProfile()
+    } as SFProjectProfileDoc;
+    when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), anything())).thenReturn(
+      of(draftHistory)
+    );
+    when(mockActivatedProjectService.changes$).thenReturn(of(testProjectDoc));
+    spyOn<any>(component, 'getTargetOps').and.returnValue(of(targetDelta.ops!));
+
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+    expect(component.selectedRevision).toEqual(draftHistory[0]);
+
+    // SUT
+    component.initialRevisionTimestamp = draftHistory[1].timestamp;
+    component.ngOnChanges({
+      initialRevisionTimestamp: new SimpleChange(undefined, draftHistory[1].timestamp, false)
+    });
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+
+    expect(component.selectedRevision).toEqual(draftHistory[0]);
+    verify(mockDraftHandlingService.getBookDraft(anything(), anything())).once();
+    flush();
+  }));
+
+  it('should emit the revision the user selects', fakeAsync(() => {
+    const revisionSelectSpy = spyOn(component.revisionSelect, 'emit');
+
+    component.onSelectionChanged({ value: draftHistory[1] } as MatSelectChange);
+
+    expect(revisionSelectSpy).toHaveBeenCalledWith(draftHistory[1]);
   }));
 
   it('should show the low confidence warning if selected revision has low confidence', fakeAsync(() => {

@@ -95,6 +95,11 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
   @Input() bookNum?: number;
   @Input() chapter?: number;
   @Input() showDiff = true;
+  /**
+   * The timestamp of the revision to select when the history is first loaded. If not set, or not found, the latest
+   * revision is selected.
+   */
+  @Input() initialRevisionTimestamp?: string;
   @Output() showDiffChange = new EventEmitter<boolean>();
   @Output() revisionSelect = new EventEmitter<RevisionSelectEvent>();
 
@@ -125,6 +130,7 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
   ]).pipe(map(([isLoading, isOnline]) => isLoading || !isOnline));
 
   private inputChanged$ = new Subject<void>();
+  private isInitialLoad = true;
   private bookId = '';
   private projectDoc: SFProjectProfileDoc | undefined;
 
@@ -168,6 +174,11 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    // The initial revision is only used on the first load, so a change to it must not reload the history
+    if (changes.initialRevisionTimestamp != null && Object.keys(changes).length === 1) {
+      return;
+    }
+
     if (changes.bookNum) {
       this.bookId = Canon.bookNumberToId(changes.bookNum.currentValue, '');
     }
@@ -204,7 +215,11 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
             (await this.paratextService.getRevisions(this.projectId, this.bookId, this.chapter)) ?? [];
 
           if (this.historyRevisions.length > 0) {
-            await this.selectRevision(this.historyRevisions[0]);
+            const initialRevision: Revision | undefined = this.isInitialLoad
+              ? this.historyRevisions.find(r => r.timestamp === this.initialRevisionTimestamp)
+              : undefined;
+            this.isInitialLoad = false;
+            await this.selectRevision(initialRevision ?? this.historyRevisions[0]);
           }
         }
       } finally {

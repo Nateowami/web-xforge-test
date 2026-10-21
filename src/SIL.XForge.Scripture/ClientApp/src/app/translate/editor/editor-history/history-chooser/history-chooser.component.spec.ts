@@ -108,6 +108,43 @@ describe('HistoryChooserComponent', () => {
     expect(env.component.selectedRevision).toBeUndefined();
   }));
 
+  it('should select the initial revision on the first load only', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setRevisions(['latest', 'older']);
+    env.component.initialRevisionTimestamp = 'older';
+    env.triggerNgOnChanges();
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('older');
+
+    // Reloading the history, such as on a chapter change, selects the latest revision
+    env.component.ngOnChanges({ chapter: { currentValue: 1 } as SimpleChange });
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('latest');
+  }));
+
+  it('should select the latest revision if the initial revision is not found', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setRevisions(['latest', 'older']);
+    env.component.initialRevisionTimestamp = 'missing';
+    env.triggerNgOnChanges();
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('latest');
+  }));
+
+  it('should not reload the history when only the initial revision changes', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setRevisions(['latest', 'older']);
+    env.triggerNgOnChanges();
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('latest');
+
+    env.component.initialRevisionTimestamp = 'older';
+    env.component.ngOnChanges({ initialRevisionTimestamp: { currentValue: 'older' } as SimpleChange });
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('latest');
+    verify(mockedParatextService.getRevisions('project01', 'MAT', 1)).once();
+  }));
+
   it('should not revert if the user clicks cancel', fakeAsync(() => {
     const env = new TestEnvironment();
     when(mockedDialogService.confirm(anything(), anything())).thenResolve(false);
@@ -284,6 +321,21 @@ describe('HistoryChooserComponent', () => {
         this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, 'project01')
       );
       when(mockedTextDocService.canRestore(anything(), 40, 1)).thenReturn(true);
+    }
+
+    setRevisions(timestamps: string[]): void {
+      when(mockedParatextService.getRevisions('project01', 'MAT', 1)).thenResolve(
+        timestamps.map(timestamp => ({ timestamp }))
+      );
+      for (const timestamp of timestamps) {
+        when(mockedParatextService.getSnapshot('project01', 'MAT', 1, timestamp)).thenResolve({
+          data: { ops: [] },
+          id: 'id',
+          type: '',
+          v: 1,
+          isValid: true
+        });
+      }
     }
 
     get historySelect(): HTMLElement {
