@@ -40,6 +40,9 @@
   --sf-usx-verse-background: #{mat.get-theme-color($theme, neutral, if($is-dark, 30, 95))};
   --sf-usx-readonly-verse-color: #{mat.get-theme-color($theme, neutral, if($is-dark, 80, 10))};
   --sf-usx-readonly-verse-background: #{mat.get-theme-color($theme, neutral, if($is-dark, 30, 95))};
+  // Verse number of the verse selected for a comment
+  --sf-usx-selected-verse-color: #{if($is-dark, mat.get-theme-color($theme, neutral, 10), white)};
+  --sf-usx-selected-verse-background: #{if($is-dark, mat.get-theme-color($theme, neutral, 90), variables.$greyDark)};
 
   --sf-editor-cursor-color: #{if($is-dark, var(--sf-text-color), black)};
   --sf-text-color: #{if($is-dark, mat.get-theme-color($theme, neutral, 90), rgba(0, 0, 0, 0.8))};
