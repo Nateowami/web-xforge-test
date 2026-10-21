@@ -425,10 +425,13 @@ describe('ChapterAudioDialogComponent', () => {
     spyOnProperty(env.component.chapterAudio!, 'audio').and.returnValue(audioPlayer);
     env.playAudio();
     expect(env.component.chapterAudio!.playing).toBe(true);
+    const stopSpy = spyOn(env.component.chapterAudio!, 'stop').and.callThrough();
 
     env.uploadFiles([TestEnvironment.uploadFiles[0]]);
 
     expect(env.wrapperAudio.classList.contains('valid')).toBe(true);
+    // The player disposing its old audio on the new source also pauses it, so check for the explicit stop
+    expect(stopSpy).toHaveBeenCalledTimes(1);
     expect(audioPlayer.isPlaying).toBe(false);
   }));
 

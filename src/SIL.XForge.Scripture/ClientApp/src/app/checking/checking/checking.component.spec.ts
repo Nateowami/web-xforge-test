@@ -32,7 +32,7 @@ import {
   SFProjectUserConfig
 } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
 import { createTestProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config-test-data';
-import { TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
+import { getTextAudioId, TextAudio } from 'realtime-server/lib/esm/scriptureforge/models/text-audio';
 import { getTextDocId, TextData } from 'realtime-server/lib/esm/scriptureforge/models/text-data';
 import { fromVerseRef, VerseRefData } from 'realtime-server/lib/esm/scriptureforge/models/verse-ref-data';
 import * as RichText from 'rich-text';
@@ -2904,16 +2904,16 @@ describe('CheckingComponent', () => {
 
     it('stops audio when changing book', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER, questionScope: 'book' });
+      // With audio in MAT 1 the player stays shown, so nothing hides it and the stop is the book change's
+      env.addChapterAudio('MAT', 1);
       const audio = env.mockScriptureAudioAndPlay();
-      when(audio.stop()).thenCall(() => when(audio.isPlaying).thenReturn(false));
       expect(env.component.showScriptureAudioPlayer).toBe(true);
 
       env.setBookChapter('MAT', 1);
       env.waitForQuestionTimersToComplete();
 
-      verify(audio.stop()).atLeast(1);
-      // MAT 1 has no chapter audio, so the player is hidden too
-      expect(env.component.showScriptureAudioPlayer).toBe(false);
+      verify(audio.stop()).once();
+      expect(env.component.showScriptureAudioPlayer).toBe(true);
     }));
 
     it('answer-scripture-text inherits project font from CSS custom property', fakeAsync(() => {
@@ -2962,6 +2962,7 @@ class TestEnvironment {
 
   private readonly params$: BehaviorSubject<Params>;
   private readonly queryParams$: BehaviorSubject<Params>;
+  private readonly textAudioDocs: TextAudioDoc[] = [];
   private readonly adminProjectUserConfig: SFProjectUserConfig = createTestProjectUserConfig({
     projectRef: 'project01',
     ownerRef: ADMIN_USER.id,
@@ -3049,7 +3050,8 @@ class TestEnvironment {
     when(textAudio.timings).thenReturn([]);
     when(doc.id).thenReturn('project01:43:1:target');
     when(doc.data).thenReturn(instance(textAudio));
-    when(query.docs).thenReturn([instance(doc)]);
+    this.textAudioDocs.push(instance(doc));
+    when(query.docs).thenReturn(this.textAudioDocs);
     when(mockedProjectService.queryAudioText('project01', anything())).thenResolve(instance(query));
 
     this.fixture = TestBed.createComponent(CheckingComponent);
@@ -3695,6 +3697,25 @@ class TestEnvironment {
   setQuestionFilter(filter: QuestionFilter): void {
     this.component.setQuestionFilter(filter);
     this.waitForQuestionTimersToComplete();
+  }
+
+  addChapterAudio(bookId: string, chapter: number): void {
+    const bookNum: number = Canon.bookIdToNumber(bookId);
+    this.component.projectDoc!.submitJson0Op(op => {
+      const textIndex: number = this.component.projectDoc!.data!.texts.findIndex(t => t.bookNum === bookNum);
+      const chapterIndex: number = this.component.projectDoc!.data!.texts[textIndex].chapters.findIndex(
+        c => c.number === chapter
+      );
+      op.set(p => p.texts[textIndex].chapters[chapterIndex].hasAudio, true);
+    });
+
+    const doc = mock(TextAudioDoc);
+    const textAudio = mock<TextAudio>();
+    when(textAudio.audioUrl).thenReturn('test-audio-short.webm');
+    when(textAudio.timings).thenReturn([]);
+    when(doc.id).thenReturn(getTextAudioId('project01', bookNum, chapter));
+    when(doc.data).thenReturn(instance(textAudio));
+    this.textAudioDocs.push(instance(doc));
   }
 
   mockScriptureAudioAndPlay(): CheckingScriptureAudioPlayerComponent {
