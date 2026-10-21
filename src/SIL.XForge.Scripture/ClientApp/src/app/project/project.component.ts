@@ -64,8 +64,16 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
     navigateToProject$.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(async projectId => {
       if (userDoc.data?.sites[environment.siteId].projects?.includes(projectId)) {
         void this.navigateToProject(projectId);
+      } else {
+        // ProjectAuthGuard has already confirmed with the server that the user was on the project
+        this.navigateToMyProjects();
       }
     });
+  }
+
+  /** Leaves a project page that would otherwise stay blank, without keeping it in the history. */
+  private navigateToMyProjects(): void {
+    void this.router.navigate(['/projects'], { replaceUrl: true });
   }
 
   private async navigateToProject(projectId: string): Promise<void> {
@@ -81,6 +89,7 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
       const project = projectDoc.data;
 
       if (project == null || projectUserConfig == null) {
+        this.navigateToMyProjects();
         return;
       }
 
@@ -100,6 +109,8 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
         this.navigateToTranslate(projectId, project, projectUserConfig);
       } else if (task === 'checking') {
         await this.navigateToChecking(projectId);
+      } else {
+        this.navigateToMyProjects();
       }
     } finally {
       this.loadingFinished();

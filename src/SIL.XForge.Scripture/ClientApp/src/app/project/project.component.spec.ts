@@ -145,13 +145,22 @@ describe('ProjectComponent', () => {
     expect().nothing();
   }));
 
-  it('do not navigate when project does not exist', fakeAsync(() => {
+  it('navigates to my projects when the user is not on the project', fakeAsync(() => {
     const env = new TestEnvironment();
+    env.setProjectData({ memberProjectIdSuffixes: [] });
     env.fixture.detectChanges();
     tick();
 
-    verify(mockedRouter.navigate(anything(), anything())).never();
-    expect().nothing();
+    env.verifyNavigatedToMyProjects();
+  }));
+
+  it('navigates to my projects when the user has no accessible task on the project', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectData({ role: SFProjectRole.CommunityChecker, checkingEnabled: false, memberProjectIdSuffixes: [1] });
+    env.fixture.detectChanges();
+    tick();
+
+    env.verifyNavigatedToMyProjects();
   }));
 
   it('navigate old sharing link to new joining link', fakeAsync(() => {
@@ -160,25 +169,6 @@ describe('ProjectComponent', () => {
     tick();
     verify(mockedRouter.navigateByUrl('/join/shareKey01', anything())).once();
     verify(mockedRouter.navigate(anything(), anything())).never();
-    expect().nothing();
-  }));
-
-  it('should only navigate to project if user is on the project', fakeAsync(() => {
-    const env = new TestEnvironment();
-    env.setProjectData({
-      selectedTask: 'checking',
-      selectedBooknum: 41,
-      hasTexts: true,
-      checkingEnabled: false,
-      memberProjectIdSuffixes: []
-    });
-    env.fixture.detectChanges();
-    tick();
-
-    verify(mockedRouter.navigate(anything(), anything())).never();
-
-    env.addUserToProject(1);
-    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate', 'MAT']), anything())).once();
     expect().nothing();
   }));
 });
@@ -277,10 +267,9 @@ class TestEnvironment {
     });
   }
 
-  addUserToProject(projectIdSuffix: number): void {
-    this.setProjectData({ memberProjectIdSuffixes: [projectIdSuffix] });
-    const userDoc: UserDoc = this.realtimeService.get(UserDoc.COLLECTION, 'user01');
-    userDoc.submitJson0Op(op => op.set(u => u.sites, { sf: { projects: [`project${projectIdSuffix}`] } }), false);
-    tick();
+  verifyNavigatedToMyProjects(): void {
+    verify(mockedRouter.navigate(deepEqual(['/projects']), deepEqual({ replaceUrl: true }))).once();
+    verify(mockedRouter.navigate(anything(), anything())).once();
+    expect().nothing();
   }
 }

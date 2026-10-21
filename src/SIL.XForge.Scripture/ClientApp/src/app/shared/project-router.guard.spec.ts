@@ -1,6 +1,6 @@
 import { Type } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
-import { ActivatedRouteSnapshot, RedirectCommand, Router, RouterStateSnapshot } from '@angular/router';
+import { ActivatedRouteSnapshot, Params, RedirectCommand, Router, RouterStateSnapshot } from '@angular/router';
 import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
@@ -10,12 +10,17 @@ import { anything, mock, verify, when } from 'ts-mockito';
 import { AuthGuard } from 'xforge-common/auth.guard';
 import { AuthService } from 'xforge-common/auth.service';
 import { UserDoc } from 'xforge-common/models/user-doc';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
+import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { SFProjectService } from '../core/sf-project.service';
 import {
+  CheckingAuthGuard,
   DraftNavigationAuthGuard,
+  ProjectAuthGuard,
   RouterGuard,
   SettingsAuthGuard,
   SyncAuthGuard,
@@ -197,6 +202,11 @@ describe('RouterGuard canActivate', () => {
     verify(mockedProjectService.getProfile(anything())).never();
   });
 
+  it('redirects a project member without community checking access to the project', async () => {
+    const env = new CanActivateTestEnvironment({ memberOf: ['project01'], role: SFProjectRole.Commenter });
+    env.expectRedirect(await env.canActivate(CheckingAuthGuard), '/projects/project01');
+  });
+
   it('redirects a translator who is not on the project away from translate', async () => {
     const env = new CanActivateTestEnvironment({ memberOf: [] });
     env.expectRedirect(await env.canActivate(TranslateAuthGuard), '/projects');
@@ -208,6 +218,93 @@ describe('RouterGuard canActivate', () => {
     verify(mockedProjectService.getProfile(anything())).never();
   });
 });
+
+describe('ProjectAuthGuard', () => {
+  configureTestingModule(() => ({
+    providers: [
+      { provide: AuthGuard, useMock: mockedAuthGuard },
+      { provide: AuthService, useMock: mockedAuthService },
+      { provide: SFProjectService, useMock: mockedProjectService },
+      { provide: UserService, useMock: mockedUserService },
+      provideTestOnlineStatus(),
+      { provide: OnlineStatusService, useClass: TestOnlineStatusService }
+    ]
+  }));
+
+  it('allows a user who is on the project', async () => {
+    const env = new ProjectAuthTestEnvironment({ memberOf: ['project01'] });
+    expect(await env.canActivate()).toBe(true);
+    expect(env.fetchCount).toBe(0);
+  });
+
+  it('redirects a user who is not on the project to my projects', async () => {
+    const env = new ProjectAuthTestEnvironment({ memberOf: [] });
+    env.expectRedirectToMyProjects(await env.canActivate());
+    expect(env.fetchCount).toBe(1);
+    verify(mockedProjectService.getProfile(anything())).never();
+  });
+
+  it('allows a user who has just joined the project before the local user doc lists it', async () => {
+    const env = new ProjectAuthTestEnvironment({ memberOf: [], memberOfOnServer: ['project01'] });
+    expect(await env.canActivate()).toBe(true);
+    expect(env.fetchCount).toBe(1);
+  });
+
+  it('redirects without fetching the user doc when offline', async () => {
+    const env = new ProjectAuthTestEnvironment({ memberOf: [], memberOfOnServer: ['project01'] });
+    (TestBed.inject(OnlineStatusService) as TestOnlineStatusService).setIsOnline(false);
+    env.expectRedirectToMyProjects(await env.canActivate());
+    expect(env.fetchCount).toBe(0);
+  });
+
+  it('refuses without redirecting when not logged in', async () => {
+    const env = new ProjectAuthTestEnvironment({ memberOf: ['project01'], loggedIn: false });
+    expect(await env.canActivate()).toBe(false);
+  });
+
+  it('allows an old sharing link, which the project page forwards to joining the project', async () => {
+    const env = new ProjectAuthTestEnvironment({ memberOf: [] });
+    expect(await env.canActivate({ sharing: 'true', shareKey: 'shareKey01' })).toBe(true);
+  });
+});
+
+class ProjectAuthTestEnvironment {
+  fetchCount = 0;
+
+  constructor({
+    memberOf,
+    memberOfOnServer = memberOf,
+    loggedIn = true
+  }: {
+    memberOf: string[];
+    memberOfOnServer?: string[];
+    loggedIn?: boolean;
+  }) {
+    when(mockedAuthGuard.canActivate(anything(), anything())).thenReturn(of(loggedIn));
+    const userDoc = {
+      data: createTestUser({ sites: { sf: { projects: memberOf } } }),
+      onlineFetch: async () => {
+        this.fetchCount++;
+        userDoc.data = createTestUser({ sites: { sf: { projects: memberOfOnServer } } });
+      }
+    };
+    when(mockedUserService.getCurrentUser()).thenResolve(userDoc as unknown as UserDoc);
+  }
+
+  canActivate(queryParams: Params = {}): Promise<boolean | RedirectCommand> {
+    const snapshot = new ActivatedRouteSnapshot();
+    snapshot.params = { projectId: 'project01' };
+    snapshot.queryParams = queryParams;
+    return firstValueFrom(TestBed.inject(ProjectAuthGuard).canActivate(snapshot, {} as RouterStateSnapshot));
+  }
+
+  expectRedirectToMyProjects(result: boolean | RedirectCommand): void {
+    expect(result).toBeInstanceOf(RedirectCommand);
+    const redirect = result as RedirectCommand;
+    expect(TestBed.inject(Router).serializeUrl(redirect.redirectTo)).toEqual('/projects');
+    expect(redirect.navigationBehaviorOptions?.replaceUrl).toBe(true);
+  }
+}
 
 class CanActivateTestEnvironment {
   constructor({
