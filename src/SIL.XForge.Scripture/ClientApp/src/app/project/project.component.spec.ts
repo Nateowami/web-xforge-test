@@ -202,6 +202,26 @@ describe('ProjectComponent', () => {
     verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'checking', 'JHN', '1']), anything())).once();
     expect().nothing();
   }));
+
+  it('navigates a checker only once when checking is re-enabled after overlapping navigation attempts', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectData({
+      memberProjectIdSuffixes: [1],
+      role: SFProjectRole.CommunityChecker,
+      checkingEnabled: false
+    });
+    env.fixture.detectChanges();
+    tick();
+
+    // Two user doc changes before either navigation attempt has loaded the project
+    env.changeUserDoc();
+    env.changeUserDoc();
+    tick();
+
+    env.setCheckingEnabled(true);
+    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'checking', 'JHN', '1']), anything())).once();
+    expect().nothing();
+  }));
 });
 
 class TestEnvironment {
@@ -303,6 +323,12 @@ class TestEnvironment {
     const userDoc: UserDoc = this.realtimeService.get(UserDoc.COLLECTION, 'user01');
     userDoc.submitJson0Op(op => op.set(u => u.sites, { sf: { projects: [`project${projectIdSuffix}`] } }), false);
     tick();
+  }
+
+  /** Submits a remote change to the user doc without ticking, so the navigation attempts it starts can overlap. */
+  changeUserDoc(): void {
+    const userDoc: UserDoc = this.realtimeService.get(UserDoc.COLLECTION, 'user01');
+    userDoc.submitJson0Op(op => op.set(u => u.displayName, `${userDoc.data!.displayName}!`), false);
   }
 
   setCheckingEnabled(checkingEnabled: boolean): void {
