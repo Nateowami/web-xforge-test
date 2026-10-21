@@ -105,11 +105,12 @@ type DialogStatus =
   | DialogErrorState;
 
 /**
- * Matches the verse part of a reference: a verse, optionally with a segment letter, or a list or range of such verses
- * (e.g. "6", "6a", "6-21", "6,8"). VerseRef accepts any characters after the first verse number (e.g. "6=21"), so this
- * is needed to reject references it would otherwise treat as a single, oddly named verse.
+ * Matches the verse part of a reference: a comma-separated list of verses or verse ranges, where each verse may have
+ * an "a" or "b" segment letter (e.g. "6", "6a", "6-21", "6,8", "6-8,10b"). VerseRef accepts any characters after the
+ * first verse number (e.g. "6=21"), so this is needed to reject references it would otherwise treat as a single, oddly
+ * named verse. The segment letters are the ones the question dialog accepts (see SFValidators.verseStr).
  */
-const VERSE_PART_REGEXP = /^\d+[a-z]?([,-]\d+[a-z]?)*$/i;
+const VERSE_PART_REGEXP = /^\d+[ab]?(-\d+[ab]?)?(,\d+[ab]?(-\d+[ab]?)?)*$/i;
 
 @Component({
   templateUrl: './import-questions-dialog.component.html',
@@ -741,7 +742,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
         const fullReference: string =
           refStartsWithBook || defaultBookId == null ? reference : defaultBookId + ' ' + reference;
         const verseRef = new VerseRef(fullReference);
-        if (!VERSE_PART_REGEXP.test(verseRef.verse)) {
+        if (!VERSE_PART_REGEXP.test(verseRef.verse) || !verseRef.valid) {
           invalidRows.push([rowNumber, reference, questionText]);
           continue;
         }
