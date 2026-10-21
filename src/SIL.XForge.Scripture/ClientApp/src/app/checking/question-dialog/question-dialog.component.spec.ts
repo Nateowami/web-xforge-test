@@ -265,7 +265,11 @@ describe('QuestionDialogComponent', () => {
     env.clickElement(env.scriptureStartInputIcon);
     flush();
     verify(
-      env.dialogServiceSpy.openMatDialog(anything(), objectContaining({ data: { input: new VerseRef('MAT 3:4') } }))
+      env.dialogServiceSpy.openMatDialog(
+        anything(),
+        // The project id lets the chooser offer only the verses that are in the chapter text
+        objectContaining({ data: { input: new VerseRef('MAT 3:4'), projectId: 'project01' } })
+      )
     ).once();
     flush();
     expect(env.component.scriptureStart.value).toEqual('LUK 1:2');
@@ -328,7 +332,9 @@ describe('QuestionDialogComponent', () => {
     verify(
       env.dialogServiceSpy.openMatDialog(
         anything(),
-        objectContaining({ data: { input: new VerseRef('GEN 5:6'), rangeStart: new VerseRef('LUK 1:1') } })
+        objectContaining({
+          data: { input: new VerseRef('GEN 5:6'), rangeStart: new VerseRef('LUK 1:1'), projectId: 'project01' }
+        })
       )
     ).once();
     flush();

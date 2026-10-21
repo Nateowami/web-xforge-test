@@ -53,7 +53,13 @@ export class ScriptureChooserDialogComponent implements OnInit {
   /** User's selection */
   selection: { book?: string; chapter?: string; verse?: string } = {};
 
-  private versesInChapterText?: { bookId: string; chapterNum: number; verseNumbers: Set<number> };
+  /** How long to wait for the chapter text before offering every verse. Offline, a chapter that is not stored on the
+   *  device never loads. */
+  private static readonly textLoadTimeoutMs: number = 1500;
+
+  /** Verses that have a verse marker in the text of the chapter whose verses are being chosen. 'loading' while the
+   *  text is being read, and null if the text gives nothing to go by. */
+  private versesInChapterText?: { bookId: string; chapterNum: number; verseNumbers: Set<number> | 'loading' | null };
 
   constructor(
     public dialogRef: MatDialogRef<ScriptureChooserDialogComponent>,
@@ -189,13 +195,19 @@ export class ScriptureChooserDialogComponent implements OnInit {
     }
     const versesInChapterText = this.versesInChapterText;
     if (
-      versesInChapterText != null &&
-      versesInChapterText.bookId === bookId &&
-      versesInChapterText.chapterNum === chapterInfo.number
+      versesInChapterText == null ||
+      versesInChapterText.bookId !== bookId ||
+      versesInChapterText.chapterNum !== chapterInfo.number ||
+      versesInChapterText.verseNumbers == null
     ) {
-      verses = verses.filter(verse => versesInChapterText.verseNumbers.has(verse));
+      return verses;
     }
-    return verses;
+    // Offer no verses until the text has loaded, rather than offer verses that may be about to disappear
+    if (versesInChapterText.verseNumbers === 'loading') {
+      return [];
+    }
+    const verseNumbers: Set<number> = versesInChapterText.verseNumbers;
+    return verses.filter(verse => verseNumbers.has(verse));
   }
 
   getBookName(bookId: string | undefined): string {
@@ -218,14 +230,48 @@ export class ScriptureChooserDialogComponent implements OnInit {
       return;
     }
     const chapterNum: number = +chapter;
-    const textDoc: TextDoc = await this.projectService.getText(
-      new TextDocId(this.data.projectId, Canon.bookIdToNumber(bookId), chapterNum)
-    );
-    const verseNumbers: Set<number> = textDoc.getVerseNumbers();
-    // A text that has not loaded, or has no verse markers, gives nothing to go by, so every verse stays on offer
-    if (verseNumbers.size === 0) {
-      return;
+    const request: { bookId: string; chapterNum: number; verseNumbers: 'loading' } = {
+      bookId: bookId,
+      chapterNum: chapterNum,
+      verseNumbers: 'loading'
+    };
+    this.versesInChapterText = request;
+    let verseNumbers: Set<number> | undefined;
+    try {
+      const textDoc: TextDoc | undefined = await this.getTextUnlessSlow(
+        new TextDocId(this.data.projectId, Canon.bookIdToNumber(bookId), chapterNum)
+      );
+      verseNumbers = textDoc?.getVerseNumbers();
+    } finally {
+      // Leave alone the verses of a chapter that was opened while this one loaded
+      if (this.versesInChapterText === request) {
+        // A text that has not loaded, or has no verse markers, gives nothing to go by, so every verse stays on offer
+        this.versesInChapterText = {
+          bookId: bookId,
+          chapterNum: chapterNum,
+          verseNumbers: verseNumbers != null && verseNumbers.size > 0 ? verseNumbers : null
+        };
+      }
     }
-    this.versesInChapterText = { bookId: bookId, chapterNum: chapterNum, verseNumbers: verseNumbers };
+  }
+
+  /** Gets the text doc, or undefined if it takes too long to load. */
+  private getTextUnlessSlow(textDocId: TextDocId): Promise<TextDoc | undefined> {
+    return new Promise<TextDoc | undefined>((resolve, reject) => {
+      const timeout: ReturnType<typeof setTimeout> = setTimeout(
+        () => resolve(undefined),
+        ScriptureChooserDialogComponent.textLoadTimeoutMs
+      );
+      this.projectService.getText(textDocId).then(
+        textDoc => {
+          clearTimeout(timeout);
+          resolve(textDoc);
+        },
+        error => {
+          clearTimeout(timeout);
+          reject(error);
+        }
+      );
+    });
   }
 }
