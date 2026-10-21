@@ -3,6 +3,8 @@
 :host {
   display: flex;
   align-items: center;
+  // Let a host flex row shrink the chooser, truncating the book name, rather than overflowing with the full name
+  min-width: 0;
 }
 
 #book-select {
