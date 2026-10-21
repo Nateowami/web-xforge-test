@@ -218,10 +218,4 @@
   <data name="DraftNotGeneratedEmailSubject" xml:space="preserve">
     <value>Draf {0} tidak dibuat</value>
   </data>
-  <data name="PageNotFound" xml:space="preserve">
-    <value>Halaman tidak ditemukan</value>
-  </data>
-  <data name="RedirectingInAFewMoments" xml:space="preserve">
-    <value>Mengalihkan dalam beberapa saat...</value>
-  </data>
 </root>
