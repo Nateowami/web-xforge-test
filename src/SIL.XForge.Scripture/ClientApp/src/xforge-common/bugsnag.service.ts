@@ -17,12 +17,15 @@ export class BugsnagService {
     if (Bugsnag.isStarted()) Bugsnag.leaveBreadcrumb(message, metadata, type);
   }
 
+  /** Returns false if Bugsnag is not started, in which case the callbacks are never called. */
   notify(
     error: NotifiableError,
     onError?: OnErrorCallback,
     postReportCallback?: (err: any, event: Event) => void
-  ): void {
-    if (Bugsnag.isStarted()) Bugsnag.notify(error, onError, postReportCallback);
+  ): boolean {
+    if (!Bugsnag.isStarted()) return false;
+    Bugsnag.notify(error, onError, postReportCallback);
+    return true;
   }
 
   setUser(id?: string, email?: string, name?: string): void {

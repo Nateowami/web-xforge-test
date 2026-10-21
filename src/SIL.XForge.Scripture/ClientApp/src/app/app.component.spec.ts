@@ -520,6 +520,23 @@ describe('AppComponent', () => {
     verify(mockedAuthService.checkOnlineAuth()).once();
   }));
 
+  it('sends pending error reports on startup and each time the app comes back online', fakeAsync(() => {
+    const env = new TestEnvironment('online');
+    env.init();
+    verify(mockedErrorReportingService.sendPendingReports()).once();
+
+    // The online status is emitted again without changing
+    env.setBrowserOnlineStatus(true);
+    tick();
+    verify(mockedErrorReportingService.sendPendingReports()).once();
+
+    env.setWebSocketOnlineStatus(false);
+    tick();
+    env.setWebSocketOnlineStatus(true);
+    tick();
+    verify(mockedErrorReportingService.sendPendingReports()).twice();
+  }));
+
   it('hide avatar if not logged in', fakeAsync(() => {
     const env = new TestEnvironment('online', false);
     env.init();
