@@ -2902,20 +2902,18 @@ describe('CheckingComponent', () => {
       expect(env.isSegmentHighlighted(1, 6)).toBe(true);
     }));
 
-    // TODO: Get this test working
-    xit('pauses audio on reload (changing book)', fakeAsync(() => {
+    it('stops audio when changing book', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER, questionScope: 'book' });
-      env.component.toggleAudio();
-      env.fixture.detectChanges();
-
-      const chapterAudio = mock(CheckingScriptureAudioPlayerComponent);
-      env.component.scriptureAudioPlayer = instance(chapterAudio);
+      const audio = env.mockScriptureAudioAndPlay();
+      when(audio.stop()).thenCall(() => when(audio.isPlaying).thenReturn(false));
+      expect(env.component.showScriptureAudioPlayer).toBe(true);
 
       env.setBookChapter('MAT', 1);
       env.waitForQuestionTimersToComplete();
 
-      verify(chapterAudio.pause()).once();
-      expect(env.component.showScriptureAudioPlayer).toBe(true);
+      verify(audio.stop()).atLeast(1);
+      // MAT 1 has no chapter audio, so the player is hidden too
+      expect(env.component.showScriptureAudioPlayer).toBe(false);
     }));
 
     it('answer-scripture-text inherits project font from CSS custom property', fakeAsync(() => {
