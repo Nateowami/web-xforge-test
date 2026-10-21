@@ -6,14 +6,23 @@ import { MatDialog, MatDialogConfig, MatDialogRef } from '@angular/material/dial
 import { By } from '@angular/platform-browser';
 import { Canon, VerseRef } from '@sillsdev/scripture';
 import { TextInfo } from 'realtime-server/lib/esm/scriptureforge/models/text-info';
+import { anything, deepEqual, mock, resetCalls, verify, when } from 'ts-mockito';
 import { ChildViewContainerComponent, configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
+import { TextDoc, TextDocId } from '../core/models/text-doc';
 import { TextsByBookId } from '../core/models/texts-by-book-id';
+import { SFProjectService } from '../core/sf-project.service';
 import { ScriptureChooserDialogComponent, ScriptureChooserDialogData } from './scripture-chooser-dialog.component';
+
+const mockedProjectService = mock(SFProjectService);
 
 describe('ScriptureChooserDialog', () => {
   configureTestingModule(() => ({
     imports: [getTestTranslocoModule(), ScriptureChooserDialogComponent],
-    providers: [provideHttpClient(withInterceptorsFromDi()), provideHttpClientTesting()]
+    providers: [
+      provideHttpClient(withInterceptorsFromDi()),
+      provideHttpClientTesting(),
+      { provide: SFProjectService, useMock: mockedProjectService }
+    ]
   }));
 
   let env: TestEnvironment;
@@ -191,6 +200,52 @@ describe('ScriptureChooserDialog', () => {
     expect(env.dialogText).toContain(lastVerseOfRomans11);
     const nonexistentVerseOfRomans11 = '37';
     expect(env.dialogText).not.toContain(nonexistentVerseOfRomans11);
+  }));
+
+  it('leaves out verses that have no verse marker in the chapter text', fakeAsync(() => {
+    // Romans 11 has 36 verses, but the text has no verse 11
+    env = new TestEnvironment({ projectId: 'project01', verseNumbersInText: TestEnvironment.versesWithout(36, 11) });
+    env.click(env.bookRomans);
+    env.click(env.chapter11);
+    flush();
+    env.fixture.detectChanges();
+
+    verify(mockedProjectService.getText(deepEqual(new TextDocId('project01', 45, 11)))).once();
+    expect(env.versePaneButtons.length).toEqual(35);
+    expect(env.versePaneButtons.slice(8, 11)).toEqual(['9', '10', '12']);
+    env.click(env.buttonWithText('12'));
+    expect(env.dialogResult!.toString()).toEqual('ROM 11:12');
+  }));
+
+  it('leaves out verses that have no verse marker when providing end-selection', fakeAsync(() => {
+    env = new TestEnvironment({
+      projectId: 'project01',
+      verseNumbersInText: TestEnvironment.versesWithout(36, 11),
+      rangeStart: new VerseRef('ROM', '11', '9')
+    });
+    flush();
+    env.fixture.detectChanges();
+
+    expect(env.versePaneButtons.length).toEqual(27);
+    expect(env.versePaneButtons.slice(0, 3)).toEqual(['9', '10', '12']);
+  }));
+
+  it('shows every verse up to the last verse when no project is given', fakeAsync(() => {
+    env = new TestEnvironment({ verseNumbersInText: [1, 2] });
+    env.click(env.bookEphesians);
+    env.click(env.chapter3);
+
+    verify(mockedProjectService.getText(anything())).never();
+    expect(env.versePaneButtons.length).toEqual(21);
+  }));
+
+  it('shows every verse up to the last verse when the chapter text has no verse markers', fakeAsync(() => {
+    env = new TestEnvironment({ projectId: 'project01', verseNumbersInText: [] });
+    env.click(env.bookEphesians);
+    env.click(env.chapter3);
+
+    verify(mockedProjectService.getText(anything())).once();
+    expect(env.versePaneButtons.length).toEqual(21);
   }));
 
   it('splits input books by OT and NT', () => {
@@ -404,7 +459,22 @@ describe('ScriptureChooserDialog', () => {
     closeIconName = 'close';
     backIconName = 'navigate_before';
 
-    constructor(args?: { inputScriptureReference?: VerseRef; textsInProject?: TextInfo[]; rangeStart?: VerseRef }) {
+    /** Verse numbers 1 through lastVerse, except missingVerse. */
+    static versesWithout(lastVerse: number, missingVerse: number): number[] {
+      return Array.from({ length: lastVerse }, (_, index) => index + 1).filter(verse => verse !== missingVerse);
+    }
+
+    constructor(args?: {
+      inputScriptureReference?: VerseRef;
+      textsInProject?: TextInfo[];
+      rangeStart?: VerseRef;
+      projectId?: string;
+      verseNumbersInText?: number[];
+    }) {
+      resetCalls(mockedProjectService);
+      when(mockedProjectService.getText(anything())).thenResolve({
+        getVerseNumbers: (): Set<number> => new Set(args?.verseNumbersInText ?? [])
+      } as TextDoc);
       this.fixture = TestBed.createComponent(ChildViewContainerComponent);
       const viewContainerRef = this.fixture.componentInstance.childViewContainer;
 
@@ -460,7 +530,12 @@ describe('ScriptureChooserDialog', () => {
 
       const config: MatDialogConfig<ScriptureChooserDialogData> = {
         viewContainerRef: viewContainerRef,
-        data: { input: inputScriptureReference, booksAndChaptersToShow: booksAndChaptersToShow, rangeStart: rangeStart }
+        data: {
+          input: inputScriptureReference,
+          booksAndChaptersToShow: booksAndChaptersToShow,
+          rangeStart: rangeStart,
+          projectId: args?.projectId
+        }
       };
       this.dialogRef = TestBed.inject(MatDialog).open(ScriptureChooserDialogComponent, config);
       this.dialogRef.afterClosed().subscribe(result => (this.dialogResult = result));
@@ -503,6 +578,13 @@ describe('ScriptureChooserDialog', () => {
 
     get reference(): string {
       return this.fixture.debugElement.query(By.css('.reference')).nativeElement.textContent.trim();
+    }
+
+    /** Texts of the verse buttons in the verse or end verse pane. */
+    get versePaneButtons(): string[] {
+      return this.fixture.debugElement
+        .queryAll(By.css('#versePane .mat-mdc-dialog-content button, #rangeEndPane .mat-mdc-dialog-content button'))
+        .map(button => button.nativeElement.innerText.trim());
     }
 
     get backoutButton(): DebugElement {

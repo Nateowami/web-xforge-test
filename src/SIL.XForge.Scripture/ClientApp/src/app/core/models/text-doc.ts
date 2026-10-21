@@ -10,6 +10,8 @@ import {
 import { RealtimeDoc } from 'xforge-common/models/realtime-doc';
 import { RealtimeDocAdapter } from 'xforge-common/realtime-remote-store';
 import { RealtimeService } from 'xforge-common/realtime.service';
+import { hasObjectProp, hasStringProp } from '../../../type-utils';
+import { expandNumbers } from '../../shared/utils';
 import { getVerseStrFromSegmentRef } from '../../shared/verse-utils';
 
 export type TextDocSource = 'Draft' | 'Editor' | 'History' | 'Paratext';
@@ -98,6 +100,29 @@ export class TextDoc extends RealtimeDoc<TextData, TextData, Range> {
     }
 
     return verses;
+  }
+
+  /**
+   * Gets the numbers of the verses that have a verse marker in this chapter. Every verse of a bridge is included, so
+   * "\v 3-5" gives 3, 4 and 5, and a verse with segment letters, such as "\v 6a", gives 6.
+   */
+  getVerseNumbers(): Set<number> {
+    const verseNumbers = new Set<number>();
+    if (this.data == null || this.data.ops == null) {
+      return verseNumbers;
+    }
+    for (const op of this.data.ops) {
+      if (!hasObjectProp(op.insert, 'verse') || !hasStringProp(op.insert.verse, 'number')) {
+        continue;
+      }
+      // Drop segment letters and direction marks, leaving digits and the bridge and sequence separators
+      const verseRange: string = op.insert.verse.number.replace(/[^\d,-]/g, '');
+      const numbers: number[] | null = expandNumbers(verseRange);
+      if (numbers != null) {
+        numbers.forEach(verseNumber => verseNumbers.add(verseNumber));
+      }
+    }
+    return verseNumbers;
   }
 
   getSegmentText(ref: string): string {
