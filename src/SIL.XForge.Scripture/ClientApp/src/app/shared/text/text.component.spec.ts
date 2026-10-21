@@ -1599,6 +1599,67 @@ describe('TextComponent', () => {
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
   }));
 
+  it('underlines a note whose contents contain invalid formatting', fakeAsync(() => {
+    const chapterNum = 2;
+    const segmentRef: string = `verse_${chapterNum}_1`;
+    const invalidNote: RichText.DeltaOperation = {
+      insert: {
+        note: {
+          caller: '+',
+          style: 'f',
+          contents: {
+            ops: [
+              { insert: 'Note with ', attributes: { char: { style: 'ft', cid: 'ft-1' } } },
+              { insert: 'special text', attributes: { char: { style: 'add', cid: 'add-1' }, 'invalid-inline': true } }
+            ]
+          }
+        }
+      },
+      attributes: { segment: segmentRef }
+    };
+    const validNote: RichText.DeltaOperation = {
+      insert: {
+        note: {
+          caller: '-',
+          style: 'x',
+          contents: { ops: [{ insert: 'cross-reference text', attributes: { char: { style: 'xt', cid: 'xt-1' } } }] }
+        }
+      },
+      attributes: { segment: segmentRef }
+    };
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'quick brown', attributes: { segment: segmentRef } },
+      invalidNote,
+      validNote,
+      { insert: ' fox', attributes: { segment: segmentRef } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    // The editor shows a chapter with invalid USFM read-only, with invalid formatting marked
+    env.hostComponent.isReadOnly = true;
+    env.hostComponent.markInvalid = true;
+    env.waitForEditor();
+
+    const footnote = env.quillEditor.querySelector('usx-note[data-style="f"]') as HTMLElement;
+    const crossReference = env.quillEditor.querySelector('usx-note[data-style="x"]') as HTMLElement;
+    expect(footnote.classList).toContain('invalid-inline');
+    expect(crossReference.classList).not.toContain('invalid-inline');
+    // The .mark-invalid .invalid-inline rule in _text.scss draws the underline. Its image comes from a theme CSS
+    // variable that tests don't load, so check a property the same rule sets instead.
+    expect(getComputedStyle(footnote).backgroundRepeat).toBe('repeat-x');
+    expect(getComputedStyle(crossReference).backgroundRepeat).toBe('repeat');
+
+    // The class is display-only: it must not be read back from the DOM into the note ops
+    const noteOps = env.component.editor!.getContents().ops!.filter(op => (op.insert as any)?.note != null);
+    expect(noteOps.map(op => op.insert)).toEqual([invalidNote.insert, validNote.insert]);
+    expect(noteOps.map(op => op.attributes?.['invalid-inline'])).toEqual([undefined, undefined]);
+
+    // The note can still be opened to see its contents
+    footnote.click();
+    verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).once();
+  }));
+
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
     const env = new TestEnvironment();
     env.id = new TextDocId('project01', 40, 1);
@@ -1869,6 +1930,7 @@ class MockQuill extends Quill {
     [id]="id"
     [isRightToLeft]="isTextRightToLeft"
     [isReadOnly]="isReadOnly"
+    [markInvalid]="markInvalid"
     [enablePresence]="enablePresence"
     (presenceChange)="onPresenceChange($event)"
   ></app-text>`,
@@ -1881,6 +1943,7 @@ class HostComponent {
   initialPlaceHolder: string | undefined;
   isTextRightToLeft: boolean = false;
   isReadOnly: boolean = false;
+  markInvalid: boolean = false;
   id?: TextDocId;
   remotePresences?: RemotePresences;
 
