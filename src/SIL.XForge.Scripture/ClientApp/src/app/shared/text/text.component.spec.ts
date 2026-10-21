@@ -1020,6 +1020,98 @@ describe('TextComponent', () => {
       .toEqual('wj w');
   }));
 
+  describe('character style spans', () => {
+    const chapterNum = 2;
+    const segment = `verse_${chapterNum}_1`;
+    const footnote = { note: { caller: '+', style: 'f', contents: { ops: [{ insert: 'A note.' }] } } };
+
+    function setUpChapter(textDoc: RichText.DeltaOperation[]): TestEnvironment {
+      const env = new TestEnvironment({
+        chapterNum,
+        textDoc: [
+          { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+          { insert: { verse: { number: '1', style: 'v' } } },
+          ...textDoc
+        ]
+      });
+      env.waitForEditor();
+      return env;
+    }
+
+    function submitRemoteChange(env: TestEnvironment, delta: Delta): void {
+      const textDoc: TextDoc = env.realtimeService.get<TextDoc>(
+        TextDoc.COLLECTION,
+        new TextDocId('project01', 40, chapterNum).toString()
+      );
+      // Submitting through the adapter without a source makes it a remote change
+      void textDoc.adapter.submitOp(delta);
+      tick();
+      env.fixture.detectChanges();
+    }
+
+    function charElements(env: TestEnvironment): Element[] {
+      return Array.from(env.component.editor!.container.querySelectorAll('usx-char'));
+    }
+
+    it('renders a span containing a footnote as one element', fakeAsync(() => {
+      const env = setUpChapter([
+        { insert: 'Elimelek, ', attributes: { segment } },
+        { insert: '2b', attributes: { segment, char: { style: 'va', cid: '1111' } } },
+        { insert: footnote, attributes: { segment, char: { style: 'va', cid: '1111' } } },
+        { insert: ' his wife', attributes: { segment } }
+      ]);
+
+      const elements: Element[] = charElements(env);
+      expect(elements.length).toEqual(1);
+      expect(elements[0].getAttribute('data-style')).toEqual('va');
+      expect(elements[0].textContent).toContain('2b');
+      expect(elements[0].querySelector('usx-note')).not.toBeNull();
+    }));
+
+    it('keeps separate spans that are only alike in style', fakeAsync(() => {
+      const env = setUpChapter([
+        { insert: 'quick', attributes: { segment, char: { style: 'wj', cid: '1111' } } },
+        { insert: 'brown', attributes: { segment, char: { style: 'wj', cid: '2222' } } }
+      ]);
+
+      expect(charElements(env).map(e => e.textContent)).toEqual(['quick', 'brown']);
+    }));
+
+    it('shows the style of a span inserted by a remote change', fakeAsync(() => {
+      const env = setUpChapter([{ insert: 'Elimelek, his wife', attributes: { segment } }]);
+      expect(charElements(env).length).toEqual(0);
+
+      submitRemoteChange(
+        env,
+        new Delta()
+          .retain(2 + 'Elimelek, '.length)
+          .insert('2b', { segment, char: { style: 'va', cid: '1111' } })
+          .insert(footnote, { segment, char: { style: 'va', cid: '1111' } })
+          .insert(' ', { segment })
+      );
+
+      const elements: Element[] = charElements(env);
+      expect(elements.length).toEqual(1);
+      expect(elements[0].getAttribute('data-style')).toEqual('va');
+      expect(elements[0].textContent).toContain('2b');
+      expect(elements[0].querySelector('usx-note')).not.toBeNull();
+      expect(env.component.getSegmentText(segment)).toEqual('Elimelek, 2b his wife');
+    }));
+
+    it('does not give text inserted by a remote change the style of the text before it', fakeAsync(() => {
+      const env = setUpChapter([
+        { insert: 'Elimelek, ', attributes: { segment } },
+        { insert: '2b', attributes: { segment, char: { style: 'va', cid: '1111' } } },
+        { insert: ' his wife', attributes: { segment } }
+      ]);
+
+      submitRemoteChange(env, new Delta().retain(2 + 'Elimelek, 2b'.length).insert(' and', { segment }));
+
+      expect(charElements(env).map(e => e.textContent)).toEqual(['2b']);
+      expect(env.component.getSegmentText(segment)).toEqual('Elimelek, 2b and his wife');
+    }));
+  });
+
   it('isValidSelectionForCurrentSegment', fakeAsync(() => {
     const chapterNum = 2;
     const segmentRef: string = `verse_${chapterNum}_1`;
