@@ -504,7 +504,7 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   }
 
   private async showProjectDeletedDialog(): Promise<void> {
-    await this.userService.setCurrentProjectId(this.currentUserDoc!, undefined);
+    this.userService.clearLocalCurrentProjectId();
     // Leave the project before telling the user about it. If we wait for the dialog to be dismissed, the project's
     // components stay alive behind it and keep polling the API for a project that no longer exists.
     await this.navigateToStart();

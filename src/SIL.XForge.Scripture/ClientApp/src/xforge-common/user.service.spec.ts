@@ -62,6 +62,14 @@ describe('UserService', () => {
     verify(mockedLocalSettingsService.set(CURRENT_PROJECT_ID_SETTING, undefined)).once();
   });
 
+  it('clears only the local current project id when requested', async () => {
+    const env = new TestEnvironment({ localProjectId: 'project01', storedProjectId: 'project01' });
+    const user: UserDoc = await env.service.getCurrentUser();
+    env.service.clearLocalCurrentProjectId();
+    verify(mockedLocalSettingsService.remove(CURRENT_PROJECT_ID_SETTING)).once();
+    expect(user.data!.sites['sf'].currentProjectId).toEqual('project01');
+  });
+
   it('triggers update for avatar when display name is updated', fakeAsync(() => {
     const env = new TestEnvironment({ storedProjectId: 'project01' });
     env.service.editDisplayName(false);
