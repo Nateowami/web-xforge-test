@@ -340,6 +340,24 @@ describe('EditorComponent', () => {
     expect(env.component.chapters.length).toEqual(50);
   }));
 
+  it('returns to the last chapter viewed in a book when that book is chosen again', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.wait();
+    env.routeWithParams({ projectId: 'project01', bookId: 'LUK', chapter: '2' });
+    env.wait();
+    env.routeWithParams({ projectId: 'project01', bookId: 'MRK' });
+    env.wait();
+    const navigateSpy = spyOn(env.router, 'navigate').and.resolveTo(true);
+
+    env.component.setBook(42);
+    expect(navigateSpy).toHaveBeenCalledWith(['projects', 'project01', 'translate', 'LUK', 2]);
+
+    // A book the user has not viewed opens without a chapter, so the editor picks its first chapter
+    env.component.setBook(43);
+    expect(navigateSpy).toHaveBeenCalledWith(['projects', 'project01', 'translate', 'JHN']);
+    env.dispose();
+  }));
+
   describe('Show editor tabs in single pane setting', () => {
     it('shows the source tab if showEditorTabsInSinglePane is undefined', fakeAsync(() => {
       const navigationParams: Params = { projectId: 'project01', bookId: 'MRK' };
@@ -4604,6 +4622,7 @@ class TestEnvironment {
     this.addParatextNoteThread(5, 'MAT 1:4', 'Paragraph', { start: 28, length: 9 }, ['user01']);
     this.addParatextNoteThread(6, 'MAT 1:5', 'resolved note', { start: 0, length: 0 }, ['user01'], NoteStatus.Resolved);
 
+    this.clearLastChaptersViewed();
     this.activatedProjectService = TestBed.inject(ActivatedProjectService);
     this.tabFactory = TestBed.inject(EditorTabFactoryService);
     this.testOnlineStatusService = TestBed.inject(OnlineStatusService) as TestOnlineStatusService;
@@ -4982,6 +5001,13 @@ class TestEnvironment {
     projectDoc.submitJson0Op(op => op.set(p => p.userRoles, userRoles), false);
 
     this.wait();
+  }
+
+  /** Forgets, in browser local storage, the last chapter viewed in each book, which persists between tests. */
+  clearLastChaptersViewed(): void {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('translate_last_chapters:')) localStorage.removeItem(key);
+    }
   }
 
   routeWithParams(params: Params): void {
