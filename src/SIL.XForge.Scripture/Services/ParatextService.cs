@@ -3051,6 +3051,7 @@ public class ParatextService : DisposableBase, IParatextService
         foreach (List<Paratext.Data.ProjectComments.Comment> thread in changeList)
         {
             CommentThread? existingThread = manager.FindThread(thread[0].Thread);
+            string? oldThreadVerseRef = existingThread?.Comments.FirstOrDefault()?.VerseRefStr;
             foreach (Paratext.Data.ProjectComments.Comment comment in thread)
             {
                 Paratext.Data.ProjectComments.Comment existingComment = existingThread?.Comments.FirstOrDefault(c =>
@@ -3081,6 +3082,22 @@ public class ParatextService : DisposableBase, IParatextService
 
                 if (!users.Contains(comment.User))
                     users.Add(comment.User);
+            }
+
+            // If the thread moved, move the comments that were not sent, such as replies added in Paratext
+            string? newThreadVerseRef = existingThread?.Comments.FirstOrDefault()?.VerseRefStr;
+            if (existingThread != null && newThreadVerseRef != oldThreadVerseRef)
+            {
+                foreach (
+                    Paratext.Data.ProjectComments.Comment comment in existingThread.Comments.Where(c =>
+                        c.VerseRefStr != newThreadVerseRef
+                    )
+                )
+                {
+                    comment.VerseRefStr = newThreadVerseRef;
+                    if (!users.Contains(comment.User))
+                        users.Add(comment.User);
+                }
             }
         }
 
