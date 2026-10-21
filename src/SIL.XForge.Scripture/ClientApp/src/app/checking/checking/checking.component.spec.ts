@@ -41,6 +41,7 @@ import { first } from 'rxjs/operators';
 import {
   anyString,
   anything,
+  deepEqual,
   instance,
   mock,
   objectContaining,
@@ -779,7 +780,12 @@ describe('CheckingComponent', () => {
       const env = new TestEnvironment({ user: ADMIN_USER });
       expect(env.recordQuestionButton).not.toBeNull();
       env.clickButton(env.recordQuestionButton);
-      verify(mockedDialogService.openMatDialog(AudioRecorderDialogComponent, anything())).once();
+      verify(
+        mockedDialogService.openMatDialog(
+          AudioRecorderDialogComponent,
+          deepEqual({ data: { countdown: true, requireSave: true, text: 'John 1, Q1 text' } })
+        )
+      ).once();
       verify(
         mockedFileService.uploadFile(
           FileType.Audio,

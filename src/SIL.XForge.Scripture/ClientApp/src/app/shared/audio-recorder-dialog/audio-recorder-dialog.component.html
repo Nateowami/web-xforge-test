@@ -1,5 +1,8 @@
 <ng-container *transloco="let t; read: 'audio_recorder_dialog'">
   <mat-dialog-content>
+    @if (data?.text) {
+      <p class="text-to-record" dir="auto">{{ data.text }}</p>
+    }
     <div class="container">
       <div class="countdown" [ngClass]="{ animate: countdownTimer > 0 }">{{ countdownTimer }}</div>
       @if (!hasAudioAttachment && !showCountdown) {

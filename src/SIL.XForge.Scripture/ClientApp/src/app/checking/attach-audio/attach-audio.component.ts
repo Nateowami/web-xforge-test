@@ -46,7 +46,7 @@ export class AttachAudioComponent {
   }
 
   async startRecording(): Promise<void> {
-    const config: AudioRecorderDialogData = { countdown: true };
+    const config: AudioRecorderDialogData = { countdown: true, text: this.textAndAudio?.text.value };
     const recorderDialogRef: MatDialogRef<AudioRecorderDialogComponent, AudioRecorderDialogResult> =
       this.dialogService.openMatDialog<
         AudioRecorderDialogComponent,
