@@ -353,6 +353,20 @@ describe('TextChooserDialogComponent', () => {
     rootElement.style.removeProperty('--project-font');
     env.closeDialog();
   }));
+
+  it('does not let a long chapter squeeze the selection preview', fakeAsync(() => {
+    const env = new TestEnvironment({ start: 0, end: TestEnvironment.segmentLen(1) }, 'verse_1_1', 'verse_1_1');
+    env.fireSelectionChange();
+    // A long chapter on a tall screen: the text pane wants more height than the dialog content can hold. The karma
+    // window is too short for app-text's own max-height to allow that, so lift it.
+    (env.select('quill-editor .ql-editor') as HTMLElement).style.minHeight = '200vh';
+    (env.select('app-text') as HTMLElement).style.maxHeight = 'none';
+
+    const selectionPreview = env.select('.selection-preview') as HTMLElement;
+    const fontSize = parseFloat(window.getComputedStyle(selectionPreview).fontSize);
+    expect(selectionPreview.offsetHeight).toBe(6 * fontSize);
+    env.closeDialog();
+  }));
 });
 
 interface SimpleRange {

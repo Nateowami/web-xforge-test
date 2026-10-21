@@ -34,7 +34,8 @@ app-text {
 
 .selection-preview {
   font-family: var(--project-font);
-  height: 16em;
+  height: 6em;
+  flex-shrink: 0;
   overflow-y: scroll;
   margin-top: 1em;
   > p {
