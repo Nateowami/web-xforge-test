@@ -2075,7 +2075,7 @@ public class ParatextServiceTests
 
         // Biblical term notes created in SF add the biblical term tag on every note in the thread
         string biblicalTermTagId = CommentTag.biblicalTermTagId.ToString();
-        env.AddNoteThreadData([new ThreadComponents { threadNum = 1, noteCount = 4 }]);
+        env.AddNoteThreadData([new ThreadComponents { threadNum = 1, noteCount = 5 }]);
         ThreadNoteComponents[] threadNotes =
         [
             new ThreadNoteComponents
@@ -2094,6 +2094,13 @@ public class ParatextServiceTests
             {
                 ownerRef = env.User01,
                 status = NoteStatus.Resolved,
+                tagsAdded = [biblicalTermTagId],
+            },
+            // The thread is reopened, so the done note below also follows a to do note with the same tag
+            new ThreadNoteComponents
+            {
+                ownerRef = env.User01,
+                status = NoteStatus.Todo,
                 tagsAdded = [biblicalTermTagId],
             },
             new ThreadNoteComponents
@@ -2139,6 +2146,7 @@ public class ParatextServiceTests
         [
             CommentTag.biblicalTermTagId,
             null,
+            CommentTag.biblicalTermTagId,
             CommentTag.biblicalTermTagId,
             CommentTag.biblicalTermTagId,
         ];
