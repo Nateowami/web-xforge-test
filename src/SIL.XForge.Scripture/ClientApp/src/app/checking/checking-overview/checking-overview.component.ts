@@ -41,6 +41,8 @@ import { TextDocId } from '../../core/models/text-doc';
 import { TextsByBookId } from '../../core/models/texts-by-book-id';
 import { PermissionsService } from '../../core/permissions.service';
 import { SFProjectService } from '../../core/sf-project.service';
+import { FeedbackSourcePage } from '../../shared/user-feedback/user-feedback-dialog.component';
+import { UserFeedbackComponent } from '../../shared/user-feedback/user-feedback.component';
 import { formatDateForFilename } from '../../shared/utils';
 import { CheckingUtils } from '../checking.utils';
 import { CheckingQuestionsService } from '../checking/checking-questions.service';
@@ -73,7 +75,8 @@ import { QuestionDialogService } from '../question-dialog/question-dialog.servic
     RouterLinkDirective,
     MatCard,
     MatCardContent,
-    L10nNumberPipe
+    L10nNumberPipe,
+    UserFeedbackComponent
   ],
   changeDetection: ChangeDetectionStrategy.OnPush
 })
@@ -81,6 +84,8 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
   texts: TextInfo[] = [];
   projectId?: string;
   questionsLoaded: boolean = false;
+  showFeedbackNotice: boolean = false;
+  readonly feedbackSourcePage = FeedbackSourcePage.CommunityCheckingPage;
 
   private questionDocs = new Map<string, QuestionDoc[]>();
   private textsByBookId?: TextsByBookId;
@@ -239,6 +244,9 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
         this.loadingFinished();
       }
 
+      this.showFeedbackNotice = false;
+      if (this.canCreateQuestion) void this.loadShowFeedbackNotice(projectId);
+
       this.dataChangesSub?.unsubscribe();
       this.dataChangesSub = merge(
         this.projectDoc.remoteChanges$,
@@ -281,6 +289,21 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
 
   ngOnDestroy(): void {
     this.questionsQuery?.dispose();
+  }
+
+  onFeedbackSubmitted(): void {
+    this.showFeedbackNotice = false;
+  }
+
+  async onFeedbackNoticeDismissed(): Promise<void> {
+    this.showFeedbackNotice = false;
+    const dismissedDates: { [source: string]: string } = {
+      ...this.projectUserConfigDoc?.data?.feedbackNoticeDismissedDates,
+      [this.feedbackSourcePage]: new Date().toJSON()
+    };
+    await this.projectUserConfigDoc?.submitJson0Op(op =>
+      op.set(puc => puc.feedbackNoticeDismissedDates, dismissedDates)
+    );
   }
 
   getRouterLink(bookId: string): string[] {
@@ -508,6 +531,19 @@ export class CheckingOverviewComponent extends DataLoadingComponent implements O
       }),
       `checking_overview.${archive ? 'archive' : 'republish'}`
     );
+  }
+
+  private async loadShowFeedbackNotice(projectId: string): Promise<void> {
+    await this.onlineStatusService.online;
+    try {
+      const showFeedbackNotice: boolean = await this.projectService.onlineShouldShowCheckingFeedbackNotice(projectId);
+      // The user may have switched to another project while waiting
+      if (projectId !== this.projectId) return;
+      this.showFeedbackNotice = showFeedbackNotice;
+      this.changeDetector.markForCheck();
+    } catch {
+      // Leave the notice hidden
+    }
   }
 
   private initTextsWithLoadingIndicator(): void {

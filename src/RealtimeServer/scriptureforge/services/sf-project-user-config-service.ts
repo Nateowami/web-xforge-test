@@ -157,6 +157,15 @@ export class SFProjectUserConfigService extends SFProjectDataService<SFProjectUs
       },
       showEditorTabsInSinglePane: {
         bsonType: 'bool'
+      },
+      feedbackNoticeDismissedDates: {
+        bsonType: 'object',
+        patternProperties: {
+          '^[a-z_]+$': {
+            bsonType: 'string'
+          }
+        },
+        additionalProperties: false
       }
     },
     additionalProperties: false
@@ -184,7 +193,8 @@ export class SFProjectUserConfigService extends SFProjectDataService<SFProjectUs
       this.pathTemplate(puc => puc.noteRefsRead),
       this.pathTemplate(puc => puc.questionRefsRead),
       this.pathTemplate(puc => puc.answerRefsRead),
-      this.pathTemplate(puc => puc.commentRefsRead)
+      this.pathTemplate(puc => puc.commentRefsRead),
+      this.pathTemplate(puc => puc.feedbackNoticeDismissedDates!)
     ];
     this.editableProps.push(...editableProps);
   }

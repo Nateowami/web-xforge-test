@@ -4387,6 +4387,168 @@ public class SFProjectServiceTests
     }
 
     [Test]
+    public async Task ShouldShowCheckingFeedbackNoticeAsync_ShowsWhenOldestQuestionIsAtLeast30DaysOld()
+    {
+        var env = new TestEnvironment();
+        await env.AddQuestionAsync(Project01, DateTime.UtcNow.AddDays(-5));
+        await env.AddQuestionAsync(Project01, DateTime.UtcNow.AddDays(-31));
+
+        // SUT
+        bool result = await env.Service.ShouldShowCheckingFeedbackNoticeAsync(User01, Project01);
+
+        Assert.That(result, Is.True);
+    }
+
+    [Test]
+    public async Task ShouldShowCheckingFeedbackNoticeAsync_HiddenWhenOldestQuestionIsNewerThan30Days()
+    {
+        var env = new TestEnvironment();
+        await env.AddQuestionAsync(Project01, DateTime.UtcNow.AddDays(-29));
+        // Questions in other projects do not count
+        await env.AddQuestionAsync(Project02, DateTime.UtcNow.AddDays(-100));
+
+        // SUT
+        bool result = await env.Service.ShouldShowCheckingFeedbackNoticeAsync(User01, Project01);
+
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public async Task ShouldShowCheckingFeedbackNoticeAsync_HiddenWhenThereAreNoQuestions()
+    {
+        var env = new TestEnvironment();
+
+        // SUT
+        bool result = await env.Service.ShouldShowCheckingFeedbackNoticeAsync(User01, Project01);
+
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public async Task ShouldShowCheckingFeedbackNoticeAsync_HiddenWhenUserCannotManageQuestions()
+    {
+        var env = new TestEnvironment();
+        await env.AddQuestionAsync(Project01, DateTime.UtcNow.AddDays(-31));
+
+        // SUT
+        bool result = await env.Service.ShouldShowCheckingFeedbackNoticeAsync(User02, Project01);
+
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public async Task ShouldShowCheckingFeedbackNoticeAsync_HiddenWhenFeedbackSentInTheLastYear()
+    {
+        var env = new TestEnvironment();
+        await env.AddQuestionAsync(Project01, DateTime.UtcNow.AddDays(-31));
+        await env.UserFeedback.InsertAsync(
+            new UserFeedback
+            {
+                Id = "feedback01",
+                ProjectRef = Project01,
+                UserRef = User01,
+                Source = FeedbackSourcePage.CommunityCheckingPage,
+                DateSubmitted = DateTime.UtcNow.AddDays(-364),
+            }
+        );
+
+        // SUT
+        bool result = await env.Service.ShouldShowCheckingFeedbackNoticeAsync(User01, Project01);
+
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public async Task ShouldShowCheckingFeedbackNoticeAsync_ShowsWhenFeedbackWasOlderOrFromElsewhere()
+    {
+        var env = new TestEnvironment();
+        await env.AddQuestionAsync(Project01, DateTime.UtcNow.AddDays(-31));
+        await env.UserFeedback.InsertAsync(
+            new UserFeedback
+            {
+                Id = "feedback01",
+                ProjectRef = Project01,
+                UserRef = User01,
+                Source = FeedbackSourcePage.CommunityCheckingPage,
+                DateSubmitted = DateTime.UtcNow.AddDays(-366),
+            }
+        );
+        await env.UserFeedback.InsertAsync(
+            new UserFeedback
+            {
+                Id = "feedback02",
+                ProjectRef = Project01,
+                UserRef = User01,
+                Source = FeedbackSourcePage.GenerateDraftPage,
+                DateSubmitted = DateTime.UtcNow,
+            }
+        );
+        await env.UserFeedback.InsertAsync(
+            new UserFeedback
+            {
+                Id = "feedback03",
+                ProjectRef = Project01,
+                UserRef = User05,
+                Source = FeedbackSourcePage.CommunityCheckingPage,
+                DateSubmitted = DateTime.UtcNow,
+            }
+        );
+
+        // SUT
+        bool result = await env.Service.ShouldShowCheckingFeedbackNoticeAsync(User01, Project01);
+
+        Assert.That(result, Is.True);
+    }
+
+    [Test]
+    public async Task ShouldShowCheckingFeedbackNoticeAsync_HiddenWhenDismissedInTheLast90Days()
+    {
+        var env = new TestEnvironment();
+        await env.AddQuestionAsync(Project01, DateTime.UtcNow.AddDays(-31));
+        await env.SetFeedbackNoticeDismissedDateAsync(Project01, User01, DateTime.UtcNow.AddDays(-89));
+
+        // SUT
+        bool result = await env.Service.ShouldShowCheckingFeedbackNoticeAsync(User01, Project01);
+
+        Assert.That(result, Is.False);
+    }
+
+    [Test]
+    public async Task ShouldShowCheckingFeedbackNoticeAsync_ShowsWhenDismissedMoreThan90DaysAgo()
+    {
+        var env = new TestEnvironment();
+        await env.AddQuestionAsync(Project01, DateTime.UtcNow.AddDays(-31));
+        await env.SetFeedbackNoticeDismissedDateAsync(Project01, User01, DateTime.UtcNow.AddDays(-91));
+
+        // SUT
+        bool result = await env.Service.ShouldShowCheckingFeedbackNoticeAsync(User01, Project01);
+
+        Assert.That(result, Is.True);
+    }
+
+    [Test]
+    public void ShouldShowCheckingFeedbackNoticeAsync_ProjectDoesNotExist()
+    {
+        var env = new TestEnvironment();
+
+        // SUT
+        Assert.ThrowsAsync<DataNotFoundException>(() =>
+            env.Service.ShouldShowCheckingFeedbackNoticeAsync(User01, "invalid_project")
+        );
+    }
+
+    [Test]
+    public void ShouldShowCheckingFeedbackNoticeAsync_UserNotOnProject()
+    {
+        var env = new TestEnvironment();
+
+        // SUT
+        Assert.ThrowsAsync<ForbiddenException>(() =>
+            env.Service.ShouldShowCheckingFeedbackNoticeAsync(User04, Project01)
+        );
+    }
+
+    [Test]
     public async Task SetDraftAppliedAsync_BookMustBeInProject()
     {
         var env = new TestEnvironment();
@@ -6013,6 +6175,7 @@ public class SFProjectServiceTests
                     },
                 ])
             );
+            RealtimeService.AddRepository("questions", OTType.Json0, new MemoryRepository<Question>());
             RealtimeService.AddRepository(
                 "note_threads",
                 OTType.Json0,
@@ -6511,6 +6674,41 @@ public class SFProjectServiceTests
                 }
             );
         }
+
+        public async Task AddQuestionAsync(string projectId, DateTime dateCreated)
+        {
+            string dataId = Guid.NewGuid().ToString("N");
+            await RealtimeService
+                .GetRepository<Question>()
+                .InsertAsync(
+                    new Question
+                    {
+                        Id = $"{projectId}:{dataId}",
+                        DataId = dataId,
+                        ProjectRef = projectId,
+                        DateCreated = dateCreated,
+                    }
+                );
+        }
+
+        public async Task SetFeedbackNoticeDismissedDateAsync(
+            string projectId,
+            string userId,
+            DateTime dateDismissed
+        ) =>
+            await RealtimeService
+                .GetRepository<SFProjectUserConfig>()
+                .ReplaceAsync(
+                    new SFProjectUserConfig
+                    {
+                        Id = SFProjectUserConfig.GetDocId(projectId, userId),
+                        FeedbackNoticeDismissedDates = new Dictionary<string, DateTime>
+                        {
+                            { FeedbackSourcePage.CommunityCheckingPage, dateDismissed },
+                        },
+                    },
+                    upsert: true
+                );
 
         public SFProject GetProject(string id) => RealtimeService.GetRepository<SFProject>().Get(id);
 

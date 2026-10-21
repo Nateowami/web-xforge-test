@@ -20,6 +20,7 @@ public static class FeedbackSourcePage
 {
     public const string None = "none";
     public const string GenerateDraftPage = "generate_draft_page";
+    public const string CommunityCheckingPage = "community_checking_page";
 }
 
 public static class FeedbackPermission

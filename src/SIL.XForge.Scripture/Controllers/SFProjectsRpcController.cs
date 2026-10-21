@@ -650,6 +650,33 @@ public class SFProjectsRpcController(
         }
     }
 
+    public async Task<IRpcMethodResult> ShouldShowCheckingFeedbackNotice(string projectId)
+    {
+        try
+        {
+            return Ok(await projectService.ShouldShowCheckingFeedbackNoticeAsync(UserId, projectId));
+        }
+        catch (ForbiddenException)
+        {
+            return ForbiddenError();
+        }
+        catch (DataNotFoundException dnfe)
+        {
+            return NotFoundError(dnfe.Message);
+        }
+        catch (Exception)
+        {
+            _exceptionHandler.RecordEndpointInfoForException(
+                new Dictionary<string, string>
+                {
+                    { "method", "ShouldShowCheckingFeedbackNotice" },
+                    { "projectId", projectId },
+                }
+            );
+            throw;
+        }
+    }
+
     public async Task<IRpcMethodResult> Sync(string projectId)
     {
         try

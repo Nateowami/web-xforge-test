@@ -1041,7 +1041,9 @@
   "user_feedback": {
     "ask_for_help": "ask for help",
     "close": "Close",
+    "dismiss": "Dismiss",
     "error_occurred": "An error occurred. Please try submitting feedback later.",
+    "has_community_checking_helped_your_project": "Has community checking in {{ siteName }} helped your project?",
     "how_has_drafting_helped_your_project": "How has {{ siteName }} drafting helped your project?",
     "or": "or",
     "send_feedback": "Send Feedback",

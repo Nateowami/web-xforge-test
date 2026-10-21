@@ -116,6 +116,18 @@ describe('UserFeedbackDialogComponent', () => {
     });
   }));
 
+  it('records the page the dialog was opened from', fakeAsync(() => {
+    const env = new TestEnvironment({ source: FeedbackSourcePage.CommunityCheckingPage });
+
+    let result: UserFeedbackDialogResult | undefined;
+    env.dialogRef.afterClosed().subscribe(r => (result = r));
+
+    env.setFeedbackText('Great feature!');
+    env.clickSubmit();
+
+    expect(result?.feedbackParams.source).toEqual(FeedbackSourcePage.CommunityCheckingPage);
+  }));
+
   it('submits the feedback with empty project field', fakeAsync(() => {
     const env = new TestEnvironment(undefined);
 
@@ -211,6 +223,7 @@ interface TestEnvironmentArgs {
   activeProjectParatextId?: string;
   projectDocs?: SFProjectProfileDoc[];
   isOnline?: boolean;
+  source?: FeedbackSourcePage;
 }
 
 class TestEnvironment {
@@ -233,7 +246,8 @@ class TestEnvironment {
     when(mockedActivatedProjectService.projectDoc).thenReturn(projectDoc);
     this.fixture = TestBed.createComponent(ChildViewContainerComponent);
     this.dialogRef = TestBed.inject(MatDialog).open(UserFeedbackDialogComponent, {
-      viewContainerRef: this.fixture.componentInstance.childViewContainer
+      viewContainerRef: this.fixture.componentInstance.childViewContainer,
+      data: args.source == null ? undefined : { source: args.source }
     });
     this.component = this.dialogRef.componentInstance;
     tick();
