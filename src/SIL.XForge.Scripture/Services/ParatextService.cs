@@ -3070,6 +3070,8 @@ public class ParatextService : DisposableBase, IParatextService
                 else
                 {
                     existingComment.ExternalUser = comment.ExternalUser;
+                    // An answer note moves when its question's verse reference is changed
+                    existingComment.VerseRefStr = comment.VerseRefStr ?? existingComment.VerseRefStr;
                     existingComment.Contents = comment.Contents;
                     existingComment.VersionNumber += 1;
                     existingComment.Deleted = false;

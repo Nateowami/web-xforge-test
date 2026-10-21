@@ -987,6 +987,31 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public void PutNotes_VerseRefChanged_CommentMoved()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        DateTime date = DateTime.Now; // This must be consistent as it is a part of the comment id
+
+        const string threadId = "Answer_0123";
+        const string content = "Content for comment to move.";
+        XElement updateNotesXml = TestEnvironment.GetUpdateNotesXml(threadId, env.User01, date, content, "RUT 1:1");
+        env.Service.PutNotes(userSecret, ptProjectId, updateNotesXml);
+
+        // Move the comment to another verse without changing its content
+        updateNotesXml = TestEnvironment.GetUpdateNotesXml(threadId, env.User01, date, content, "RUT 1:2");
+        var syncMetricInfo = env.Service.PutNotes(userSecret, ptProjectId, updateNotesXml);
+
+        CommentThread thread = env.ProjectCommentManager.FindThread(threadId);
+        Assert.That(thread.Comments.Count, Is.EqualTo(1));
+        Assert.That(thread.Comments.First().VerseRefStr, Is.EqualTo("RUT 1:2"));
+        Assert.That(thread.Comments.First().Contents.InnerText, Is.EqualTo(content));
+        Assert.That(syncMetricInfo, Is.EqualTo(new SyncMetricInfo(added: 0, deleted: 0, updated: 1)));
+    }
+
+    [Test]
     public void PutNotes_RethrowsErrors()
     {
         var env = new TestEnvironment();
