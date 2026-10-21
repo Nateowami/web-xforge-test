@@ -205,8 +205,7 @@ header {
         }
 
         // Let the book name shrink (it is truncated with an ellipsis) so the action icons stay on screen
-        &.book-chapter,
-        app-book-chapter-chooser {
+        &.book-chapter {
           min-width: 0;
         }
 
