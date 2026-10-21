@@ -1,4 +1,4 @@
-import { Component, DestroyRef, OnInit } from '@angular/core';
+import { Component, DestroyRef, ErrorHandler, OnInit } from '@angular/core';
 import { MatCard, MatCardHeader, MatCardTitle } from '@angular/material/card';
 import { MatDivider } from '@angular/material/divider';
 import { MatIcon } from '@angular/material/icon';
@@ -19,8 +19,8 @@ import { ANY_INDEX, obj } from 'realtime-server/lib/esm/common/utils/obj-path';
 import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { isParatextRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
-import { asyncScheduler, merge, Subscription } from 'rxjs';
-import { distinctUntilChanged, filter, map, throttleTime } from 'rxjs/operators';
+import { asyncScheduler, EMPTY, from, merge, Subscription } from 'rxjs';
+import { catchError, distinctUntilChanged, filter, map, switchMap, throttleTime } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DonutChartComponent } from 'xforge-common/donut-chart/donut-chart.component';
 import { I18nService } from 'xforge-common/i18n.service';
@@ -33,6 +33,7 @@ import { UserService } from 'xforge-common/user.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SFProjectService } from '../../core/sf-project.service';
+import { NoticeComponent } from '../../shared/notice/notice.component';
 import { BookProgress, ProgressService, ProjectProgress } from '../../shared/progress-service/progress.service';
 import { FontUnsupportedMessageComponent } from '../font-unsupported-message/font-unsupported-message.component';
 const TEXT_PATH_TEMPLATE = obj<SFProject>().pathTemplate(p => p.texts[ANY_INDEX]);
@@ -58,12 +59,15 @@ const TEXT_PATH_TEMPLATE = obj<SFProject>().pathTemplate(p => p.texts[ANY_INDEX]
     MatListItemTitle,
     MatListItemLine,
     MatListItemMeta,
+    NoticeComponent,
     L10nNumberPipe,
     L10nPercentPipe
   ]
 })
 export class TranslateOverviewComponent extends DataLoadingComponent implements OnInit {
   projectProgress?: ProjectProgress;
+  /** Whether {@link projectProgress} was calculated offline and is missing chapters that are not stored on this device. */
+  progressIsPartial = false;
   private projectDoc?: SFProjectProfileDoc;
   private projectDataChangesSub?: Subscription;
 
@@ -75,7 +79,8 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
     private readonly userService: UserService,
     public readonly progressService: ProgressService,
     readonly i18n: I18nService,
-    private destroyRef: DestroyRef
+    private destroyRef: DestroyRef,
+    private readonly errorHandler: ErrorHandler
   ) {
     super(noticeService, 'TranslateOverviewComponent');
   }
@@ -117,15 +122,41 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
             // TODO Find a better solution than merely throttling remote changes
             throttleTime(1000, asyncScheduler, { leading: true, trailing: true })
           )
-        ).subscribe(async () => {
-          this.loadingStarted();
-          try {
-            this.projectProgress = await this.progressService.getProgress(this.projectId!, { maxStalenessMs: 30_000 });
-          } finally {
-            this.loadingFinished();
-          }
-        });
+        )
+          .pipe(
+            // Only the latest calculation may update the page, so a slow local calculation cannot overwrite the
+            // server's figures after coming back online
+            switchMap(() =>
+              from(this.loadProgress(projectId)).pipe(
+                // Report errors here so that one failed request doesn't stop later updates. A server request that fails
+                // because the connection dropped needs no report, since going offline starts a local calculation.
+                catchError(error => {
+                  if (this.onlineStatusService.isOnline) this.errorHandler.handleError(error);
+                  return EMPTY;
+                })
+              )
+            )
+          )
+          .subscribe(({ progress, isComplete }) => {
+            this.projectProgress = progress;
+            this.progressIsPartial = !isComplete;
+          });
       });
+  }
+
+  private async loadProgress(projectId: string): Promise<{ progress: ProjectProgress; isComplete: boolean }> {
+    this.loadingStarted();
+    try {
+      if (this.onlineStatusService.isOnline) {
+        return {
+          progress: await this.progressService.getProgress(projectId, { maxStalenessMs: 30_000 }),
+          isComplete: true
+        };
+      }
+      return await this.progressService.getLocalProgress(projectId);
+    } finally {
+      this.loadingFinished();
+    }
   }
 
   getBookNameFromId(bookId: string): string {

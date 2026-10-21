@@ -7,7 +7,6 @@ import { MemoryOfflineStore } from 'xforge-common/memory-offline-store';
 import { MemoryRealtimeRemoteStore } from 'xforge-common/memory-realtime-remote-store';
 import { RealtimeOfflineData } from 'xforge-common/models/realtime-offline-data';
 import { NoticeService } from 'xforge-common/notice.service';
-import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
@@ -25,13 +24,11 @@ import {
 
 const mockedNoticeService = mock(NoticeService);
 const mockedProjectService = mock(SFProjectService);
-const mockedOnlineStatusService = mock(OnlineStatusService);
 
 describe('ProgressService', () => {
   beforeEach(() => {
     reset(mockedNoticeService);
     reset(mockedProjectService);
-    reset(mockedOnlineStatusService);
   });
 
   it('should get fresh progress data', fakeAsync(() => {
@@ -353,7 +350,7 @@ describe('ProgressService', () => {
     verify(mockedProjectService.getProjectProgress('project2')).once();
   }));
 
-  describe('offline', () => {
+  describe('getLocalProgress', () => {
     it('calculates progress from texts stored on the device instead of asking the server', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectTexts('project1', [
@@ -367,14 +364,14 @@ describe('ProgressService', () => {
       ]);
       env.addOfflineText('project1:MAT:2:target', [{ insert: { blank: true }, attributes: { segment: 'verse_2_1' } }]);
       env.addOfflineText('project1:GEN:1:target', [{ insert: 'text', attributes: { segment: 'verse_1_1' } }]);
-      env.isOnline = false;
 
-      let result: ProjectProgressWithChapterProgress | undefined;
-      env.service.getProgressWithChapterProgress('project1', { maxStalenessMs: 30_000 }).then(r => (result = r));
+      let result: { progress: ProjectProgressWithChapterProgress; isComplete: boolean } | undefined;
+      env.service.getLocalProgress('project1').then(r => (result = r));
       flushMicrotasks();
 
       verify(mockedProjectService.getProjectProgress(anything())).never();
-      expect(result?.books).toEqual([
+      expect(result?.isComplete).toBe(true);
+      expect(result?.progress.books).toEqual([
         {
           bookId: 'GEN',
           verseSegments: 1,
@@ -391,33 +388,47 @@ describe('ProgressService', () => {
           ]
         }
       ]);
-      expect(result?.translatedVerseSegments).toBe(2);
+      expect(result?.progress.translatedVerseSegments).toBe(2);
     }));
 
-    it('leaves out chapters and books that are not stored on the device', fakeAsync(() => {
+    it('lists every book but counts only chapters stored on the device, and says the result is incomplete', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectTexts('project1', [
         { bookNum: 40, chapters: [1, 2] },
         { bookNum: 41, chapters: [1] }
       ]);
       env.addOfflineText('project1:MAT:2:target', [{ insert: 'text', attributes: { segment: 'verse_2_1' } }]);
-      env.isOnline = false;
 
-      let result: ProjectProgressWithChapterProgress | undefined;
-      env.service.getProgressWithChapterProgress('project1', { maxStalenessMs: 30_000 }).then(r => (result = r));
+      let result: { progress: ProjectProgressWithChapterProgress; isComplete: boolean } | undefined;
+      env.service.getLocalProgress('project1').then(r => (result = r));
       flushMicrotasks();
 
-      expect(result?.books).toEqual([
+      expect(result?.isComplete).toBe(false);
+      expect(result?.progress.books).toEqual([
         {
           bookId: 'MAT',
           verseSegments: 1,
           blankVerseSegments: 0,
           chapters: [{ chapterNumber: 2, verseSegments: 1, blankVerseSegments: 0 }]
-        }
+        },
+        { bookId: 'MRK', verseSegments: 0, blankVerseSegments: 0, chapters: [] }
       ]);
     }));
 
-    it('does not serve progress calculated offline once back online', fakeAsync(() => {
+    it('is not used by getProgress when the server cannot be reached', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectTexts('project1', [{ bookNum: 40, chapters: [1] }]);
+      env.addOfflineText('project1:MAT:1:target', [{ insert: 'text', attributes: { segment: 'verse_1_1' } }]);
+      when(mockedProjectService.getProjectProgress('project1')).thenReject(new Error('offline'));
+
+      let error: Error | undefined;
+      env.service.getProgress('project1', { maxStalenessMs: 30_000 }).catch(e => (error = e));
+      flushMicrotasks();
+
+      expect(error?.message).toBe('offline');
+    }));
+
+    it('is not cached, so getProgress still asks the server', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectTexts('project1', [{ bookNum: 40, chapters: [1] }]);
       env.addOfflineText('project1:MAT:1:target', [{ insert: 'text', attributes: { segment: 'verse_1_1' } }]);
@@ -426,10 +437,8 @@ describe('ProgressService', () => {
       ];
       when(mockedProjectService.getProjectProgress('project1')).thenResolve(serverBooks);
 
-      env.isOnline = false;
-      env.service.getProgress('project1', { maxStalenessMs: 30_000 });
+      env.service.getLocalProgress('project1');
       flushMicrotasks();
-      env.isOnline = true;
       let result: ProjectProgress | undefined;
       env.service.getProgress('project1', { maxStalenessMs: 30_000 }).then(r => (result = r));
       flushMicrotasks();
@@ -466,17 +475,11 @@ class TestEnvironment {
         })
       } as unknown as SFProjectProfileDoc)
     );
-    this.isOnline = true;
     this.service = new ProgressService(
       instance(mockedNoticeService),
       instance(mockedProjectService),
-      instance(mockedOnlineStatusService),
       this.realtimeService
     );
-  }
-
-  set isOnline(value: boolean) {
-    when(mockedOnlineStatusService.isOnline).thenReturn(value);
   }
 
   setProjectTexts(projectId: string, texts: { bookNum: number; chapters: number[] }[]): void {
