@@ -319,7 +319,8 @@ describe('AppComponent', () => {
     // SUT
     env.deleteProject('project01', false);
     verify(mockedDialogService.message(anything())).once();
-    verify(mockedUserService.setCurrentProjectId(anything(), undefined)).once();
+    verify(mockedUserService.clearLocalCurrentProjectId()).once();
+    verify(mockedUserService.setCurrentProjectId(anything(), undefined)).never();
     // Get past setTimeout to navigation
     tick();
     env.fixture.detectChanges();
@@ -367,6 +368,10 @@ describe('AppComponent', () => {
     expect(env.selectedProjectId).toEqual('project01');
     env.removeUserFromProject('project01');
     verify(mockedDialogService.message(anything())).once();
+    // The server clears the user doc's current project when it removes the user, and when the user is being deleted
+    // from the site an op on their user doc fails with "Op version newer than current snapshot" (SF-1786).
+    verify(mockedUserService.clearLocalCurrentProjectId()).once();
+    verify(mockedUserService.setCurrentProjectId(anything(), undefined)).never();
     // Get past setTimeout to navigation
     tick();
     expect(env.location.path()).toEqual('/projects');

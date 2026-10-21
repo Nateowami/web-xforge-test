@@ -63,6 +63,15 @@ export class UserService {
     });
   }
 
+  /**
+   * Forgets the current project on this device only, leaving the user doc alone. Use this when the server has removed
+   * the user from the project or deleted it: the server clears the user doc's current project itself, and may be
+   * deleting the user doc, so an op from here would fail.
+   */
+  clearLocalCurrentProjectId(): void {
+    this.localSettings.remove(CURRENT_PROJECT_ID_SETTING);
+  }
+
   /** Get currently-logged in user. */
   getCurrentUser(): Promise<UserDoc> {
     return this.get(this.currentUserId);
