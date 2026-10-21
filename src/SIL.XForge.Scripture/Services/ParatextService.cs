@@ -2344,6 +2344,7 @@ public class ParatextService : DisposableBase, IParatextService
         DateTime milestonePeriod = DateTime.MaxValue;
         DocumentRevision documentRevision = new DocumentRevision { Timestamp = DateTime.UtcNow };
         int milestoneOps = 0;
+        int milestoneStartIndex = -1;
         for (int i = ops.Length - 1; i >= 0; i--)
         {
             // Emit the op as a milestone if it is:
@@ -2380,14 +2381,22 @@ public class ParatextService : DisposableBase, IParatextService
                     Timestamp = op.Metadata.Timestamp,
                     UserId = op.Metadata.UserId,
                 };
+                milestoneStartIndex = i;
             }
 
             milestoneOps++;
         }
 
-        // Emit the last op(s), if not emitted already
-        if (milestoneOps > 0)
+        // If the chapter was created by a sync, and no other ops are in its milestone, the milestone has the same text as
+        // the latest Paratext commit to the book. We return that commit instead, unless there is no such commit.
+        DocumentRevision? createdByParatextRevision = null;
+        if (milestoneStartIndex == 0 && ops[0].Version == 0 && ops[0].Metadata.Source == OpSource.Paratext)
         {
+            createdByParatextRevision = documentRevision;
+        }
+        else if (milestoneOps > 0)
+        {
+            // Emit the last op(s), if not emitted already
             yield return documentRevision;
         }
 
@@ -2395,7 +2404,7 @@ public class ParatextService : DisposableBase, IParatextService
         milestonePeriod = ops.FirstOrDefault()?.Metadata.Timestamp ?? DateTime.UtcNow;
 
         // Load the Paratext project
-        ScrText scrText;
+        ScrText? scrText = null;
         try
         {
             string ptProjectId = projectDoc.Data.ParatextId;
@@ -2408,6 +2417,15 @@ public class ParatextService : DisposableBase, IParatextService
         catch (DataNotFoundException)
         {
             // If an error occurs loading the project from disk, just return the revisions from Mongo
+        }
+
+        if (scrText is null)
+        {
+            if (createdByParatextRevision is not null)
+            {
+                yield return createdByParatextRevision;
+            }
+
             yield break;
         }
 
@@ -2445,12 +2463,19 @@ public class ParatextService : DisposableBase, IParatextService
             //
             // For this return revision points-in-time, a timestamp for a change made to the book is sufficient.
             paratextUsers.TryGetValue(revision.User, out string? userId);
+            createdByParatextRevision = null;
             yield return new DocumentRevision
             {
                 Source = OpSource.Paratext,
                 Timestamp = revision.CommitTimeStamp.UtcDateTime,
                 UserId = userId,
             };
+        }
+
+        // Emit the revision for the chapter's creation by a sync, if no Paratext commit was returned in its place
+        if (createdByParatextRevision is not null)
+        {
+            yield return createdByParatextRevision;
         }
 
         // Clean up the scripture text

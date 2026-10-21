@@ -5821,6 +5821,131 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task GetRevisionHistoryAsync_ChapterCreatedBySyncCombinedWithLaterOps()
+    {
+        var env = new TestEnvironment();
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        env.SetupProject(env.Project01, associatedPtUser);
+        SFProject project = env.NewSFProject();
+        project.UserRoles = new Dictionary<string, string> { { env.User01, SFProjectRole.PTObserver } };
+        env.AddProjectRepository(project);
+        DateTime created = new DateTime(2025, 4, 25, 18, 1, 0, DateTimeKind.Utc);
+        env.AddCreatedBySyncTextDataOp(project.Id, "RUT", 1, created);
+        env.AddTextDataOp(
+            project.Id,
+            "RUT",
+            1,
+            new Op
+            {
+                Metadata = new OpMetadata { Timestamp = created.AddMinutes(5), Source = OpSource.Paratext },
+                Version = 1,
+            }
+        );
+        env.ProjectHgRunner.SetStandardOutput(env.RuthBookUsfm, true);
+
+        // SUT
+        List<DocumentRevision> revisions = [];
+        await foreach (
+            DocumentRevision revision in env.Service.GetRevisionHistoryAsync(userSecret, project.Id, "RUT", 1)
+        )
+        {
+            revisions.Add(revision);
+        }
+
+        // The milestone has the text of the later op, so it is different to the Paratext commit
+        Assert.AreEqual(2, revisions.Count);
+        Assert.AreEqual(created.AddMinutes(5), revisions[0].Timestamp);
+        Assert.AreEqual(OpSource.Paratext, revisions[1].Source);
+        Assert.AreEqual(new DateTime(2024, 11, 12, 22, 43, 1, DateTimeKind.Utc), revisions[1].Timestamp);
+    }
+
+    [Test]
+    public async Task GetRevisionHistoryAsync_ChapterCreatedBySyncNoParatextCommit()
+    {
+        var env = new TestEnvironment();
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        env.SetupProject(env.Project01, associatedPtUser);
+        SFProject project = env.NewSFProject();
+        project.UserRoles = new Dictionary<string, string> { { env.User01, SFProjectRole.PTObserver } };
+        env.AddProjectRepository(project);
+        DateTime created = new DateTime(2025, 4, 25, 18, 1, 0, DateTimeKind.Utc);
+        env.AddCreatedBySyncTextDataOp(project.Id, "MAT", 1, created);
+        env.ProjectHgRunner.SetStandardOutput(string.Empty, false);
+
+        // SUT
+        List<DocumentRevision> revisions = [];
+        await foreach (
+            DocumentRevision revision in env.Service.GetRevisionHistoryAsync(userSecret, project.Id, "MAT", 1)
+        )
+        {
+            revisions.Add(revision);
+        }
+
+        // The Paratext commit does not change Matthew, so the creation of the chapter is returned
+        Assert.AreEqual(1, revisions.Count);
+        Assert.AreEqual(created, revisions[0].Timestamp);
+        Assert.AreEqual(OpSource.Paratext, revisions[0].Source);
+    }
+
+    [Test]
+    public async Task GetRevisionHistoryAsync_ChapterCreatedBySyncMissingParatextDirectory()
+    {
+        var env = new TestEnvironment();
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        env.SetupProject(env.Project01, associatedPtUser);
+        SFProject project = env.NewSFProject();
+        project.UserRoles = new Dictionary<string, string> { { env.User01, SFProjectRole.PTObserver } };
+        env.AddProjectRepository(project);
+        DateTime created = new DateTime(2025, 4, 25, 18, 1, 0, DateTimeKind.Utc);
+        env.AddCreatedBySyncTextDataOp(project.Id, "RUT", 1, created);
+        env.MockScrTextCollection.FindById(Arg.Any<string>(), Arg.Any<string>()).ReturnsNull();
+
+        // SUT
+        List<DocumentRevision> revisions = [];
+        await foreach (
+            DocumentRevision revision in env.Service.GetRevisionHistoryAsync(userSecret, project.Id, "RUT", 1)
+        )
+        {
+            revisions.Add(revision);
+        }
+
+        Assert.AreEqual(1, revisions.Count);
+        Assert.AreEqual(created, revisions[0].Timestamp);
+    }
+
+    [Test]
+    public async Task GetRevisionHistoryAsync_ChapterCreatedBySyncReturnsParatextCommitInstead()
+    {
+        var env = new TestEnvironment();
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        env.SetupProject(env.Project01, associatedPtUser);
+        SFProject project = env.NewSFProject();
+        project.UserRoles = new Dictionary<string, string> { { env.User01, SFProjectRole.PTObserver } };
+        env.AddProjectRepository(project);
+        DateTime created = new DateTime(2025, 4, 25, 18, 1, 0, DateTimeKind.Utc);
+        env.AddCreatedBySyncTextDataOp(project.Id, "RUT", 1, created);
+        env.ProjectHgRunner.SetStandardOutput(env.RuthBookUsfm, true);
+
+        // SUT
+        List<DocumentRevision> revisions = [];
+        await foreach (
+            DocumentRevision revision in env.Service.GetRevisionHistoryAsync(userSecret, project.Id, "RUT", 1)
+        )
+        {
+            revisions.Add(revision);
+        }
+
+        // Only the Paratext commit from MockHg.Log is returned, as the sync created the chapter with its text
+        Assert.AreEqual(1, revisions.Count);
+        Assert.AreEqual(OpSource.Paratext, revisions[0].Source);
+        Assert.AreEqual(new DateTime(2024, 11, 12, 22, 43, 1, DateTimeKind.Utc), revisions[0].Timestamp);
+    }
+
+    [Test]
     public async Task GetRevisionHistoryAsync_InsufficientPermissions()
     {
         var env = new TestEnvironment();
@@ -7378,6 +7503,31 @@ public class ParatextServiceTests
             string id = TextData.GetTextDocId(projectId, book, chapter);
             RealtimeService.AddRepository("texts", OTType.RichText, new MemoryRepository<TextData>());
             RealtimeService.GetRepository<TextData>().SetOps(id, ops);
+        }
+
+        /// <summary>
+        /// Adds the create op that a sync submits when it creates a chapter from Paratext.
+        /// </summary>
+        public void AddCreatedBySyncTextDataOp(string projectId, string book, int chapter, DateTime timestamp)
+        {
+            RealtimeService.AddRepository("texts", OTType.RichText, new MemoryRepository<TextData>());
+            AddTextDataOp(
+                projectId,
+                book,
+                chapter,
+                new Op
+                {
+                    Metadata = new OpMetadata { Timestamp = timestamp, Source = OpSource.Paratext },
+                    Version = 0,
+                }
+            );
+        }
+
+        public void AddTextDataOp(string projectId, string book, int chapter, Op op)
+        {
+            string id = TextData.GetTextDocId(projectId, book, chapter);
+            MemoryRepository<TextData> repository = RealtimeService.GetRepository<TextData>();
+            repository.SetOps(id, [.. repository.GetOps(id), op]);
         }
 
         public void AddProjectRepository(SFProject proj = null)
