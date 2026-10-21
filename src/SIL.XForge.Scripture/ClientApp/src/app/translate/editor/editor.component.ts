@@ -1032,14 +1032,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       return;
     }
 
-    const verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(this.bookNum, segmentRef);
-    if (verseRef == null) {
-      this._verse = '0';
-      return;
-    }
-
-    // We use a string to account for partial (e.g. 12a) and compound (e.g. 3-4) verses
-    this._verse = verseRef.verse;
+    this._verse = this.getVerseForSegment(this.bookNum, segmentRef);
   }
 
   openTranslatorSettings(): void {
@@ -2005,15 +1998,34 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       this.target.segment.bookNum === this.bookNum &&
       this.target.segment.chapter === this.chapter
     ) {
-      const verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(this.bookNum, this.target.segment.ref);
-      if (verseRef != null) {
-        this._verse = verseRef.verse;
-        return;
-      }
+      this._verse = this.getVerseForSegment(this.bookNum, this.target.segment.ref);
+      return;
     }
 
     // Default to no verse selected
     this._verse = '0';
+  }
+
+  /**
+   * Gets the verse that a segment belongs to. As in Paratext, a section heading or other non-verse segment belongs to
+   * the verse that precedes it.
+   * @returns The verse string, accounting for partial (e.g. 12a) and compound (e.g. 3-4) verses, or '0' if the segment
+   * does not follow a verse, such as a heading before verse 1.
+   */
+  private getVerseForSegment(bookNum: number, segmentRef: string): string {
+    const verseRef: VerseRef | undefined = getVerseRefFromSegmentRef(bookNum, segmentRef);
+    if (verseRef != null) {
+      return verseRef.verse;
+    }
+
+    let verse = '0';
+    for (const [ref] of this.target?.segments ?? []) {
+      if (ref === segmentRef) {
+        return verse;
+      }
+      verse = getVerseRefFromSegmentRef(bookNum, ref)?.verse ?? verse;
+    }
+    return '0';
   }
 
   /** Determine the number of embeds that are within an anchoring.

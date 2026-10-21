@@ -410,6 +410,26 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('sets the verse of a heading to the preceding verse', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig({ selectedBookNum: 42, selectedChapterNum: 1 });
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      env.clickSegmentRef('verse_1_4');
+      expect(env.component.verse).toBe('4');
+
+      // The section heading between verses 2-3 and 4 belongs to verses 2-3, as in Paratext
+      env.clickSegmentRef('s_2');
+      expect(env.component.verse).toBe('2-3');
+
+      // The heading before verse 1 does not belong to a verse
+      env.clickSegmentRef('s_1');
+      expect(env.component.verse).toBe('0');
+
+      env.dispose();
+    }));
+
     it('source retrieved after target', fakeAsync(() => {
       const env = new TestEnvironment();
       const sourceId = new TextDocId('project02', 40, 1);
