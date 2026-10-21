@@ -743,28 +743,23 @@ public class ParatextSyncRunnerTests
         env.VerifyProjectSync(true);
     }
 
-    [Test]
-    public async Task SyncAsync_KeepsCheckingNoteTagId()
+    [TestCase(NoteTag.checkingTagName, NoteTag.checkingTagIcon)]
+    [TestCase("Paratext tag", NoteTag.checkingTagIcon)]
+    public async Task SyncAsync_KeepsCheckingNoteTagId(string name, string icon)
     {
         var env = new TestEnvironment();
         Book[] books = [new Book("MAT", 1)];
         env.SetupSFData(true, false, false, books);
         env.SetupPTData(books);
-        env.ParatextService.GetParatextSettings(Arg.Any<UserSecret>(), Arg.Any<string>())
-            .Returns(
-                new ParatextSettings
-                {
-                    NoteTags =
-                    [
-                        new NoteTag
-                        {
-                            TagId = env.checkingNoteTagId,
-                            Name = NoteTag.checkingTagName,
-                            Icon = NoteTag.checkingTagIcon,
-                        },
-                    ],
-                }
-            );
+        // Paratext matches the checking tag by name, then by icon, so a tag with only the checking icon still counts
+        env.SetupNoteTags(
+            new NoteTag
+            {
+                TagId = env.checkingNoteTagId,
+                Name = name,
+                Icon = icon,
+            }
+        );
 
         await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
 
@@ -773,29 +768,93 @@ public class ParatextSyncRunnerTests
     }
 
     [Test]
-    public async Task SyncAsync_ClearsCheckingNoteTagIdWhenTagReplacedInParatext()
+    public async Task SyncAsync_RecreatesCheckingNoteTagWhenTagReplacedInParatext()
     {
         var env = new TestEnvironment();
         Book[] books = [new Book("MAT", 1)];
         env.SetupSFData(true, false, false, books);
         env.SetupPTData(books);
+        await env.AddAnswerToQuestion("project01", "MAT", 1);
         // A tag added in Paratext with the same ID as the checking tag wins the send/receive merge
-        env.ParatextService.GetParatextSettings(Arg.Any<UserSecret>(), Arg.Any<string>())
-            .Returns(
-                new ParatextSettings
-                {
-                    NoteTags =
-                    [
-                        new NoteTag
-                        {
-                            TagId = env.checkingNoteTagId,
-                            Name = "Paratext tag",
-                            Icon = "01flag1",
-                        },
-                    ],
-                }
-            );
+        env.SetupNoteTags(
+            new NoteTag
+            {
+                TagId = env.checkingNoteTagId,
+                Name = "Paratext tag",
+                Icon = "01flag1",
+            }
+        );
         Assert.That(env.GetProject().CheckingConfig.NoteTagId, Is.EqualTo(env.checkingNoteTagId), "setup");
+
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        SFProject project = env.VerifyProjectSync(true);
+        Assert.That(project.CheckingConfig.NoteTagId, Is.Null);
+        env.ParatextService.DidNotReceive().UpdateCommentTag(Arg.Any<UserSecret>(), "target", Arg.Any<NoteTag>());
+
+        // The next sync creates the checking tag again, after the Paratext tag, and exports the answers with it
+        const int newCheckingNoteTagId = 7;
+        env.ParatextService.UpdateCommentTag(Arg.Any<UserSecret>(), "target", Arg.Any<NoteTag>())
+            .Returns(newCheckingNoteTagId);
+        env.SetupNoteTags(
+            new NoteTag
+            {
+                TagId = env.checkingNoteTagId,
+                Name = "Paratext tag",
+                Icon = "01flag1",
+            },
+            new NoteTag
+            {
+                TagId = newCheckingNoteTagId,
+                Name = NoteTag.checkingTagName,
+                Icon = NoteTag.checkingTagIcon,
+            }
+        );
+
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        project = env.VerifyProjectSync(true);
+        Assert.That(project.CheckingConfig.NoteTagId, Is.EqualTo(newCheckingNoteTagId));
+        env.ParatextService.Received(1)
+            .UpdateCommentTag(
+                Arg.Any<UserSecret>(),
+                "target",
+                Arg.Is<NoteTag>(t => t.Name == NoteTag.checkingTagName && t.TagId == NoteTag.notSetId)
+            );
+        await env
+            .NotesMapper.Received()
+            .GetNotesChangelistAsync(
+                Arg.Any<XElement>(),
+                Arg.Any<IEnumerable<IDocument<Question>>>(),
+                Arg.Any<Dictionary<string, ParatextUserProfile>>(),
+                Arg.Any<Dictionary<string, string>>(),
+                CheckingAnswerExport.MarkedForExport,
+                newCheckingNoteTagId
+            );
+    }
+
+    [Test]
+    public async Task SyncAsync_ClearsCheckingNoteTagIdWhenCheckingTagNameIsOnAnotherTag()
+    {
+        var env = new TestEnvironment();
+        Book[] books = [new Book("MAT", 1)];
+        env.SetupSFData(true, false, false, books);
+        env.SetupPTData(books);
+        // Paratext would use the tag with the checking name, even though the other tag has the checking icon
+        env.SetupNoteTags(
+            new NoteTag
+            {
+                TagId = env.checkingNoteTagId,
+                Name = "Paratext tag",
+                Icon = NoteTag.checkingTagIcon,
+            },
+            new NoteTag
+            {
+                TagId = 7,
+                Name = NoteTag.checkingTagName,
+                Icon = "01flag1",
+            }
+        );
 
         await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
 
@@ -4351,6 +4410,11 @@ public class ParatextSyncRunnerTests
                 .GetRepository<SFProject>()
                 .UpdateAsync(p => p.Id == projectId, u => u.Set(p => p.NoteTags, noteTags));
         }
+
+        public void SetupNoteTags(params NoteTag[] noteTags) =>
+            ParatextService
+                .GetParatextSettings(Arg.Any<UserSecret>(), Arg.Any<string>())
+                .Returns(new ParatextSettings { NoteTags = noteTags });
 
         public Task AddAnswerToQuestion(string projectId, string bookId, int chapter)
         {
