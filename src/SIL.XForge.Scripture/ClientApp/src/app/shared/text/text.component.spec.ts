@@ -1110,6 +1110,31 @@ describe('TextComponent', () => {
       expect(charElements(env).map(e => e.textContent)).toEqual(['2b']);
       expect(env.component.getSegmentText(segment)).toEqual('Elimelek, 2b and his wife');
     }));
+
+    it('keeps the style of the text around an editor edit that has no attributes', fakeAsync(() => {
+      const env = setUpChapter([
+        { insert: 'The ', attributes: { segment } },
+        { insert: 'quick fox', attributes: { segment, char: { style: 'wj', cid: '1111' } } }
+      ]);
+
+      // Lynx builds its corrections as attribute-less data deltas and applies them as user edits
+      const editor: Quill = env.component.editor!;
+      const edit = new Delta().retain(2 + 'The quick'.length).insert(' brown');
+      editor.updateContents(env.component.viewModel.dataDeltaToEditorDelta(edit), 'user');
+      tick();
+      env.fixture.detectChanges();
+
+      expect(charElements(env).map(e => e.textContent)).toEqual(['quick brown fox']);
+      expect(env.component.getSegmentText(segment)).toEqual('The quick brown fox');
+      const textDoc: TextDoc = env.realtimeService.get<TextDoc>(
+        TextDoc.COLLECTION,
+        new TextDocId('project01', 40, chapterNum).toString()
+      );
+      expect(textDoc.data!.ops).toContain({
+        insert: 'quick brown fox',
+        attributes: { segment, char: { style: 'wj', cid: '1111' } }
+      });
+    }));
   });
 
   it('isValidSelectionForCurrentSegment', fakeAsync(() => {

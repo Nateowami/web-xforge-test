@@ -1,6 +1,6 @@
 import { Injectable, OnDestroy } from '@angular/core';
 import { VerseRef } from '@sillsdev/scripture';
-import { cloneDeep, omit } from 'lodash-es';
+import { cloneDeep } from 'lodash-es';
 import Quill, { Delta, EmitterSource, Range } from 'quill';
 import { DeltaOperation, StringMap } from 'rich-text';
 import { BehaviorSubject, Subject, Subscription } from 'rxjs';
@@ -204,7 +204,7 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
 
     if (subscribeToUpdates) {
       this.changesSub = this.textDoc.remoteChanges$.subscribe(ops => {
-        const deltaWithEmbeds: Delta = this.addEmbeddedElementsToDelta(ops as Delta);
+        const deltaWithEmbeds: Delta = this.addEmbeddedElementsToDelta(ops as Delta, true);
         editor.updateContents(deltaWithEmbeds, 'api');
       });
     }
@@ -601,7 +601,7 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
   }
 
   dataDeltaToEditorDelta(dataDelta: Delta): Delta {
-    return this.addEmbeddedElementsToDelta(dataDelta);
+    return this.addEmbeddedElementsToDelta(dataDelta, false);
   }
 
   getEmbedCountsToOffsetFunc(): (offset: number) => number {
@@ -928,8 +928,10 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
   /**
    * Add in the embedded elements displayed in quill to the delta. This can be used to convert a delta from a remote
    * edit to apply to the current editor content.
+   * @param charStyleFromOp Whether inserted content takes its character style from the op (true for ops from the text
+   * doc) rather than from the editor at the insertion point.
    */
-  private addEmbeddedElementsToDelta(modelDelta: Delta): Delta {
+  private addEmbeddedElementsToDelta(modelDelta: Delta, charStyleFromOp: boolean): Delta {
     if (modelDelta.ops == null || modelDelta.ops.length < 1) {
       return new Delta();
     }
@@ -967,10 +969,16 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
         }
         previousOp = 'delete';
       } else if (cloneOp.insert != null) {
-        // The surrounding view attributes (segment, highlights, etc.) come from the editor, but the character style
-        // belongs to the inserted content, so it must come from the op rather than from the neighbouring text.
-        const viewAttributes: StringMap = omit(getAttributesAtPosition(this.checkEditor(), editorStartPos), 'char');
-        cloneOp.attributes = { ...viewAttributes, ...cloneOp.attributes };
+        const attributes: StringMap = getAttributesAtPosition(this.checkEditor(), editorStartPos);
+        if (charStyleFromOp) {
+          // A text doc op carries the character style of the inserted content, which may differ from that of the
+          // neighbouring text. Edits built for the editor (e.g. Lynx corrections) carry none and keep the editor's.
+          delete attributes['char'];
+          if (cloneOp.attributes?.['char'] != null) {
+            attributes['char'] = cloneOp.attributes['char'];
+          }
+        }
+        cloneOp.attributes = attributes;
         previousOp = 'insert';
       }
       (adjustedDelta as any).push(cloneOp);
