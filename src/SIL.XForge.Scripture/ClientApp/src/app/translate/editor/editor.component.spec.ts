@@ -2344,6 +2344,34 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('note icon falls back to the changed To Do icon after its note tag is deleted remotely', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+
+      // Give the verse 1 thread a note of the type that will be deleted
+      const noteThread: NoteThreadDoc = env.getNoteThreadDoc('project01', 'dataid01');
+      const index: number = noteThread.data!.notes.length;
+      const note: Note = { ...cloneDeep(noteThread.data!.notes[index - 1]), dataId: 'tag2note', tagId: 2 };
+      noteThread.submitJson0Op(op => op.insert(nt => nt.notes, index, note), false);
+      env.wait();
+
+      const verse1Segment: HTMLElement = env.getSegmentElement('verse_1_1')!;
+      let verse1Note = verse1Segment.querySelector('display-note') as HTMLElement;
+      expect(verse1Note.getAttribute('style')).toEqual('--icon-file: url(/assets/icons/TagIcons/02tag1.png);');
+
+      // Simulate a sync after the note type was deleted and the To Do icon was changed in Paratext
+      const projectDoc: SFProjectProfileDoc = env.getProjectDoc('project01');
+      const noteTags: NoteTag[] = cloneDeep(projectDoc.data!.noteTags!).filter(t => t.tagId !== 2);
+      noteTags.find(t => t.tagId === 1)!.icon = '11rectangle1';
+      projectDoc.submitJson0Op(op => op.set(p => p.noteTags!, noteTags), false);
+      env.wait();
+
+      verse1Note = verse1Segment.querySelector('display-note') as HTMLElement;
+      expect(verse1Note.getAttribute('style')).toEqual('--icon-file: url(/assets/icons/TagIcons/11rectangle1.png);');
+      env.dispose();
+    }));
+
     it('note dialog appears after undo delete-a-note', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
