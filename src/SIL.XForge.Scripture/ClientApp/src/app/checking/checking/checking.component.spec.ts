@@ -2902,6 +2902,41 @@ describe('CheckingComponent', () => {
       expect(env.isSegmentHighlighted(1, 6)).toBe(true);
     }));
 
+    it('keeps the chapter audio highlight when another user adds a question', fakeAsync(() => {
+      const env = new TestEnvironment({ user: CHECKER_USER });
+      env.selectQuestion(1);
+      expect(env.isSegmentHighlighted(1, 1)).toBe(true);
+
+      env.mockScriptureAudioAndPlay();
+      env.component.highlightSegments('verse_1_5');
+      env.waitForSliderUpdate();
+      env.fixture.detectChanges();
+      expect(env.isSegmentHighlighted(1, 1)).toBe(false);
+      expect(env.isSegmentHighlighted(1, 5)).toBe(true);
+
+      const dateNow = new Date();
+      env.insertQuestion({
+        dataId: objectId(),
+        ownerRef: ADMIN_USER.id,
+        projectRef: 'project01',
+        text: 'Admin just added a question.',
+        answers: [],
+        verseRef: { bookNum: 43, chapterNum: 1, verseNum: 2 },
+        isArchived: false,
+        dateCreated: dateNow.toJSON(),
+        dateModified: dateNow.toJSON()
+      });
+      env.waitForSliderUpdate();
+      env.fixture.detectChanges();
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.component.isAudioPlaying()).toBe(true);
+      expect(env.isSegmentHighlighted(1, 1)).toBe(false);
+      expect(env.isSegmentHighlighted(1, 2)).toBe(false);
+      expect(env.isSegmentHighlighted(1, 5)).toBe(true);
+    }));
+
     // TODO: Get this test working
     xit('pauses audio on reload (changing book)', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER, questionScope: 'book' });
