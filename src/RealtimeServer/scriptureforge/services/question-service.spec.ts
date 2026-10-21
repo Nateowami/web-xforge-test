@@ -5,6 +5,7 @@ import { User, USERS_COLLECTION } from '../../common/models/user';
 import { createTestUser } from '../../common/models/user-test-data';
 import { RealtimeServer } from '../../common/realtime-server';
 import { SchemaVersionRepository } from '../../common/schema-version-repository';
+import { docSubmitJson0Op } from '../../common/utils/sharedb-utils';
 import {
   allowAll,
   clientConnect,
@@ -220,6 +221,42 @@ describe('QuestionService', () => {
     await expect(
       submitOpData(env.server, conn, QUESTIONS_COLLECTION, getQuestionDocId('project01', QUESTION_ID), singleComponent)
     ).rejects.toThrow('Permission denied');
+  });
+
+  it('removes a duplicate like when a user likes an answer from two clients at once', async () => {
+    const env = new TestEnvironment();
+    await env.createData();
+
+    // Both clients are at the same version, as when each liked the answer while offline
+    const questionDocId = getQuestionDocId('project01', QUESTION_ID);
+    const doc1 = await fetchDoc(clientConnect(env.server, OTHER_CHECKER_ID), QUESTIONS_COLLECTION, questionDocId);
+    const doc2 = await fetchDoc(clientConnect(env.server, OTHER_CHECKER_ID), QUESTIONS_COLLECTION, questionDocId);
+    await Promise.all(
+      [doc1, doc2].map(doc =>
+        docSubmitJson0Op<Question>(doc, ops => ops.insert(q => q.answers[0].likes, 0, { ownerRef: OTHER_CHECKER_ID }))
+      )
+    );
+    await flushPromises();
+
+    const question = env.db.docs[QUESTIONS_COLLECTION][questionDocId].data as Question;
+    expect(question.answers[0].likes).toEqual([{ ownerRef: OTHER_CHECKER_ID }]);
+  });
+
+  it('keeps likes of different users on an answer', async () => {
+    const env = new TestEnvironment();
+    await env.createData();
+
+    const questionDocId = getQuestionDocId('project01', QUESTION_ID);
+    const doc1 = await fetchDoc(clientConnect(env.server, OTHER_CHECKER_ID), QUESTIONS_COLLECTION, questionDocId);
+    const doc2 = await fetchDoc(clientConnect(env.server, PROJECT_ADMIN_ID), QUESTIONS_COLLECTION, questionDocId);
+    await Promise.all([
+      docSubmitJson0Op<Question>(doc1, ops => ops.insert(q => q.answers[0].likes, 0, { ownerRef: OTHER_CHECKER_ID })),
+      docSubmitJson0Op<Question>(doc2, ops => ops.insert(q => q.answers[0].likes, 0, { ownerRef: PROJECT_ADMIN_ID }))
+    ]);
+    await flushPromises();
+
+    const question = env.db.docs[QUESTIONS_COLLECTION][questionDocId].data as Question;
+    expect(question.answers[0].likes.map(l => l.ownerRef).sort()).toEqual([PROJECT_ADMIN_ID, OTHER_CHECKER_ID]);
   });
 
   it('lets community checkers query questions', async () => {

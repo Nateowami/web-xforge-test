@@ -4,7 +4,7 @@ import { OwnedData } from '../../common/models/owned-data';
 import { ValidationSchema } from '../../common/models/validation-schema';
 import { ProjectDomainConfig } from '../../common/services/project-data-service';
 import { ANY_INDEX } from '../../common/utils/obj-path';
-import { createFetchQuery, docSubmitJson0Op } from '../../common/utils/sharedb-utils';
+import { createFetchQuery, docFetch, docSubmitJson0Op } from '../../common/utils/sharedb-utils';
 import { Answer } from '../models/answer';
 import { Comment } from '../models/comment';
 import { Question, QUESTION_INDEX_PATHS, QUESTIONS_COLLECTION } from '../models/question';
@@ -255,6 +255,17 @@ export class QuestionService extends SFProjectDataService<Question> {
     ];
   }
 
+  protected async onInsert(
+    userId: string,
+    docId: string,
+    projectDomain: SFProjectDomain,
+    entity: OwnedData
+  ): Promise<void> {
+    if (projectDomain === SFProjectDomain.Likes) {
+      await this.removeDuplicateLikes(userId, docId, entity.ownerRef);
+    }
+  }
+
   protected async onDelete(
     userId: string,
     docId: string,
@@ -263,6 +274,31 @@ export class QuestionService extends SFProjectDataService<Question> {
   ): Promise<void> {
     if (projectDomain === SFProjectDomain.Answers || projectDomain === SFProjectDomain.AnswerComments) {
       await this.removeEntityReadRefs(userId, docId, projectDomain, entity);
+    }
+  }
+
+  /**
+   * Removes all but one of a user's likes on each answer. A user who likes an answer on two clients while offline, or at
+   * the same moment, sends two inserts that are both valid against the version each client had, so both are applied.
+   */
+  private async removeDuplicateLikes(userId: string, docId: string, likeOwnerRef: string): Promise<void> {
+    const conn = this.server!.connectAsServer(userId);
+    try {
+      const doc = conn.get(this.collection, docId);
+      await docFetch(doc);
+      await docSubmitJson0Op<Question>(doc, ops => {
+        const question = doc.data as Question;
+        question.answers.forEach((answer, answerIndex) => {
+          const firstIndex = answer.likes.findIndex(l => l.ownerRef === likeOwnerRef);
+          for (let i = answer.likes.length - 1; i > firstIndex; i--) {
+            if (answer.likes[i].ownerRef === likeOwnerRef) {
+              ops.remove(q => q.answers[answerIndex].likes, i);
+            }
+          }
+        });
+      });
+    } finally {
+      conn.close();
     }
   }
 
