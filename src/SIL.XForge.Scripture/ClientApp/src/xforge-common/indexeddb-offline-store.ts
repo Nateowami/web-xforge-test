@@ -92,6 +92,29 @@ export class IndexeddbOfflineStore extends OfflineStore {
     return await getAllFromCursor(objectStore);
   }
 
+  async some<T extends OfflineData>(collection: string, predicate: (item: T) => boolean): Promise<boolean> {
+    const db = await this.openDB();
+
+    const transaction = db.transaction(collection);
+    const objectStore = transaction.objectStore(collection);
+
+    // A cursor reads one record at a time, so a large collection (e.g. every cached chapter) is never all in memory
+    return await new Promise<boolean>((resolve, reject) => {
+      const request = objectStore.openCursor();
+      request.onerror = () => reject(request.error);
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (cursor == null) {
+          resolve(false);
+        } else if (predicate(cursor.value)) {
+          resolve(true);
+        } else {
+          cursor.continue();
+        }
+      };
+    });
+  }
+
   /** When offline this may return or it might wait until the user comes online before returning. */
   async get<T extends OfflineData>(collection: string, id: string): Promise<T | undefined> {
     const db = await this.openDB();

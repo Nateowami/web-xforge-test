@@ -271,10 +271,14 @@ export class AuthService {
 
   async logOut(): Promise<void> {
     let proceedWithLogout: boolean = true;
-    if (!this.onlineStatusService.isOnline && (await this.hasUnsavedOfflineChanges())) {
+    // Changes can be waiting to be sent while online too, e.g. just after reconnecting or when the server is not responding
+    if (await this.hasUnsavedChanges()) {
+      const isOnline: boolean = this.onlineStatusService.isOnline;
       proceedWithLogout = await this.dialogService.confirmWithOptions({
-        title: 'warnings.unsaved_offline_changes',
-        affirmative: 'warnings.logout_and_discard_offline_changes',
+        title: isOnline ? 'warnings.unsaved_changes' : 'warnings.unsaved_offline_changes',
+        affirmative: isOnline
+          ? 'warnings.logout_and_discard_unsaved_changes'
+          : 'warnings.logout_and_discard_offline_changes',
         negative: 'warnings.stay_logged_in',
         highlightAffirmative: false
       });
@@ -298,22 +302,35 @@ export class AuthService {
   /**
    * Checks the offline store for changes that have not yet been sent to the server, which would be lost when the offline
    * store is deleted on log out. Pending ops are written to the offline store as soon as they are submitted, so this
-   * includes changes to docs that are not currently loaded.
+   * includes changes to docs that are not currently loaded. If the offline store cannot be read, this returns true so
+   * that the user is warned but can still log out.
    */
-  private async hasUnsavedOfflineChanges(): Promise<boolean> {
-    for (const docType of this.typeRegistry.docTypes) {
-      const docs = await this.offlineStore.getAll<RealtimeOfflineData>(docType.COLLECTION);
-      // A doc with no version was created locally and the server has not yet acknowledged its creation
-      if (docs.some(doc => doc.v == null || doc.pendingOps?.length > 0)) return true;
-    }
-    for (const fileType of this.typeRegistry.fileTypes) {
-      const files = await this.offlineStore.getAll<FileOfflineData>(fileType);
-      // These are the uploads and deletions that FileService will send to the server when it comes back online
-      if (files.some(file => file.projectRef != null && (file.deleteRef != null || file.onlineUrl == null))) {
-        return true;
+  private async hasUnsavedChanges(): Promise<boolean> {
+    try {
+      for (const docType of this.typeRegistry.docTypes) {
+        // A doc with no version was created locally and the server has not yet acknowledged its creation
+        const hasUnsavedDoc: boolean = await this.offlineStore.some<RealtimeOfflineData>(
+          docType.COLLECTION,
+          doc => doc.v == null || doc.pendingOps?.length > 0
+        );
+        if (hasUnsavedDoc) return true;
       }
+      for (const fileType of this.typeRegistry.fileTypes) {
+        // These are the uploads and deletions that FileService will send to the server when it comes back online
+        const hasUnsavedFile: boolean = await this.offlineStore.some<FileOfflineData>(
+          fileType,
+          file => file.projectRef != null && (file.deleteRef != null || file.onlineUrl == null)
+        );
+        if (hasUnsavedFile) return true;
+      }
+      return false;
+    } catch (error) {
+      this.reportingService.silentError(
+        'Unable to check the offline store for unsaved changes on log out',
+        ErrorReportingService.normalizeError(error)
+      );
+      return true;
     }
-    return false;
   }
 
   pullAuthUserProfile(): Promise<void> {
