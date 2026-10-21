@@ -1,4 +1,5 @@
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { MatDialog } from '@angular/material/dialog';
 import { provideRouter } from '@angular/router';
 import { createTestUserProfile } from 'realtime-server/lib/esm/common/models/user-test-data';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
@@ -6,9 +7,10 @@ import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge
 import { TrainingData } from 'realtime-server/lib/esm/scriptureforge/models/training-data';
 import { ParagraphBreakFormat, QuoteFormat } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
 import { of } from 'rxjs';
-import { anything, mock, verify, when } from 'ts-mockito';
+import { anything, capture, mock, verify, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { FeatureFlagService } from 'xforge-common/feature-flags/feature-flag.service';
+import { I18nService } from 'xforge-common/i18n.service';
 import { UserProfileDoc } from 'xforge-common/models/user-profile-doc';
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/test-utils';
@@ -37,6 +39,7 @@ const mockedActivatedProjectService = mock(ActivatedProjectService);
 const mockedFeatureFlagsService = mock(FeatureFlagService);
 const mockedDraftOptionsService = mock(DraftOptionsService);
 const mockedPermissionsService = mock(PermissionsService);
+const mockedMatDialog = mock(MatDialog);
 
 const oneDay = 1000 * 60 * 60 * 24;
 const dateBeforeFormattingSupported = new Date(FORMATTING_OPTIONS_SUPPORTED_DATE.getTime() - oneDay).toISOString();
@@ -58,7 +61,8 @@ describe('DraftHistoryEntryComponent', () => {
       { provide: ActivatedProjectService, useMock: mockedActivatedProjectService },
       { provide: FeatureFlagService, useMock: mockedFeatureFlagsService },
       { provide: DraftOptionsService, useMock: mockedDraftOptionsService },
-      { provide: PermissionsService, useMock: mockedPermissionsService }
+      { provide: PermissionsService, useMock: mockedPermissionsService },
+      { provide: MatDialog, useMock: mockedMatDialog }
     ]
   }));
 
@@ -567,6 +571,22 @@ describe('DraftHistoryEntryComponent', () => {
 
       expect(component.booksWithLowConfidence(entry)).toBe(2);
       expect(fixture.nativeElement.querySelector('app-display-confidence')).not.toBeNull();
+    }));
+  });
+
+  describe('openImportWizard', () => {
+    it('should open the wizard in the current interface direction', fakeAsync(() => {
+      const i18n: I18nService = TestBed.inject(I18nService);
+      component.entry = getStandardBuildDto({});
+      tick();
+
+      i18n.setLocale('ar');
+      component.openImportWizard();
+      i18n.setLocale('en');
+      component.openImportWizard();
+
+      expect(capture(mockedMatDialog.open).first()[1]?.direction).toBe('rtl');
+      expect(capture(mockedMatDialog.open).last()[1]?.direction).toBe('ltr');
     }));
   });
 
