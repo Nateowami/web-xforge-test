@@ -92,8 +92,8 @@
                     >
                       <mat-expansion-panel-header>
                         <mat-panel-title>
-                          <span class="book-chapter-heading flex"
-                            >{{ getBookName(text) + " " + chapter?.number }}
+                          <span class="book-chapter-heading flex">
+                            <span class="chapter-name">{{ getBookName(text) + " " + chapter?.number }}</span>
                             @if (chapter.hasAudio) {
                               <mat-icon [matTooltip]="t('chapter_audio_attached')" class="material-icons-outlined">
                                 audio_file

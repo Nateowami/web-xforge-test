@@ -50,6 +50,11 @@
   .book-chapter-heading {
     gap: 10px;
     align-items: center;
+    flex-wrap: nowrap;
+    min-width: 0;
+    mat-icon {
+      flex-shrink: 0;
+    }
   }
 }
 
