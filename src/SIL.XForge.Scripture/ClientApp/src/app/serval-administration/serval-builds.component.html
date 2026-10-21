@@ -588,7 +588,7 @@
                                 @if (hasLowConfidence(row, getBookId(bookConfidence))) {
                                   <div class="detail-keyvalue">
                                     <span class="detail-key">
-                                      {{ "canon.book_names." + getBookId(bookConfidence) | transloco }}
+                                      {{ bookConfidenceLabel(row, bookConfidence) }}
                                     </span>
                                     <span class="detail-value">
                                       <app-display-confidence [showIconAndText]="true"></app-display-confidence>
@@ -597,7 +597,7 @@
                                 }
                                 <div class="detail-keyvalue">
                                   <span class="detail-key">
-                                    {{ "canon.book_names." + getBookId(bookConfidence) | transloco }} - Confidence
+                                    {{ bookConfidenceLabel(row, bookConfidence) }} - Confidence
                                   </span>
                                   <span class="detail-value">{{ bookConfidence.confidence.toFixed(4) }}</span>
                                 </div>

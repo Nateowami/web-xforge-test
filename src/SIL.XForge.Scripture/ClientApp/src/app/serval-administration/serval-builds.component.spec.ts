@@ -1,6 +1,7 @@
 import { ComponentFixture, fakeAsync, flush, TestBed } from '@angular/core/testing';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, provideRouter } from '@angular/router';
+import { Canon } from '@sillsdev/scripture';
 import { BehaviorSubject, firstValueFrom, Observable, skip, Subject, take } from 'rxjs';
 import { anything, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
@@ -25,6 +26,7 @@ import { NormalizedDateRange } from './date-range-picker.component';
 import { DraftJobsExportService, SpreadsheetRow } from './draft-jobs-export.service';
 import { ServalBuildProblemsDialog } from './serval-build-problems-dialog.component';
 import {
+  BookAndChapters,
   buildProjectDisplayName,
   BuildReportProblem,
   BuildReportTimeline,
@@ -1890,6 +1892,84 @@ describe('ServalBuildsComponent', () => {
       const formatted: string = env.component['formatLanguageWithName']('es');
 
       expect(formatted).toBe('es (Spanish)');
+    });
+  });
+
+  describe('bookConfidenceLabel', () => {
+    function rowTranslating(env: TestEnvironment, ...booksAndChapters: BookAndChapters[][]): ServalBuildRow {
+      return env.createRow({
+        translationBooks: booksAndChapters.map((entries: BookAndChapters[], i: number) => ({
+          sfProjectId: `source-${i}`,
+          projectDisplayName: `SRC${i}`,
+          booksAndChapters: entries
+        }))
+      });
+    }
+
+    beforeEach(() => {
+      when(mockI18nService.localizeBook(anything())).thenCall((bookId: string) => `${bookId}-name`);
+      when(mockI18nService.localizeBookWithChapters(anything(), anything(), anything())).thenCall(
+        (bookId: string, chapters: string) => `${bookId}-name ${chapters}`
+      );
+      when(mockI18nService.localizeBookRangeLabels(anything())).thenCall((bookNums: number[]) =>
+        bookNums.map((bookNum: number) => `${Canon.bookNumberToId(bookNum)}-name`)
+      );
+      when(mockI18nService.enumerateList(anything())).thenCall((items: string[]) => items.join(', '));
+    });
+
+    it('includes the drafted chapters when only part of the book was drafted', () => {
+      const env = new TestEnvironment();
+      const row: ServalBuildRow = rowTranslating(env, [{ bookId: 'GEN', chapters: [2, 3, 4, 5] }, { bookId: 'EXO' }]);
+
+      // SUT
+      const label: string = env.component['bookConfidenceLabel'](row, { bookNum: 1, confidence: 0.5 });
+
+      expect(label).toBe('GEN-name 2-5');
+    });
+
+    it('shows just the book name when the whole book was drafted', () => {
+      const env = new TestEnvironment();
+      const row: ServalBuildRow = rowTranslating(env, [{ bookId: 'GEN', chapters: [2, 3] }, { bookId: 'EXO' }]);
+
+      // SUT
+      const label: string = env.component['bookConfidenceLabel'](row, { bookNum: 2, confidence: 0.5 });
+
+      expect(label).toBe('EXO-name');
+    });
+
+    it('shows just the book name when the listed chapters cover the whole book', () => {
+      const env = new TestEnvironment();
+      const allOfRuth: number[] = [1, 2, 3, 4];
+      const row: ServalBuildRow = rowTranslating(env, [{ bookId: 'RUT', chapters: allOfRuth }]);
+
+      // SUT
+      const label: string = env.component['bookConfidenceLabel'](row, { bookNum: 8, confidence: 0.5 });
+
+      expect(label).toBe('RUT-name');
+    });
+
+    it('combines chapters of the book drafted from more than one source', () => {
+      const env = new TestEnvironment();
+      const row: ServalBuildRow = rowTranslating(
+        env,
+        [{ bookId: 'GEN', chapters: [2, 3] }],
+        [{ bookId: 'GEN', chapters: [7] }]
+      );
+
+      // SUT
+      const label: string = env.component['bookConfidenceLabel'](row, { bookNum: 1, confidence: 0.5 });
+
+      expect(label).toBe('GEN-name 2-3, 7');
+    });
+
+    it('shows just the book name when the translation ranges do not mention the book', () => {
+      const env = new TestEnvironment();
+      const row: ServalBuildRow = rowTranslating(env);
+
+      // SUT
+      const label: string = env.component['bookConfidenceLabel'](row, { bookNum: 1, confidence: 0.5 });
+
+      expect(label).toBe('GEN-name');
     });
   });
 
