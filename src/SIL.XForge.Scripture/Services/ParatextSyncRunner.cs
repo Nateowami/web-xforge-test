@@ -1672,11 +1672,19 @@ public class ParatextSyncRunner : IParatextSyncRunner
     }
 
     /// <summary>
-    /// Whether the tag is one that <see cref="IParatextService.UpdateCommentTag"/> would match for the checking tag.
+    /// Gets the ID of the tag that <see cref="IParatextService.UpdateCommentTag"/> would use for the checking tag.
     /// </summary>
-    private static bool IsCheckingNoteTag(NoteTag noteTag) =>
-        string.Equals(noteTag.Name, NoteTag.checkingTagName, StringComparison.OrdinalIgnoreCase)
-        || noteTag.Icon == NoteTag.checkingTagIcon;
+    /// <remarks>
+    /// This follows ParatextData's <c>CommentTags.FindMatchingTag</c>: the first tag with the same name, or if there is
+    /// none, the first tag with the same icon. Its built-in spelling, biblical term and conflict tags are left out, as
+    /// they cannot match. Returns <c>null</c> if no tag matches, in which case a new tag would be created.
+    /// </remarks>
+    private static int? FindCheckingNoteTagId(IEnumerable<NoteTag> noteTags) =>
+        (
+            noteTags.FirstOrDefault(t =>
+                string.Equals(t.Name, NoteTag.checkingTagName, StringComparison.OrdinalIgnoreCase)
+            ) ?? noteTags.FirstOrDefault(t => t.Icon == NoteTag.checkingTagIcon)
+        )?.TagId;
 
     /// <summary>
     /// Archives all real-time question docs in the database for a book.
@@ -1870,10 +1878,11 @@ public class ParatextSyncRunner : IParatextSyncRunner
                     op.Set(pd => pd.NoteTags, settings.NoteTags, _noteTagListEqualityComparer);
                     // If SF and Paratext created a note tag with the same ID, the Paratext tag replaced
                     // SF's tag during send/receive. Clear the ID so the next sync creates the checking tag
-                    // again and re-tags the exported answers.
+                    // again and re-tags the exported answers. Until that sync, the answers exported in this
+                    // sync stay under the Paratext user's tag.
                     if (
                         _projectDoc.Data.CheckingConfig.NoteTagId is int checkingNoteTagId
-                        && !settings.NoteTags.Any(t => t.TagId == checkingNoteTagId && IsCheckingNoteTag(t))
+                        && FindCheckingNoteTagId(settings.NoteTags) != checkingNoteTagId
                     )
                     {
                         op.Unset(pd => pd.CheckingConfig.NoteTagId);
