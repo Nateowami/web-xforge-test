@@ -20,7 +20,7 @@ import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { AuthType, getAuthType, User } from 'realtime-server/lib/esm/common/models/user';
 import { isParatextRole, SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { Observable, Subscription } from 'rxjs';
-import { filter, map } from 'rxjs/operators';
+import { distinctUntilChanged, filter, map } from 'rxjs/operators';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { AuthService } from 'xforge-common/auth.service';
 import { AvatarComponent } from 'xforge-common/avatar/avatar.component';
@@ -166,6 +166,7 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
     // Send error reports that could not be delivered while offline (including in a previous session)
     onlineStatusService.onlineStatus$
       .pipe(
+        distinctUntilChanged(),
         filter(isOnline => isOnline),
         quietTakeUntilDestroyed(this.destroyRef)
       )
