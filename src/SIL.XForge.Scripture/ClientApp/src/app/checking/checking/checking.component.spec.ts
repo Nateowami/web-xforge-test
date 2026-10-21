@@ -2663,6 +2663,36 @@ describe('CheckingComponent', () => {
       flush();
       discardPeriodicTasks();
     }));
+
+    it('shows the chapter audio player when project setting changes to hide text', fakeAsync(() => {
+      const env = new TestEnvironment({ user: CHECKER_USER });
+      env.selectQuestion(1);
+      expect(env.component.showScriptureAudioPlayer).withContext('setup').toBe(false);
+
+      env.setHideScriptureText(true);
+      env.waitForSliderUpdate();
+
+      expect(env.component.showScriptureAudioPlayer).toBe(true);
+      flush();
+      discardPeriodicTasks();
+    }));
+
+    it('shows the active question again when project setting stops hiding text', fakeAsync(() => {
+      const testProject: SFProject = TestEnvironment.generateTestProject();
+      testProject.checkingConfig.hideCommunityCheckingText = true;
+      const env = new TestEnvironment({ user: CHECKER_USER, testProject });
+      env.selectQuestion(1);
+      expect(env.component.showScriptureAudioPlayer).withContext('setup').toBe(true);
+
+      env.setHideScriptureText(false);
+      env.waitForSliderUpdate();
+
+      expect(env.component.hideChapterText).toBe(false);
+      expect(env.component.showScriptureAudioPlayer).toBe(false);
+      expect(env.answerPanel).not.toBeNull();
+      flush();
+      discardPeriodicTasks();
+    }));
   });
 
   describe('Chapter Audio', () => {
