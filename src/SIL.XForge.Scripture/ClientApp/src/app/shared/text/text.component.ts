@@ -16,7 +16,7 @@ import { TranslocoService } from '@ngneat/transloco';
 import { Canon, VerseRef } from '@sillsdev/scripture';
 import { isEqual, merge } from 'lodash-es';
 import { QuillEditorComponent } from 'ngx-quill';
-import Quill, { Delta, EmitterSource, Range } from 'quill';
+import Quill, { Delta, EmitterSource, Op, Range } from 'quill';
 import QuillCursors from 'quill-cursors';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { AuthType, getAuthType } from 'realtime-server/lib/esm/common/models/user';
@@ -243,6 +243,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
             } else if (this.isRtl && this.isSelectionAtSegmentStart) {
               this.movePrevSegment(true);
               return false;
+            } else if (this.isLtr && this.moveForwardOverNoteIcon()) {
+              return false;
             }
             return true;
           }
@@ -255,6 +257,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
               return false;
             } else if (this.isLtr && this.isSelectionAtSegmentStart) {
               this.movePrevSegment(true);
+            } else if (this.isRtl && this.moveForwardOverNoteIcon()) {
+              return false;
             }
             return true;
           }
@@ -1548,6 +1552,24 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       wordLength += leadingSpacesCount;
     }
     return { index: selectionIndex, length: wordLength };
+  }
+
+  /**
+   * Moves the cursor past a note icon that directly follows it. Quill's own arrow key handling for embeds is disabled,
+   * and the browser would otherwise put the caret inside the note icon element, taking extra key presses to get past.
+   * @returns true if the cursor was moved.
+   */
+  private moveForwardOverNoteIcon(): boolean {
+    const selection: Range | null | undefined = this.editor?.getSelection();
+    if (this.editor == null || selection == null || selection.length > 0) {
+      return false;
+    }
+    const nextInsert: Op['insert'] = this.editor.getContents(selection.index, 1).ops[0]?.insert;
+    if (nextInsert == null || isString(nextInsert) || nextInsert['note-thread-embed'] == null) {
+      return false;
+    }
+    this.editor.setSelection(selection.index + 1, 0, 'user');
+    return true;
   }
 
   private moveNextSegment(end: boolean = true): void {
