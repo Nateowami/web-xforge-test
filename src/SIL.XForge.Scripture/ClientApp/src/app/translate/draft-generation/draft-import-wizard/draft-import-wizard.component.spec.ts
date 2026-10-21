@@ -240,6 +240,28 @@ describe('DraftImportWizardComponent', () => {
     verify(mockMatDialogRef.close(true)).once();
   }));
 
+  it('does not wait for import progress when SignalR cannot connect', fakeAsync(() => {
+    configureDraft('GEN30-32', false);
+
+    const env = new TestEnvironment();
+    // No SignalR notifications will arrive for the import
+    when(mockDraftNotificationService.subscribeToProject(anything())).thenResolve(false);
+    env.wait();
+
+    env.selectProject('paratext04');
+    env.clickNextButton(1);
+
+    verify(
+      mockProjectService.onlineApplyPreTranslationToProject('project01', 'GEN30-32', anything(), anything())
+    ).once();
+    expect(env.component.isImporting).toBe(false);
+    expect(env.component.importComplete).toBe(false);
+    expect(env.fixture.nativeElement.querySelector('[data-test-id="import-without-progress"]')).not.toBeNull();
+
+    env.clickNextButton(6, 'done');
+    verify(mockMatDialogRef.close(false)).once();
+  }));
+
   it('scopes the overwrite confirmation to the drafted chapters', fakeAsync(() => {
     // The build drafted Genesis 1-3; project04 has existing text in Genesis 1 only.
     configureDraft('GEN1-3', false);
@@ -437,6 +459,7 @@ class TestEnvironment {
       this.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, id)
     );
     when(mockTextDocService.userHasGeneralEditRight(anything())).thenReturn(true);
+    when(mockDraftNotificationService.subscribeToProject(anything())).thenResolve(true);
     this.realtimeService.addSnapshot<SFProjectUserConfig>(SFProjectUserConfigDoc.COLLECTION, {
       id: 'project01:user01',
       data: { selectedDraftTargetParatextId: 'paratext02' } as SFProjectUserConfig
