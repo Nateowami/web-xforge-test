@@ -58,6 +58,12 @@ namespace SIL.XForge.Scripture.Services;
 /// </summary>
 public class ParatextService : DisposableBase, IParatextService
 {
+    /// <summary>
+    /// The number of characters of context the Paratext editor stores on each side of a note's selected text.
+    /// ParatextData does not expose this, as the editor chooses it when creating the note.
+    /// </summary>
+    private const int NoteContextLength = 10;
+
     internal HttpClient _registryClient;
     private readonly IOptions<ParatextOptions> _paratextOptions;
     private readonly IRepository<UserSecret> _userSecretRepository;
@@ -70,9 +76,6 @@ public class ParatextService : DisposableBase, IParatextService
     private readonly IJwtTokenHelper _jwtTokenHelper;
     private readonly IParatextDataHelper _paratextDataHelper;
     private readonly IGuidService _guidService;
-
-    /// <summary>The number of characters of context Paratext stores on each side of a note's selected text.</summary>
-    private const int NoteContextLength = 10;
     private readonly string _dblServerUri = "https://pt-resources-adapter.library.bible/";
     private readonly string _registryServerUri = "https://registry.paratext.org";
     private readonly string _sendReceiveServerUri = InternetAccess.uriProduction;
@@ -1471,13 +1474,11 @@ public class ParatextService : DisposableBase, IParatextService
             }
             if (existingThread.Comments.Count > 0)
             {
-                // SF's position is relative to where the note was attached at the last sync, so it does not apply if
-                // the note has since been reattached in Paratext, or has had its reattachment removed
+                // SF's position is relative to the location the note was attached to at the last sync, which is
+                // given by the last reattachment, as in GetThreadTextAnchor. It does not apply if that has changed.
                 bool reattachmentChanged =
-                    newCommentIds.Any(id => existingThread.Comments.First(c => c.Id == id).Reattached != null)
-                    || threadDoc.Data.Notes.Any(n =>
-                        n.Reattached != null && threadChange.NoteIdsRemoved.Contains(n.DataId)
-                    );
+                    threadDoc.Data.Notes.LastOrDefault(n => n.Reattached != null)?.Reattached
+                    != existingThread.Comments.LastOrDefault(c => c.Reattached != null)?.Reattached;
                 // Get the text anchor to use for the note
                 TextAnchor range = reattachmentChanged
                     ? GetThreadTextAnchor(existingThread, chapterDeltas)
@@ -3794,7 +3795,23 @@ public class ParatextService : DisposableBase, IParatextService
         {
             string sfVerseText = GetVerseText(sfChapterDelta, verseRef).Replace("\n", "\0");
             int sfAnchorEnd = sfTextAnchor.Start + sfTextAnchor.Length;
-            if (sfTextAnchor.Start >= 0 && sfAnchorEnd <= sfVerseText.Length)
+            // SF only updates the anchor for edits made in the editor, so it is stale if the text was changed in
+            // another way, such as by applying a draft. Only use it if it covers where the comment matches in the
+            // same text, which is what an edit inside the selection leaves.
+            (int commentStart, int commentEnd) = MatchNoteSelection(
+                sfVerseText,
+                contextBefore,
+                selectedText,
+                contextAfter,
+                startPos
+            );
+            if (
+                sfTextAnchor.Start >= 0
+                && sfAnchorEnd <= sfVerseText.Length
+                && commentEnd > commentStart
+                && sfTextAnchor.Start <= commentStart
+                && commentEnd <= sfAnchorEnd
+            )
             {
                 startPos = sfTextAnchor.Start;
                 selectedText = sfVerseText.Substring(sfTextAnchor.Start, sfTextAnchor.Length);
@@ -3807,6 +3824,20 @@ public class ParatextService : DisposableBase, IParatextService
             }
         }
 
+        (int start, int end) = MatchNoteSelection(verseText, contextBefore, selectedText, contextAfter, startPos);
+        // The text anchor is relative to the text in the verse
+        return new TextAnchor { Start = start, Length = end - start };
+    }
+
+    /// <summary>Finds where a note's selected text is in the verse text, as Paratext does.</summary>
+    private static (int Start, int End) MatchNoteSelection(
+        string verseText,
+        string contextBefore,
+        string selectedText,
+        string contextAfter,
+        int startPos
+    )
+    {
         PtxUtils.StringUtils.MatchContexts(
             verseText,
             contextBefore,
@@ -3816,8 +3847,7 @@ public class ParatextService : DisposableBase, IParatextService
             ref startPos,
             out int posJustPastLastCharacter
         );
-        // The text anchor is relative to the text in the verse
-        return new TextAnchor { Start = startPos, Length = posJustPastLastCharacter - startPos };
+        return (startPos, posJustPastLastCharacter);
     }
 
     /// <summary>

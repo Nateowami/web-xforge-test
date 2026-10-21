@@ -2695,6 +2695,151 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task GetNoteThreadChanges_ReattachmentDeletedInParatext_KeepsSFPosition()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        string verseStr = "MAT 1:7";
+        env.AddNoteThreadData([
+            new ThreadComponents
+            {
+                threadNum = 1,
+                noteCount = 1,
+                reattachedVerseStr = verseStr,
+            },
+        ]);
+        env.AddParatextComments([
+            new ThreadComponents
+            {
+                threadNum = 1,
+                noteCount = 1,
+                username = env.Username01,
+                reattachedVerseStr = verseStr,
+            },
+        ]);
+        // Paratext deletes a comment by marking it deleted. Paratext still attaches the note where a deleted
+        // reattachment comment says, so SF's position still applies.
+        env.ProjectCommentManager.FindThread("thread1").Comments.Single(c => c.Reattached != null).Deleted = true;
+
+        // An SF user edited inside the text the note was reattached to, and SF grew the anchor to match
+        string editedText = "reattTestached text";
+        Dictionary<int, ChapterDelta> chapterDeltas = env.GetChapterDeltasByBook(1, env.ContextBefore, "Text selected");
+        chapterDeltas[1] = new ChapterDelta(
+            1,
+            chapterDeltas[1].LastVerse,
+            chapterDeltas[1].IsValid,
+            TestEnvironment.ReplaceText(chapterDeltas[1].Delta, env.ReattachedSelectedText, editedText)
+        );
+        Dictionary<int, Delta> sfChapterDeltasBeforeSync = chapterDeltas.ToDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value.Delta
+        );
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        IDocument<NoteThread> noteThreadDoc = await TestEnvironment.GetNoteThreadDocAsync(conn, "dataId1");
+        await noteThreadDoc.SubmitJson0OpAsync(op =>
+            op.Set(t => t.Position, new TextAnchor { Start = env.AlternateBefore.Length, Length = editedText.Length })
+        );
+
+        Dictionary<string, ParatextUserProfile> syncUsers = new Dictionary<string, ParatextUserProfile>
+        {
+            {
+                env.Username01,
+                new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 }
+            },
+        };
+        IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+            userSecret,
+            ptProjectId,
+            40,
+            [noteThreadDoc],
+            chapterDeltas,
+            syncUsers,
+            sfChapterDeltasBeforeSync
+        );
+
+        NoteThreadChange change1 = changes.Single(c => c.ThreadId == "thread1");
+        Assert.That(change1.NotesDeleted.Single().DataId, Is.EqualTo("reattachedthread1"));
+        Assert.That(change1.Position, Is.Null);
+    }
+
+    [Test]
+    public async Task GetNoteThreadChanges_SFPositionStale_UsesParatextComment()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        env.AddNoteThreadData([
+            new ThreadComponents { threadNum = 1, noteCount = 1 },
+            new ThreadComponents { threadNum = 2, noteCount = 1 },
+        ]);
+        env.AddParatextComments([
+            new ThreadComponents
+            {
+                threadNum = 1,
+                noteCount = 1,
+                username = env.Username01,
+            },
+            new ThreadComponents
+            {
+                threadNum = 2,
+                noteCount = 1,
+                username = env.Username01,
+            },
+        ]);
+
+        // The SF text was changed outside the editor (e.g. by applying a draft), so SF did not move the anchors
+        string contextBefore = "Drafted text. " + env.ContextBefore;
+        Dictionary<int, ChapterDelta> chapterDeltas = env.GetChapterDeltasByBook(1, contextBefore, "Text selected");
+        Dictionary<int, Delta> sfChapterDeltasBeforeSync = chapterDeltas.ToDictionary(
+            kvp => kvp.Key,
+            kvp => kvp.Value.Delta
+        );
+        int selectedLength = "Text selected thread1".Length;
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        IEnumerable<IDocument<NoteThread>> noteThreadDocs = await TestEnvironment.GetNoteThreadDocsAsync(
+            conn,
+            ["dataId1", "dataId2"]
+        );
+        // Where the note was before the text changed
+        await noteThreadDocs
+            .Single(t => t.Data.DataId == "dataId1")
+            .SubmitJson0OpAsync(op =>
+                op.Set(t => t.Position, new TextAnchor { Start = env.ContextBefore.Length, Length = selectedLength })
+            );
+        // One character off
+        await noteThreadDocs
+            .Single(t => t.Data.DataId == "dataId2")
+            .SubmitJson0OpAsync(op =>
+                op.Set(t => t.Position, new TextAnchor { Start = contextBefore.Length + 1, Length = selectedLength })
+            );
+
+        Dictionary<string, ParatextUserProfile> syncUsers = new Dictionary<string, ParatextUserProfile>
+        {
+            {
+                env.Username01,
+                new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 }
+            },
+        };
+        IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+            userSecret,
+            ptProjectId,
+            40,
+            noteThreadDocs,
+            chapterDeltas,
+            syncUsers,
+            sfChapterDeltasBeforeSync
+        );
+
+        // The Paratext comment's selected text is still in the verse, so the note moves back onto it
+        TextAnchor expected = new TextAnchor { Start = contextBefore.Length, Length = selectedLength };
+        Assert.That(changes.Single(c => c.ThreadId == "thread1").Position, Is.EqualTo(expected));
+        Assert.That(changes.Single(c => c.ThreadId == "thread2").Position, Is.EqualTo(expected));
+    }
+
+    [Test]
     public async Task GetNoteThreadChanges_ReattachedNote_HandleInvalidValues()
     {
         var env = new TestEnvironment();
@@ -8115,6 +8260,18 @@ public class ParatextServiceTests
                     return true;
                 });
         }
+
+        /// <summary>Replaces text in the text inserts of a delta.</summary>
+        public static Delta ReplaceText(Delta delta, string oldText, string newText) =>
+            new Delta(
+                delta.Ops.Select(op =>
+                {
+                    JToken newOp = op.DeepClone();
+                    if (newOp[Delta.InsertType] is JValue { Type: JTokenType.String } insert)
+                        newOp[Delta.InsertType] = ((string)insert).Replace(oldText, newText);
+                    return newOp;
+                })
+            );
 
         public ReattachedThreadInfo GetReattachedThreadInfo(string verseStr)
         {
