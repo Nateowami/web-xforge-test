@@ -46,7 +46,7 @@
     }
 
     <div class="status-line" aria-live="polite">
-      @if (autoAdvancing) {
+      @if (showAllSyncedContinuing) {
         <mat-icon class="status-synced-icon">check_circle</mat-icon>
         <span>{{ t("all_synced_continuing") }}</span>
       } @else if (showSyncCountMessage) {

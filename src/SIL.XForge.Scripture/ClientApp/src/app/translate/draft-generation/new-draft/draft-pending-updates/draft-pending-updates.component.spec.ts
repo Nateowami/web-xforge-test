@@ -494,6 +494,7 @@ describe('DraftPendingUpdatesComponent', () => {
       env.completeSync('proj1', true);
 
       expect(env.component.autoAdvancing).toBeTrue();
+      expect(env.component.showAllSyncedContinuing).toBeTrue();
       tick(1500);
     }));
 
@@ -583,6 +584,8 @@ describe('DraftPendingUpdatesComponent', () => {
       env.onlineStatus$.next(false); // the user goes offline before it fires
       tick(1500);
       expect(emitted).toBeUndefined();
+      // The offline message shows instead of a claim that the wizard is continuing.
+      expect(env.component.showAllSyncedContinuing).toBeFalse();
 
       env.onlineStatus$.next(true);
       expect(emitted).toEqual(['proj1']);

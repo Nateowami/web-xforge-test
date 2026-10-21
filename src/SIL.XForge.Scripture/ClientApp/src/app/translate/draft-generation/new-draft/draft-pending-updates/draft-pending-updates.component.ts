@@ -54,6 +54,14 @@ export class DraftPendingUpdatesComponent implements OnInit {
     return this.autoAdvanceTimeout != null;
   }
 
+  /**
+   * Whether to say the wizard is continuing. Offline the advance is held (see advanceWhenOnline) and the offline
+   * message says why, so claiming to continue would be misleading.
+   */
+  get showAllSyncedContinuing(): boolean {
+    return this.autoAdvancing && this.isOnline;
+  }
+
   constructor(
     private readonly projectService: SFProjectService,
     private readonly permissionsService: PermissionsService,

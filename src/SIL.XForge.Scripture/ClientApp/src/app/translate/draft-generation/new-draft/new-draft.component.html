@@ -23,6 +23,9 @@
       </button>
     </div>
   } @else if (initData == null || page === "loading") {
+    @if (!onlineStatusService.isOnline) {
+      <p class="loading-text offline-text">{{ t("offline_message") }}</p>
+    }
     <mat-spinner class="loading-indicator"></mat-spinner>
     <p class="loading-text">{{ t("loading") }}</p>
   } @else {
