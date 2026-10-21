@@ -50,4 +50,7 @@ mat-form-field {
   flex-direction: row;
   margin-top: 2px;
   min-height: 40px;
+  // The icon buttons' 48px touch targets extend 4px past the 40px buttons. Dialog content has no bottom padding
+  // when it is followed by dialog actions, so without this the overflow makes the dialog content scroll.
+  padding-bottom: 4px;
 }
