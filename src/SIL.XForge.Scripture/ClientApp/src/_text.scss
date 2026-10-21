@@ -111,8 +111,11 @@ quill-editor {
       padding: 0;
       text-decoration: line-through;
 
+      // Deleted notes are not counted, so that the other notes keep the letters they have in the current text.
+      // A deleted note therefore has no letter of its own, and must not show the counter (which would be "0").
       usx-note[data-caller='+']:not([data-style='x']) > span::before {
         counter-increment: none;
+        content: '*';
       }
     }
 
