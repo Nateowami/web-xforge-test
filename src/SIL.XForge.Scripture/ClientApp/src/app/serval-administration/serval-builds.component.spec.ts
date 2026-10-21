@@ -2,7 +2,7 @@ import { ComponentFixture, fakeAsync, flush, TestBed } from '@angular/core/testi
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
 import { ActivatedRoute, provideRouter } from '@angular/router';
 import { Canon } from '@sillsdev/scripture';
-import { BehaviorSubject, firstValueFrom, Observable, skip, Subject, take } from 'rxjs';
+import { BehaviorSubject, firstValueFrom, Observable, of, skip, Subject, take } from 'rxjs';
 import { anything, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { I18nService } from 'xforge-common/i18n.service';
@@ -1971,6 +1971,39 @@ describe('ServalBuildsComponent', () => {
 
       expect(label).toBe('GEN-name');
     });
+
+    it('labels the confidence of a partly drafted book with its chapters in the Build Confidence card', fakeAsync(() => {
+      const env = new TestEnvironment();
+      const report: ServalBuildReportDto = env.createReport({ buildId: 'build-partial' });
+      report.config.translationScriptureRanges = [
+        { sfProjectId: 'source-project', scriptureRange: 'GEN2-5;EXO', shortName: 'SRC', name: 'Source' }
+      ];
+      report.buildConfidences = {
+        projectId: 'project-id',
+        buildId: 'build-partial',
+        bookConfidences: [
+          { bookNum: 1, confidence: 0.5 },
+          { bookNum: 2, confidence: 0.75 }
+        ],
+        chapterConfidences: [],
+        verseConfidences: []
+      };
+      when(mockI18nService.locale$).thenReturn(of(I18nService.defaultLocale));
+      env.builds$.next([report]);
+      env.fixture.detectChanges();
+      env.component['onDateRangeChange']({ start: new Date(0), end: new Date(Date.UTC(2100, 0, 1)) });
+      env.waitForRowUpdate();
+      env.component['toggleRowExpansion'](env.component['rows'][0]);
+
+      // SUT
+      env.fixture.detectChanges();
+
+      const labels: string[] = Array.from(
+        (env.fixture.nativeElement as HTMLElement).querySelectorAll('.book-confidence .detail-key'),
+        (element: Element) => element.textContent?.trim() ?? ''
+      );
+      expect(labels).toEqual(['GEN-name 2-5 - Confidence', 'EXO-name - Confidence']);
+    }));
   });
 
   describe('requesting user details', () => {
