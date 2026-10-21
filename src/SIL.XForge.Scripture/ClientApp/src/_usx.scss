@@ -438,7 +438,11 @@ usx-verse {
       color: var(--sf-usx-vp-color);
       top: -0.25em;
       position: relative;
-      margin-left: 0.15em;
+      // Without isolation the published number's characters are reordered together with the verse
+      // number's digits, so in an RTL project "12" + "3ب" displays as "ب123". Isolated, it always
+      // follows the verse number in reading order, so the gap belongs on its inline start.
+      unicode-bidi: isolate;
+      margin-inline-start: 0.15em;
     }
   }
 }
