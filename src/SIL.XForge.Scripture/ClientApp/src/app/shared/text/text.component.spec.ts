@@ -441,6 +441,50 @@ describe('TextComponent', () => {
     expect(segmentText).toEqual('Poetry third line');
   }));
 
+  it('can select text in table cells', fakeAsync(() => {
+    const chapterNum = 2;
+    // \p \v 1 B \tr \th1 C \tr \tc1 \v 2 D \p E
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { blank: true }, attributes: { segment: 'p_1' } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'B', attributes: { segment: 'verse_2_1' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } },
+      { insert: 'C', attributes: { segment: 'cell_1_1_1' } },
+      {
+        insert: '\n',
+        attributes: { table: { id: 'table_1' }, row: { id: 'row_1_1' }, cell: { style: 'th1', align: 'start' } }
+      },
+      { insert: { blank: true }, attributes: { segment: 'cell_1_2_1' } },
+      { insert: { verse: { number: '2', style: 'v' } } },
+      { insert: 'D', attributes: { segment: 'verse_2_2' } },
+      {
+        insert: '\n',
+        attributes: { table: { id: 'table_1' }, row: { id: 'row_1_2' }, cell: { style: 'tc1', align: 'start' } }
+      },
+      { insert: 'E', attributes: { segment: 'p_2' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+
+    expect(env.component.getSegmentText('cell_1_1_1')).toEqual('C');
+    expect(env.component.getSegmentRange('cell_1_2_1')).toBeDefined();
+    expect(env.component.getSegmentText('verse_2_2')).toEqual('D');
+    expect(env.component.getSegmentText('verse_2_2/p_1')).toEqual('E');
+
+    const editor: Quill = env.component.editor!;
+    editor.setSelection(env.component.getSegmentRange('verse_2_1')!.index, 0, 'user');
+    tick();
+    const cellIndex: number = env.component.getSegmentRange('cell_1_1_1')!.index + 1;
+    editor.setSelection(cellIndex, 0, 'user');
+    tick();
+
+    expect(env.component.segmentRef).toEqual('cell_1_1_1');
+    expect(editor.getSelection()?.index).toEqual(cellIndex);
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('can undo when segment is blank', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();

@@ -696,6 +696,10 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
                 const paraRef = getParagraphRef(nextIds, style, style);
                 paraSegments[0].ref = paraRef;
               }
+            } else if (paraSegments[0]?.origRef?.startsWith('cell_')) {
+              // table cell. Quill drops the table attributes from the cell's newline, so the cell is identified by
+              // the ref the server gave its text.
+              paraSegments[0].ref = paraSegments[0].origRef;
             } else if (paraSegments.length > 0) {
               // remove blank at the beginning of an implicit paragraph
               paraSegments.shift();
