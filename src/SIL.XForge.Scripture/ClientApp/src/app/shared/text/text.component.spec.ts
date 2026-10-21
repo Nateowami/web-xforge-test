@@ -688,7 +688,8 @@ describe('TextComponent', () => {
     env.id = new TextDocId('project01', 40, 1);
     env.waitForEditor();
     const editor: Quill = env.component.editor!;
-    editor.setSelection(env.component.getSegmentRange('verse_1_4')!.index + 2, 0, 'user');
+    const caretIndex: number = env.component.getSegmentRange('verse_1_4')!.index + 2;
+    editor.setSelection(caretIndex, 0, 'user');
     tick();
 
     for (const detail of [1, 2]) {
@@ -696,7 +697,47 @@ describe('TextComponent', () => {
       expect(env.getSegment('verse_1_4')!.dispatchEvent(click)).withContext(`detail ${detail}`).toBeTrue();
     }
     tick();
-    expect(editor.getSelection()!.length).toEqual(0);
+    const selection: QuillRange = editor.getSelection()!;
+    expect({ index: selection.index, length: selection.length }).toEqual({ index: caretIndex, length: 0 });
+  }));
+
+  it('ends the triple click selection at a note in the segment', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    // One note before the text of verse 3, one in the middle of the text of verse 4
+    env.embedThreadAt('MAT 1:3', { start: 0, length: 0 });
+    env.embedNoteAtVerse(4);
+    tick();
+    env.fixture.detectChanges();
+    const editor: Quill = env.component.editor!;
+    const selectionChanges: QuillRange[] = [];
+    editor.on('selection-change', (range: QuillRange | null) => {
+      if (range != null) selectionChanges.push({ index: range.index, length: range.length });
+    });
+
+    for (const ref of ['verse_1_3', 'verse_1_4']) {
+      const range: QuillRange = env.component.getSegmentRange(ref)!;
+      editor.setSelection(range.index + range.length, 0, 'user');
+      tick();
+      selectionChanges.length = 0;
+
+      const tripleClick = new MouseEvent('mousedown', { bubbles: true, cancelable: true, detail: 3 });
+      env.getSegment(ref)!.dispatchEvent(tripleClick);
+      tick();
+      env.fixture.detectChanges();
+
+      // The selection is set once, already in the form adjustSelection() would leave it in
+      const selection: QuillRange = editor.getSelection()!;
+      expect(selectionChanges)
+        .withContext(ref)
+        .toEqual([{ index: selection.index, length: selection.length }]);
+      expect(env.component.isValidSelectionForCurrentSegment(selection)).withContext(ref).toBeTrue();
+      expect(editor.getText(selection.index, selection.length))
+        .withContext(ref)
+        .toEqual(ref === 'verse_1_3' ? 'target: chapter 1, verse 3.' : 'target: ');
+    }
   }));
 
   it('leaves triple clicks to the browser in a read-only text', fakeAsync(() => {
