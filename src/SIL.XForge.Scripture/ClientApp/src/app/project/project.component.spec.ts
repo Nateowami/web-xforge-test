@@ -1,5 +1,3 @@
-import { provideHttpClient, withInterceptorsFromDi } from '@angular/common/http';
-import { provideHttpClientTesting } from '@angular/common/http/testing';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
 import { ActivatedRoute, ActivatedRouteSnapshot, Router } from '@angular/router';
 import { TranslocoService } from '@ngneat/transloco';
@@ -18,6 +16,9 @@ import { anything, deepEqual, mock, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
 import { DialogService } from 'xforge-common/dialog.service';
 import { UserDoc } from 'xforge-common/models/user-doc';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
+import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
 import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
 import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { configureTestingModule } from 'xforge-common/test-utils';
@@ -47,8 +48,8 @@ describe('ProjectComponent', () => {
       { provide: TranslocoService, useMock: mockedTranslocoService },
       { provide: ResumeCheckingService, useMock: mockResumeCheckingService },
       { provide: DialogService, useMock: mockedDialogService },
-      provideHttpClient(withInterceptorsFromDi()),
-      provideHttpClientTesting()
+      { provide: OnlineStatusService, useClass: TestOnlineStatusService },
+      provideTestOnlineStatus()
     ]
   }));
 
@@ -145,6 +146,45 @@ describe('ProjectComponent', () => {
     expect().nothing();
   }));
 
+  it('navigates to translate overview when offline and the user config is not stored offline', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectData({ selectedTask: 'translate', selectedBooknum: 41, memberProjectIdSuffixes: [1] });
+    env.onlineStatusService.setIsOnline(false);
+    env.fixture.detectChanges();
+    tick();
+
+    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate']), anything())).once();
+    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate', 'MRK']), anything())).never();
+    expect().nothing();
+  }));
+
+  it('navigates to checking overview when offline and the user config is not stored offline', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectData({ role: SFProjectRole.CommunityChecker, memberProjectIdSuffixes: [1] });
+    env.onlineStatusService.setIsOnline(false);
+    env.fixture.detectChanges();
+    tick();
+
+    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'checking']), anything())).once();
+    expect().nothing();
+  }));
+
+  it('navigates to last text when offline and the user config is stored offline', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectData({
+      selectedTask: 'translate',
+      selectedBooknum: 41,
+      memberProjectIdSuffixes: [1],
+      userConfigStoredOffline: true
+    });
+    env.onlineStatusService.setIsOnline(false);
+    env.fixture.detectChanges();
+    tick();
+
+    verify(mockedRouter.navigate(deepEqual(['projects', 'project1', 'translate', 'MRK']), anything())).once();
+    expect().nothing();
+  }));
+
   it('do not navigate when project does not exist', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();
@@ -187,6 +227,7 @@ class TestEnvironment {
   readonly component: ProjectComponent;
   readonly fixture: ComponentFixture<ProjectComponent>;
   readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
+  readonly onlineStatusService = TestBed.inject(OnlineStatusService) as TestOnlineStatusService;
 
   constructor(enableSharing = false) {
     when(mockedActivatedRoute.params).thenReturn(of({ projectId: 'project1' }));
@@ -218,6 +259,7 @@ class TestEnvironment {
       role?: SFProjectRole;
       checkingEnabled?: boolean;
       memberProjectIdSuffixes?: number[];
+      userConfigStoredOffline?: boolean;
     } = {}
   ): void {
     if (args.projectIdSuffix != null) {
@@ -226,16 +268,20 @@ class TestEnvironment {
     const memberProjectIdSuffixes: number[] = args.memberProjectIdSuffixes ?? [];
     for (const projectIdSuffix of memberProjectIdSuffixes) {
       const projectId = `project${projectIdSuffix}`;
-      this.realtimeService.addSnapshot<SFProjectUserConfig>(SFProjectUserConfigDoc.COLLECTION, {
-        id: getSFProjectUserConfigDocId(projectId, 'user01'),
-        data: createTestProjectUserConfig({
-          projectRef: projectId,
-          ownerRef: 'user01',
-          selectedTask: args.selectedTask,
-          selectedBookNum: args.selectedTask == null ? undefined : args.selectedBooknum,
-          isTargetTextRight: true
-        })
-      });
+      this.realtimeService.addSnapshot<SFProjectUserConfig>(
+        SFProjectUserConfigDoc.COLLECTION,
+        {
+          id: getSFProjectUserConfigDocId(projectId, 'user01'),
+          data: createTestProjectUserConfig({
+            projectRef: projectId,
+            ownerRef: 'user01',
+            selectedTask: args.selectedTask,
+            selectedBookNum: args.selectedTask == null ? undefined : args.selectedBooknum,
+            isTargetTextRight: true
+          })
+        },
+        args.userConfigStoredOffline
+      );
 
       this.realtimeService.addSnapshot<SFProjectProfile>(SFProjectProfileDoc.COLLECTION, {
         id: projectId,
