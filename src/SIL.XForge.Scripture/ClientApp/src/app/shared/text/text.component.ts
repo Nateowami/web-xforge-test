@@ -928,18 +928,15 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     }
   }
 
-  get commenterSelection(): Range[] {
-    const ret: Range[] = [];
-    if (this.editor == null) return ret;
-    for (const segment of this.viewModel.segments) {
-      const range = segment[1];
-      const formats = getAttributesAtPosition(this.editor, range.index);
-      if (formats['commenter-selection'] === true) {
-        ret.push(range);
-      }
-    }
-
-    return ret;
+  /** Whether the start of the first verse text segment of the verse has the commenter selection formatting. */
+  isVerseSelected(verseRef: VerseRef): boolean {
+    if (this.editor == null) return false;
+    const segment: string | undefined = this.filterSegments(this.getCompatibleSegments(verseRef)).find(s =>
+      VERSE_REGEX.test(s)
+    );
+    const range: Range | undefined = segment == null ? undefined : this.getSegmentRange(segment);
+    if (range == null) return false;
+    return getAttributesAtPosition(this.editor, range.index)['commenter-selection'] === true;
   }
 
   /** Adds or removes the commenter selection formatting on the verse text and its verse number. */

@@ -491,6 +491,10 @@ describe('TextComponent', () => {
 
     // SUT
     env.triggerUndo();
+    // undo must not bring back the selection formatting that verse 1 had when the text was typed
+    contents = env.component.getSegmentContents('verse_1_1')!;
+    expect(contents.ops![0].attributes!['commenter-selection']).toBeUndefined();
+    expect((contents.ops![0].insert as any).blank).toBe(true);
     env.component.setVerseSelection(new VerseRef('JHN 1:2'), false);
     env.component.setVerseSelection(new VerseRef('JHN 1:1'), true);
     contents = env.component.getSegmentContents('verse_1_1')!;

@@ -96,7 +96,7 @@ import {
 } from '../../shared/sf-tab-group';
 import { getCombinedVerseTextDoc, paratextUsersFromRoles } from '../../shared/test-utils';
 import { provideQuillRegistrations } from '../../shared/text/quill-editor-registration/quill-providers';
-import { PRESENCE_EDITOR_ACTIVE_TIMEOUT } from '../../shared/text/text.component';
+import { PRESENCE_EDITOR_ACTIVE_TIMEOUT, TextComponent } from '../../shared/text/text.component';
 import { XmlUtils } from '../../shared/utils';
 import { BiblicalTermsComponent } from '../biblical-terms/biblical-terms.component';
 import { DraftGenerationService } from '../draft-generation/draft-generation.service';
@@ -3168,7 +3168,10 @@ describe('EditorComponent', () => {
 
       env.clickSegmentRef('verse_1_1');
       env.wait();
-      // Undo can leave the commenter selection format on verses that are no longer selected
+      // Undo can leave the commenter selection format on verses that are no longer selected. Reading the format back
+      // made clicking verse 2 deselect it and hide the FAB. Verse 3 also gets a stale format so that a self-heal that
+      // only checks whether any verse looks selected cannot hide the bug. The selected-verse self-heal does restore
+      // the verse 2 highlight, so the FAB assertion is the one that catches a toggle based on the read-back format.
       for (const segmentRef of ['verse_1_2', 'verse_1_3']) {
         const range: Range = env.component.target!.getSegmentRange(segmentRef)!;
         env.component.target!.editor!.formatText(range.index - 1, 1, { 'commenter-selection': true }, 'api');
@@ -3179,6 +3182,30 @@ describe('EditorComponent', () => {
       env.wait();
       expect(env.getSegmentElement('verse_1_2')!.classList).toContain('commenter-selection');
       expect(env.getSegmentElement('verse_1_1')!.classList).not.toContain('commenter-selection');
+      expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('visible');
+
+      env.dispose();
+    }));
+
+    it('re-applies the selection format to the selected verse when another verse has a stale format', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+
+      env.clickSegmentRef('verse_1_1');
+      env.wait();
+      const target: TextComponent = env.component.target!;
+      // a stale format on another verse must not stop the selected verse from being restored
+      const verse3Range: Range = target.getSegmentRange('verse_1_3')!;
+      target.editor!.formatText(verse3Range.index - 1, 1, { 'commenter-selection': true }, 'api');
+      const verse1Range: Range = target.getSegmentRange('verse_1_1')!;
+      target.editor!.formatText(verse1Range.index - 1, verse1Range.length + 1, { 'commenter-selection': null }, 'api');
+      expect(env.getSegmentElement('verse_1_1')!.classList).not.toContain('commenter-selection');
+      env.wait();
+
+      env.clickSegmentRef('verse_1_1');
+      env.wait();
+      expect(env.getSegmentElement('verse_1_1')!.classList).toContain('commenter-selection');
       expect(window.getComputedStyle(env.insertNoteFab.nativeElement)['visibility']).toBe('visible');
 
       env.dispose();
