@@ -2,7 +2,7 @@ import { DestroyRef } from '@angular/core';
 import { fakeAsync, tick } from '@angular/core/testing';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
-import { Subject } from 'rxjs';
+import { BehaviorSubject, Subject } from 'rxjs';
 import { anything, instance, mock, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
@@ -573,6 +573,36 @@ describe('DraftPendingUpdatesComponent', () => {
       expect(emitted).toBeFalse();
     }));
 
+    it('holds the auto-advance while offline and advances once back online', fakeAsync(async () => {
+      const env = new TestEnvironment([makeProject('proj1', 'P1', SFProjectRole.ParatextAdministrator, 1)]);
+      await env.component.ngOnInit();
+      let emitted: string[] | undefined;
+      env.component.continue.subscribe(ids => (emitted = ids));
+
+      env.completeSync('proj1', true); // schedules the auto-advance
+      env.onlineStatus$.next(false); // the user goes offline before it fires
+      tick(1500);
+      expect(emitted).toBeUndefined();
+
+      env.onlineStatus$.next(true);
+      expect(emitted).toEqual(['proj1']);
+    }));
+
+    it('does not advance when destroyed while waiting to come back online', fakeAsync(async () => {
+      const env = new TestEnvironment([makeProject('proj1', 'P1', SFProjectRole.ParatextAdministrator, 1)]);
+      await env.component.ngOnInit();
+      let emitted = false;
+      env.component.continue.subscribe(() => (emitted = true));
+
+      env.completeSync('proj1', true);
+      env.onlineStatus$.next(false);
+      tick(1500);
+      env.destroyRef.destroy();
+      env.onlineStatus$.next(true);
+
+      expect(emitted).toBeFalse();
+    }));
+
     it('cancels the pending auto-advance when the component is destroyed', fakeAsync(async () => {
       const env = new TestEnvironment([makeProject('proj1', 'P1', SFProjectRole.ParatextAdministrator, 1)]);
       await env.component.ngOnInit();
@@ -629,13 +659,15 @@ class TestEnvironment {
   readonly mockedProjectService = mock(SFProjectService);
   readonly mockedErrorReportingService = mock(ErrorReportingService);
   readonly mockedOnlineStatusService = mock(OnlineStatusService);
+  readonly onlineStatus$ = new BehaviorSubject<boolean>(true);
   readonly destroyRef = new FakeDestroyRef();
   private readonly mockedUserService = mock(UserService);
   private readonly projectDocs = new Map<string, { data: any; remoteChanges$: Subject<void> }>();
 
   constructor(projects: ProjectSpec[]) {
     when(this.mockedUserService.currentUserId).thenReturn(USER_ID);
-    when(this.mockedOnlineStatusService.isOnline).thenReturn(true);
+    when(this.mockedOnlineStatusService.isOnline).thenCall(() => this.onlineStatus$.value);
+    when(this.mockedOnlineStatusService.onlineStatus$).thenReturn(this.onlineStatus$);
 
     for (const spec of projects) {
       if (spec.failsToLoad) {
