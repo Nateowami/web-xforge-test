@@ -684,6 +684,15 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         this.positionInsertNoteFab();
       });
 
+    // The FAB is hidden while any dialog is open. Dialogs that do not restore it themselves (such as the one
+    // showing a footnote) would otherwise leave it hidden, and clicking the selected verse again does not
+    // change the segment, so show it again for the selected verse once all dialogs have closed.
+    this.dialogService.afterAllClosed.pipe(quietTakeUntilDestroyed(this.destroyRef)).subscribe(() => {
+      if (this.isInsertNoteFabEnabled && this.commenterSelectedVerseRef != null) {
+        this.setNoteFabVisibility('visible');
+      }
+    });
+
     combineLatest([
       this.activatedRoute.params.pipe(filter(params => params['projectId'] != null && params['bookId'] != null)),
       this.targetTextComponent!.changes
