@@ -89,6 +89,7 @@
                     ngfSelect
                     [accept]="fileExtensions"
                     (fileChange)="fileSelected($event)"
+                    (lastInvalidsChange)="invalidFileSelected($event)"
                   >
                     {{ t("import_from_csv_file") }}
                   </button>
@@ -194,6 +195,12 @@
 
         @case ("invalid_spreadsheet") {
           <div [innerHTML]="i18n.translateAndInsertTags('import_questions_dialog.invalid_spreadsheet')"></div>
+        }
+
+        @case ("invalid_file_type") {
+          <div>
+            {{ t("invalid_file_type", { fileName: invalidFileName, fileTypes: fileExtensions.split(",").join(", ") }) }}
+          </div>
         }
 
         @case ("missing_header_row") {
@@ -317,7 +324,7 @@
           {{ t("next") }}
         </button>
       }
-      @if (status === "filter_questions" || status === "file_import_errors") {
+      @if (status === "filter_questions" || status === "file_import_errors" || status === "invalid_file_type") {
         <button mat-button (click)="reset()">
           {{ t("back") }}
         </button>
@@ -331,6 +338,7 @@
         status === "no_questions" ||
         status === "update_transcelerator" ||
         status === "invalid_spreadsheet" ||
+        status === "invalid_file_type" ||
         status === "missing_header_row" ||
         status === "offline_conversion"
       ) {

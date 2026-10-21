@@ -421,6 +421,44 @@ describe('ImportQuestionsDialogComponent', () => {
     expect(env.component.errorState).toBe('invalid_spreadsheet');
   }));
 
+  it('informs the user when the selected file is not a supported file type', fakeAsync(() => {
+    const env = new TestEnvironment();
+
+    env.selectFileThroughFilePicker('questions.txt');
+
+    expect(env.component.errorState).toBe('invalid_file_type');
+    expect(env.bodyText).toContain(
+      'The file "questions.txt" cannot be imported. Please select a file of one of these types: .csv, .tsv, .xls, .xlsx'
+    );
+    verify(mockedCsvService.parse(anything())).never();
+    env.click(env.backButton);
+    expect(env.component.status).toBe('initial');
+  }));
+
+  it('informs the user that Excel files cannot be imported offline when one is selected', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.testOnlineStatusService.setIsOnline(false);
+    env.fixture.detectChanges();
+
+    env.selectFileThroughFilePicker('questions.xlsx');
+
+    expect(env.component.errorState).toBe('offline_conversion');
+    verify(mockedCsvService.convert(anything())).never();
+  }));
+
+  it('accepts a CSV file selected through the file picker', fakeAsync(() => {
+    const env = new TestEnvironment();
+    when(mockedCsvService.parse(anything())).thenResolve([
+      ['Reference', 'Question'],
+      ['MAT 1:1', 'Question for Matthew 1:1']
+    ]);
+
+    env.selectFileThroughFilePicker('questions.csv');
+
+    expect(env.component.errorState).toBeUndefined();
+    expect(env.tableRows.length).toBe(1);
+  }));
+
   it('it informs the user about invalid rows in the CSV file and skips them', fakeAsync(() => {
     const env = new TestEnvironment();
 
@@ -973,6 +1011,17 @@ class TestEnvironment {
     when(mockedCsvService.parse(anything())).thenResolve(contents ?? []);
     when(mockedCsvService.convert(anything())).thenResolve(contents);
     this.component.fileSelected({ name: filename } as File);
+    tick();
+    this.fixture.detectChanges();
+  }
+
+  /** Selects a file through the hidden file input, so angular-file applies its accept filter. */
+  selectFileThroughFilePicker(filename: string): void {
+    const input = this.importFromCsvFile.querySelector('input[type=file]') as HTMLInputElement;
+    const dataTransfer = new DataTransfer();
+    dataTransfer.items.add(new File(['contents'], filename));
+    input.files = dataTransfer.files;
+    input.dispatchEvent(new Event('change'));
     tick();
     this.fixture.detectChanges();
   }

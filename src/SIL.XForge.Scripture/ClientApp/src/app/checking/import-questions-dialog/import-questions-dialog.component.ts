@@ -91,6 +91,7 @@ type DialogErrorState =
   | 'update_transcelerator'
   | 'file_import_errors'
   | 'invalid_spreadsheet'
+  | 'invalid_file_type'
   | 'missing_header_row'
   | 'offline_conversion'
   | 'paratext_tag_load_error';
@@ -166,6 +167,7 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
   toImportCount: number = 0;
   importCanceled: boolean = false;
   fileExtensions: string = '.csv,.tsv';
+  invalidFileName?: string;
 
   showParatextTagSelector = false;
   paratextTagOptions: ParatextNoteTag[] = [];
@@ -671,6 +673,20 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
     }
 
     return parseResult.verseRef;
+  }
+
+  /** Handles a file that angular-file rejected because it does not match the accepted file extensions. */
+  invalidFileSelected(invalidFiles: { file: File }[] | undefined): void {
+    // angular-file emits on every selection, with no items when the file was accepted
+    const file: File | undefined = invalidFiles?.[0]?.file;
+    if (file == null) return;
+
+    this.questionSource = 'csv_file';
+    this.invalidFileName = file.name;
+    // Excel files are only filtered out because they cannot be converted while offline
+    const upperCaseFileName = file.name.toUpperCase();
+    const isExcelFile = upperCaseFileName.endsWith('.XLS') || upperCaseFileName.endsWith('.XLSX');
+    this.errorState = isExcelFile && !this.onlineStatusService.isOnline ? 'offline_conversion' : 'invalid_file_type';
   }
 
   async fileSelected(file: File): Promise<void> {
