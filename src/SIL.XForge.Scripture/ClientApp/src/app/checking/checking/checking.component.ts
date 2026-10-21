@@ -1528,7 +1528,13 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     // If the chapter has changed, stop the audio player. Book changes are handled elsewhere
     const hasActiveChapterChanged: boolean =
       this._activeQuestionVerseRef?.chapterNum !== questionDoc?.data?.verseRef.chapterNum;
-    this._activeQuestionVerseRef = questionDoc?.data == null ? undefined : toVerseRef(questionDoc.data.verseRef);
+    const verseRef: VerseRef | undefined =
+      questionDoc?.data == null ? undefined : toVerseRef(questionDoc.data.verseRef);
+    // Keep the same instance when the verse is unchanged. A new instance re-triggers the scripture panel's activeVerse
+    // binding, which would pull the highlight away from the verse the chapter audio is playing.
+    if (verseRef?.toString() !== this._activeQuestionVerseRef?.toString()) {
+      this._activeQuestionVerseRef = verseRef;
+    }
     if (hasActiveChapterChanged && this.isAudioPlaying()) {
       this._scriptureAudioPlayer?.stop();
     }
