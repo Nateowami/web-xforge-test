@@ -46,6 +46,7 @@ import { SFProjectUserConfigDoc } from '../../core/models/sf-project-user-config
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextDocId } from '../../core/models/text-doc';
 import { SFProjectService } from '../../core/sf-project.service';
+import { UserFeedbackComponent } from '../../shared/user-feedback/user-feedback.component';
 import { ChapterAudioDialogService } from '../chapter-audio-dialog/chapter-audio-dialog.service';
 import { CheckingQuestionsService } from '../checking/checking-questions.service';
 import { ImportQuestionsDialogComponent } from '../import-questions-dialog/import-questions-dialog.component';
@@ -633,6 +634,93 @@ describe('CheckingOverviewComponent', () => {
     }));
   });
 
+  describe('Feedback notice', () => {
+    it('shows the notice when the backend says to', fakeAsync(() => {
+      const env = new TestEnvironment();
+      when(mockedProjectService.onlineShouldShowCheckingFeedbackNotice('project01')).thenResolve(true);
+      env.waitForQuestions();
+
+      expect(env.feedbackNotice).not.toBeNull();
+      expect(env.feedbackNotice.nativeElement.textContent).toContain('Has community checking in');
+    }));
+
+    it('hides the notice when the backend says not to', fakeAsync(() => {
+      const env = new TestEnvironment();
+      when(mockedProjectService.onlineShouldShowCheckingFeedbackNotice('project01')).thenResolve(false);
+      env.waitForQuestions();
+
+      expect(env.feedbackNotice).toBeNull();
+    }));
+
+    it('hides the notice when the backend request fails', fakeAsync(() => {
+      const env = new TestEnvironment();
+      when(mockedProjectService.onlineShouldShowCheckingFeedbackNotice('project01')).thenReject(new Error('error'));
+      env.waitForQuestions();
+
+      expect(env.feedbackNotice).toBeNull();
+    }));
+
+    it('does not ask users who cannot manage questions', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setCurrentUser(env.checkerUser);
+      when(mockedProjectService.onlineShouldShowCheckingFeedbackNotice('project01')).thenResolve(true);
+      env.waitForQuestions();
+
+      verify(mockedProjectService.onlineShouldShowCheckingFeedbackNotice(anything())).never();
+      expect(env.feedbackNotice).toBeNull();
+    }));
+
+    it('asks users who were given permission to manage questions', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setCurrentUser(env.translatorUser);
+      when(mockedProjectService.onlineShouldShowCheckingFeedbackNotice('project01')).thenResolve(true);
+      env.waitForQuestions();
+
+      expect(env.feedbackNotice).not.toBeNull();
+    }));
+
+    it('waits until online to ask the backend', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.testOnlineStatusService.setIsOnline(false);
+      when(mockedProjectService.onlineShouldShowCheckingFeedbackNotice('project01')).thenResolve(true);
+      env.waitForQuestions();
+
+      verify(mockedProjectService.onlineShouldShowCheckingFeedbackNotice(anything())).never();
+      expect(env.feedbackNotice).toBeNull();
+
+      env.testOnlineStatusService.setIsOnline(true);
+      env.waitForProjectDocChanges();
+
+      verify(mockedProjectService.onlineShouldShowCheckingFeedbackNotice('project01')).once();
+      expect(env.feedbackNotice).not.toBeNull();
+    }));
+
+    it('records the dismissal on the project user config', fakeAsync(() => {
+      const env = new TestEnvironment();
+      when(mockedProjectService.onlineShouldShowCheckingFeedbackNotice('project01')).thenResolve(true);
+      env.waitForQuestions();
+
+      env.clickElement(env.feedbackNoticeDismissButton);
+
+      expect(env.feedbackNotice).toBeNull();
+      const dismissedDate: string | undefined =
+        env.adminProjectUserConfigDoc.data?.feedbackNoticeDismissedDates?.['community_checking_page'];
+      expect(dismissedDate).toBeDefined();
+      expect(Date.now() - new Date(dismissedDate!).getTime()).toBeLessThan(60_000);
+    }));
+
+    it('hides the notice once feedback is sent', fakeAsync(() => {
+      const env = new TestEnvironment();
+      when(mockedProjectService.onlineShouldShowCheckingFeedbackNotice('project01')).thenResolve(true);
+      env.waitForQuestions();
+
+      (env.feedbackNotice.componentInstance as UserFeedbackComponent).submitted.emit();
+      env.fixture.detectChanges();
+
+      expect(env.feedbackNotice).toBeNull();
+    }));
+  });
+
   it('should handle question in a book that does not exist', fakeAsync(() => {
     const env = new TestEnvironment();
     env.addQuestion({
@@ -1020,6 +1108,7 @@ class TestEnvironment {
         projectDoc.submitJson0Op(op => op.set(p => p.texts[textIndex].chapters[chapterIndex].hasAudio, false), false);
       }
     );
+    when(mockedProjectService.onlineShouldShowCheckingFeedbackNotice(anything())).thenResolve(false);
     when(mockedImportQuestionsDialogRef.afterClosed()).thenReturn(of(undefined));
     when(mockedDialogService.openMatDialog(ImportQuestionsDialogComponent, anything())).thenReturn(
       instance(mockedImportQuestionsDialogRef)
@@ -1030,6 +1119,21 @@ class TestEnvironment {
     this.fixture = TestBed.createComponent(CheckingOverviewComponent);
     this.component = this.fixture.componentInstance;
     this.location = TestBed.inject(Location);
+  }
+
+  get feedbackNotice(): DebugElement {
+    return this.fixture.debugElement.query(By.css('app-user-feedback'));
+  }
+
+  get feedbackNoticeDismissButton(): DebugElement {
+    return this.fixture.debugElement.query(By.css('app-user-feedback .dismiss-button'));
+  }
+
+  get adminProjectUserConfigDoc(): SFProjectUserConfigDoc {
+    return this.realtimeService.get<SFProjectUserConfigDoc>(
+      SFProjectUserConfigDoc.COLLECTION,
+      getSFProjectUserConfigDocId('project01', this.adminUser.id)
+    );
   }
 
   get addQuestionButton(): DebugElement {

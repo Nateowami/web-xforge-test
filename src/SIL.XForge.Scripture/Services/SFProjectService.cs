@@ -522,6 +522,62 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
     }
 
     /// <summary>
+    /// Determines whether to ask the specified user for feedback on the community checking page of the specified project.
+    /// The notice is shown to users who can manage questions, if they have not sent feedback from that page in the last
+    /// year, have not dismissed the notice in the last 90 days, and the oldest question is at least 30 days old.
+    /// </summary>
+    /// <param name="curUserId">The current user identifier.</param>
+    /// <param name="projectId">The project identifier.</param>
+    /// <exception cref="DataNotFoundException">The project does not exist.</exception>
+    /// <exception cref="ForbiddenException">The user is not a member of the project.</exception>
+    public async Task<bool> ShouldShowCheckingFeedbackNoticeAsync(string curUserId, string projectId)
+    {
+        Attempt<SFProject> attempt = await RealtimeService.TryGetSnapshotAsync<SFProject>(projectId);
+        if (!attempt.TryResult(out SFProject project))
+            throw new DataNotFoundException("The project does not exist.");
+
+        if (!project.UserRoles.ContainsKey(curUserId))
+            throw new ForbiddenException();
+
+        if (!_projectRights.HasRight(project, curUserId, SFProjectDomain.Questions, Operation.Create))
+            return false;
+
+        const string source = FeedbackSourcePage.CommunityCheckingPage;
+        DateTime now = DateTime.UtcNow;
+        bool submittedFeedbackRecently = await _userFeedback
+            .Query()
+            .AnyAsync(f =>
+                f.ProjectRef == projectId
+                && f.UserRef == curUserId
+                && f.Source == source
+                && f.DateSubmitted > now.AddYears(-1)
+            );
+        if (submittedFeedbackRecently)
+            return false;
+
+        Attempt<SFProjectUserConfig> userConfigAttempt = await RealtimeService.TryGetSnapshotAsync<SFProjectUserConfig>(
+            SFProjectUserConfig.GetDocId(projectId, curUserId)
+        );
+        if (
+            userConfigAttempt.TryResult(out SFProjectUserConfig userConfig)
+            && userConfig.FeedbackNoticeDismissedDates?.TryGetValue(source, out DateTime dateDismissed) == true
+            && dateDismissed > now.AddDays(-90)
+        )
+        {
+            return false;
+        }
+
+        // The dates in realtime docs are stored as ISO 8601 strings, so they sort correctly, but cannot be compared
+        // with a DateTime in a query
+        Question? oldestQuestion = await RealtimeService
+            .QuerySnapshots<Question>()
+            .Where(q => q.ProjectRef == projectId)
+            .OrderBy(q => q.DateCreated)
+            .FirstOrDefaultAsync();
+        return oldestQuestion != null && oldestQuestion.DateCreated <= now.AddDays(-30);
+    }
+
+    /// <summary>
     /// Starts the sync for the specified project.
     /// </summary>
     /// <param name="curUserId">The current user identifier.</param>

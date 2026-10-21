@@ -2115,6 +2115,56 @@ public class SFProjectsRpcControllerTests
     }
 
     [Test]
+    public async Task ShouldShowCheckingFeedbackNotice_Success()
+    {
+        var env = new TestEnvironment();
+        env.SFProjectService.ShouldShowCheckingFeedbackNoticeAsync(User01, Project01).Returns(Task.FromResult(true));
+
+        var result = await env.Controller.ShouldShowCheckingFeedbackNotice(Project01);
+
+        Assert.IsInstanceOf<RpcMethodSuccessResult>(result);
+        Assert.AreEqual(true, (result as RpcMethodSuccessResult)!.ReturnObject);
+    }
+
+    [Test]
+    public async Task ShouldShowCheckingFeedbackNotice_Forbidden()
+    {
+        var env = new TestEnvironment();
+        env.SFProjectService.ShouldShowCheckingFeedbackNoticeAsync(User01, Project01).Throws(new ForbiddenException());
+
+        var result = await env.Controller.ShouldShowCheckingFeedbackNotice(Project01);
+
+        Assert.IsInstanceOf<RpcMethodErrorResult>(result);
+        Assert.AreEqual(RpcControllerBase.ForbiddenErrorCode, (result as RpcMethodErrorResult)!.ErrorCode);
+    }
+
+    [Test]
+    public async Task ShouldShowCheckingFeedbackNotice_NotFound()
+    {
+        var env = new TestEnvironment();
+        const string errorMessage = "Not Found";
+        env.SFProjectService.ShouldShowCheckingFeedbackNoticeAsync(User01, Project01)
+            .Throws(new DataNotFoundException(errorMessage));
+
+        var result = await env.Controller.ShouldShowCheckingFeedbackNotice(Project01);
+
+        Assert.IsInstanceOf<RpcMethodErrorResult>(result);
+        Assert.AreEqual(errorMessage, (result as RpcMethodErrorResult)!.Message);
+        Assert.AreEqual(RpcControllerBase.NotFoundErrorCode, (result as RpcMethodErrorResult)!.ErrorCode);
+    }
+
+    [Test]
+    public void ShouldShowCheckingFeedbackNotice_UnknownError()
+    {
+        var env = new TestEnvironment();
+        env.SFProjectService.ShouldShowCheckingFeedbackNoticeAsync(User01, Project01)
+            .Throws(new ArgumentNullException());
+
+        Assert.ThrowsAsync<ArgumentNullException>(() => env.Controller.ShouldShowCheckingFeedbackNotice(Project01));
+        env.ExceptionHandler.Received().RecordEndpointInfoForException(Arg.Any<Dictionary<string, string>>());
+    }
+
+    [Test]
     public async Task CancelSync_Success()
     {
         var env = new TestEnvironment();

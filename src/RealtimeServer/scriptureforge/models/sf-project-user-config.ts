@@ -32,4 +32,6 @@ export interface SFProjectUserConfig extends ProjectData {
   lynxInsightState: LynxInsightUserData;
   selectedDraftTargetParatextId?: string;
   showEditorTabsInSinglePane?: boolean;
+  /** When the user last dismissed the feedback notice (an ISO 8601 date), keyed by the page the notice was on. */
+  feedbackNoticeDismissedDates?: { [source: string]: string };
 }

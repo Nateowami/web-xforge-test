@@ -1,9 +1,10 @@
 import { CdkScrollable } from '@angular/cdk/scrolling';
 import { CdkTextareaAutosize } from '@angular/cdk/text-field';
-import { Component, DestroyRef, OnInit } from '@angular/core';
+import { Component, DestroyRef, Inject, OnInit, Optional } from '@angular/core';
 import { FormControl, FormGroup, FormsModule, ReactiveFormsModule, Validators } from '@angular/forms';
 import { MatButton } from '@angular/material/button';
 import {
+  MAT_DIALOG_DATA,
   MatDialogActions,
   MatDialogClose,
   MatDialogContent,
@@ -42,13 +43,19 @@ export enum FeedbackType {
 
 export enum FeedbackSourcePage {
   None = 'none',
-  GenerateDraftPage = 'generate_draft_page'
+  GenerateDraftPage = 'generate_draft_page',
+  CommunityCheckingPage = 'community_checking_page'
 }
 
 export enum FeedbackPermission {
   PublishPublic = 'publish_public',
   PublishAnonymous = 'publish_anonymous',
   Private = 'private'
+}
+
+export interface UserFeedbackDialogData {
+  /** The page the user opened the dialog from. */
+  source: FeedbackSourcePage;
 }
 
 export interface UserFeedbackDialogResult {
@@ -100,7 +107,8 @@ export class UserFeedbackDialogComponent implements OnInit {
     private readonly onlineStatusService: OnlineStatusService,
     private readonly brandingService: BrandingService,
     private readonly activatedProjectService: ActivatedProjectService,
-    private readonly destroyRef: DestroyRef
+    private readonly destroyRef: DestroyRef,
+    @Optional() @Inject(MAT_DIALOG_DATA) private readonly data?: UserFeedbackDialogData
   ) {}
 
   get siteName(): string {
@@ -125,7 +133,7 @@ export class UserFeedbackDialogComponent implements OnInit {
     if (!isPopulatedString(feedback?.trim())) return;
     const feedbackParams: UserFeedbackParams = {
       type: FeedbackType.HowSfImpactedProject,
-      source: FeedbackSourcePage.GenerateDraftPage,
+      source: this.data?.source ?? FeedbackSourcePage.GenerateDraftPage,
       permission: this.feedbackForm.controls.permission.value,
       feedback
     };

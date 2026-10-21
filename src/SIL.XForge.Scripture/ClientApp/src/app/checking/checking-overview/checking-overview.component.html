@@ -51,6 +51,16 @@
     }
   </div>
 
+  @if (canCreateQuestion && showFeedbackNotice) {
+    <app-user-feedback
+      class="feedback-notice"
+      [source]="feedbackSourcePage"
+      [dismissible]="true"
+      (submitted)="onFeedbackSubmitted()"
+      (dismissed)="onFeedbackNoticeDismissed()"
+    ></app-user-feedback>
+  }
+
   @if (canEditQuestion) {
     <div id="text-with-questions-list">
       @for (text of texts; track text.bookNum) {

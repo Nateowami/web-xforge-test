@@ -1,8 +1,17 @@
 <ng-container *transloco="let t; read: 'user_feedback'">
   <app-notice type="primary" mode="basic" icon="feedback">
-    {{ t("how_has_drafting_helped_your_project", { siteName }) }}
+    @if (isCommunityCheckingPage) {
+      {{ t("has_community_checking_helped_your_project", { siteName }) }}
+    } @else {
+      {{ t("how_has_drafting_helped_your_project", { siteName }) }}
+    }
     <a href="javascript:;" (click)="onSendFeedback()">{{ t("send_feedback") }}</a>
     {{ t("or") }}
     <a target="_blank" [href]="issueMailTo">{{ t("ask_for_help") }}</a>
   </app-notice>
+  @if (dismissible) {
+    <button mat-icon-button class="dismiss-button" [matTooltip]="t('dismiss')" (click)="dismissed.emit()">
+      <mat-icon>close</mat-icon>
+    </button>
+  }
 </ng-container>

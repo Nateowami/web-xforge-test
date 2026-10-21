@@ -458,4 +458,9 @@ export class SFProjectService extends ProjectService<SFProject, SFProjectDoc> {
   async onlineHasUserSubmittedFeedback(projectId: string, source: FeedbackSourcePage): Promise<boolean> {
     return await this.onlineInvoke<boolean>('hasUserSubmittedFeedback', { projectId, source });
   }
+
+  /** Determines whether to ask the current user for feedback on the community checking page of the project. */
+  async onlineShouldShowCheckingFeedbackNotice(projectId: string): Promise<boolean> {
+    return await this.onlineInvoke<boolean>('shouldShowCheckingFeedbackNotice', { projectId });
+  }
 }

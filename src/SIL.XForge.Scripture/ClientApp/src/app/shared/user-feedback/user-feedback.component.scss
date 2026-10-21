@@ -1,0 +1,16 @@
+:host {
+  display: block;
+  position: relative;
+}
+
+:host(.dismissible) app-notice {
+  // Leave room for the dismiss button
+  padding-inline-end: 56px;
+}
+
+.dismiss-button {
+  position: absolute;
+  top: 50%;
+  inset-inline-end: 4px;
+  transform: translateY(-50%);
+}

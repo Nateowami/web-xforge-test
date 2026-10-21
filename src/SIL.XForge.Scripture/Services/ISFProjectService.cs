@@ -23,6 +23,7 @@ public interface ISFProjectService : IProjectService
     Task AddTranslateMetricsAsync(string curUserId, string projectId, TranslateMetrics metrics);
     Task AddUserFeedbackAsync(string curUserId, string projectId, UserFeedbackParams feedbackParams);
     Task<bool> HasUserSubmittedFeedbackAsync(string curUserId, string projectId, string source);
+    Task<bool> ShouldShowCheckingFeedbackNoticeAsync(string curUserId, string projectId);
     Task<string> SyncAsync(string curUserId, string projectId);
     Task CancelSyncAsync(string curUserId, string projectId);
     Task<bool> InviteAsync(

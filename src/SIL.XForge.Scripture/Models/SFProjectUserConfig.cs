@@ -39,4 +39,7 @@ public class SFProjectUserConfig : ProjectData
     public string? SelectedBiblicalTermsFilter { get; set; }
     public string? SelectedDraftTargetParatextId { get; set; }
     public bool? ShowEditorTabsInSinglePane { get; set; }
+
+    /// <summary>When the user last dismissed the feedback notice, keyed by the <see cref="FeedbackSourcePage"/>.</summary>
+    public Dictionary<string, DateTime>? FeedbackNoticeDismissedDates { get; set; }
 }
