@@ -6,7 +6,9 @@ import { MatIcon } from '@angular/material/icon';
 import { TranslocoModule } from '@ngneat/transloco';
 import { Canon, VerseRef } from '@sillsdev/scripture';
 import { I18nService } from 'xforge-common/i18n.service';
+import { TextDoc, TextDocId } from '../core/models/text-doc';
 import { TextsByBookId } from '../core/models/texts-by-book-id';
+import { SFProjectService } from '../core/sf-project.service';
 
 export interface ScriptureChooserDialogData {
   /** Starting verse selection, to highlight */
@@ -26,6 +28,10 @@ export interface ScriptureChooserDialogData {
    *  wanting to return a book and chapter.
    */
   includeVerseSelection?: boolean;
+
+  /** Project whose chapter text is read so that only verses that have a verse marker in the text are offered.
+   *  If not given, every verse from 1 through the last verse of the chapter is offered. */
+  projectId?: string;
 }
 
 /** Dialog to allow selection of a particular Scripture reference. */
@@ -47,9 +53,12 @@ export class ScriptureChooserDialogComponent implements OnInit {
   /** User's selection */
   selection: { book?: string; chapter?: string; verse?: string } = {};
 
+  private versesInChapterText?: { bookId: string; chapterNum: number; verseNumbers: Set<number> };
+
   constructor(
     public dialogRef: MatDialogRef<ScriptureChooserDialogComponent>,
     readonly i18n: I18nService,
+    private readonly projectService: SFProjectService,
     @Inject(MAT_DIALOG_DATA) public data: ScriptureChooserDialogData
   ) {}
 
@@ -146,10 +155,12 @@ export class ScriptureChooserDialogComponent implements OnInit {
 
   showVerseSelection(): void {
     this.showing = 'verses';
+    void this.loadVersesInChapterText(this.selection.book, this.selection.chapter);
   }
 
   showRangeEndSelection(): void {
     this.showing = 'rangeEnd';
+    void this.loadVersesInChapterText(this.selection.book, this.selection.chapter);
   }
 
   /** Returns an array of all chapters for a given book that the dialog was told about.
@@ -161,7 +172,7 @@ export class ScriptureChooserDialogComponent implements OnInit {
     return this.data.booksAndChaptersToShow[bookId].chapters.map(chapter => chapter.number);
   }
 
-  /** Returns an array of all verses in a chapter.*/
+  /** Returns an array of all verses in a chapter, leaving out any verse that the chapter text is known to lack.*/
   versesOf(bookId: string | undefined, chapter: string | undefined, startingWithVerse?: number): number[] | undefined {
     if (!bookId || !chapter) {
       return undefined;
@@ -175,6 +186,14 @@ export class ScriptureChooserDialogComponent implements OnInit {
     let verses = Array.from([...Array(chapterInfo.lastVerse + 1).keys()]).slice(1);
     if (startingWithVerse != null) {
       verses = verses.slice(startingWithVerse - 1);
+    }
+    const versesInChapterText = this.versesInChapterText;
+    if (
+      versesInChapterText != null &&
+      versesInChapterText.bookId === bookId &&
+      versesInChapterText.chapterNum === chapterInfo.number
+    ) {
+      verses = verses.filter(verse => versesInChapterText.verseNumbers.has(verse));
     }
     return verses;
   }
@@ -192,5 +211,21 @@ export class ScriptureChooserDialogComponent implements OnInit {
       return NaN;
     }
     return +num;
+  }
+
+  private async loadVersesInChapterText(bookId: string | undefined, chapter: string | undefined): Promise<void> {
+    if (this.data.projectId == null || bookId == null || chapter == null) {
+      return;
+    }
+    const chapterNum: number = +chapter;
+    const textDoc: TextDoc = await this.projectService.getText(
+      new TextDocId(this.data.projectId, Canon.bookIdToNumber(bookId), chapterNum)
+    );
+    const verseNumbers: Set<number> = textDoc.getVerseNumbers();
+    // A text that has not loaded, or has no verse markers, gives nothing to go by, so every verse stays on offer
+    if (verseNumbers.size === 0) {
+      return;
+    }
+    this.versesInChapterText = { bookId: bookId, chapterNum: chapterNum, verseNumbers: verseNumbers };
   }
 }
