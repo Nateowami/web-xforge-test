@@ -10,7 +10,7 @@ import { LynxEditorAdapterFactory, TestLynxEditorAdapterFactory } from '../lynx-
 import { LynxInsight, LynxInsightDisplayState } from '../lynx-insight';
 import { LynxInsightStateService } from '../lynx-insight-state.service';
 import { QuillEditorReadyService } from '../quill-services/quill-editor-ready.service';
-import { LynxInsightActionPromptComponent } from './lynx-insight-action-prompt.component';
+import { LynxInsightActionPromptComponent, PROMPT_RESIZE_DEBOUNCE_MS } from './lynx-insight-action-prompt.component';
 
 const mockInsightStateService = mock(LynxInsightStateService);
 const mockEditorReadyService = mock(QuillEditorReadyService);
@@ -96,10 +96,13 @@ class TestEnvironment {
     return (this.fixture.nativeElement as HTMLElement).style;
   }
 
-  /** Waits for the ResizeObserver to report and for the prompt's resize debounce to pass. */
+  /**
+   * Waits for the ResizeObserver to report and for the prompt's resize debounce to pass. ResizeObserver runs on real
+   * frames, which fakeAsync cannot advance, so this waits in real time.
+   */
   async settle(): Promise<void> {
     await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    await new Promise(resolve => setTimeout(resolve, 150));
+    await new Promise(resolve => setTimeout(resolve, PROMPT_RESIZE_DEBOUNCE_MS + 50));
     this.fixture.detectChanges();
   }
 }

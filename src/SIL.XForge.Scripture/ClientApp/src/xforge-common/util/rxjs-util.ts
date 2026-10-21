@@ -1,4 +1,4 @@
-import { DestroyRef } from '@angular/core';
+import { DestroyRef, NgZone } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MonoTypeOperatorFunction, Observable, OperatorFunction } from 'rxjs';
 import { filter } from 'rxjs/operators';
@@ -43,10 +43,13 @@ export function quietTakeUntilDestroyed<T>(
 /**
  * Creates an observable that emits whenever the size of the element changes, including changes that come from layout
  * around the element (such as a neighbouring pane being shown or hidden) rather than from the window being resized.
+ *
+ * Zone.js does not patch ResizeObserver, so emissions are made inside the given Angular zone. This lets them trigger
+ * change detection, as `fromEvent` emissions do.
  */
-export function fromElementResize(element: Element): Observable<ResizeObserverEntry[]> {
+export function fromElementResize(element: Element, ngZone: NgZone): Observable<ResizeObserverEntry[]> {
   return new Observable<ResizeObserverEntry[]>(subscriber => {
-    const resizeObserver = new ResizeObserver(entries => subscriber.next(entries));
+    const resizeObserver = new ResizeObserver(entries => ngZone.run(() => subscriber.next(entries)));
     resizeObserver.observe(element);
     return () => resizeObserver.disconnect();
   });
