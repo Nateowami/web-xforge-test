@@ -8,6 +8,7 @@ import {
   OnChanges,
   OnInit,
   Output,
+  SimpleChanges,
   ViewChild
 } from '@angular/core';
 import { MatProgressBar } from '@angular/material/progress-bar';
@@ -53,6 +54,8 @@ export class EditorHistoryComponent implements OnChanges, OnInit, AfterViewInit 
   @Input() isRightToLeft!: boolean;
   @Input() fontSize?: string;
   @Input() diffText?: TextComponent;
+  /** The revision to select when the history is first loaded, instead of the latest revision. */
+  @Input() initialRevision?: Revision;
   @Output() revisionSelect = new EventEmitter<Revision | undefined>();
 
   @ViewChild(HistoryChooserComponent) historyChooser?: HistoryChooserComponent;
@@ -70,7 +73,12 @@ export class EditorHistoryComponent implements OnChanges, OnInit, AfterViewInit 
     private readonly projectService: SFProjectService
   ) {}
 
-  ngOnChanges(): void {
+  ngOnChanges(changes: SimpleChanges): void {
+    // The initial revision is updated with each selection, which is not a reason to clear the loaded revision
+    if (Object.keys(changes).every(key => key === 'initialRevision')) {
+      return;
+    }
+
     // Clear any loaded revision if chapter changes
     this.loadedRevision = undefined;
 

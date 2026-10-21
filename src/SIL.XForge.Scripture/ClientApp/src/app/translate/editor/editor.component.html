@@ -259,6 +259,7 @@
                   [isRightToLeft]="isTargetRightToLeft"
                   [fontSize]="fontSize"
                   [diffText]="target"
+                  [initialRevision]="tab.historyRevision"
                   (revisionSelect)="onHistoryTabRevisionSelect(tab, $event)"
                 >
                 </app-editor-history>
