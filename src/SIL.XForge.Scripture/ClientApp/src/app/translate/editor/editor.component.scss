@@ -45,6 +45,7 @@
 
 .avatar-padding {
   padding-bottom: 2px;
+  padding-inline-start: 16px;
 }
 
 .language-label {
@@ -70,8 +71,13 @@
 
   .toolbar-options {
     display: flex;
-    flex-flow: wrap;
     flex: 1;
+    // Truncate a long book name rather than wrapping buttons onto a second line
+    min-width: 0;
+
+    app-book-chapter-chooser {
+      min-width: 0;
+    }
   }
 }
 
