@@ -1672,6 +1672,13 @@ public class ParatextSyncRunner : IParatextSyncRunner
     }
 
     /// <summary>
+    /// Whether the tag is one that <see cref="IParatextService.UpdateCommentTag"/> would match for the checking tag.
+    /// </summary>
+    private static bool IsCheckingNoteTag(NoteTag noteTag) =>
+        string.Equals(noteTag.Name, NoteTag.checkingTagName, StringComparison.OrdinalIgnoreCase)
+        || noteTag.Icon == NoteTag.checkingTagIcon;
+
+    /// <summary>
     /// Archives all real-time question docs in the database for a book.
     /// </summary>
     /// <remarks>
@@ -1859,7 +1866,19 @@ public class ParatextSyncRunner : IParatextSyncRunner
                 op.Set(pd => pd.DefaultFont, settings.DefaultFont);
                 op.Set(pd => pd.DefaultFontSize, settings.DefaultFontSize);
                 if (settings.NoteTags != null)
+                {
                     op.Set(pd => pd.NoteTags, settings.NoteTags, _noteTagListEqualityComparer);
+                    // If SF and Paratext created a note tag with the same ID, the Paratext tag replaced
+                    // SF's tag during send/receive. Clear the ID so the next sync creates the checking tag
+                    // again and re-tags the exported answers.
+                    if (
+                        _projectDoc.Data.CheckingConfig.NoteTagId is int checkingNoteTagId
+                        && !settings.NoteTags.Any(t => t.TagId == checkingNoteTagId && IsCheckingNoteTag(t))
+                    )
+                    {
+                        op.Unset(pd => pd.CheckingConfig.NoteTagId);
+                    }
+                }
                 if (settings.LanguageRegion != null)
                     op.Set(pd => pd.WritingSystem.Region, settings.LanguageRegion);
                 if (settings.LanguageScript != null)

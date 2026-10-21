@@ -559,6 +559,66 @@ public class ParatextNotesMapperTests
     }
 
     [Test]
+    public async Task GetNotesChangelistAsync_RetagsAnswersWithDifferentTag()
+    {
+        var env = new TestEnvironment();
+        env.SetParatextProjectRoles(true);
+        env.InitMapper(true, true);
+        env.AddData("syncUser01", "syncUser03", null, "syncUser03");
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        // The answer was exported with tag 2, which is no longer the checking tag
+        const string oldNotesText =
+            @"
+                    <notes version=""1.1"">
+                        <thread id=""ANSWER_answer02"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 3"" extUser=""user04"" date=""2019-01-02T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p><span style=""italic"">This is some scripture. (MAT 1:2-3)</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 2.</p>
+                                </content>
+                                <tagAdded>2</tagAdded>
+                            </comment>
+                            <comment user=""PT User 3"" extUser=""user02"" date=""2019-01-02T09:00:00.0000000+00:00"">
+                                <content>
+                                    <p>[User 02 - xForge]</p>
+                                    <p>Test comment 2.</p>
+                                </content>
+                            </comment>
+                        </thread>
+                    </notes>";
+        Dictionary<string, ParatextUserProfile> ptProjectUsers = env.PtProjectUsers.ToDictionary(u => u.Username);
+        XElement notesElem = await env.Mapper.GetNotesChangelistAsync(
+            XElement.Parse(oldNotesText),
+            await TestEnvironment.GetQuestionDocsAsync(conn),
+            ptProjectUsers,
+            TestEnvironment.UserRoles,
+            CheckingAnswerExport.All,
+            TestEnvironment.CheckingNoteTagId
+        );
+
+        const string expectedThreadText =
+            @"
+                        <thread id=""ANSWER_answer02"">
+                            <selection verseRef=""MAT 1:1"" startPos=""0"" selectedText="""" />
+                            <comment user=""PT User 3"" extUser=""user04"" date=""2019-01-02T08:00:00.0000000+00:00"">
+                                <content>
+                                    <p><span style=""bold"">Test question?</span></p>
+                                    <p><span style=""italic"">This is some scripture. (MAT 1:2-3)</span></p>
+                                    <p>[User 04 - xForge]</p>
+                                    <p>Test answer 2.</p>
+                                </content>
+                                <tagAdded>3</tagAdded>
+                            </comment>
+                        </thread>";
+        XElement threadElem = notesElem.Elements("thread").Single(t => (string)t.Attribute("id") == "ANSWER_answer02");
+        Assert.That(XNode.DeepEquals(threadElem, XElement.Parse(expectedThreadText)), Is.True);
+    }
+
+    [Test]
     public async Task GetNotesChangelistAsync_DeleteNotes()
     {
         var env = new TestEnvironment();

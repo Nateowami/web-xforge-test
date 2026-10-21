@@ -744,6 +744,66 @@ public class ParatextSyncRunnerTests
     }
 
     [Test]
+    public async Task SyncAsync_KeepsCheckingNoteTagId()
+    {
+        var env = new TestEnvironment();
+        Book[] books = [new Book("MAT", 1)];
+        env.SetupSFData(true, false, false, books);
+        env.SetupPTData(books);
+        env.ParatextService.GetParatextSettings(Arg.Any<UserSecret>(), Arg.Any<string>())
+            .Returns(
+                new ParatextSettings
+                {
+                    NoteTags =
+                    [
+                        new NoteTag
+                        {
+                            TagId = env.checkingNoteTagId,
+                            Name = NoteTag.checkingTagName,
+                            Icon = NoteTag.checkingTagIcon,
+                        },
+                    ],
+                }
+            );
+
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        SFProject project = env.VerifyProjectSync(true);
+        Assert.That(project.CheckingConfig.NoteTagId, Is.EqualTo(env.checkingNoteTagId));
+    }
+
+    [Test]
+    public async Task SyncAsync_ClearsCheckingNoteTagIdWhenTagReplacedInParatext()
+    {
+        var env = new TestEnvironment();
+        Book[] books = [new Book("MAT", 1)];
+        env.SetupSFData(true, false, false, books);
+        env.SetupPTData(books);
+        // A tag added in Paratext with the same ID as the checking tag wins the send/receive merge
+        env.ParatextService.GetParatextSettings(Arg.Any<UserSecret>(), Arg.Any<string>())
+            .Returns(
+                new ParatextSettings
+                {
+                    NoteTags =
+                    [
+                        new NoteTag
+                        {
+                            TagId = env.checkingNoteTagId,
+                            Name = "Paratext tag",
+                            Icon = "01flag1",
+                        },
+                    ],
+                }
+            );
+        Assert.That(env.GetProject().CheckingConfig.NoteTagId, Is.EqualTo(env.checkingNoteTagId), "setup");
+
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        SFProject project = env.VerifyProjectSync(true);
+        Assert.That(project.CheckingConfig.NoteTagId, Is.Null);
+    }
+
+    [Test]
     public async Task SyncAsync_UpdatesExistingNoteTags()
     {
         var env = new TestEnvironment();

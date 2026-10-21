@@ -367,7 +367,13 @@ public class ParatextNotesMapper(
             || !XNode.DeepEquals(oldCommentElem.Element("content"), commentElem.Element("content"))
         )
             return true;
-        return expectNoteTagSet && !oldCommentElem.Elements("tagAdded").Any();
+        // Compare the tag value too, so answers exported with a tag that has since been replaced are re-tagged
+        return expectNoteTagSet
+            && commentElem.Elements("tagAdded").Any()
+            && !oldCommentElem
+                .Elements("tagAdded")
+                .Select(t => t.Value)
+                .SequenceEqual(commentElem.Elements("tagAdded").Select(t => t.Value));
     }
 
     private ParatextUserProfile FindOrCreateParatextUser(
