@@ -500,6 +500,48 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  it('keeps the cursor in its verse when a note is embedded earlier in a chapter with no text', fakeAsync(() => {
+    const chapterNum = 2;
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { blank: true }, attributes: { segment: 'p_1' } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: { blank: true }, attributes: { segment: `verse_${chapterNum}_1` } },
+      { insert: { verse: { number: '2', style: 'v' } } },
+      { insert: { blank: true }, attributes: { segment: `verse_${chapterNum}_2` } },
+      { insert: { verse: { number: '3', style: 'v' } } },
+      { insert: { blank: true }, attributes: { segment: `verse_${chapterNum}_3` } },
+      { insert: { verse: { number: '4', style: 'v' } } },
+      { insert: { blank: true }, attributes: { segment: `verse_${chapterNum}_4` } },
+      { insert: '\n', attributes: { para: { style: 'p' } } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.component.highlightSegment = true;
+    env.waitForEditor();
+
+    env.component.editor!.focus();
+    env.component.editor!.setSelection(env.component.getSegmentRange('verse_2_2')!.index, 0, 'user');
+    tick();
+    env.fixture.detectChanges();
+    expect(env.component.segmentRef).toEqual('verse_2_2');
+    const cursorIndex: number = env.component.editor!.getSelection()!.index;
+
+    // Every verse marker and blank segment is an embed, so Quill's diff of the chapter cannot tell where the note
+    // icon went and used to carry the cursor to the end of the paragraph
+    env.embedThreadAt('MAT 2:1', { start: 0, length: 0 });
+    tick();
+    env.fixture.detectChanges();
+
+    const selection: QuillRange | null = env.component.editor!.getSelection();
+    expect(selection?.index).toEqual(cursorIndex + 1);
+    expect(selection?.length).toEqual(0);
+    expect(env.component.segmentRef).toEqual('verse_2_2');
+    expect(env.isSegmentHighlighted(2, 2)).toBe(true);
+    expect(env.isSegmentHighlighted(2, 4)).toBe(false);
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('pastes text with proper attributes', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();

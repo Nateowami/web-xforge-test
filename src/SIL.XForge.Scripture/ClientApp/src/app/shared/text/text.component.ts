@@ -323,6 +323,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   private onPresenceDocReceive = (_presenceId: string, _range: Range | null): void => {};
   private onPresenceChannelReceive = (_presenceId: string, _presenceData: PresenceData | null): void => {};
   private isShiftDown = false;
+  /** Where the selection belongs once Quill reports the text change of the embed being inserted. */
+  private selectionAfterEmbedInsert?: Range;
 
   constructor(
     private readonly destroyRef: DestroyRef,
@@ -897,7 +899,15 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
     // Include formatting from the current insert position as well as any unique formatting
     format = { ...insertFormat, ...format };
+    const selection: Range | null = this.editor.getSelection();
+    if (selection != null) {
+      const embedInsert: Delta = new Delta().retain(embedInsertPos).insert({ [formatName]: format });
+      const start: number = embedInsert.transformPosition(selection.index, true);
+      const end: number = embedInsert.transformPosition(selection.index + selection.length, true);
+      this.selectionAfterEmbedInsert = { index: start, length: end - start };
+    }
     this.editor.insertEmbed(embedInsertPos, formatName, format, 'api');
+    this.selectionAfterEmbedInsert = undefined;
     const textAnchorRange = this.viewModel.getEditorContentRange(embedInsertPos, textAnchor.length);
     const formatLength: number = textAnchorRange.editorLength;
 
@@ -972,6 +982,13 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
   /** Respond to text changes in the quill editor. */
   onContentChanged(delta: Delta, source: string): void {
+    if (this.selectionAfterEmbedInsert != null) {
+      // Quill could not predict the change from inserting the embed, so it diffed the whole document and moved the
+      // selection through that diff. With no text to anchor it, the diff replaces the rest of the paragraph, which
+      // puts the selection at the end of the paragraph. Put it back before anything reads it.
+      this.editor?.setSelection(this.selectionAfterEmbedInsert, 'silent');
+      this.selectionAfterEmbedInsert = undefined;
+    }
     const preDeltaSegmentCache: IterableIterator<[string, Range]> = this.viewModel.segmentsSnapshot;
     const preDeltaEmbedCache: Readonly<Map<string, number>> = this.viewModel.embeddedElementsSnapshot;
     this.viewModel.update(delta, source as EmitterSource, this.onlineStatusService.isOnline);
