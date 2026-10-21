@@ -24,12 +24,22 @@ export abstract class NotificationServiceBase {
     return this.onlineService.isOnline && this.onlineService.isBrowserOnline;
   }
 
+  get isConnected(): boolean {
+    return this.connection.state === HubConnectionState.Connected;
+  }
+
   async start(): Promise<void> {
     this.openConnections++;
     // If a start is already in progress, wait for it to resolve
     if (this.startPromise != null) {
       await this.startPromise;
       return;
+    }
+
+    // After the connection drops, automatic reconnect can wait up to 30 seconds between attempts, and a reconnected
+    // connection has lost its project subscriptions. Restart it now so that the caller gets a usable connection.
+    if (this.connection.state === HubConnectionState.Reconnecting) {
+      await this.connection.stop();
     }
 
     // Only start the connection if we are disconnected

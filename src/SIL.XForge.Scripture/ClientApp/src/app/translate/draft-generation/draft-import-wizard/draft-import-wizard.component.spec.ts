@@ -268,6 +268,37 @@ describe('DraftImportWizardComponent', () => {
     verify(mockMatDialogRef.close(true)).once();
   }));
 
+  it('shows an error instead of hanging if it cannot connect for import progress, and can retry', fakeAsync(() => {
+    configureDraft('GEN', false);
+    const env = new TestEnvironment();
+    env.wait();
+    when(mockDraftNotificationService.isConnected).thenReturn(false);
+
+    // Step 1
+    env.selectProject('paratext03');
+    env.clickNextButton(1);
+
+    // Step 6: the import is not started, as its progress could never be reported
+    verify(
+      mockProjectService.onlineApplyPreTranslationToProject(anything(), anything(), anything(), anything())
+    ).never();
+    expect(env.component.isImporting).toBe(false);
+    expect(env.component.importError).toContain('Check your internet connection');
+    const retryButtons: HTMLButtonElement[] = Array.from(
+      env.fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>
+    ).filter(b => b.textContent?.includes('Retry'));
+    expect(retryButtons.length).toBe(1);
+    const retryButton: HTMLButtonElement = retryButtons[0];
+    expect(retryButton.disabled).toBe(false);
+
+    // The connection is back, so retrying starts the import
+    when(mockDraftNotificationService.isConnected).thenReturn(true);
+    retryButton.click();
+    env.wait();
+    env.importDraft();
+    env.clickNextButton(6);
+  }));
+
   it('can populate project select with previously selected project', fakeAsync(() => {
     const env = new TestEnvironment();
     env.wait();
@@ -363,6 +394,7 @@ class TestEnvironment {
     this.component = this.fixture.componentInstance;
 
     when(mockActivatedProjectService.projectId$).thenReturn(of('project01'));
+    when(mockDraftNotificationService.isConnected).thenReturn(true);
     when(mockParatextService.getProjects()).thenResolve([
       // Source project
       {

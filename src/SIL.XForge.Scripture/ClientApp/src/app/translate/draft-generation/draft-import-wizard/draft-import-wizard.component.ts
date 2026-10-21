@@ -709,9 +709,19 @@ export class DraftImportWizardComponent implements OnInit {
       throw new Error('Missing project context for import');
     }
 
-    // Subscribe to SignalR updates
-    await this.draftNotificationService.start();
-    await this.draftNotificationService.subscribeToProject(this.sourceProjectId);
+    // Subscribe to SignalR updates. Import progress and completion are only reported over SignalR, so if we are not
+    // subscribed, do not start the import, as this dialog would wait for it forever.
+    try {
+      await this.draftNotificationService.start();
+      await this.draftNotificationService.subscribeToProject(this.sourceProjectId);
+    } catch (error) {
+      // An error from the server, such as a permission error, leaves the connection up. Connection failures are
+      // reported by the check below.
+      if (this.draftNotificationService.isConnected) throw error;
+    }
+    if (!this.draftNotificationService.isConnected) {
+      throw new Error(this.i18n.translateStatic('draft_import_wizard.import_connection_failed'));
+    }
 
     // Build a scripture range and timestamp to import. Scope to the chapters that were actually drafted for each
     // selected book, so a partial-book draft imports only its chapters instead of attempting (and failing) every
