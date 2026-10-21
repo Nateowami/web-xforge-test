@@ -1000,15 +1000,33 @@ public class ParatextServiceTests
         XElement updateNotesXml = TestEnvironment.GetUpdateNotesXml(threadId, env.User01, date, content, "RUT 1:1");
         env.Service.PutNotes(userSecret, ptProjectId, updateNotesXml);
 
+        // A reply added in Paratext is not part of the notes that are sent
+        env.ProjectCommentManager.AddComment(
+            new Paratext.Data.ProjectComments.Comment(new SFParatextUser(env.Username02))
+            {
+                Thread = threadId,
+                VerseRefStr = "RUT 1:1",
+                DateTime = date.AddMinutes(1),
+            }
+        );
+
         // Move the comment to another verse without changing its content
         updateNotesXml = TestEnvironment.GetUpdateNotesXml(threadId, env.User01, date, content, "RUT 1:2");
         var syncMetricInfo = env.Service.PutNotes(userSecret, ptProjectId, updateNotesXml);
 
         CommentThread thread = env.ProjectCommentManager.FindThread(threadId);
-        Assert.That(thread.Comments.Count, Is.EqualTo(1));
-        Assert.That(thread.Comments.First().VerseRefStr, Is.EqualTo("RUT 1:2"));
-        Assert.That(thread.Comments.First().Contents.InnerText, Is.EqualTo(content));
+        Assert.That(thread.Comments.Count, Is.EqualTo(2));
+        Assert.That(thread.Comments[0].VerseRefStr, Is.EqualTo("RUT 1:2"));
+        Assert.That(thread.Comments[0].Contents.InnerText, Is.EqualTo(content));
+        Assert.That(thread.Comments[1].User, Is.EqualTo(env.Username02));
+        Assert.That(thread.Comments[1].VerseRefStr, Is.EqualTo("RUT 1:2"));
         Assert.That(syncMetricInfo, Is.EqualTo(new SyncMetricInfo(added: 0, deleted: 0, updated: 1)));
+        env.MockFileSystemService.Received().CreateFile(Arg.Is<string>(p => p.EndsWith($"Notes_{env.Username02}.xml")));
+
+        // The next sync reads the thread at its new verse, so the mapper does not send it again
+        XElement notesElem = XElement.Parse(env.Service.GetNotes(userSecret, ptProjectId, 8));
+        XElement threadElem = notesElem.Elements("thread").Single(t => (string)t.Attribute("id") == threadId);
+        Assert.That((string)threadElem.Element("selection")?.Attribute("verseRef"), Is.EqualTo("RUT 1:2"));
     }
 
     [Test]
