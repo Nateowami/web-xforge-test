@@ -20,5 +20,5 @@ export const environment = {
   realtimeUrl: '/',
   authDomain: 'http://localhost:5100/auth0',
   authClientId: 'sf-mock-frontend-client',
-  offlineDBVersion: 8
+  offlineDBVersion: 9
 };
