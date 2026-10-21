@@ -24,7 +24,6 @@ import {
 } from '@angular/material/table';
 import { MatTooltip } from '@angular/material/tooltip';
 import { ActivatedRoute, Router } from '@angular/router';
-import { TranslocoModule } from '@ngneat/transloco';
 import { Canon } from '@sillsdev/scripture';
 import {
   BehaviorSubject,
@@ -52,8 +51,8 @@ import { OwnerComponent } from 'xforge-common/owner/owner.component';
 import { UserService } from 'xforge-common/user.service';
 import { isPopulatedString, isString, notNull } from '../../type-utils';
 import { InfoComponent } from '../shared/info/info.component';
-import { ChapterSet, trainingSourceRangesWithTargetDetail } from '../shared/scripture-range';
-import { formatScriptureRangeTokensCompact } from '../shared/scripture-range-display';
+import { ChapterSet, trainingSourceRangesWithTargetDetail, VerboseScriptureRange } from '../shared/scripture-range';
+import { formatScriptureRangeTokensCompact, formatScriptureRangeWithChapters } from '../shared/scripture-range-display';
 import {
   BookConfidence,
   ChapterConfidence,
@@ -192,7 +191,6 @@ export interface BuildInputItem {
     MatCardTitleGroup,
     CopyComponent,
     MatSlideToggle,
-    TranslocoModule,
     DisplayConfidenceComponent,
     MatFormFieldModule,
     MatInputModule,
@@ -443,6 +441,23 @@ export class ServalBuildsComponent extends DataLoadingComponent implements OnIni
 
   protected getBookId(bookConfidence: BookConfidence): string {
     return Canon.bookNumberToId(bookConfidence.bookNum);
+  }
+
+  /**
+   * Localized label for a book in the build confidence card. When only some chapters of the book were drafted, the
+   * label includes them, e.g. "Genesis 2-5", so the confidence is not read as applying to the whole book.
+   */
+  protected bookConfidenceLabel(row: ServalBuildRow, bookConfidence: BookConfidence): string {
+    const bookId: string = this.getBookId(bookConfidence);
+    const entries: BookAndChapters[] = row.translationBooks
+      .flatMap((projectBooks: ProjectBooks) => projectBooks.booksAndChapters)
+      .filter((entry: BookAndChapters) => entry.bookId === bookId);
+    if (entries.length === 0 || entries.some((entry: BookAndChapters) => entry.chapters == null)) {
+      return this.i18n.localizeBook(bookId);
+    }
+    const range = new VerboseScriptureRange();
+    range.books.set(bookId, new ChapterSet(entries.flatMap((entry: BookAndChapters) => entry.chapters ?? [])));
+    return formatScriptureRangeWithChapters(range, this.i18n);
   }
 
   /** Returns the requested phase of the build.  */
