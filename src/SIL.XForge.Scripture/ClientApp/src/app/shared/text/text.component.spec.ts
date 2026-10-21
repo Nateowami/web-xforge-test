@@ -1184,6 +1184,37 @@ describe('TextComponent', () => {
     expect(env.quillHandleDelete(selectionWithFootnote)).toBeFalse();
   }));
 
+  it('moves the cursor over a footnote with the arrow keys', fakeAsync(() => {
+    const { env, footnoteIndex } = footnoteEnv(false);
+
+    env.component.editor!.setSelection(footnoteIndex, 0, 'user');
+    expect(env.pressKey('ArrowRight')).withContext('handled by the editor').toBeTrue();
+    expect(env.component.editor!.getSelection()).toEqual(new QuillRange(footnoteIndex + 1, 0));
+
+    expect(env.pressKey('ArrowLeft')).withContext('handled by the editor').toBeTrue();
+    expect(env.component.editor!.getSelection()).toEqual(new QuillRange(footnoteIndex, 0));
+  }));
+
+  it('moves the cursor over a footnote with the arrow keys in a right to left text', fakeAsync(() => {
+    const { env, footnoteIndex } = footnoteEnv(true);
+
+    env.component.editor!.setSelection(footnoteIndex, 0, 'user');
+    expect(env.pressKey('ArrowLeft')).withContext('handled by the editor').toBeTrue();
+    expect(env.component.editor!.getSelection()).toEqual(new QuillRange(footnoteIndex + 1, 0));
+
+    expect(env.pressKey('ArrowRight')).withContext('handled by the editor').toBeTrue();
+    expect(env.component.editor!.getSelection()).toEqual(new QuillRange(footnoteIndex, 0));
+  }));
+
+  it('leaves arrow keys to the browser when the cursor is not beside a footnote', fakeAsync(() => {
+    const { env, footnoteIndex } = footnoteEnv(false);
+
+    env.component.editor!.setSelection(footnoteIndex - 1, 0, 'user');
+    expect(env.pressKey('ArrowRight')).withContext('handled by the editor').toBeFalse();
+    env.component.editor!.setSelection(footnoteIndex + 2, 0, 'user');
+    expect(env.pressKey('ArrowLeft')).withContext('handled by the editor').toBeFalse();
+  }));
+
   it('does not cancel in beforeinput when valid selection', fakeAsync(() => {
     const { env }: { env: TestEnvironment; segmentRange: QuillRange } = basicSimpleText();
 
@@ -2111,6 +2142,15 @@ class TestEnvironment {
     );
   }
 
+  /** Presses a key in the editor. Returns whether a keyboard binding handled it, i.e. prevented the default. */
+  pressKey(key: string): boolean {
+    const event = new KeyboardEvent('keydown', { key, cancelable: true });
+    const handled: boolean = !this.component.editor!.root.dispatchEvent(event);
+    tick();
+    this.fixture.detectChanges();
+    return handled;
+  }
+
   insertText(index: number, text: string): void {
     this.component.editor!.insertText(index, text, 'user');
     tick();
@@ -2323,6 +2363,21 @@ function basicSimpleText(): { env: TestEnvironment; segmentRange: QuillRange } {
   env.fixture.detectChanges();
   tick();
   return { env, segmentRange };
+}
+
+function footnoteEnv(isRightToLeft: boolean): { env: TestEnvironment; footnoteIndex: number } {
+  const chapterNum = 2;
+  const env = new TestEnvironment({ chapterNum, textDoc: chapterTextOpsWithFootnote(chapterNum) });
+  env.hostComponent.isTextRightToLeft = isRightToLeft;
+  env.waitForEditor();
+  env.component.setSegment(`verse_${chapterNum}_1`, undefined, true);
+  tick();
+  const footnoteIndex: number =
+    env.component.getSegmentRange(`verse_${chapterNum}_1`)!.index + 'quick brown fox'.length;
+  expect(env.component.editor!.getContents(footnoteIndex, 1).ops[0].insert)
+    .withContext('setup')
+    .toEqual(jasmine.objectContaining({ note: jasmine.anything() }));
+  return { env, footnoteIndex };
 }
 
 function chapterTextOpsWithFootnote(chapterNum: number): RichText.DeltaOperation[] {
