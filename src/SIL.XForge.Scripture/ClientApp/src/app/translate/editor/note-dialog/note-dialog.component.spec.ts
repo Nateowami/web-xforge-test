@@ -294,6 +294,10 @@ describe('NoteDialogComponent', () => {
     // RTL is detected and applied.
     expect(env.dialogContentArea.classes.rtl).toBeTrue();
     expect(env.dialogContentArea.classes.ltr).toBeUndefined();
+    // The whole note, including the author row, is laid out RTL regardless of the interface direction
+    const noteStyle: CSSStyleDeclaration = getComputedStyle(env.notes[0].nativeElement);
+    expect(noteStyle.direction).toEqual('rtl');
+    expect(noteStyle.flexDirection).toEqual('row-reverse');
   }));
 
   it('uses ltr direction with ltr project', fakeAsync(() => {
@@ -301,6 +305,9 @@ describe('NoteDialogComponent', () => {
     expect(env.component.isRtl).withContext('setup').toBeFalse();
     expect(env.dialogContentArea.classes.rtl).toBeUndefined();
     expect(env.dialogContentArea.classes.ltr).toBeTrue();
+    const noteStyle: CSSStyleDeclaration = getComputedStyle(env.notes[0].nativeElement);
+    expect(noteStyle.direction).toEqual('ltr');
+    expect(noteStyle.flexDirection).toEqual('row-reverse');
   }));
 
   it('show insert note dialog content', fakeAsync(() => {
