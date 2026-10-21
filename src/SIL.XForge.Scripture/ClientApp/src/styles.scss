@@ -59,6 +59,12 @@ as-split > .as-split-gutter .as-split-gutter-icon {
   flex-direction: column;
 }
 
+.menu-drawer-over-content > .cdk-global-overlay-wrapper > .cdk-overlay-pane.hide-under-menu-drawer {
+  // See AppComponent.updateDrawerOverContentClass(). Hiding the pane rather than the content inside it also stops the
+  // pane from intercepting taps on the drawer.
+  visibility: hidden;
+}
+
 .cdk-overlay-pane.inviteDialogComponent {
   width: 80%;
   max-width: 400px !important;

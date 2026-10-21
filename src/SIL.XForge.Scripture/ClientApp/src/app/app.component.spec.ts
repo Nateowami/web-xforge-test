@@ -1,4 +1,5 @@
 import { BreakpointObserver } from '@angular/cdk/layout';
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { Location } from '@angular/common';
 import { Component, DebugElement, NgZone } from '@angular/core';
 import { ComponentFixture, discardPeriodicTasks, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
@@ -240,6 +241,29 @@ describe('AppComponent', () => {
     expect(env.component['isExpanded']).toBe(false);
     expect(env.menuDrawer).not.toBeNull();
     expect(env.hamburgerMenuButton).not.toBeNull();
+
+    discardPeriodicTasks();
+    flush();
+  }));
+
+  it('flags the overlay container while the drawer is over the page content', fakeAsync(() => {
+    const env = new TestEnvironment();
+    const overlayContainerClasses: DOMTokenList = TestBed.inject(OverlayContainer).getContainerElement().classList;
+    env.breakpointObserver.emitObserveValue(false);
+    env.navigateFully(['/projects', 'project01']);
+    expect(overlayContainerClasses).not.toContain('menu-drawer-over-content');
+
+    env.click(env.hamburgerMenuButton);
+    expect(overlayContainerClasses).toContain('menu-drawer-over-content');
+
+    env.click(env.hamburgerMenuButton);
+    expect(overlayContainerClasses).not.toContain('menu-drawer-over-content');
+
+    // A permanent drawer sits beside the content, so overlays need not be hidden
+    env.click(env.hamburgerMenuButton);
+    env.breakpointObserver.emitObserveValue(true);
+    env.wait();
+    expect(overlayContainerClasses).not.toContain('menu-drawer-over-content');
 
     discardPeriodicTasks();
     flush();

@@ -1,5 +1,6 @@
 import { BidiModule } from '@angular/cdk/bidi';
 import { BreakpointObserver, BreakpointState } from '@angular/cdk/layout';
+import { OverlayContainer } from '@angular/cdk/overlay';
 import { CdkScrollable } from '@angular/cdk/scrolling';
 import { AsyncPipe, DOCUMENT } from '@angular/common';
 import { Component, DestroyRef, HostBinding, Inject, OnDestroy, OnInit } from '@angular/core';
@@ -106,7 +107,6 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   hasUpdate: boolean = false;
 
   protected isAppOnline: boolean = false;
-  protected isExpanded: boolean = false;
   protected isScreenTiny = false;
 
   private currentUserDoc?: UserDoc;
@@ -115,6 +115,7 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
   private selectedProjectDeleteSub?: Subscription;
   private selectedProjectChangedSub?: Subscription;
   private _isDrawerPermanent: boolean = true;
+  private _isExpanded: boolean = false;
 
   constructor(
     private readonly router: Router,
@@ -130,6 +131,7 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
     private readonly locationService: LocationService,
     private readonly breakpointObserver: BreakpointObserver,
     private readonly breakpointService: MediaBreakpointService,
+    private readonly overlayContainer: OverlayContainer,
     private readonly cookieService: CookieService,
     readonly noticeService: NoticeService,
     readonly i18n: I18nService,
@@ -235,7 +237,17 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
       if (!this._isDrawerPermanent) {
         this.collapseDrawer();
       }
+      this.updateDrawerOverContentClass();
     }
+  }
+
+  protected get isExpanded(): boolean {
+    return this._isExpanded;
+  }
+
+  protected set isExpanded(value: boolean) {
+    this._isExpanded = value;
+    this.updateDrawerOverContentClass();
   }
 
   get lastSelectedProjectId(): string | undefined {
@@ -478,6 +490,17 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
 
   drawerCollapsed(): void {
     this.isExpanded = false;
+  }
+
+  /**
+   * Overlays such as the editor's add comment bottom sheet are rendered in the CDK overlay container, which is always
+   * above the drawer. Flag on the container when the drawer slides over the page content, so that overlays with the
+   * `hide-under-menu-drawer` panel class can be hidden instead of covering the drawer's menu items.
+   */
+  private updateDrawerOverContentClass(): void {
+    this.overlayContainer
+      .getContainerElement()
+      .classList.toggle('menu-drawer-over-content', this._isExpanded && !this._isDrawerPermanent);
   }
 
   reloadWithUpdates(): void {
