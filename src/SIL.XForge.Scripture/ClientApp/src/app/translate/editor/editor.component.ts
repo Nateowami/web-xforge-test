@@ -778,6 +778,11 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         if (this.projectDoc.id !== prevProjectId) {
           this.projectDataChangesSub?.unsubscribe();
           this.projectDataChangesSub = this.projectDoc.remoteChanges$.subscribe(async () => {
+            // The user may have lost the right to add comments, e.g. their role changed from commenter to viewer
+            if (!this.showAddCommentUI) {
+              this.resetCommenterVerseSelection();
+            }
+
             let sourceId: TextDocId | undefined;
             if (this.hasSource && this.chapter != null) {
               sourceId = new TextDocId(

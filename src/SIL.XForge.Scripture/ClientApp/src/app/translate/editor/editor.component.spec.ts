@@ -2592,6 +2592,35 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('deselects verse and closes bottom sheet when a commenter loses the right to add comments', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.setCommenterUser();
+      env.routeWithParams({ projectId: 'project01', bookId: 'LUK' });
+      env.wait();
+
+      // Allow check for mobile viewports to return TRUE
+      env.breakpointObserver.matchedResult = true;
+      env.clickSegmentRef('verse_1_1');
+      env.wait();
+      const verseElem: HTMLElement = env.getSegmentElement('verse_1_1')!;
+      expect(verseElem.classList).toContain('commenter-selection');
+      expect(env.bottomSheetVerseReference?.textContent).toEqual('Luke 1:1');
+
+      // A remote project change that does not affect the user's rights keeps the selection
+      env.updateFontSize('project01', 24);
+      env.wait();
+      expect(verseElem.classList).toContain('commenter-selection');
+      expect(env.bottomSheetVerseReference?.textContent).toEqual('Luke 1:1');
+
+      env.changeUserRole('project01', 'user05', SFProjectRole.Viewer);
+      expect(verseElem.classList).not.toContain('commenter-selection');
+      expect(env.bottomSheetVerseReference).toBeNull();
+      expect(env.insertNoteFabMobile).toBeNull();
+
+      env.dispose();
+    }));
+
     it('shows current selected verse on bottom sheet', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig();
