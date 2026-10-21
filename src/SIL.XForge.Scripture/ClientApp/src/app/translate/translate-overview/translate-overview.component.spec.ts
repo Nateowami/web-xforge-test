@@ -1,6 +1,5 @@
-import { DebugElement } from '@angular/core';
+import { ErrorHandler } from '@angular/core';
 import { ComponentFixture, discardPeriodicTasks, fakeAsync, TestBed, tick } from '@angular/core/testing';
-import { By } from '@angular/platform-browser';
 import { ActivatedRoute, Params } from '@angular/router';
 import { User } from 'realtime-server/lib/esm/common/models/user';
 import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-data';
@@ -8,7 +7,7 @@ import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { of } from 'rxjs';
-import { anything, mock, resetCalls, verify, when } from 'ts-mockito';
+import { anything, mock, reset, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
 import { L10nPercentPipe } from 'xforge-common/l10n-percent.pipe';
 import { UserDoc } from 'xforge-common/models/user-doc';
@@ -22,7 +21,12 @@ import { configureTestingModule, getTestTranslocoModule } from 'xforge-common/te
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
-import { ProgressService, ProjectProgress } from '../../shared/progress-service/progress.service';
+import {
+  BookProgress,
+  ProgressService,
+  ProjectProgress,
+  ProjectProgressWithChapterProgress
+} from '../../shared/progress-service/progress.service';
 import { FontUnsupportedMessageComponent } from '../font-unsupported-message/font-unsupported-message.component';
 import { TranslateOverviewComponent } from './translate-overview.component';
 
@@ -31,6 +35,7 @@ const mockedAuthService = mock(AuthService);
 const mockedNoticeService = mock(NoticeService);
 const mockedUserService = mock(UserService);
 const mockedProgressService = mock(ProgressService);
+const mockedErrorHandler = mock(ErrorHandler);
 
 describe('TranslateOverviewComponent', () => {
   configureTestingModule(() => ({
@@ -43,25 +48,79 @@ describe('TranslateOverviewComponent', () => {
       { provide: NoticeService, useMock: mockedNoticeService },
       { provide: UserService, useMock: mockedUserService },
       { provide: OnlineStatusService, useClass: TestOnlineStatusService },
-      { provide: ProgressService, useMock: mockedProgressService }
+      { provide: ProgressService, useMock: mockedProgressService },
+      { provide: ErrorHandler, useMock: mockedErrorHandler }
     ]
   }));
 
-  it('should show progress while offline and refresh it when back online', fakeAsync(() => {
+  it('should show progress from stored chapters while offline and refresh it when back online', fakeAsync(() => {
     const env = new TestEnvironment();
+    env.setLocalProgress({ bookId: 'MAT', verseSegments: 4, blankVerseSegments: 1 }, true);
     env.isOnline = false;
     env.wait();
 
-    expect(env.booksCard).toBeTruthy();
+    expect(env.missingChaptersNotice).toBeNull();
+    env.expectContainsTextProgress(0, 'Matthew', '3 of 4 segments');
+    verify(mockedProgressService.getProgress(anything(), anything())).never();
+
+    env.isOnline = true;
     env.expectContainsTextProgress(0, 'Matthew', '10 of 20 segments');
     verify(mockedProgressService.getProgress('project01', anything())).once();
 
-    // Going online should fetch progress again, now from the server
+    discardPeriodicTasks();
+  }));
+
+  it('should say when progress shown offline is missing chapters', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setLocalProgress({ bookId: 'MAT', verseSegments: 4, blankVerseSegments: 1 }, false);
+    env.isOnline = false;
+    env.wait();
+
+    expect(env.missingChaptersNotice).toBeTruthy();
+    env.expectContainsTextProgress(0, 'Matthew', '3 of 4 segments');
+
+    env.isOnline = true;
+    expect(env.missingChaptersNotice).toBeNull();
+
+    discardPeriodicTasks();
+  }));
+
+  it('should not let a slow offline calculation overwrite progress from the server', fakeAsync(() => {
+    const env = new TestEnvironment();
+    let resolveLocalProgress!: (result: { progress: ProjectProgressWithChapterProgress; isComplete: boolean }) => void;
+    when(mockedProgressService.getLocalProgress('project01')).thenReturn(
+      new Promise(resolve => (resolveLocalProgress = resolve))
+    );
+    env.isOnline = false;
+    env.wait();
+
+    env.isOnline = true;
+    resolveLocalProgress({
+      progress: new ProjectProgressWithChapterProgress([
+        { bookId: 'MAT', verseSegments: 4, blankVerseSegments: 1, chapters: [] }
+      ]),
+      isComplete: false
+    });
+    env.wait();
+
+    expect(env.missingChaptersNotice).toBeNull();
+    env.expectContainsTextProgress(0, 'Matthew', '10 of 20 segments');
+
+    discardPeriodicTasks();
+  }));
+
+  it('should keep updating progress after a request fails', fakeAsync(() => {
+    const env = new TestEnvironment();
+    when(mockedProgressService.getProgress(anything(), anything())).thenReject(new Error('server error'));
+    env.setLocalProgress({ bookId: 'MAT', verseSegments: 4, blankVerseSegments: 1 }, true);
+    env.wait();
+    verify(mockedErrorHandler.handleError(anything())).once();
+
     when(mockedProgressService.getProgress(anything(), anything())).thenResolve(
       new ProjectProgress([{ bookId: 'MAT', verseSegments: 20, blankVerseSegments: 5 }])
     );
+    env.isOnline = false;
     env.isOnline = true;
-    verify(mockedProgressService.getProgress('project01', anything())).twice();
     env.expectContainsTextProgress(0, 'Matthew', '15 of 20 segments');
 
     discardPeriodicTasks();
@@ -93,7 +152,8 @@ class TestEnvironment {
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
 
   constructor() {
-    resetCalls(mockedProgressService);
+    reset(mockedProgressService);
+    reset(mockedErrorHandler);
     const params = { ['projectId']: 'project01' } as Params;
     when(mockedActivatedRoute.params).thenReturn(of(params));
     when(mockedActivatedRoute.snapshot).thenReturn({} as any); // just needs to not be null/undefined
@@ -114,8 +174,8 @@ class TestEnvironment {
     this.setupUserData();
   }
 
-  get booksCard(): DebugElement {
-    return this.fixture.debugElement.query(By.css('.books-card'));
+  get missingChaptersNotice(): HTMLElement | null {
+    return this.fixture.nativeElement.querySelector('app-notice[icon="cloud_off"]');
   }
 
   get progressTextList(): HTMLElement {
@@ -129,6 +189,13 @@ class TestEnvironment {
   set isOnline(value: boolean) {
     this.testOnlineStatusService.setIsOnline(value);
     this.wait();
+  }
+
+  setLocalProgress(book: BookProgress, isComplete: boolean): void {
+    when(mockedProgressService.getLocalProgress('project01')).thenResolve({
+      progress: new ProjectProgressWithChapterProgress([{ ...book, chapters: [] }]),
+      isComplete
+    });
   }
 
   setCurrentUser(userId: string = 'user01'): void {

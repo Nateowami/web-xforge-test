@@ -968,6 +968,7 @@
     "uploading": "Uploading..."
   },
   "translate_overview": {
+    "offline_progress_missing_chapters": "Some chapters are not stored on this device, so progress while offline does not include them.",
     "progress": "Progress",
     "translate_overview": "Translate Overview",
     "translated_segments": "{{ translatedSegments }} of {{ total }} segments"

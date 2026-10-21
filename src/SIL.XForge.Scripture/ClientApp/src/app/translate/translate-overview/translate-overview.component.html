@@ -5,6 +5,12 @@
     <app-font-unsupported-message></app-font-unsupported-message>
   }
 
+  @if (progressIsPartial) {
+    <app-notice type="info" icon="cloud_off" mode="fill-dark">
+      {{ t("offline_progress_missing_chapters") }}
+    </app-notice>
+  }
+
   <div class="card-wrapper">
     <mat-card class="books-card">
       <mat-card-header id="translate-overview-title" class="books-card-title">
