@@ -2351,7 +2351,7 @@ public class ParatextService : DisposableBase, IParatextService
         DateTime milestonePeriod = DateTime.MaxValue;
         DocumentRevision documentRevision = new DocumentRevision { Timestamp = DateTime.UtcNow };
         int milestoneOps = 0;
-        int milestoneStartIndex = -1;
+        int milestoneLatestOpIndex = -1;
         for (int i = ops.Length - 1; i >= 0; i--)
         {
             // Emit the op as a milestone if it is:
@@ -2388,16 +2388,17 @@ public class ParatextService : DisposableBase, IParatextService
                     Timestamp = op.Metadata.Timestamp,
                     UserId = op.Metadata.UserId,
                 };
-                milestoneStartIndex = i;
+                milestoneLatestOpIndex = i;
             }
 
             milestoneOps++;
         }
 
         // If the chapter was created by a sync, and no other ops are in its milestone, the milestone has the same text as
-        // the latest Paratext commit to the book. We return that commit instead, unless there is no such commit.
+        // the latest Paratext commit to the book. We return that commit instead, unless there is no such commit, or the
+        // commit's timestamp may be wrong (see below).
         DocumentRevision? createdByParatextRevision = null;
-        if (milestoneStartIndex == 0 && ops[0].Version == 0 && ops[0].Metadata.Source == OpSource.Paratext)
+        if (milestoneLatestOpIndex == 0 && ops[0].Version == 0 && ops[0].Metadata.Source == OpSource.Paratext)
         {
             createdByParatextRevision = documentRevision;
         }
@@ -2445,10 +2446,31 @@ public class ParatextService : DisposableBase, IParatextService
         // Note: The following code is not testable due to ParatextData limitations
         // Iterate over the Paratext commits earlier than the earliest MongoOp
         DateTimeOffset timeStampOffset = new DateTimeOffset(milestonePeriod, TimeSpan.Zero);
-        HgRevisionCollection revisionCollection = HgRevisionCollection
-            .Get(scrText)
-            .FilterRevisions(r => r.CommitTimeStamp <= timeStampOffset);
+        HgRevisionCollection allRevisions = HgRevisionCollection.Get(scrText);
+        HgRevisionCollection revisionCollection = allRevisions.FilterRevisions(r =>
+            r.CommitTimeStamp <= timeStampOffset
+        );
         int bookNum = Canon.BookIdToNumber(book);
+
+        // Commit timestamps come from the Paratext user's clock. If it is ahead of the server's, the commit that the
+        // sync created the chapter from can be dated after the creation, and so is not returned below. Keep the
+        // creation revision if a commit dated shortly after it changes this chapter, as the latest commit returned
+        // below may not contain this chapter's text.
+        if (
+            createdByParatextRevision is not null
+            && allRevisions.Any(r =>
+                r.CommitTimeStamp > timeStampOffset
+                && r.CommitTimeStamp <= timeStampOffset.AddHours(1)
+                && new RevisionChangeInfo(allRevisions.VersionedText, r).GetChangesForBook(bookNum)
+                    is BookChanges bookChanges
+                && (bookChanges.Status != Hg.FileStatus.Modified || bookChanges.ChapterHasChange(chapter))
+            )
+        )
+        {
+            yield return createdByParatextRevision;
+            createdByParatextRevision = null;
+        }
+
         foreach (HgRevision revision in revisionCollection)
         {
             // Get the revision summary to see if the book and chapter has changed
