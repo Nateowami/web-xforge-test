@@ -46,8 +46,8 @@ import { OnlineStatusService } from './online-status.service';
 import { SharedbRealtimeRemoteStore } from './sharedb-realtime-remote-store';
 import { provideTestOnlineStatus } from './test-online-status-providers';
 import { TestOnlineStatusService } from './test-online-status.service';
-import { TypeRegistry } from './type-registry';
 import { configureTestingModule, getTestTranslocoModule } from './test-utils';
+import { TypeRegistry } from './type-registry';
 import { aspCultureCookieValue } from './utils';
 
 const mockedAuth0Service = mock(Auth0Service);
@@ -717,9 +717,26 @@ describe('AuthService', () => {
     verify(mockedWebAuth.logout(anything())).once();
   }));
 
-  it('does not warn when logging out online with changes waiting to be sent', fakeAsync(() => {
+  it('warns when logging out online with changes waiting to be sent', fakeAsync(() => {
     const env = new TestEnvironment({ isOnline: true, isLoggedIn: true });
     env.addOfflineUserDoc({ pendingOps: [{ op: [{ p: ['name'], oi: 'New name' }] }] });
+    when(mockedDialogService.confirmWithOptions(anything())).thenResolve(false);
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedDialogService.confirmWithOptions(anything())).once();
+    const [options] = capture(mockedDialogService.confirmWithOptions).last();
+    expect(options.title).toEqual('warnings.unsaved_changes');
+    expect(options.affirmative).toEqual('warnings.logout_and_discard_unsaved_changes');
+    expect(options.negative).toEqual('warnings.stay_logged_in');
+    verify(mockedWebAuth.logout(anything())).never();
+    env.discardTokenExpiryTimer();
+  }));
+
+  it('does not warn when logging out online with only saved data', fakeAsync(() => {
+    const env = new TestEnvironment({ isOnline: true, isLoggedIn: true });
+    env.addOfflineUserDoc({ pendingOps: [] });
 
     env.service.logOut();
     tick();
@@ -727,6 +744,19 @@ describe('AuthService', () => {
     verify(mockedDialogService.confirmWithOptions(anything())).never();
     verify(mockedWebAuth.logout(anything())).once();
     env.discardTokenExpiryTimer();
+  }));
+
+  it('warns but still allows logging out when the offline store cannot be read', fakeAsync(() => {
+    const env = new TestEnvironment({ isLoggedIn: true });
+    spyOn(env.offlineStore, 'some').and.rejectWith(new Error('Corrupt database'));
+    when(mockedDialogService.confirmWithOptions(anything())).thenResolve(true);
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedErrorReportingService.silentError(anything(), anything())).once();
+    verify(mockedDialogService.confirmWithOptions(anything())).once();
+    verify(mockedWebAuth.logout(anything())).once();
   }));
 
   it('should authenticate transparently when joining', fakeAsync(() => {

@@ -42,6 +42,10 @@ export class MemoryOfflineStore extends OfflineStore {
     return Promise.resolve(Array.from(collectionData.values()) as T[]);
   }
 
+  async some<T extends OfflineData>(collection: string, predicate: (item: T) => boolean): Promise<boolean> {
+    return (await this.getAll<T>(collection)).some(predicate);
+  }
+
   get<T extends OfflineData>(collection: string, id: string): Promise<T | undefined> {
     const collectionData = this.map.get(collection);
     if (collectionData == null) {
