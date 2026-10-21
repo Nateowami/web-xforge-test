@@ -1,9 +1,10 @@
-import { ComponentFixture, TestBed } from '@angular/core/testing';
+import { ComponentFixture, fakeAsync, flush, TestBed } from '@angular/core/testing';
 import { FormBuilder, ReactiveFormsModule } from '@angular/forms';
 import { DateAdapter, provideNativeDateAdapter } from '@angular/material/core';
-import { MatDatepickerModule } from '@angular/material/datepicker';
+import { MatDatepickerModule, MatDateRangePicker } from '@angular/material/datepicker';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
+import { By } from '@angular/platform-browser';
 import { BehaviorSubject } from 'rxjs';
 import { I18nService } from 'xforge-common/i18n.service';
 import { Locale } from 'xforge-common/models/i18n-locale';
@@ -82,8 +83,10 @@ describe('DateRangePickerComponent', () => {
       env.typeInto(env.startInput, '');
       // Still composing
       expect(env.errorText).toBeNull();
-      env.focus(env.endInput);
+      env.moveFocus(env.startInput, env.endInput);
       // Moving between the start and end inputs is still composing
+      expect(env.component.dateRangeForm.controls.start.touched).toBe(true);
+      expect(env.component.isIncompleteRangeLeft).toBe(false);
       expect(env.errorText).toBeNull();
       env.blur(env.endInput);
 
@@ -124,6 +127,23 @@ describe('DateRangePickerComponent', () => {
 
       expect(env.errorText).toContain('Select a valid date range');
     });
+
+    it('does not show an error while the calendar popup is open', fakeAsync(() => {
+      const env = new TestEnvironment({ startWithEmptyRange: false });
+      env.picker.open();
+      env.fixture.detectChanges();
+      // Picking a start date in the calendar leaves the end date empty and marks the inputs touched
+      env.component.dateRangeForm.setValue({ start: env.daysAgo(3), end: null });
+      env.component.dateRangeForm.markAllAsTouched();
+      env.fixture.detectChanges();
+      expect(env.errorText).toBeNull();
+
+      env.picker.close();
+      flush();
+      env.fixture.detectChanges();
+      expect(env.picker.opened).toBe(false);
+      expect(env.errorText).toContain('Select a valid date range');
+    }));
 
     it('does not show an error for an untouched control', () => {
       const env = new TestEnvironment({ startWithEmptyRange: false });
@@ -252,6 +272,16 @@ class TestEnvironment {
     input.value = text;
     input.dispatchEvent(new Event('input'));
     this.fixture.detectChanges();
+  }
+
+  get picker(): MatDateRangePicker<Date> {
+    return this.fixture.debugElement.query(By.directive(MatDateRangePicker)).componentInstance;
+  }
+
+  /** Moves focus between the inputs the way a browser does, with the blur event naming where focus is going. */
+  moveFocus(from: HTMLInputElement, to: HTMLInputElement): void {
+    from.dispatchEvent(new FocusEvent('blur', { relatedTarget: to }));
+    this.focus(to);
   }
 
   focus(input: HTMLInputElement): void {
