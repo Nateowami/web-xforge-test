@@ -4,10 +4,9 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { MatDialog, MatDialogRef } from '@angular/material/dialog';
 import { firstValueFrom } from 'rxjs';
 import { filter } from 'rxjs/operators';
-import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { anything, mock, verify, when } from 'ts-mockito';
 import { NAVIGATOR } from 'xforge-common/browser-globals';
 import { DialogService } from 'xforge-common/dialog.service';
-import { I18nService } from 'xforge-common/i18n.service';
 import { MockConsole } from 'xforge-common/mock-console';
 import { UserDoc } from 'xforge-common/models/user-doc';
 import { NoticeService } from 'xforge-common/notice.service';
@@ -148,20 +147,14 @@ describe('AudioRecorderDialogComponent', () => {
     playingAudio.dispose();
   });
 
-  it('is docked at the bottom of the screen so it does not cover the text the user is reading', () => {
-    const mockedI18nService = mock(I18nService);
-    when(mockedI18nService.direction).thenReturn('ltr');
-    const dialogService = new DialogService(instance(mockedI18nService), TestBed.inject(MatDialog));
-    const fixture: ComponentFixture<ChildViewContainerComponent> = TestBed.createComponent(ChildViewContainerComponent);
+  it('shows the text that goes with the recording', () => {
+    const env = new TestEnvironment(true, false, 'Who went with Naomi?');
+    expect(env.textToRecord!.textContent).toEqual('Who went with Naomi?');
+  });
 
-    dialogService.openMatDialog(AudioRecorderDialogComponent, { data: { countdown: false } });
-    fixture.detectChanges();
-    TestBed.tick();
-
-    const overlayWrapper = overlayContainer
-      .getContainerElement()
-      .querySelector('.cdk-global-overlay-wrapper') as HTMLElement;
-    expect(overlayWrapper.style.alignItems).toEqual('flex-end');
+  it('shows no text when there is none', () => {
+    const env = new TestEnvironment();
+    expect(env.textToRecord).toBeNull();
   });
 
   it('saves after recording and processing if manual save is not required', async () => {
@@ -202,10 +195,10 @@ class TestEnvironment {
 
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
 
-  constructor(saveRequired: boolean = true, countdown: boolean = false) {
+  constructor(saveRequired: boolean = true, countdown: boolean = false, text?: string) {
     this.fixture = TestBed.createComponent(ChildViewContainerComponent);
     this.dialogRef = TestBed.inject(MatDialog).open(AudioRecorderDialogComponent, {
-      data: { countdown, requireSave: saveRequired } as AudioRecorderDialogData
+      data: { countdown, requireSave: saveRequired, text } as AudioRecorderDialogData
     });
     this.component = this.dialogRef.componentInstance;
 
@@ -226,6 +219,10 @@ class TestEnvironment {
 
   get overlayContainerElement(): HTMLElement {
     return this.fixture.nativeElement.parentElement.querySelector('.cdk-overlay-container');
+  }
+
+  get textToRecord(): HTMLElement | null {
+    return this.overlayContainerElement.querySelector('.text-to-record');
   }
 
   get recordButton(): HTMLElement {

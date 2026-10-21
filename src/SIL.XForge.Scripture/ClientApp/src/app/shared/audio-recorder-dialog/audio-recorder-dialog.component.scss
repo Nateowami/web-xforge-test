@@ -1,6 +1,15 @@
 @use 'sass:color';
 @use 'src/variables';
 
+.text-to-record {
+  max-width: 400px;
+  max-height: 30vh;
+  overflow-y: auto;
+  margin: 0 auto 8px;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
 .container {
   display: flex;
   align-items: center;

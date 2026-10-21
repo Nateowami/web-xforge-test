@@ -1,10 +1,11 @@
 import { DebugElement } from '@angular/core';
 import { ComponentFixture, fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { FormControl } from '@angular/forms';
 import { MatDialogRef } from '@angular/material/dialog';
 import { By } from '@angular/platform-browser';
 import { ngfModule } from 'angular-file';
 import { of } from 'rxjs';
-import { anything, instance, mock, verify, when } from 'ts-mockito';
+import { anything, deepEqual, instance, mock, verify, when } from 'ts-mockito';
 import { DialogService } from 'xforge-common/dialog.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { configureTestingModule, getAudioBlob, getTestTranslocoModule } from 'xforge-common/test-utils';
@@ -41,6 +42,20 @@ describe('AttachAudioComponent', () => {
     env.fixture.detectChanges();
     verify(mockDialogService.openMatDialog(AudioRecorderDialogComponent, anything())).once();
     verify(env.mockTextAndAudio.setAudioAttachment(anything())).once();
+  }));
+
+  it('passes the text that goes with the recording to the recorder', fakeAsync(() => {
+    when(env.mockTextAndAudio.input).thenReturn({});
+    when(env.mockTextAndAudio.text).thenReturn(new FormControl('Who went with Naomi?'));
+    env.fixture.detectChanges();
+    env.recordIcon.nativeElement.click();
+    tick();
+    verify(
+      mockDialogService.openMatDialog(
+        AudioRecorderDialogComponent,
+        deepEqual({ data: { countdown: true, text: 'Who went with Naomi?' } })
+      )
+    ).once();
   }));
 
   it('does not save when no audio recorded', fakeAsync(() => {
@@ -111,6 +126,7 @@ class TestEnvironment {
     );
     this.fixture = TestBed.createComponent(AttachAudioComponent);
     this.component = this.fixture.componentInstance;
+    when(this.mockTextAndAudio.text).thenReturn(new FormControl(''));
     this.component.textAndAudio = instance(this.mockTextAndAudio);
     this.fixture.detectChanges();
   }
