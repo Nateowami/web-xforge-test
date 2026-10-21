@@ -28,6 +28,7 @@ import { QuestionDoc } from '../../core/models/question-doc';
 import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { TextAudioDoc } from '../../core/models/text-audio-doc';
 import { TextsByBookId } from '../../core/models/texts-by-book-id';
+import { AudioPlayerStub } from '../checking-test.utils';
 import { AudioAttachment } from '../checking/checking-audio-player/checking-audio-player.component';
 import {
   ChapterAudioDialogComponent,
@@ -416,29 +417,19 @@ describe('ChapterAudioDialogComponent', () => {
     expect(env.component.allFieldsValid).toEqual(true);
   }));
 
-  // TODO: Enable once we have audio stub merged in
-  xit('stop playing audio if a new audio file is uploaded', fakeAsync(() => {
-    env.component.prepareTimingFileUpload(env.timingFile);
-    env.fixture.detectChanges();
-    const dataTransfer = new DataTransfer();
-    for (const file of TestEnvironment.uploadFiles) {
-      dataTransfer.items.add(file);
-    }
-    const event = new Event('change');
-    env.fileUploadElement.files = dataTransfer.files;
-    env.fileUploadElement.dispatchEvent(event);
-    tick();
-
+  it('stops playing audio if a new audio file is uploaded', fakeAsync(() => {
+    env.uploadFiles(TestEnvironment.uploadFiles);
     expect(env.wrapperAudio.classList.contains('valid')).toBe(true);
+
+    const audioPlayer = new AudioPlayerStub(env.audioFile.url!, env.testOnlineStatusService);
+    spyOnProperty(env.component.chapterAudio!, 'audio').and.returnValue(audioPlayer);
     env.playAudio();
     expect(env.component.chapterAudio!.playing).toBe(true);
 
-    // Trigger another upload event
-    env.fileUploadElement.dispatchEvent(event);
-    tick();
+    env.uploadFiles([TestEnvironment.uploadFiles[0]]);
 
     expect(env.wrapperAudio.classList.contains('valid')).toBe(true);
-    expect(env.component.chapterAudio!.playing).toBe(false);
+    expect(audioPlayer.isPlaying).toBe(false);
   }));
 
   it('will maintain timing data parse errors across audio file uploads', fakeAsync(async () => {
@@ -781,6 +772,18 @@ class TestEnvironment {
         timings: [{ textRef: 'v1', from: 0, to: 1 }]
       })
     });
+  }
+
+  uploadFiles(files: File[]): void {
+    this.fixture.detectChanges();
+    const dataTransfer = new DataTransfer();
+    for (const file of files) {
+      dataTransfer.items.add(file);
+    }
+    this.fileUploadElement.files = dataTransfer.files;
+    this.fileUploadElement.dispatchEvent(new Event('change'));
+    tick();
+    this.fixture.detectChanges();
   }
 
   playAudio(): void {
