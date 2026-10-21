@@ -76,6 +76,30 @@ export const DraftClass = new ClassAttributor('draft', 'draft', {
   scope: Parchment.Scope.INLINE
 });
 
+/** An attributor whose value is an object. It is stored as JSON, since Quill reads formats back from the DOM. */
+export class JsonAttributor extends Attributor {
+  add(node: HTMLElement, value: any): boolean {
+    if (value == null || typeof value !== 'object') {
+      return false;
+    }
+    node.setAttribute(this.keyName, JSON.stringify(value));
+    return true;
+  }
+
+  value(node: HTMLElement): any {
+    const value: string | null = node.getAttribute(this.keyName);
+    return value == null ? undefined : JSON.parse(value);
+  }
+}
+
+// The table, row and cell attributes of a table cell's newline. Without these, Quill drops them and a cell is
+// indistinguishable from an implicit paragraph.
+export const TableAttribute = new JsonAttributor('table', 'data-table', { scope: Parchment.Scope.BLOCK });
+
+export const TableRowAttribute = new JsonAttributor('row', 'data-row', { scope: Parchment.Scope.BLOCK });
+
+export const TableCellAttribute = new JsonAttributor('cell', 'data-cell', { scope: Parchment.Scope.BLOCK });
+
 export function isAttributor(blot: any): blot is Attributor {
   return blot instanceof Attributor;
 }

@@ -485,6 +485,65 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  it('can edit and empty a table cell', fakeAsync(() => {
+    const chapterNum = 2;
+    const cellAttrs = { table: { id: 'table_1' }, row: { id: 'row_1_1' }, cell: { style: 'tc1', align: 'start' } };
+    // \p \v 1 B \tr \tc1 C \p E
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { blank: true }, attributes: { segment: 'p_1', initial: true } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'B', attributes: { segment: 'verse_2_1' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } },
+      { insert: 'C', attributes: { segment: 'cell_1_1_1' } },
+      { insert: '\n', attributes: cellAttrs },
+      { insert: 'E', attributes: { segment: 'verse_2_1/p_1' } },
+      { insert: '\n', attributes: { para: { style: 'p' } } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.waitForEditor();
+    const textDoc: TextDoc = env.realtimeService.get<TextDoc>(TextDoc.COLLECTION, env.id!.toString());
+    const editor: Quill = env.component.editor!;
+    const cellIndex: number = env.component.getSegmentRange('cell_1_1_1')!.index;
+    // The cell's text op and the newline that ends the cell, in the text doc
+    const cellOps = (): RichText.DeltaOperation[] => {
+      const i: number = textDoc.data!.ops!.findIndex(op => op.attributes?.segment === 'cell_1_1_1');
+      return textDoc.data!.ops!.slice(i, i + 2);
+    };
+
+    editor.setSelection(cellIndex, 0, 'user');
+    tick();
+    env.insertText(cellIndex, 'x');
+    expect(env.component.getSegmentText('cell_1_1_1')).toEqual('xC');
+    expect(cellOps()).toEqual([
+      { insert: 'xC', attributes: { segment: 'cell_1_1_1' } },
+      { insert: '\n', attributes: cellAttrs }
+    ]);
+
+    // Delete all of the cell's text. The cell keeps its segment and the selection stays in it.
+    env.applyDelta(new Delta().retain(cellIndex).delete(2), 'user');
+    flush();
+    expect(env.component.getSegmentRange('cell_1_1_1')).toEqual({ index: cellIndex, length: 1 });
+    expect(env.component.segmentRef).toEqual('cell_1_1_1');
+    // after the cell's blank
+    expect(editor.getSelection()?.index).toEqual(cellIndex + 1);
+    expect(cellOps()).toEqual([
+      { insert: { blank: true }, attributes: { segment: 'cell_1_1_1' } },
+      { insert: '\n', attributes: cellAttrs }
+    ]);
+
+    // The emptied cell can still be typed into
+    env.insertText(cellIndex + 1, 'y');
+    flush();
+    expect(env.component.getSegmentText('cell_1_1_1')).toEqual('y');
+    expect(env.component.segmentRef).toEqual('cell_1_1_1');
+    expect(cellOps()).toEqual([
+      { insert: 'y', attributes: { segment: 'cell_1_1_1' } },
+      { insert: '\n', attributes: cellAttrs }
+    ]);
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('can undo when segment is blank', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();
