@@ -91,7 +91,7 @@ import { SFProjectDoc } from '../../core/models/sf-project-doc';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SF_DEFAULT_TRANSLATE_SHARE_ROLE } from '../../core/models/sf-project-role-info';
 import { SFProjectUserConfigDoc } from '../../core/models/sf-project-user-config-doc';
-import { TextDocId } from '../../core/models/text-doc';
+import { TextDoc, TextDocId } from '../../core/models/text-doc';
 import { Revision } from '../../core/paratext.service';
 import { PermissionsService } from '../../core/permissions.service';
 import { SFProjectService } from '../../core/sf-project.service';
@@ -477,11 +477,19 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   get currentSegmentReference(): string {
-    const verseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
+    const verseRef: VerseRef | undefined = this.newNoteVerseRef;
     if (verseRef == null) {
       return '';
     }
     return this.i18n.localizeReference(verseRef);
+  }
+
+  /** The verse a new note is added to: the selected verse, or the chapter's first verse if no verse is selected. */
+  private get newNoteVerseRef(): VerseRef | undefined {
+    if (this.commenterSelectedVerseRef != null) return this.commenterSelectedVerseRef;
+    const firstVerseSegment: string | undefined = this.target?.firstVerseSegment;
+    if (this.bookNum == null || firstVerseSegment == null) return undefined;
+    return getVerseRefFromSegmentRef(this.bookNum, firstVerseSegment);
   }
 
   get direction(): LocaleDirection {
@@ -1063,12 +1071,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       this.noticeService.show(this.i18n.translateStatic('editor.navigate_to_a_valid_text'));
       return;
     }
-    let verseRef: VerseRef | undefined = this.commenterSelectedVerseRef;
-    if (verseRef == null) {
-      const defaultSegmentRef: string | undefined = this.target.firstVerseSegment;
-      if (defaultSegmentRef == null) return;
-      verseRef = getVerseRefFromSegmentRef(this.bookNum, defaultSegmentRef);
-    }
+    const verseRef: VerseRef | undefined = this.newNoteVerseRef;
+    if (verseRef == null) return;
     // Mobile users can use the bottom sheet to add new notes
     if (this.breakpointObserver.isMatched(this.mediaBreakpointService.width('<', Breakpoint.LG))) {
       this.toggleAddingMobileNote();
@@ -1104,11 +1108,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   }
 
   async saveMobileNote(): Promise<void> {
-    if (!this.mobileNoteControl.valid || this.projectId == null || this.commenterSelectedVerseRef == null) {
+    const verseRef: VerseRef | undefined = this.newNoteVerseRef;
+    if (!this.mobileNoteControl.valid || this.projectId == null || verseRef == null) {
       return;
     }
 
-    await this.saveNote({ content: this.mobileNoteControl.value, verseRef: this.commenterSelectedVerseRef });
+    await this.saveNote({ content: this.mobileNoteControl.value, verseRef });
     this.addingMobileNote = false;
     this.bottomSheetRef?.dismiss();
     this.toggleNoteThreadVerseRefs$.next();
@@ -1349,13 +1354,14 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     };
     if (params.threadDataId == null) {
       if (params.verseRef == null) return;
-      // Use the text of the verse the note is on, not of the segment the cursor is in, which can be a different
-      // segment, such as the blank segment at the start of the paragraph before verse 1
-      let verseText: string = '';
-      if (this.target != null) {
-        const verseSegmentRef: string | undefined = this.target.getCompatibleSegments(params.verseRef)[0];
-        if (verseSegmentRef != null) verseText = this.target.getSegmentText(verseSegmentRef);
-      }
+      // Save the verse text the note dialog showed: the whole verse, including any later paragraphs or poetry
+      // lines, rather than the segment the cursor is in, which can be the blank segment before verse 1
+      const textDoc: TextDoc = await this.projectService.getText(
+        new TextDocId(this.projectId, params.verseRef.bookNum, params.verseRef.chapterNum, 'target')
+      );
+      const verseText: string = textDoc.getSegmentTextIncludingRelated(
+        params.verseRef.verse ?? params.verseRef.verseNum.toString()
+      );
       // Create a new thread
       const noteThread: NoteThread = {
         dataId: objectId(),

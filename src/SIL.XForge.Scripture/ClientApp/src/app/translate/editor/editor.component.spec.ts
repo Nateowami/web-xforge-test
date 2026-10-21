@@ -2743,7 +2743,8 @@ describe('EditorComponent', () => {
       expect(noteThread.notes[0].ownerRef).toEqual(userId);
       expect(noteThread.notes[0].content).toEqual(content);
       expect(noteThread.notes[0].tagId).toEqual(2);
-      expect(noteThread.originalSelectedText).toEqual('target: chapter 1, verse 4.');
+      // Verse 4 continues into a second paragraph, and the note dialog shows the text of both
+      expect(noteThread.originalSelectedText).toEqual('target: chapter 1, verse 4.\nParagraph break.');
       expect(env.isNoteIconHighlighted(noteThread.dataId)).toBeFalse();
       expect(env.component.target!.segment!.ref).toBe('verse_1_4');
 
@@ -2770,6 +2771,34 @@ describe('EditorComponent', () => {
       expect(noteThread.verseRef).toEqual(fromVerseRef(new VerseRef('MAT 1:1')));
       expect(noteThread.originalSelectedText).toEqual('target: chapter 1, verse 1.');
       expect(noteThread.notes[0].content).toEqual(content);
+
+      env.dispose();
+    }));
+
+    it('inserts note from bottom sheet on first verse when cursor is in paragraph before first verse', fakeAsync(() => {
+      const projectId: string = 'project01';
+      const env = new TestEnvironment();
+      env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_1' });
+      env.setCurrentUser('user04');
+      env.wait();
+
+      // Allow check for mobile viewports to return TRUE
+      env.breakpointObserver.matchedResult = true;
+      env.setSelectionAndInsertNote('p_1');
+      expect(env.component.target!.segment!.ref).toBe('p_1');
+      expect(env.mobileNoteTextArea).toBeTruthy();
+      expect(env.bottomSheetVerseReference?.textContent).toEqual('Matthew 1:1');
+      const content: string = 'mobile note made from the paragraph start';
+      env.component.mobileNoteControl.setValue(content);
+      // SUT
+      env.saveMobileNoteButton!.click();
+      env.wait();
+      verify(mockedSFProjectService.createNoteThread(projectId, anything())).once();
+      const [, noteThread] = capture(mockedSFProjectService.createNoteThread).last();
+      expect(noteThread.verseRef).toEqual(fromVerseRef(new VerseRef('MAT 1:1')));
+      expect(noteThread.originalSelectedText).toEqual('target: chapter 1, verse 1.');
+      expect(noteThread.notes[0].content).toEqual(content);
+      verify(mockedMatDialog.open(NoteDialogComponent, anything())).never();
 
       env.dispose();
     }));
