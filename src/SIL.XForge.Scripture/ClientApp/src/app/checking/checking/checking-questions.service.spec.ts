@@ -1,4 +1,5 @@
 import { fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { cloneDeep } from 'lodash-es';
 import { AnswerStatus } from 'realtime-server/lib/esm/scriptureforge/models/answer';
 import { getQuestionDocId, Question } from 'realtime-server/lib/esm/scriptureforge/models/question';
 import { FileType } from 'xforge-common/models/file-offline-data';
@@ -258,6 +259,39 @@ describe('CheckingQuestionsService', () => {
       expect(query.docs[0].data!.dataId).toEqual('question-m1-0');
       expect(query.docs[39].data!.dataId).toEqual('question-j2-9');
       expect(query.docs.find(q => q.data!.dataId.startsWith('question-j1-archived'))).toBeUndefined();
+    }));
+
+    it('should not show a question archived by another user again after a local change', fakeAsync(async () => {
+      // Store copies like IndexedDB does, rather than the doc data that ops modify in place
+      const offlineStore = realtimeService.offlineStore;
+      const put = offlineStore.put.bind(offlineStore);
+      spyOn(offlineStore, 'put').and.callFake((collection, offlineData) => put(collection, cloneDeep(offlineData)));
+      const query: RealtimeQuery<QuestionDoc> = await questionsService.queryQuestions(
+        projectId,
+        { bookNum: 40, chapterNum: 1, activeOnly: true, sort: true },
+        noopDestroyRef
+      );
+      tick();
+      expect(query.docs.length).toEqual(10);
+      const archivedDoc: QuestionDoc = query.docs[0];
+
+      // ShareDB sends the query results diff before the op that archived the question
+      realtimeService.addSnapshot<Question>(QuestionDoc.COLLECTION, {
+        id: archivedDoc.id,
+        data: { ...archivedDoc.data!, isArchived: true },
+        v: archivedDoc.adapter.version + 1
+      });
+      realtimeService.updateQueryAdaptersRemote();
+      tick();
+      expect(query.docs.length).toEqual(9);
+      await archivedDoc.adapter.submitOp([{ p: ['isArchived'], od: false, oi: true }], false);
+      tick();
+
+      // A local change re-runs the query against the offline store
+      await query.docs[0].submitJson0Op(op => op.set(q => q.text, 'Edited question'));
+      tick();
+      expect(query.docs.length).toEqual(9);
+      expect(query.docs.find(q => q.id === archivedDoc.id)).toBeUndefined();
     }));
   });
 
