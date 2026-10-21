@@ -38,11 +38,15 @@ import { LocalSettingsService } from './local-settings.service';
 import { LocationService } from './location.service';
 import { MemoryOfflineStore } from './memory-offline-store';
 import { MemoryRealtimeRemoteStore } from './memory-realtime-remote-store';
+import { createStorageFileData, createUploadFileData, FileType } from './models/file-offline-data';
+import { RealtimeOfflineData } from './models/realtime-offline-data';
+import { UserDoc } from './models/user-doc';
 import { OfflineStore } from './offline-store';
 import { OnlineStatusService } from './online-status.service';
 import { SharedbRealtimeRemoteStore } from './sharedb-realtime-remote-store';
 import { provideTestOnlineStatus } from './test-online-status-providers';
 import { TestOnlineStatusService } from './test-online-status.service';
+import { TypeRegistry } from './type-registry';
 import { configureTestingModule, getTestTranslocoModule } from './test-utils';
 import { aspCultureCookieValue } from './utils';
 
@@ -76,7 +80,8 @@ describe('AuthService', () => {
       { provide: LocalSettingsService, useMock: mockedLocalSettingsService },
       { provide: OnlineStatusService, useClass: TestOnlineStatusService },
       { provide: DialogService, useMock: mockedDialogService },
-      { provide: ErrorReportingService, useMock: mockedErrorReportingService }
+      { provide: ErrorReportingService, useMock: mockedErrorReportingService },
+      { provide: TypeRegistry, useValue: new TypeRegistry([UserDoc], [FileType.Audio], []) }
     ]
   }));
 
@@ -642,6 +647,88 @@ describe('AuthService', () => {
     env.discardTokenExpiryTimer();
   }));
 
+  it('warns when logging out offline with unsaved changes, and stays logged in if the user chooses', fakeAsync(() => {
+    const env = new TestEnvironment({ isLoggedIn: true });
+    env.addOfflineUserDoc({ pendingOps: [{ op: [{ p: ['name'], oi: 'New name' }] }] });
+    when(mockedDialogService.confirmWithOptions(anything())).thenResolve(false);
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedDialogService.confirmWithOptions(anything())).once();
+    const [options] = capture(mockedDialogService.confirmWithOptions).last();
+    expect(options.title).toEqual('warnings.unsaved_offline_changes');
+    expect(options.affirmative).toEqual('warnings.logout_and_discard_offline_changes');
+    expect(options.negative).toEqual('warnings.stay_logged_in');
+    expect(options.highlightAffirmative).toBe(false);
+    verify(mockedWebAuth.logout(anything())).never();
+    expect(env.offlineStore.getData('users', 'user01')).toBeDefined();
+  }));
+
+  it('discards unsaved offline changes when the user chooses to log out anyway', fakeAsync(() => {
+    const env = new TestEnvironment({ isLoggedIn: true });
+    env.addOfflineUserDoc({ pendingOps: [{ op: [{ p: ['name'], oi: 'New name' }] }] });
+    when(mockedDialogService.confirmWithOptions(anything())).thenResolve(true);
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedDialogService.confirmWithOptions(anything())).once();
+    verify(mockedWebAuth.logout(anything())).once();
+    expect(env.offlineStore.getData('users', 'user01')).toBeUndefined();
+  }));
+
+  it('warns when logging out offline with a doc created offline', fakeAsync(() => {
+    const env = new TestEnvironment({ isLoggedIn: true });
+    env.addOfflineUserDoc({ v: undefined });
+    when(mockedDialogService.confirmWithOptions(anything())).thenResolve(false);
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedDialogService.confirmWithOptions(anything())).once();
+    verify(mockedWebAuth.logout(anything())).never();
+  }));
+
+  it('warns when logging out offline with a file that has not been uploaded', fakeAsync(() => {
+    const env = new TestEnvironment({ isLoggedIn: true });
+    env.offlineStore.addData(
+      FileType.Audio,
+      createUploadFileData('questions', 'audio01', 'project01', 'question01', new Blob(), 'audio.mp3')
+    );
+    when(mockedDialogService.confirmWithOptions(anything())).thenResolve(false);
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedDialogService.confirmWithOptions(anything())).once();
+    verify(mockedWebAuth.logout(anything())).never();
+  }));
+
+  it('does not warn when logging out offline with only saved data', fakeAsync(() => {
+    const env = new TestEnvironment({ isLoggedIn: true });
+    env.addOfflineUserDoc({ pendingOps: [] });
+    env.offlineStore.addData(FileType.Audio, createStorageFileData('questions', 'audio01', '/audio.mp3', new Blob()));
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedDialogService.confirmWithOptions(anything())).never();
+    verify(mockedWebAuth.logout(anything())).once();
+  }));
+
+  it('does not warn when logging out online with changes waiting to be sent', fakeAsync(() => {
+    const env = new TestEnvironment({ isOnline: true, isLoggedIn: true });
+    env.addOfflineUserDoc({ pendingOps: [{ op: [{ p: ['name'], oi: 'New name' }] }] });
+
+    env.service.logOut();
+    tick();
+
+    verify(mockedDialogService.confirmWithOptions(anything())).never();
+    verify(mockedWebAuth.logout(anything())).once();
+    env.discardTokenExpiryTimer();
+  }));
+
   it('should authenticate transparently when joining', fakeAsync(() => {
     const callback = (env: TestEnvironment): void => {
       when(mockedLocationService.pathname).thenReturn('/join/shareKey');
@@ -923,6 +1010,21 @@ class TestEnvironment {
    */
   discardTokenExpiryTimer(): void {
     discardPeriodicTasks();
+  }
+
+  get offlineStore(): MemoryOfflineStore {
+    return TestBed.inject(OfflineStore) as MemoryOfflineStore;
+  }
+
+  addOfflineUserDoc(offlineData: Partial<RealtimeOfflineData>): void {
+    this.offlineStore.addData(UserDoc.COLLECTION, {
+      id: TestEnvironment.userId,
+      v: 1,
+      type: 'json0',
+      data: {},
+      pendingOps: [],
+      ...offlineData
+    } as RealtimeOfflineData);
   }
 
   logOut(): void {

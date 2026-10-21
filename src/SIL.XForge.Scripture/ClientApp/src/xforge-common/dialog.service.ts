@@ -66,6 +66,8 @@ export class DialogService {
       message?: I18nKey | Observable<string>;
       affirmative: I18nKey | Observable<string>;
       negative?: I18nKey | Observable<string>;
+      /** Whether the affirmative button is emphasized. Defaults to true. */
+      highlightAffirmative?: boolean;
     },
     dialogOptions?: { disableClose?: boolean }
   ): Promise<boolean> {
@@ -75,7 +77,11 @@ export class DialogService {
         message: options.message == null ? undefined : this.ensureLocalized(options.message),
         options: [
           { value: false, label: this.ensureLocalized(options.negative ?? 'dialog.cancel') },
-          { value: true, label: this.ensureLocalized(options.affirmative), highlight: true }
+          {
+            value: true,
+            label: this.ensureLocalized(options.affirmative),
+            highlight: options.highlightAffirmative ?? true
+          }
         ]
       },
       dialogOptions
