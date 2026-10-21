@@ -537,6 +537,52 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  it('moves the cursor past a note icon with one press of the right arrow key', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    env.embedNoteAtVerse(1);
+    tick();
+    env.fixture.detectChanges();
+    const noteIndex: number = Array.from(env.component.embeddedElements.values())[0];
+    expect(env.component.getSegmentRange('verse_1_1')!.index + 8).toEqual(noteIndex);
+
+    env.component.editor!.focus();
+    env.component.editor!.setSelection(noteIndex, 0, 'user');
+    tick();
+    expect(env.pressKey('ArrowRight')).toBe(true);
+    expect(env.component.editor!.getSelection()!.index).toEqual(noteIndex + 1);
+    expect(env.component.segmentRef).toEqual('verse_1_1');
+
+    // Away from a note icon, the browser moves the cursor
+    expect(env.pressKey('ArrowRight')).toBe(false);
+    expect(env.component.editor!.getSelection()!.index).toEqual(noteIndex + 1);
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
+  it('moves the cursor past a note icon with one press of the left arrow key in right to left text', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.hostComponent.isTextRightToLeft = true;
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    env.embedNoteAtVerse(1);
+    tick();
+    env.fixture.detectChanges();
+    const noteIndex: number = Array.from(env.component.embeddedElements.values())[0];
+
+    env.component.editor!.focus();
+    env.component.editor!.setSelection(noteIndex, 0, 'user');
+    tick();
+    expect(env.pressKey('ArrowRight')).toBe(false);
+    expect(env.pressKey('ArrowLeft')).toBe(true);
+    expect(env.component.editor!.getSelection()!.index).toEqual(noteIndex + 1);
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('applies edits made next to a note at the start of a segment to the correct position', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();
@@ -2121,6 +2167,15 @@ class TestEnvironment {
     this.component.editor!.updateContents(delta, source);
     tick();
     this.fixture.detectChanges();
+  }
+
+  /** Dispatches a keydown event to the editor. Returns true if a Quill binding handled the key. */
+  pressKey(key: string): boolean {
+    const event = new KeyboardEvent('keydown', { key, cancelable: true });
+    this.component.editor!.root.dispatchEvent(event);
+    tick();
+    this.fixture.detectChanges();
+    return event.defaultPrevented;
   }
 
   embedNoteAtVerse(verse: number): void {
