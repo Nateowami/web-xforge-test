@@ -85,8 +85,11 @@ export abstract class NotificationServiceBase {
     try {
       await this.connection.invoke('subscribeToProject', projectId);
     } catch (err: any) {
-      // Suppress errors caused by connection closing
+      // Suppress errors caused by connection closing. When the network drops, SignalR closes the connection with
+      // its own error (e.g. "Server timeout elapsed without receiving a message from the server.") and rejects the
+      // pending invocation with that, so an offline app suppresses whatever the message, as start() does.
       if (
+        !this.appOnline ||
         err.message === "Cannot send data if the connection is not in the 'Connected' State." ||
         err.message?.includes('Invocation canceled due to the underlying connection being closed')
       ) {

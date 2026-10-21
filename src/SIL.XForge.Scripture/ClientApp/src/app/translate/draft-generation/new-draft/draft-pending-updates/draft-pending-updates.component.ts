@@ -3,6 +3,7 @@ import { MatButtonModule } from '@angular/material/button';
 import { MatIconModule } from '@angular/material/icon';
 import { MatProgressSpinner } from '@angular/material/progress-spinner';
 import { TranslocoModule } from '@ngneat/transloco';
+import { filter, take } from 'rxjs';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
@@ -208,7 +209,21 @@ export class DraftPendingUpdatesComponent implements OnInit {
     // Every row must be synced, including ones the user cannot sync themselves: those only block while they remain
     // out of date, so someone else's sync bringing one up to date during this pre-step can complete the set.
     if (this.rows.every(r => r.syncState === 'synced')) {
-      this.autoAdvanceTimeout = setTimeout(() => this.continue.emit(this.syncedProjectIds()), AUTO_ADVANCE_DELAY_MS);
+      this.autoAdvanceTimeout = setTimeout(() => this.advanceWhenOnline(), AUTO_ADVANCE_DELAY_MS);
     }
+  }
+
+  /**
+   * Emits continue once the app is online. The next step fetches project progress from the server, so going offline
+   * during the auto-advance delay must hold the advance (as it disables "Continue anyway") rather than fail the fetch.
+   */
+  private advanceWhenOnline(): void {
+    this.onlineStatusService.onlineStatus$
+      .pipe(
+        filter(isOnline => isOnline),
+        take(1),
+        quietTakeUntilDestroyed(this.destroyRef)
+      )
+      .subscribe(() => this.continue.emit(this.syncedProjectIds()));
   }
 }
