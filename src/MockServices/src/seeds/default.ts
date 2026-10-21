@@ -11,28 +11,28 @@ export async function applyDefaultSeed(): Promise<void> {
     email: 'admin@mock.local',
     name: 'Mock Admin',
     authId: 'oauth2|paratext|mock-admin',
-    xfUserId: 'mockadmin000000000000001',
+    xfUserId: 'ad00000000000000000000a1',
     paratext: { ptUserId: 'pt-user-admin', ptUsername: 'Mock Admin' }
   });
   const translator = createUser({
     email: 'translator@mock.local',
     name: 'Mock Translator',
     authId: 'oauth2|paratext|mock-translator',
-    xfUserId: 'mocktranslator0000000002',
+    xfUserId: 'ad00000000000000000000a2',
     paratext: { ptUserId: 'pt-user-translator', ptUsername: 'Mock Translator' }
   });
   const observer = createUser({
     email: 'observer@mock.local',
     name: 'Mock Observer',
     authId: 'oauth2|paratext|mock-observer',
-    xfUserId: 'mockobserver000000000003',
+    xfUserId: 'ad00000000000000000000a3',
     paratext: { ptUserId: 'pt-user-observer', ptUsername: 'Mock Observer' }
   });
   createUser({
     email: 'unlinked@mock.local',
     name: 'Mock Unlinked',
     authId: 'auth0|mock-unlinked',
-    xfUserId: 'mockunlinked000000000004'
+    xfUserId: 'ad00000000000000000000a4'
   });
   // Serval administrator: can enable pre-translation drafting on projects (Serval Administration
   // page), which the draft-generation flow requires.
@@ -40,7 +40,7 @@ export async function applyDefaultSeed(): Promise<void> {
     email: 'serval-admin@mock.local',
     name: 'Mock Serval Admin',
     authId: 'auth0|mock-serval-admin',
-    xfUserId: 'mockservaladmin000000005',
+    xfUserId: 'ad00000000000000000000a5',
     sfRole: 'serval_admin'
   });
 
