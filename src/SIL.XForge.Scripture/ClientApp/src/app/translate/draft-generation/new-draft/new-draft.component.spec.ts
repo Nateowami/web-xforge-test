@@ -942,6 +942,49 @@ describe('NewDraftComponent', () => {
       verify(mockedRouter.navigate(deepEqual(['/projects', 'testProjectId', 'draft-generation']))).once();
       expect().nothing();
     }));
+
+    it('waits on the loading page and retries the reload when it fails because the app went offline', fakeAsync(() => {
+      const env = new TestEnvironment(testState);
+      tick();
+      // The user goes offline while the reload's progress fetch is in flight, so the fetch fails (504 in production).
+      when(mockedProgressService.getChaptersWithContent('draft-source-1-id')).thenCall(() => {
+        env.onlineStatusService.setIsOnline(false);
+        return Promise.reject(new Error('504 Gateway Timeout'));
+      });
+
+      void env.component.onPendingUpdatesComplete(['draft-source-1-id']);
+      tick();
+
+      verify(mockedErrorHandler.handleError(anything())).never();
+      verify(mockedRouter.navigate(anything())).never();
+      expect(env.component.page).toEqual('loading');
+
+      when(mockedProgressService.getChaptersWithContent('draft-source-1-id')).thenResolve(new VerboseScriptureRange());
+      env.onlineStatusService.setIsOnline(true);
+      tick();
+
+      expect(env.component.page).toEqual('preface');
+      verify(mockedErrorHandler.handleError(anything())).never();
+    }));
+
+    it('stops waiting to retry the reload when the component is destroyed', fakeAsync(() => {
+      const env = new TestEnvironment(testState);
+      tick();
+      when(mockedProgressService.getChaptersWithContent('draft-source-1-id')).thenCall(() => {
+        env.onlineStatusService.setIsOnline(false);
+        return Promise.reject(new Error('504 Gateway Timeout'));
+      });
+      void env.component.onPendingUpdatesComplete(['draft-source-1-id']);
+      tick();
+      resetCalls(mockedProgressService);
+
+      env.destroy();
+      env.onlineStatusService.setIsOnline(true);
+      tick();
+
+      verify(mockedProgressService.getChaptersWithContent(anything())).never();
+      verify(mockedErrorHandler.handleError(anything())).never();
+    }));
   });
 
   describe('sync watcher', () => {
@@ -1196,6 +1239,13 @@ function makeParatextProject(
 class TestEnvironment {
   component: NewDraftComponent;
   readonly onlineStatusService = TestBed.inject(TestOnlineStatusService);
+  private readonly destroyCallbacks: (() => void)[] = [];
+  private readonly destroyRef = {
+    onDestroy: (callback: () => void) => {
+      this.destroyCallbacks.push(callback);
+      return () => {};
+    }
+  } as unknown as DestroyRef;
 
   /** Mutable sync-state profile docs (target + sources) the sync watcher subscribes to, keyed by project id. */
   private readonly syncDocs = new Map<string, { data: { sync: { queuedCount: number } }; changes$: Subject<void> }>();
@@ -1371,8 +1421,14 @@ class TestEnvironment {
       instance(mockedTrainingDataService),
       instance(mockedSFProjectService),
       instance(mockedPermissionsService),
-      { onDestroy: () => () => {} } as unknown as DestroyRef
+      this.destroyRef
     );
+  }
+
+  /** Fires the component's destroy callbacks, as Angular does when the component is torn down. */
+  destroy(): void {
+    this.destroyCallbacks.forEach(callback => callback());
+    this.destroyCallbacks.length = 0;
   }
 
   async waitForInit(): Promise<void> {

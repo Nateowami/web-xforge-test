@@ -13,7 +13,7 @@ import { TranslocoModule } from '@ngneat/transloco';
 import { Canon } from '@sillsdev/scripture';
 import { TrainingData } from 'realtime-server/lib/esm/scriptureforge/models/training-data';
 import { ProjectScriptureRange } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
-import { filter, firstValueFrom, take } from 'rxjs';
+import { filter, firstValueFrom, map, take } from 'rxjs';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { DialogService } from 'xforge-common/dialog.service';
 import { ErrorReportingService } from 'xforge-common/error-reporting.service';
@@ -319,7 +319,7 @@ export class NewDraftComponent {
     }
     this.page = 'loading';
     try {
-      await this.logicHandler.reload();
+      if (!(await this.reloadRetryingWhenOffline())) return;
       this.page = 'preface';
       this.armSyncWatcher();
     } catch (error) {
@@ -327,6 +327,31 @@ export class NewDraftComponent {
       // user on the spinner with stale data.
       this.errorHandler.handleError(error);
       this.goBack();
+    }
+  }
+
+  /**
+   * Re-derives progress after an in-place sync. The progress fetch is online-only, so if it fails because the app went
+   * offline, waits on the loading page until the app is back online and tries again instead of reporting the expected
+   * network loss as an error. Resolves false if the component was destroyed while waiting.
+   */
+  private async reloadRetryingWhenOffline(): Promise<boolean> {
+    while (true) {
+      try {
+        await this.logicHandler.reload();
+        return true;
+      } catch (error) {
+        if (this.onlineStatusService.isOnline) throw error;
+        const backOnline = await firstValueFrom(
+          this.onlineStatusService.onlineStatus$.pipe(
+            filter(isOnline => isOnline),
+            map(() => true),
+            quietTakeUntilDestroyed(this.destroyRef, { logWarnings: false })
+          ),
+          { defaultValue: false }
+        );
+        if (!backOnline) return false;
+      }
     }
   }
 
