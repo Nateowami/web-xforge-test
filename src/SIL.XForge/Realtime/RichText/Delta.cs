@@ -227,8 +227,11 @@ public class Delta
     /// <param name="verseRef">
     /// The reference to the verse. For example: "1". If the verses in the text data is combined, "1-2".
     /// </param>
-    /// <param name="includeParaWithStyle">Function to determine if the paragraph break should be included.</param>
-    public bool TryConcatenateInserts(out string opStr, string verseRef, Func<string, bool> includeParaWithStyle)
+    /// <remarks>
+    /// Every paragraph break is included, whatever its style, because the editor counts one position for the end of
+    /// every segment when it places a note thread's text anchor.
+    /// </remarks>
+    public bool TryConcatenateInserts(out string opStr, string verseRef)
     {
         List<JToken> verseOps = [];
         bool isTargetVerse = verseRef == "0";
@@ -248,16 +251,6 @@ public class Delta
                 }
                 else if (((JObject)op[InsertType]).Property("chapter")?.Value.Type == JTokenType.Object)
                     continue;
-            }
-            else if (op[Attributes]?.Type == JTokenType.Object)
-            {
-                var paragraphObj = ((JObject)op[Attributes]).Property("para")?.Value;
-                if (paragraphObj?.Type == JTokenType.Object)
-                {
-                    string style = (string)((JObject)paragraphObj).Property("style").Value;
-                    if (!includeParaWithStyle(style))
-                        continue;
-                }
             }
 
             if (isTargetVerse)
