@@ -967,6 +967,11 @@ public class ParatextSyncRunner : IParatextSyncRunner
             LogMetric("Updating text docs - get deltas");
             Dictionary<int, ChapterDelta> chapterDeltas = GetParatextChaptersAsDeltas(text, targetParatextId);
 
+            // The note thread positions are relative to the SF text from before it is updated
+            Dictionary<int, Delta> sfChapterDeltasBeforeSync = targetTextDocs
+                .Where(kvp => kvp.Value.IsLoaded)
+                .ToDictionary(kvp => kvp.Key, kvp => (Delta)kvp.Value.Data);
+
             LogMetric("Updating text docs");
             List<Chapter> newSetOfChapters = await UpdateTextDocsAsync(text, targetTextDocs, chapterDeltas);
 
@@ -987,7 +992,8 @@ public class ParatextSyncRunner : IParatextSyncRunner
             await UpdateNoteThreadDocsAsync(
                 text.BookNum,
                 noteThreadDocs.ToDictionary(nt => nt.Data.DataId),
-                chapterDeltas
+                chapterDeltas,
+                sfChapterDeltasBeforeSync
             );
 
             // update project metadata
@@ -1407,7 +1413,8 @@ public class ParatextSyncRunner : IParatextSyncRunner
     private async Task UpdateNoteThreadDocsAsync(
         int? bookNum,
         Dictionary<string, IDocument<NoteThread>> noteThreadDocs,
-        Dictionary<int, ChapterDelta> chapterDeltas
+        Dictionary<int, ChapterDelta> chapterDeltas,
+        Dictionary<int, Delta>? sfChapterDeltasBeforeSync = null
     )
     {
         IEnumerable<NoteThreadChange> noteThreadChanges = _paratextService.GetNoteThreadChanges(
@@ -1416,7 +1423,8 @@ public class ParatextSyncRunner : IParatextSyncRunner
             bookNum,
             noteThreadDocs.Values,
             chapterDeltas,
-            _currentPtSyncUsers
+            _currentPtSyncUsers,
+            sfChapterDeltasBeforeSync
         );
         var tasks = new List<Task>();
 

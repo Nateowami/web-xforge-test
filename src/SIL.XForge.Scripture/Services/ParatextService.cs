@@ -70,6 +70,9 @@ public class ParatextService : DisposableBase, IParatextService
     private readonly IJwtTokenHelper _jwtTokenHelper;
     private readonly IParatextDataHelper _paratextDataHelper;
     private readonly IGuidService _guidService;
+
+    /// <summary>The number of characters of context Paratext stores on each side of a note's selected text.</summary>
+    private const int NoteContextLength = 10;
     private readonly string _dblServerUri = "https://pt-resources-adapter.library.bible/";
     private readonly string _registryServerUri = "https://registry.paratext.org";
     private readonly string _sendReceiveServerUri = InternetAccess.uriProduction;
@@ -1355,14 +1358,19 @@ public class ParatextService : DisposableBase, IParatextService
     /// Returns a list of changes to apply to SF note threads to match the corresponding
     /// PT comment threads for a given book.
     /// </summary>
-    /// <remarks>If <paramref name="bookNum"/> is null, Note Thread Changes for Biblical Terms are returned</remarks>
+    /// <remarks>
+    /// If <paramref name="bookNum"/> is null, Note Thread Changes for Biblical Terms are returned.
+    /// <paramref name="sfChapterDeltasBeforeSync"/> is the SF text of the book before this sync updated it, which the
+    /// positions in <paramref name="noteThreadDocs"/> are relative to.
+    /// </remarks>
     public IEnumerable<NoteThreadChange> GetNoteThreadChanges(
         UserSecret userSecret,
         string paratextId,
         int? bookNum,
         IEnumerable<IDocument<NoteThread>> noteThreadDocs,
         Dictionary<int, ChapterDelta> chapterDeltas,
-        Dictionary<string, ParatextUserProfile> ptProjectUsers
+        Dictionary<string, ParatextUserProfile> ptProjectUsers,
+        Dictionary<int, Delta>? sfChapterDeltasBeforeSync = null
     )
     {
         CommentManager commentManager = GetCommentManager(userSecret, paratextId);
@@ -1456,8 +1464,22 @@ public class ParatextService : DisposableBase, IParatextService
             }
             if (existingThread.Comments.Count > 0)
             {
+                // SF's position is relative to where the note was attached at the last sync, so it does not apply if
+                // the note has since been reattached in Paratext, or has had its reattachment removed
+                bool reattachmentChanged =
+                    newCommentIds.Any(id => existingThread.Comments.First(c => c.Id == id).Reattached != null)
+                    || threadDoc.Data.Notes.Any(n =>
+                        n.Reattached != null && threadChange.NoteIdsRemoved.Contains(n.DataId)
+                    );
                 // Get the text anchor to use for the note
-                TextAnchor range = GetThreadTextAnchor(existingThread, chapterDeltas);
+                TextAnchor range = reattachmentChanged
+                    ? GetThreadTextAnchor(existingThread, chapterDeltas)
+                    : GetThreadTextAnchor(
+                        existingThread,
+                        chapterDeltas,
+                        threadDoc.Data.Position,
+                        sfChapterDeltasBeforeSync
+                    );
                 if (!range.Equals(threadDoc.Data.Position))
                     threadChange.Position = range;
             }
@@ -3721,7 +3743,16 @@ public class ParatextService : DisposableBase, IParatextService
             : string.Empty;
     }
 
-    private static TextAnchor GetThreadTextAnchor(CommentThread thread, Dictionary<int, ChapterDelta> chapterDeltas)
+    /// <summary>
+    /// Gets where the thread's note is anchored in the verse text of <paramref name="chapterDeltas"/>.
+    /// <paramref name="sfTextAnchor"/> is where SF last anchored the note, relative to <paramref name="sfChapterDeltas"/>.
+    /// </summary>
+    private static TextAnchor GetThreadTextAnchor(
+        CommentThread thread,
+        Dictionary<int, ChapterDelta> chapterDeltas,
+        TextAnchor? sfTextAnchor = null,
+        Dictionary<int, Delta>? sfChapterDeltas = null
+    )
     {
         Paratext.Data.ProjectComments.Comment comment =
             thread.Comments.LastOrDefault(c => c.Reattached != null) ?? thread.Comments[0];
@@ -3744,6 +3775,31 @@ public class ParatextService : DisposableBase, IParatextService
 
         string verseText = GetVerseText(chapterDelta.Delta, verseRef);
         verseText = verseText.Replace("\n", "\0");
+
+        // The Paratext comment keeps the text that was selected when the note was made, but SF moves and resizes the
+        // anchor as the text is edited. After an edit inside the selected text, the original selection no longer
+        // appears in the verse and matching it would guess a new location, so match what SF last anchored to instead.
+        if (
+            sfTextAnchor is { Length: > 0 }
+            && sfChapterDeltas != null
+            && sfChapterDeltas.TryGetValue(verseRef.ChapterNum, out Delta sfChapterDelta)
+        )
+        {
+            string sfVerseText = GetVerseText(sfChapterDelta, verseRef).Replace("\n", "\0");
+            int sfAnchorEnd = sfTextAnchor.Start + sfTextAnchor.Length;
+            if (sfTextAnchor.Start >= 0 && sfAnchorEnd <= sfVerseText.Length)
+            {
+                startPos = sfTextAnchor.Start;
+                selectedText = sfVerseText.Substring(sfTextAnchor.Start, sfTextAnchor.Length);
+                int contextBeforeStart = Math.Max(0, sfTextAnchor.Start - NoteContextLength);
+                contextBefore = sfVerseText[contextBeforeStart..sfTextAnchor.Start];
+                contextAfter = sfVerseText.Substring(
+                    sfAnchorEnd,
+                    Math.Min(NoteContextLength, sfVerseText.Length - sfAnchorEnd)
+                );
+            }
+        }
+
         PtxUtils.StringUtils.MatchContexts(
             verseText,
             contextBefore,

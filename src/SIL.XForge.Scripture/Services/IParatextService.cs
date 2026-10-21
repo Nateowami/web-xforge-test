@@ -7,6 +7,7 @@ using System.Xml.Linq;
 using SIL.Converters.Usj;
 using SIL.XForge.Models;
 using SIL.XForge.Realtime;
+using SIL.XForge.Realtime.RichText;
 using SIL.XForge.Scripture.Models;
 using SIL.XForge.Utils;
 
@@ -69,7 +70,8 @@ public interface IParatextService
         int? bookNum,
         IEnumerable<IDocument<NoteThread>> noteThreadDocs,
         Dictionary<int, ChapterDelta> chapterDeltas,
-        Dictionary<string, ParatextUserProfile> ptProjectUsers
+        Dictionary<string, ParatextUserProfile> ptProjectUsers,
+        Dictionary<int, Delta>? sfChapterDeltasBeforeSync = null
     );
     int UpdateCommentTag(UserSecret userSecret, string paratextId, NoteTag noteTag);
     Task<BiblicalTermsChanges> GetBiblicalTermsAsync(UserSecret userSecret, string paratextId, IEnumerable<int> books);
