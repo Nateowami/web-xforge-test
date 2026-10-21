@@ -1814,6 +1814,29 @@ describe('CheckingComponent', () => {
       flush();
     }));
 
+    it('unliking an answer removes all likes of the user', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      env.selectQuestion(9);
+      const questionDoc = env.component.questionsList!.activeQuestionDoc!;
+      const answerIndex = questionDoc.data!.answers.indexOf(env.component.answersPanel!.answers[0]);
+      // As left by liking the answer on two clients while offline
+      questionDoc.submitJson0Op(op => {
+        op.insert(q => q.answers[answerIndex].likes, 0, { ownerRef: ADMIN_USER.id });
+        op.insert(q => q.answers[answerIndex].likes, 0, { ownerRef: CHECKER_USER.id });
+        op.insert(q => q.answers[answerIndex].likes, 0, { ownerRef: ADMIN_USER.id });
+      }, false);
+      tick();
+      env.fixture.detectChanges();
+      expect(env.getLikeTotal(0)).toBe(3);
+      expect(env.likeButtons[0].classes.liked).toBe(true);
+      env.clickButton(env.likeButtons[0]);
+      env.waitForSliderUpdate();
+      expect(env.getLikeTotal(0)).toBe(1);
+      expect(env.likeButtons[0].classes.liked).toBeUndefined();
+      expect(questionDoc.data!.answers[answerIndex].likes).toEqual([{ ownerRef: CHECKER_USER.id }]);
+      flush();
+    }));
+
     it('hides the like icon if see other users responses is disabled', fakeAsync(() => {
       const env = new TestEnvironment({ user: CHECKER_USER });
       env.selectQuestion(6);

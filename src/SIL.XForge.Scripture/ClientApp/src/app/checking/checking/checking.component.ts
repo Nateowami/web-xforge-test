@@ -1510,11 +1510,17 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
     }
 
     const currentUserId = this.userService.currentUserId;
-    const likeIndex = answer.likes.findIndex(like => like.ownerRef === currentUserId);
     const answerIndex = this.getAnswerIndex(answer);
 
-    if (likeIndex >= 0) {
-      void activeQuestionDoc.submitJson0Op(op => op.remove(q => q.answers[answerIndex].likes, likeIndex));
+    if (answer.likes.some(like => like.ownerRef === currentUserId)) {
+      // Remove every like of the user, in case they liked the answer more than once
+      void activeQuestionDoc.submitJson0Op(op => {
+        for (let i = answer.likes.length - 1; i >= 0; i--) {
+          if (answer.likes[i].ownerRef === currentUserId) {
+            op.remove(q => q.answers[answerIndex].likes, i);
+          }
+        }
+      });
     } else {
       void activeQuestionDoc.submitJson0Op(op =>
         op.insert(q => q.answers[answerIndex].likes, 0, {
