@@ -1122,6 +1122,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     this.target!.scrollToViewer(viewer);
   }
 
+  onDraftTabRevisionSelect(tab: EditorTabInfo, revision: Revision): void {
+    tab.revisionTimestamp = revision.timestamp;
+  }
+
   async onHistoryTabRevisionSelect(tab: EditorTabInfo, revision: Revision | undefined): Promise<void> {
     if (revision != null) {
       tab.revisionTimestamp = revision.timestamp;

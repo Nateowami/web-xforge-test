@@ -273,7 +273,7 @@
                   [fontSize]="fontSize"
                   [timestamp]="draftTimestamp"
                   [initialRevisionTimestamp]="tab.revisionTimestamp"
-                  (revisionSelect)="tab.revisionTimestamp = $event.timestamp"
+                  (revisionSelect)="onDraftTabRevisionSelect(tab, $event)"
                 >
                 </app-editor-draft>
               }

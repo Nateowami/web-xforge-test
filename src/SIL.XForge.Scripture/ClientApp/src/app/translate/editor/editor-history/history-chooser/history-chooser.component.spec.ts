@@ -131,6 +131,22 @@ describe('HistoryChooserComponent', () => {
     expect(env.component.selectedRevision?.timestamp).toBe('latest');
   }));
 
+  it('should not select the initial revision after a first load of a chapter without history', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setRevisions([], 1);
+    env.setRevisions(['latest', 'older'], 2);
+    env.component.initialRevisionTimestamp = 'older';
+    env.triggerNgOnChanges();
+    env.wait();
+    expect(env.component.selectedRevision).toBeUndefined();
+
+    // Revision timestamps are per book, so the initial revision could match a revision in another chapter
+    env.component.chapter = 2;
+    env.component.ngOnChanges({ chapter: { currentValue: 2 } as SimpleChange });
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('latest');
+  }));
+
   it('should not reload the history when only the initial revision changes', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setRevisions(['latest', 'older']);
@@ -323,12 +339,12 @@ describe('HistoryChooserComponent', () => {
       when(mockedTextDocService.canRestore(anything(), 40, 1)).thenReturn(true);
     }
 
-    setRevisions(timestamps: string[]): void {
-      when(mockedParatextService.getRevisions('project01', 'MAT', 1)).thenResolve(
+    setRevisions(timestamps: string[], chapter: number = 1): void {
+      when(mockedParatextService.getRevisions('project01', 'MAT', chapter)).thenResolve(
         timestamps.map(timestamp => ({ timestamp }))
       );
       for (const timestamp of timestamps) {
-        when(mockedParatextService.getSnapshot('project01', 'MAT', 1, timestamp)).thenResolve({
+        when(mockedParatextService.getSnapshot('project01', 'MAT', chapter, timestamp)).thenResolve({
           data: { ops: [] },
           id: 'id',
           type: '',
