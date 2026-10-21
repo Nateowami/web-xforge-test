@@ -413,6 +413,7 @@
     "import_complete_no_sync": "Make sure to sync [b]{{ projectNameLabel }}[/b] in Scripture Forge, then do a Send/Receive in Paratext to make the draft available in Paratext.",
     "import_complete": "Import complete",
     "import_connection_failed": "Could not connect to Scripture Forge to start the import. Check your internet connection and try again.",
+    "import_connection_lost": "The connection to Scripture Forge was lost during the import, so it is not known whether the import finished. Check your internet connection and try again.",
     "import_some_chapters_failed": "Imported {{ successful }} chapter(s) successfully. Failed to import {{ failed }} chapter(s). See details above.",
     "importing_draft": "Importing draft",
     "importing": "Importing",

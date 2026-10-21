@@ -6,8 +6,8 @@ import { By } from '@angular/platform-browser';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { SFProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
-import { of } from 'rxjs';
-import { anything, mock, verify, when } from 'ts-mockito';
+import { of, Subject } from 'rxjs';
+import { anything, mock, resetCalls, verify, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { AuthService } from 'xforge-common/auth.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
@@ -284,11 +284,7 @@ describe('DraftImportWizardComponent', () => {
     ).never();
     expect(env.component.isImporting).toBe(false);
     expect(env.component.importError).toContain('Check your internet connection');
-    const retryButtons: HTMLButtonElement[] = Array.from(
-      env.fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>
-    ).filter(b => b.textContent?.includes('Retry'));
-    expect(retryButtons.length).toBe(1);
-    const retryButton: HTMLButtonElement = retryButtons[0];
+    const retryButton: HTMLButtonElement = env.retryButton;
     expect(retryButton.disabled).toBe(false);
 
     // The connection is back, so retrying starts the import
@@ -297,6 +293,84 @@ describe('DraftImportWizardComponent', () => {
     env.wait();
     env.importDraft();
     env.clickNextButton(6);
+  }));
+
+  it('stops waiting for the import if the connection is lost, and can retry', fakeAsync(() => {
+    configureDraft('GEN', false);
+    const env = new TestEnvironment();
+    env.wait();
+
+    env.selectProject('paratext03');
+    env.clickNextButton(1);
+    verify(
+      mockProjectService.onlineApplyPreTranslationToProject('project01', anything(), anything(), anything())
+    ).once();
+    expect(env.component.isImporting).toBe(true);
+
+    // The result of the import can no longer be received, so the dialog can be closed or the import retried
+    env.draftNotificationConnectionLost$.next();
+    env.wait();
+    expect(env.component.isImporting).toBe(false);
+    expect(env.component.importError).toContain('lost during the import');
+    const retryButton: HTMLButtonElement = env.retryButton;
+    expect(retryButton.disabled).toBe(false);
+
+    retryButton.click();
+    env.wait();
+    verify(
+      mockProjectService.onlineApplyPreTranslationToProject('project01', anything(), anything(), anything())
+    ).twice();
+    // The connection started for the first attempt is released before starting it again
+    verify(mockDraftNotificationService.start()).twice();
+    verify(mockDraftNotificationService.stop()).once();
+
+    env.component.updateDraftApplyState('project01', {
+      bookNum: 0,
+      chapterNum: 0,
+      status: DraftApplyStatus.Successful,
+      totalChapters: 0
+    } as DraftApplyState);
+    env.wait();
+    expect(env.component.importComplete).toBe(true);
+
+    env.fixture.destroy();
+    verify(mockDraftNotificationService.stop()).twice();
+  }));
+
+  it('shows the import result if it arrives after the connection was lost', fakeAsync(() => {
+    configureDraft('GEN', false);
+    const env = new TestEnvironment();
+    env.wait();
+
+    env.selectProject('paratext03');
+    env.clickNextButton(1);
+    env.draftNotificationConnectionLost$.next();
+    env.wait();
+    expect(env.component.importError).toContain('lost during the import');
+
+    // The connection was restored and resubscribed in time to receive the result
+    env.component.updateDraftApplyState('project01', {
+      bookNum: 0,
+      chapterNum: 0,
+      status: DraftApplyStatus.Successful,
+      totalChapters: 0
+    } as DraftApplyState);
+    env.wait();
+    expect(env.component.importError).toBeUndefined();
+    expect(env.component.importComplete).toBe(true);
+  }));
+
+  it('does not report a lost connection when no import is in progress', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.wait();
+
+    env.draftNotificationConnectionLost$.next();
+    env.wait();
+
+    expect(env.component.importError).toBeUndefined();
+    env.fixture.destroy();
+    // The connection was never started, so it is not stopped either
+    verify(mockDraftNotificationService.stop()).never();
   }));
 
   it('can populate project select with previously selected project', fakeAsync(() => {
@@ -387,9 +461,13 @@ class TestEnvironment {
   component: DraftImportWizardComponent;
   fixture: ComponentFixture<DraftImportWizardComponent>;
 
+  readonly draftNotificationConnectionLost$ = new Subject<void>();
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
 
   constructor() {
+    // The previous test's component is destroyed after the mocks are reset, so its stop() call would be counted here
+    resetCalls(mockDraftNotificationService);
+    when(mockDraftNotificationService.connectionLost$).thenReturn(this.draftNotificationConnectionLost$);
     this.fixture = TestBed.createComponent(DraftImportWizardComponent);
     this.component = this.fixture.componentInstance;
 
@@ -516,6 +594,14 @@ class TestEnvironment {
     // Click the checkbox
     overwriteCheckbox.nativeElement.click();
     this.wait();
+  }
+
+  get retryButton(): HTMLButtonElement {
+    const retryButtons: HTMLButtonElement[] = Array.from(
+      this.fixture.nativeElement.querySelectorAll('button') as NodeListOf<HTMLButtonElement>
+    ).filter(b => b.textContent?.includes('Retry'));
+    expect(retryButtons.length).toBe(1);
+    return retryButtons[0];
   }
 
   importDraft(): void {

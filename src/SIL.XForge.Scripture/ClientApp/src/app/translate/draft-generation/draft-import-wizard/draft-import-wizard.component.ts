@@ -295,6 +295,9 @@ export class DraftImportWizardComponent implements OnInit {
   importError?: string;
   importComplete = false;
   importStepTriggered = false;
+  /** Whether an import has been started on the server and its result has not yet been received over SignalR. */
+  private awaitingImportResult = false;
+  private draftNotificationsStarted = false;
 
   // Step 7: Sync confirmation and completion
   showSyncConfirmation = false;
@@ -327,9 +330,12 @@ export class DraftImportWizardComponent implements OnInit {
     );
 
     this.draftNotificationService.setNotifyDraftApplyProgressHandler(this.notifyDraftApplyProgressHandler);
+    this.draftNotificationService.connectionLost$
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.onDraftNotificationConnectionLost());
     destroyRef.onDestroy(async () => {
       // Stop the SignalR connection when the component is destroyed
-      await draftNotificationService.stop();
+      if (this.draftNotificationsStarted) await draftNotificationService.stop();
       this.draftNotificationService.removeNotifyDraftApplyProgressHandler(this.notifyDraftApplyProgressHandler);
     });
   }
@@ -712,7 +718,10 @@ export class DraftImportWizardComponent implements OnInit {
     // Subscribe to SignalR updates. Import progress and completion are only reported over SignalR, so if we are not
     // subscribed, do not start the import, as this dialog would wait for it forever.
     try {
+      // Each start() must be matched by a stop(), and the component stops the connection once when it is destroyed
+      if (this.draftNotificationsStarted) await this.draftNotificationService.stop();
       await this.draftNotificationService.start();
+      this.draftNotificationsStarted = true;
       await this.draftNotificationService.subscribeToProject(this.sourceProjectId);
     } catch (error) {
       // An error from the server, such as a permission error, leaves the connection up. Connection failures are
@@ -736,6 +745,7 @@ export class DraftImportWizardComponent implements OnInit {
       this.data.additionalInfo?.dateGenerated != null ? new Date(this.data.additionalInfo.dateGenerated) : new Date();
 
     // Apply the pre-translation draft to the project
+    this.awaitingImportResult = true;
     try {
       await this.projectService.onlineApplyPreTranslationToProject(
         this.sourceProjectId,
@@ -753,8 +763,20 @@ export class DraftImportWizardComponent implements OnInit {
       } else {
         this.importError = error instanceof Error ? error.message : 'Unknown error occurred';
       }
+      this.awaitingImportResult = false;
       this.isImporting = false;
     }
+  }
+
+  /**
+   * The import runs in the background on the server and reports its result only over SignalR. If the connection drops,
+   * that result may never be received, so stop waiting for it and let the user retry or leave the dialog.
+   */
+  private onDraftNotificationConnectionLost(): void {
+    if (!this.awaitingImportResult) return;
+    this.awaitingImportResult = false;
+    this.isImporting = false;
+    this.importError = this.i18n.translateStatic('draft_import_wizard.import_connection_lost');
   }
 
   /**
@@ -776,6 +798,7 @@ export class DraftImportWizardComponent implements OnInit {
       // Handle the final states
       if (draftApplyState.status === DraftApplyStatus.Successful) {
         // Check if there were any failures
+        this.awaitingImportResult = false;
         this.isImporting = false;
         const successful = this.importProgress.reduce((sum, p) => sum + p.completedChapters.length, 0);
         if (failed > 0 && successful > 0) {
@@ -788,6 +811,8 @@ export class DraftImportWizardComponent implements OnInit {
             failed
           });
         } else {
+          // The result can still arrive after a lost connection was reported, if the connection was restored in time
+          this.importError = undefined;
           this.importComplete = true;
         }
       } else if (draftApplyState.status === DraftApplyStatus.Failed) {
@@ -795,6 +820,7 @@ export class DraftImportWizardComponent implements OnInit {
         this.importProgress.forEach(p => {
           p.completedChapters.length = 0;
         });
+        this.awaitingImportResult = false;
         this.isImporting = false;
         this.importError = draftApplyState.message;
         if (failed > 0 && (this.importError == null || this.importError.length === 0)) {
@@ -909,6 +935,7 @@ export class DraftImportWizardComponent implements OnInit {
   }
 
   private resetImportState(): void {
+    this.awaitingImportResult = false;
     this.isImporting = false;
     this.importProgress = [];
     this.importError = undefined;
