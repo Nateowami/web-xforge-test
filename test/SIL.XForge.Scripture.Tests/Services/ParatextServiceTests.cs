@@ -2065,6 +2065,93 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task GetNoteThreadChanges_ResolvedNoteRepeatingTagKeepsTagIcon()
+    {
+        var env = new TestEnvironment();
+        var associatedPtUser = new SFParatextUser(env.Username01);
+        string ptProjectId = env.SetupProject(env.Project01, associatedPtUser);
+        UserSecret userSecret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        env.AddTextDocs(40, 1, 10, "Context before ", "Text selected");
+
+        // Biblical term notes created in SF add the biblical term tag on every note in the thread
+        string biblicalTermTagId = CommentTag.biblicalTermTagId.ToString();
+        env.AddNoteThreadData([new ThreadComponents { threadNum = 1, noteCount = 4 }]);
+        ThreadNoteComponents[] threadNotes =
+        [
+            new ThreadNoteComponents
+            {
+                ownerRef = env.User01,
+                status = NoteStatus.Todo,
+                tagsAdded = [biblicalTermTagId],
+            },
+            new ThreadNoteComponents
+            {
+                ownerRef = env.User01,
+                status = NoteStatus.Todo,
+                tagsAdded = [biblicalTermTagId],
+            },
+            new ThreadNoteComponents
+            {
+                ownerRef = env.User01,
+                status = NoteStatus.Resolved,
+                tagsAdded = [biblicalTermTagId],
+            },
+            new ThreadNoteComponents
+            {
+                ownerRef = env.User01,
+                status = NoteStatus.Done,
+                tagsAdded = [biblicalTermTagId],
+            },
+        ];
+        env.AddParatextComments([
+            new ThreadComponents
+            {
+                threadNum = 1,
+                noteCount = threadNotes.Length,
+                notes = threadNotes,
+                username = env.Username01,
+            },
+        ]);
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync();
+        IEnumerable<IDocument<NoteThread>> noteThreadDocs = await TestEnvironment.GetNoteThreadDocsAsync(
+            conn,
+            ["dataId1"]
+        );
+        Dictionary<string, ParatextUserProfile> ptProjectUsers = new[]
+        {
+            new ParatextUserProfile { OpaqueUserId = "syncuser01", Username = env.Username01 },
+        }.ToDictionary(u => u.Username);
+        Dictionary<int, ChapterDelta> chapterDeltas = env.GetChapterDeltasByBook(1, "Context before ", "Text selected");
+
+        // SUT
+        IEnumerable<NoteThreadChange> changes = env.Service.GetNoteThreadChanges(
+            userSecret,
+            ptProjectId,
+            40,
+            noteThreadDocs,
+            chapterDeltas,
+            ptProjectUsers
+        );
+
+        // A repeated to do tag is still dropped, but a resolved note keeps its tag so the resolved icon can be shown
+        List<int?> expectedIcons =
+        [
+            CommentTag.biblicalTermTagId,
+            null,
+            CommentTag.biblicalTermTagId,
+            CommentTag.biblicalTermTagId,
+        ];
+        NoteThreadChange changedThread = changes.Single(c => c.ThreadId == "thread1");
+        for (int i = 0; i < expectedIcons.Count; i++)
+        {
+            Note note = changedThread.NotesUpdated[i];
+            Assert.That(note.DataId, Is.EqualTo($"n{i + 1}onthread1"));
+            Assert.That(note.TagId, Is.EqualTo(expectedIcons[i]));
+        }
+    }
+
+    [Test]
     public async Task GetNoteThreadChanges_SetsAssignedUser()
     {
         // assign user id to assigned user
