@@ -677,8 +677,14 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
     for (const op of delta.ops) {
       const attrs: StringMap = {};
       const len = typeof op.insert === 'string' ? op.insert.length : 1;
-      if (op.insert === '\n' || op.attributes?.para != null || op.attributes?.book != null) {
+      if (
+        op.insert === '\n' ||
+        op.attributes?.para != null ||
+        op.attributes?.book != null ||
+        op.attributes?.row != null
+      ) {
         const style: string | null = (op.attributes?.para ?? (op.attributes?.book as any))?.style;
+        const rowId: string | undefined = (op.attributes?.row as any)?.id;
         if (style == null || canParaContainVerseText(style)) {
           // paragraph
           for (const _ch of op.insert as any) {
@@ -687,7 +693,17 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
               curIndex += curSegment.length;
               curSegment = new SegmentInfo(curSegment.ref, curIndex + 1);
             }
-            if (style != null) {
+            if (rowId != null) {
+              // table cell. Number the cells of each row as the server does (row_1_2 -> cell_1_2_1, cell_1_2_2, ...).
+              // A cell never continues the text of the previous verse or cell, so its ref always replaces the
+              // carried-over one.
+              const cellRef = getParagraphRef(nextIds, rowId, 'cell' + rowId.substring('row'.length));
+              if (paraSegments.length === 0) {
+                paraSegments.push(new SegmentInfo(cellRef, curIndex));
+              } else {
+                paraSegments[0].ref = cellRef;
+              }
+            } else if (style != null) {
               // only get the paragraph ref if it is needed, since it updates the nextIds map
               if (paraSegments.length === 0) {
                 const paraRef = getParagraphRef(nextIds, style, style);
@@ -696,10 +712,6 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
                 const paraRef = getParagraphRef(nextIds, style, style);
                 paraSegments[0].ref = paraRef;
               }
-            } else if (paraSegments[0]?.origRef?.startsWith('cell_')) {
-              // table cell. Quill drops the table attributes from the cell's newline, so the cell is identified by
-              // the ref the server gave its text.
-              paraSegments[0].ref = paraSegments[0].origRef;
             } else if (paraSegments.length > 0) {
               // remove blank at the beginning of an implicit paragraph
               paraSegments.shift();

@@ -20,7 +20,10 @@ import {
   InvalidInlineClass,
   NoteThreadHighlightClass,
   NoteThreadSegmentClass,
-  ParaStyleDescriptionAttribute
+  ParaStyleDescriptionAttribute,
+  TableAttribute,
+  TableCellAttribute,
+  TableRowAttribute
 } from './quill-formats/quill-attributors';
 import {
   BlankEmbed,
@@ -87,7 +90,10 @@ export function registerScriptureFormats(formatRegistry: QuillFormatRegistryServ
 
     // Other Attributors
     CheckingQuestionCountAttribute,
-    ParaStyleDescriptionAttribute
+    ParaStyleDescriptionAttribute,
+    TableAttribute,
+    TableRowAttribute,
+    TableCellAttribute
   ];
 
   // Lower index means deeper in the DOM tree i.e. text-anchor will be nested inside of char.

@@ -67,6 +67,9 @@ describe('QuillRegistrations', () => {
     expect(registeredFormats).toContain('draft');
     expect(registeredFormats).toContain('question-count');
     expect(registeredFormats).toContain('style-description');
+    expect(registeredFormats).toContain('table');
+    expect(registeredFormats).toContain('row');
+    expect(registeredFormats).toContain('cell');
   });
 
   it('should register core modules', () => {
