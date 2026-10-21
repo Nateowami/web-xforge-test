@@ -251,6 +251,11 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     const offlineData = await this.realtimeService.offlineStore.get<RealtimeOfflineData>(this.collection, this.id);
     if (offlineData != null) {
       if (offlineData.v == null) {
+        // A record with no version is a create that has not been acknowledged yet. Another tab may have written it, in
+        // which case this tab can already have the doc from the server, and creating it again would fail.
+        if (this.isLoaded) {
+          return;
+        }
         void this.adapter.create(offlineData.data, offlineData.type).then(() => this.updateOfflineData(true));
       } else {
         await this.adapter.ingestSnapshot(offlineData);
