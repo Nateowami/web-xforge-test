@@ -21,6 +21,7 @@ import {
   CheckingAuthGuard,
   DraftNavigationAuthGuard,
   NmtDraftAuthGuard,
+  ProjectAuthGuard,
   SettingsAuthGuard,
   SyncAuthGuard,
   TranslateAuthGuard,
@@ -99,7 +100,7 @@ export const APP_ROUTES: Routes = [
   { path: 'projects/:projectId/translate/:bookId', component: EditorComponent, canActivate: [TranslateAuthGuard] },
   { path: 'projects/:projectId/translate', component: TranslateOverviewComponent, canActivate: [TranslateAuthGuard] },
   { path: 'projects/:projectId/users', component: UsersComponent, canActivate: [UsersAuthGuard] },
-  { path: 'projects/:projectId', component: ProjectComponent, canActivate: [AuthGuard] },
+  { path: 'projects/:projectId', component: ProjectComponent, canActivate: [ProjectAuthGuard] },
   { path: 'projects', component: MyProjectsComponent, canActivate: [AuthGuard] },
   {
     path: 'serval-administration/onboarding-requests/:id',

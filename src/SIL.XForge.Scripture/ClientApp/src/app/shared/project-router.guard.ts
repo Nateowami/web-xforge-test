@@ -5,10 +5,16 @@ import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scri
 import { from, Observable, of } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
 import { AuthGuard } from 'xforge-common/auth.guard';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { UserService } from 'xforge-common/user.service';
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { PermissionsService } from '../core/permissions.service';
 import { SFProjectService } from '../core/sf-project.service';
+
+/** Replaces the refused URL in the history, so that going back does not return to it. */
+function redirectTo(router: Router, commands: string[]): RedirectCommand {
+  return new RedirectCommand(router.createUrlTree(commands), { replaceUrl: true });
+}
 
 export abstract class RouterGuard {
   constructor(
@@ -19,9 +25,11 @@ export abstract class RouterGuard {
   ) {}
 
   /**
-   * Redirects instead of only refusing, because refusing the first navigation of the app (a pasted or bookmarked URL)
-   * leaves a blank page. Users who cannot read the project go to My projects, and users who are on the project but may
-   * not open this page go to the project, which forwards them to a page they can use.
+   * Redirects instead of only refusing, on every navigation. Refusing the first navigation of the app (a pasted or
+   * bookmarked URL) leaves a blank page, and so does going Back to a page that is no longer accessible. In-app links
+   * only lead to pages the user may open, so redirecting them too costs nothing. Users who cannot read the project go
+   * to My projects, and users who are on the project but may not open this page go to the project, which forwards them
+   * to a page they can use, or to My projects if there is none.
    */
   canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean | RedirectCommand> {
     const projectId = 'projectId' in next.params ? next.params['projectId'] : '';
@@ -48,14 +56,9 @@ export abstract class RouterGuard {
   private async checkProject(projectId: string): Promise<boolean | RedirectCommand> {
     const projectDoc: SFProjectProfileDoc | undefined = await this.getReadableProfile(projectId);
     if (projectDoc?.data == null) {
-      return this.redirectTo(['/projects']);
+      return redirectTo(this.router, ['/projects']);
     }
-    return this.check(projectDoc) || this.redirectTo(['/projects', projectId]);
-  }
-
-  /** Replaces the refused URL in the history, so that going back does not return to it. */
-  private redirectTo(commands: string[]): RedirectCommand {
-    return new RedirectCommand(this.router.createUrlTree(commands), { replaceUrl: true });
+    return this.check(projectDoc) || redirectTo(this.router, ['/projects', projectId]);
   }
 
   /**
@@ -173,6 +176,54 @@ export class TranslateAuthGuard extends RouterGuard {
 
   check(projectDoc: SFProjectProfileDoc): boolean {
     return this.permissionsService.canAccessTranslate(projectDoc);
+  }
+}
+
+/**
+ * Guards the project page, which forwards to a page of the project, so that a user who is not on the project (or who
+ * mistyped its id) is sent to My projects instead of being left on a blank page.
+ */
+@Injectable({
+  providedIn: 'root'
+})
+export class ProjectAuthGuard {
+  constructor(
+    private readonly authGuard: AuthGuard,
+    private readonly permissionsService: PermissionsService,
+    private readonly userService: UserService,
+    private readonly onlineStatusService: OnlineStatusService,
+    private readonly router: Router
+  ) {}
+
+  canActivate(next: ActivatedRouteSnapshot, state: RouterStateSnapshot): Observable<boolean | RedirectCommand> {
+    const projectId: string = next.params['projectId'];
+    // Old sharing links are for users who are not on the project yet. The project page forwards them to join it.
+    const isOldSharingLink: boolean = next.queryParams['sharing'] === 'true';
+    return this.authGuard
+      .canActivate(next, state)
+      .pipe(
+        switchMap(isLoggedIn =>
+          isLoggedIn && !isOldSharingLink ? from(this.checkUserOnProject(projectId)) : of(isLoggedIn)
+        )
+      );
+  }
+
+  /**
+   * Joining or connecting a project opens this page as soon as the server has added the user, which can be before the
+   * local user doc lists the project. So when online, the user doc is fetched before deciding the user is not on it.
+   */
+  private async checkUserOnProject(projectId: string): Promise<boolean | RedirectCommand> {
+    let isUserOnProject: boolean = await this.permissionsService.isUserOnProject(projectId);
+    if (!isUserOnProject && this.onlineStatusService.isOnline) {
+      const userDoc = await this.userService.getCurrentUser();
+      try {
+        await userDoc.onlineFetch();
+      } catch {
+        // Decide from the local user doc
+      }
+      isUserOnProject = await this.permissionsService.isUserOnProject(projectId);
+    }
+    return isUserOnProject || redirectTo(this.router, ['/projects']);
   }
 }
 
