@@ -134,6 +134,10 @@ mat-button-toggle-group {
 .save-options {
   background-color: var(--mat-button-filled-container-color);
   color: var(--mat-button-filled-label-text-color) !important;
+  // These toggles act as plain buttons, but a click leaves them checked. Keep the checked colors the same so a
+  // save that fails validation does not leave the button looking disabled.
+  --mat-button-toggle-selected-state-background-color: var(--mat-button-filled-container-color);
+  --mat-button-toggle-selected-state-text-color: var(--mat-button-filled-label-text-color);
   ::ng-deep .mat-button-toggle-label-content {
     line-height: 36px;
   }
