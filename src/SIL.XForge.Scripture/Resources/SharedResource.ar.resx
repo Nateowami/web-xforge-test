@@ -218,4 +218,10 @@
   <data name="DraftNotGeneratedEmailSubject" xml:space="preserve">
     <value>{0} draft was not generated</value>
   </data>
+  <data name="PageNotFound" xml:space="preserve">
+    <value>لم يتمّ العثور على الصفحة</value>
+  </data>
+  <data name="RedirectingInAFewMoments" xml:space="preserve">
+    <value>إعادة التوجيه في لحظات قليلة...</value>
+  </data>
 </root>

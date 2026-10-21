@@ -55,11 +55,6 @@ const filesToUpload: CrowdinFile[] = [
     localPath: 'src/SIL.XForge.Scripture/Resources/Pages.Index.resx',
     crowdinPath: '/Pages.Index.resx',
     contentType: 'application/xml'
-  },
-  {
-    localPath: 'src/SIL.XForge.Scripture/Resources/Pages.NotFound.resx',
-    crowdinPath: '/Pages.NotFound.resx',
-    contentType: 'application/xml'
   }
 ].map(file => {
   return {
