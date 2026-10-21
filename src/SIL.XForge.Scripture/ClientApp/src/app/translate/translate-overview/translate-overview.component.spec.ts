@@ -8,7 +8,7 @@ import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { of } from 'rxjs';
-import { anything, mock, when } from 'ts-mockito';
+import { anything, mock, resetCalls, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
 import { L10nPercentPipe } from 'xforge-common/l10n-percent.pipe';
 import { UserDoc } from 'xforge-common/models/user-doc';
@@ -47,18 +47,22 @@ describe('TranslateOverviewComponent', () => {
     ]
   }));
 
-  it('should display a notice if offline', fakeAsync(() => {
+  it('should show progress while offline and refresh it when back online', fakeAsync(() => {
     const env = new TestEnvironment();
+    env.isOnline = false;
     env.wait();
 
-    // Verify message hidden if offline
-    expect(env.offlineNotice).toBeNull();
     expect(env.booksCard).toBeTruthy();
+    env.expectContainsTextProgress(0, 'Matthew', '10 of 20 segments');
+    verify(mockedProgressService.getProgress('project01', anything())).once();
 
-    // Go offline
-    env.isOnline = false;
-    expect(env.offlineNotice).toBeTruthy();
-    expect(env.booksCard).toBeNull();
+    // Going online should fetch progress again, now from the server
+    when(mockedProgressService.getProgress(anything(), anything())).thenResolve(
+      new ProjectProgress([{ bookId: 'MAT', verseSegments: 20, blankVerseSegments: 5 }])
+    );
+    env.isOnline = true;
+    verify(mockedProgressService.getProgress('project01', anything())).twice();
+    env.expectContainsTextProgress(0, 'Matthew', '15 of 20 segments');
 
     discardPeriodicTasks();
   }));
@@ -89,6 +93,7 @@ class TestEnvironment {
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
 
   constructor() {
+    resetCalls(mockedProgressService);
     const params = { ['projectId']: 'project01' } as Params;
     when(mockedActivatedRoute.params).thenReturn(of(params));
     when(mockedActivatedRoute.snapshot).thenReturn({} as any); // just needs to not be null/undefined
@@ -107,10 +112,6 @@ class TestEnvironment {
     this.component = this.fixture.componentInstance;
     this.setupProjectData();
     this.setupUserData();
-  }
-
-  get offlineNotice(): HTMLElement {
-    return this.fixture.nativeElement.querySelector('app-notice[icon="cloud_off"]');
   }
 
   get booksCard(): DebugElement {

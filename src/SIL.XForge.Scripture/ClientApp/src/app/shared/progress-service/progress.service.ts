@@ -1,6 +1,12 @@
 import { Injectable } from '@angular/core';
 import { Canon } from '@sillsdev/scripture';
+import { DeltaOperation } from 'rich-text';
+import { RealtimeOfflineData } from 'xforge-common/models/realtime-offline-data';
 import { NoticeService } from 'xforge-common/notice.service';
+import { OnlineStatusService } from 'xforge-common/online-status.service';
+import { RealtimeService } from 'xforge-common/realtime.service';
+import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
+import { TextDoc, TextDocId } from '../../core/models/text-doc';
 import { SFProjectService } from '../../core/sf-project.service';
 
 /** The expected number of verses per book, calculated from the libpalaso versification files. */
@@ -316,11 +322,33 @@ export function bookAppearsCompleteForTrainingAutoSelection(bookProgress: BookPr
   );
 }
 
+/**
+ * Counts the verse segments and blank verse segments in a chapter's text ops, the same way the back end's
+ * `SFProjectService.GetProjectProgressAsync` does, so that progress calculated offline matches progress from the server.
+ * Like the back end, this counts ops rather than distinct segments.
+ */
+export function countVerseSegments(ops: DeltaOperation[] | undefined): {
+  verseSegments: number;
+  blankVerseSegments: number;
+} {
+  let verseSegments = 0;
+  let blankVerseSegments = 0;
+  for (const op of ops ?? []) {
+    const segment: unknown = op.attributes?.segment;
+    if (typeof segment !== 'string' || !segment.startsWith('verse_')) continue;
+    verseSegments++;
+    if ((op.insert as { blank?: unknown } | undefined)?.blank === true) blankVerseSegments++;
+  }
+  return { verseSegments, blankVerseSegments };
+}
+
 @Injectable({ providedIn: 'root' })
 export class ProgressService {
   constructor(
     readonly noticeService: NoticeService,
-    private readonly projectService: SFProjectService
+    private readonly projectService: SFProjectService,
+    private readonly onlineStatusService: OnlineStatusService,
+    private readonly realtimeService: RealtimeService
   ) {}
 
   // Alongside its age, every cache entry and in-flight request records the project's last-sync date string from
@@ -351,6 +379,9 @@ export class ProgressService {
     options: { maxStalenessMs: number }
   ): Promise<ProjectProgressWithChapterProgress> {
     const projectDoc = await this.projectService.getProfile(projectId);
+    if (!this.onlineStatusService.isOnline) {
+      return await this.calculateProgressFromLocalTexts(projectDoc);
+    }
     const lastSyncDateString: string | undefined = projectDoc.data?.sync?.dateLastSuccessfulSync;
     // Compared for equality, not parsed and compared chronologically: dateLastSuccessfulSync is set by the server,
     // so a "newer than" comparison against Date.now() (client time) would be vulnerable to server/client clock
@@ -396,6 +427,51 @@ export class ProgressService {
       });
     this.requestCache.set(projectId, { startedAtMs: requestTimestamp, lastSyncDateString, promise: requestPromise });
     return requestPromise;
+  }
+
+  /**
+   * Calculates progress from the chapters stored on this device, for when the server can't be asked. Chapters that are
+   * not available locally are left out, as are books with no locally available chapters. The result is not cached,
+   * since it may be incomplete and would otherwise be served once the server is reachable again.
+   */
+  private async calculateProgressFromLocalTexts(
+    projectDoc: SFProjectProfileDoc
+  ): Promise<ProjectProgressWithChapterProgress> {
+    const texts = [...(projectDoc.data?.texts ?? [])].sort((a, b) => a.bookNum - b.bookNum);
+    const books = await Promise.all(
+      texts.map(async text => {
+        const chapters = await Promise.all(
+          text.chapters.map(async chapter => {
+            const textDocId = new TextDocId(projectDoc.id, text.bookNum, chapter.number, 'target').toString();
+            const ops = await this.getLocalTextOps(textDocId);
+            return ops == null ? undefined : { chapterNumber: chapter.number, ...countVerseSegments(ops) };
+          })
+        );
+        const availableChapters = chapters.filter(c => c != null);
+        if (availableChapters.length === 0) return undefined;
+        const book: BookProgressWithChapterProgress = {
+          bookId: Canon.bookNumberToId(text.bookNum),
+          verseSegments: availableChapters.reduce((acc, c) => acc + c.verseSegments, 0),
+          blankVerseSegments: availableChapters.reduce((acc, c) => acc + c.blankVerseSegments, 0),
+          chapters: availableChapters
+        };
+        return book;
+      })
+    );
+    return new ProjectProgressWithChapterProgress(books.filter(b => b != null));
+  }
+
+  /**
+   * Gets a chapter's ops without waiting on the server: from memory if the chapter is loaded, otherwise from the
+   * offline store. Subscribing to a chapter that isn't stored locally would not resolve until the app is back online.
+   */
+  private async getLocalTextOps(textDocId: string): Promise<DeltaOperation[] | undefined> {
+    if (this.realtimeService.isSet(TextDoc.COLLECTION, textDocId)) {
+      const textDoc = this.realtimeService.get<TextDoc>(TextDoc.COLLECTION, textDocId);
+      if (textDoc.isLoaded) return textDoc.data?.ops;
+    }
+    const offlineData = await this.realtimeService.offlineStore.get<RealtimeOfflineData>(TextDoc.COLLECTION, textDocId);
+    return offlineData?.data?.ops;
   }
 
   async getProgress(projectId: string, options: { maxStalenessMs: number }): Promise<ProjectProgress> {

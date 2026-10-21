@@ -19,8 +19,8 @@ import { ANY_INDEX, obj } from 'realtime-server/lib/esm/common/utils/obj-path';
 import { SFProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SF_PROJECT_RIGHTS, SFProjectDomain } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-rights';
 import { isParatextRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
-import { asyncScheduler, Subscription } from 'rxjs';
-import { filter, map, throttleTime } from 'rxjs/operators';
+import { asyncScheduler, merge, Subscription } from 'rxjs';
+import { distinctUntilChanged, filter, map, throttleTime } from 'rxjs/operators';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
 import { DonutChartComponent } from 'xforge-common/donut-chart/donut-chart.component';
 import { I18nService } from 'xforge-common/i18n.service';
@@ -33,7 +33,6 @@ import { UserService } from 'xforge-common/user.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { SFProjectService } from '../../core/sf-project.service';
-import { NoticeComponent } from '../../shared/notice/notice.component';
 import { BookProgress, ProgressService, ProjectProgress } from '../../shared/progress-service/progress.service';
 import { FontUnsupportedMessageComponent } from '../font-unsupported-message/font-unsupported-message.component';
 const TEXT_PATH_TEMPLATE = obj<SFProject>().pathTemplate(p => p.texts[ANY_INDEX]);
@@ -59,7 +58,6 @@ const TEXT_PATH_TEMPLATE = obj<SFProject>().pathTemplate(p => p.texts[ANY_INDEX]
     MatListItemTitle,
     MatListItemLine,
     MatListItemMeta,
-    NoticeComponent,
     L10nNumberPipe,
     L10nPercentPipe
   ]
@@ -90,10 +88,6 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
     );
   }
 
-  get isOnline(): boolean {
-    return this.onlineStatusService.isOnline;
-  }
-
   get projectId(): string | undefined {
     return this.projectDoc?.id;
   }
@@ -111,8 +105,19 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
       .subscribe(async projectId => {
         this.projectDoc = await this.projectService.getProfile(projectId);
 
-        // Update the overview now if we are online, or when we are next online
-        void this.onlineStatusService.online.then(async () => {
+        if (this.projectDataChangesSub != null) {
+          this.projectDataChangesSub.unsubscribe();
+        }
+        // Progress is calculated from the texts on this device while offline, so recalculate when coming back online
+        // to get the server's figures.
+        this.projectDataChangesSub = merge(
+          this.onlineStatusService.onlineStatus$.pipe(distinctUntilChanged()),
+          this.projectDoc.remoteChanges$.pipe(
+            filter(ops => ops.some(op => TEXT_PATH_TEMPLATE.matches(op.p))),
+            // TODO Find a better solution than merely throttling remote changes
+            throttleTime(1000, asyncScheduler, { leading: true, trailing: true })
+          )
+        ).subscribe(async () => {
           this.loadingStarted();
           try {
             this.projectProgress = await this.progressService.getProgress(this.projectId!, { maxStalenessMs: 30_000 });
@@ -120,26 +125,6 @@ export class TranslateOverviewComponent extends DataLoadingComponent implements 
             this.loadingFinished();
           }
         });
-
-        if (this.projectDataChangesSub != null) {
-          this.projectDataChangesSub.unsubscribe();
-        }
-        this.projectDataChangesSub = this.projectDoc.remoteChanges$
-          .pipe(
-            filter(ops => ops.some(op => TEXT_PATH_TEMPLATE.matches(op.p))),
-            // TODO Find a better solution than merely throttling remote changes
-            throttleTime(1000, asyncScheduler, { leading: true, trailing: true })
-          )
-          .subscribe(async () => {
-            this.loadingStarted();
-            try {
-              this.projectProgress = await this.progressService.getProgress(this.projectId!, {
-                maxStalenessMs: 30_000
-              });
-            } finally {
-              this.loadingFinished();
-            }
-          });
       });
   }
 
