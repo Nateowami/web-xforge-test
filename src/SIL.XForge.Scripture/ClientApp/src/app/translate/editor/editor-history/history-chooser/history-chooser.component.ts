@@ -95,6 +95,8 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
   @Input() bookNum?: number;
   @Input() chapter?: number;
   @Input() showDiff = true;
+  /** The revision to select when the history is first loaded, instead of the latest revision. */
+  @Input() initialRevision?: Revision;
   @Output() showDiffChange = new EventEmitter<boolean>();
   @Output() revisionSelect = new EventEmitter<RevisionSelectEvent>();
 
@@ -126,6 +128,7 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
 
   private inputChanged$ = new Subject<void>();
   private bookId = '';
+  private revisionToRestore?: Revision;
   private projectDoc: SFProjectProfileDoc | undefined;
 
   constructor(
@@ -168,6 +171,14 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
   }
 
   ngOnChanges(changes: SimpleChanges): void {
+    if (changes.initialRevision?.firstChange) {
+      this.revisionToRestore = changes.initialRevision.currentValue;
+    }
+    // Later changes to the initial revision only reflect the current selection, so do not reload the history
+    if (Object.keys(changes).every(key => key === 'initialRevision')) {
+      return;
+    }
+
     if (changes.bookNum) {
       this.bookId = Canon.bookNumberToId(changes.bookNum.currentValue, '');
     }
@@ -204,7 +215,11 @@ export class HistoryChooserComponent implements AfterViewInit, OnChanges {
             (await this.paratextService.getRevisions(this.projectId, this.bookId, this.chapter)) ?? [];
 
           if (this.historyRevisions.length > 0) {
-            await this.selectRevision(this.historyRevisions[0]);
+            const revisionToRestore: Revision | undefined = this.historyRevisions.find(
+              r => r.timestamp === this.revisionToRestore?.timestamp
+            );
+            this.revisionToRestore = undefined;
+            await this.selectRevision(revisionToRestore ?? this.historyRevisions[0]);
           }
         }
       } finally {

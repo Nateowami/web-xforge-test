@@ -108,6 +108,43 @@ describe('HistoryChooserComponent', () => {
     expect(env.component.selectedRevision).toBeUndefined();
   }));
 
+  it('should select the initial revision on first load', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupTwoRevisions();
+    env.component.initialRevision = { timestamp: 'older_date' };
+    env.triggerNgOnChanges(new SimpleChange(undefined, env.component.initialRevision, true));
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('older_date');
+    verify(mockedParatextService.getSnapshot('project01', 'MAT', 1, 'older_date')).once();
+    verify(mockedParatextService.getSnapshot('project01', 'MAT', 1, 'date_here')).never();
+  }));
+
+  it('should select the latest revision if the initial revision is not in the history', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupTwoRevisions();
+    env.component.initialRevision = { timestamp: 'other_chapter_date' };
+    env.triggerNgOnChanges(new SimpleChange(undefined, env.component.initialRevision, true));
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('date_here');
+  }));
+
+  it('should only use the initial revision when the history is first loaded', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setupTwoRevisions();
+    env.triggerNgOnChanges(new SimpleChange(undefined, undefined, true));
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('date_here');
+
+    // The parent updates the initial revision as revisions are selected, which must not reload the history
+    env.component.initialRevision = { timestamp: 'older_date' };
+    env.component.ngOnChanges({
+      initialRevision: new SimpleChange(undefined, env.component.initialRevision, false)
+    });
+    env.wait();
+    expect(env.component.selectedRevision?.timestamp).toBe('date_here');
+    verify(mockedParatextService.getRevisions('project01', 'MAT', 1)).once();
+  }));
+
   it('should not revert if the user clicks cancel', fakeAsync(() => {
     const env = new TestEnvironment();
     when(mockedDialogService.confirm(anything(), anything())).thenResolve(false);
@@ -310,9 +347,24 @@ describe('HistoryChooserComponent', () => {
       this.fixture.detectChanges();
     }
 
-    triggerNgOnChanges(): void {
+    setupTwoRevisions(): void {
+      when(mockedParatextService.getRevisions('project01', 'MAT', 1)).thenResolve([
+        { timestamp: 'date_here' },
+        { timestamp: 'older_date' }
+      ]);
+      when(mockedParatextService.getSnapshot('project01', 'MAT', 1, 'older_date')).thenResolve({
+        data: { ops: [] },
+        id: 'id',
+        type: '',
+        v: 1,
+        isValid: true
+      });
+    }
+
+    triggerNgOnChanges(initialRevision?: SimpleChange): void {
       this.component.ngOnChanges({
-        bookNum: { currentValue: 40 } as SimpleChange
+        bookNum: { currentValue: 40 } as SimpleChange,
+        ...(initialRevision != null ? { initialRevision } : {})
       });
     }
 

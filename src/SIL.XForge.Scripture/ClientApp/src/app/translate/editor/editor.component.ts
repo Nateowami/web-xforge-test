@@ -1124,6 +1124,9 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
 
   async onHistoryTabRevisionSelect(tab: EditorTabInfo, revision: Revision | undefined): Promise<void> {
     if (revision != null) {
+      // Not cleared when revision is undefined, as that is emitted during change detection (on init and chapter
+      // change), and the history chooser only restores this revision if it is in the current chapter's history
+      tab.historyRevision = revision;
       const separator: string = this.i18n.isRtl ? `${RIGHT_TO_LEFT_MARK} - ` : ' - ';
       tab.headerText$ = of(
         `${this.targetLabel}${separator}${this.editorHistoryService.formatTimestamp(revision.timestamp)}`
