@@ -3689,9 +3689,12 @@ public class ParatextService : DisposableBase, IParatextService
                 if (comment.Type == NoteType.Conflict)
                     return CommentTag.ConflictTag;
 
-                // Ignore any repeat tag icons i.e. only use a tag if it has changed
+                // Ignore any repeat tag icons i.e. only use a tag if it has changed.
+                // A note that resolves the thread always keeps its tag, as it is needed to show the resolved icon.
+                bool isResolvingComment = comment.Status == NoteStatus.Resolved || comment.Status == NoteStatus.Done;
                 if (
-                    lastTodoTagUsed != null
+                    !isResolvingComment
+                    && lastTodoTagUsed != null
                     && lastTodoTagUsed.Icon == tagInUse.Icon
                     && (comment.Status == NoteStatus.Todo || tagAddedInUse)
                 )
