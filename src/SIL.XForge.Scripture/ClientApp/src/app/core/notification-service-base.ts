@@ -1,6 +1,5 @@
-import { AbortError, HubConnection, HubConnectionState, IHttpConnectionOptions } from '@microsoft/signalr';
+import { HubConnection, HubConnectionState, IHttpConnectionOptions } from '@microsoft/signalr';
 import { AuthService } from 'xforge-common/auth.service';
-import { OnlineStatusService } from 'xforge-common/online-status.service';
 
 /**
  * The base class containing functionality for SignalR notification hubs.
@@ -15,14 +14,7 @@ export abstract class NotificationServiceBase {
   private openConnections: number = 0;
   private startPromise: Promise<void> | null = null;
 
-  constructor(
-    private authService: AuthService,
-    private readonly onlineService: OnlineStatusService
-  ) {}
-
-  get appOnline(): boolean {
-    return this.onlineService.isOnline && this.onlineService.isBrowserOnline;
-  }
+  constructor(private authService: AuthService) {}
 
   async start(): Promise<void> {
     this.openConnections++;
@@ -38,14 +30,10 @@ export abstract class NotificationServiceBase {
         try {
           await this.connection.start();
         } catch (err) {
-          // Suppress AbortErrors, as they are not caused by server error, but the SignalR connection state
-          // These will be thrown if a user navigates away quickly after
-          // starting the sync or the app loses internet connection
-          if (err instanceof AbortError || !this.appOnline) {
-            return;
-          } else {
-            throw err;
-          }
+          // SignalR only provides live progress updates, so a failure to connect (a dropped or flaky network, or a
+          // firewall, proxy or VPN blocking the connection) must not interrupt the user. The features using it carry on
+          // without live updates, and the connection is attempted again the next time start() is called.
+          console.warn('Unable to connect to the SignalR notification hub', err);
         } finally {
           this.startPromise = null;
         }
@@ -84,16 +72,9 @@ export abstract class NotificationServiceBase {
 
     try {
       await this.connection.invoke('subscribeToProject', projectId);
-    } catch (err: any) {
-      // Suppress errors caused by connection closing
-      if (
-        err.message === "Cannot send data if the connection is not in the 'Connected' State." ||
-        err.message?.includes('Invocation canceled due to the underlying connection being closed')
-      ) {
-        return;
-      } else {
-        throw err;
-      }
+    } catch (err) {
+      // As with start(), a failure here (usually the connection closing) only means there will be no live updates
+      console.warn('Unable to subscribe to SignalR notifications for the project', err);
     }
   }
 }
