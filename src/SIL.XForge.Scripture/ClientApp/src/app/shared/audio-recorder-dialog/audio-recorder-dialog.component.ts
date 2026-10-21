@@ -12,7 +12,7 @@ import {
 } from '@angular/core';
 import { ControlValueAccessor } from '@angular/forms';
 import { MatButton, MatIconButton } from '@angular/material/button';
-import { MAT_DIALOG_DATA, MatDialogContent, MatDialogRef } from '@angular/material/dialog';
+import { MAT_DIALOG_DATA, MatDialogConfig, MatDialogContent, MatDialogRef } from '@angular/material/dialog';
 import { MatIcon } from '@angular/material/icon';
 import { MatTooltip } from '@angular/material/tooltip';
 import { TranslocoModule } from '@ngneat/transloco';
@@ -64,6 +64,12 @@ export interface AudioRecorderDialogResult {
   ]
 })
 export class AudioRecorderDialogComponent implements ControlValueAccessor, OnInit, OnDestroy {
+  /**
+   * Dock the recorder at the bottom of the screen so that it does not cover the text the user is reading aloud, such as
+   * the verse and question text in the question dialog.
+   */
+  static defaultMatDialogConfig: MatDialogConfig = { position: { bottom: '0' } };
+
   @ViewChild(SingleButtonAudioPlayerComponent) audioPlayer?: SingleButtonAudioPlayerComponent;
   @Output() status = new EventEmitter<AudioAttachment>();
 
