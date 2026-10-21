@@ -1599,6 +1599,42 @@ describe('TextComponent', () => {
     verify(mockedDialogService.openMatDialog(TextNoteDialogComponent, anything())).thrice();
   }));
 
+  it('does not show a footnote counter for a footnote deleted in a history diff', fakeAsync(() => {
+    const chapterNum = 2;
+    const segmentRef: string = `verse_${chapterNum}_1`;
+    const footnote = (text: string): RichText.DeltaOperation => ({
+      insert: { note: { caller: '+', style: 'f', contents: { ops: [{ insert: text }] } } },
+      attributes: { segment: segmentRef }
+    });
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'quick', attributes: { segment: segmentRef } },
+      footnote('deleted footnote'),
+      { insert: ' brown', attributes: { segment: segmentRef } },
+      footnote('remaining footnote'),
+      { insert: ' fox', attributes: { segment: segmentRef } }
+    ];
+    const env = new TestEnvironment({ chapterNum, textDoc: textDocOps });
+    env.hostComponent.isReadOnly = true;
+    env.waitForEditor();
+
+    // Format the first footnote the way EditorHistoryService.processDiff() marks deleted content
+    const notes: HTMLElement[] = Array.from(env.quillEditor.querySelectorAll('usx-note'));
+    expect(notes.length).toBe(2);
+    const deletedNoteIndex: number = env.component.editor!.getIndex(Quill.find(notes[0]) as any);
+    env.component.editor!.formatText(deletedNoteIndex, 1, 'delete-segment', true, 'api');
+    env.fixture.detectChanges();
+
+    const callerContent = (note: Element): string =>
+      getComputedStyle(note.querySelector(':scope > span')!, '::before').content;
+    const [deletedNote, remainingNote] = Array.from(env.quillEditor.querySelectorAll('usx-note'));
+    expect(deletedNote.closest('.delete-segment')).not.toBeNull();
+    expect(callerContent(deletedNote)).toBe('"*"');
+    expect(remainingNote.closest('.delete-segment')).toBeNull();
+    expect(callerContent(remainingNote)).toBe('counter(note, lower-alpha)');
+  }));
+
   it('does not match segments when verse ref is from a different chapter', fakeAsync(() => {
     const env = new TestEnvironment();
     env.id = new TextDocId('project01', 40, 1);
