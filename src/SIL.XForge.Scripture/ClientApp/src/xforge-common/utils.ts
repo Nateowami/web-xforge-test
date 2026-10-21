@@ -8,6 +8,21 @@ import { Locale } from './models/i18n-locale';
 
 const BROWSER = Bowser.getParser(window.navigator.userAgent);
 
+/** The subset of the User-Agent Client Hints API used here. It is only available in Chromium-based browsers. */
+export interface UserAgentHighEntropyValues {
+  platformVersion?: string;
+  fullVersionList?: { brand: string; version: string }[];
+}
+
+// Chromium freezes parts of the user agent string (e.g. "Android 10", "Chrome/155.0.0.0", "Windows NT 10.0"), so the
+// real OS and browser versions are only available from the async client hints API. Request them as soon as the app
+// loads so they are available synchronously by the time an issue email link is generated.
+let userAgentHighEntropyValues: UserAgentHighEntropyValues | undefined;
+(window.navigator as any).userAgentData
+  ?.getHighEntropyValues(['platformVersion', 'fullVersionList'])
+  .then((values: UserAgentHighEntropyValues) => (userAgentHighEntropyValues = values))
+  .catch(() => {});
+
 export function nameof<T>(name: Extract<keyof T, string>): string {
   return name;
 }
@@ -94,14 +109,51 @@ export function audioRecordingMimeType(): string {
   }
 }
 
+/**
+ * Gets the browser and OS names and versions to include in an issue report. Values from the User-Agent Client Hints
+ * API are preferred over the user agent string, as Chromium-based browsers report frozen values in the latter.
+ */
+export function getBrowserAndOsInfo(
+  userAgent: string,
+  highEntropyValues?: UserAgentHighEntropyValues
+): { browserName: string; browserVersion: string | undefined; osName: string; osVersion: string | undefined } {
+  const bowser = Bowser.getParser(userAgent);
+  const browserName: string = bowser.getBrowserName();
+  const osName: string = bowser.getOSName();
+
+  // The brands are e.g. "Google Chrome" or "Microsoft Edge", alongside "Chromium" and a meaningless "Not-A.Brand"
+  const browserVersion: string | undefined =
+    highEntropyValues?.fullVersionList?.find(b => browserName !== '' && b.brand.includes(browserName))?.version ??
+    bowser.getBrowserVersion();
+
+  let osVersion: string | undefined = bowser.getOSVersion();
+  const platformVersion: string | undefined = highEntropyValues?.platformVersion;
+  if (platformVersion != null && platformVersion !== '') {
+    if (osName === 'Windows') {
+      // On Windows the platform version is the Windows.Foundation.UniversalApiContract version, not the OS version.
+      // See https://learn.microsoft.com/en-us/microsoft-edge/web-platform/how-to-detect-win11
+      const majorVersion: number = parseInt(platformVersion);
+      if (majorVersion >= 13) osVersion = '11';
+      else if (majorVersion > 0) osVersion = '10';
+    } else {
+      osVersion = platformVersion;
+    }
+  }
+
+  return { browserName, browserVersion, osName, osVersion };
+}
+
 export function issuesEmailTemplate(errorInfo?: { errorMessage: string; errorId: string }): string {
-  const bowser = Bowser.getParser(window.navigator.userAgent);
+  const { browserName, browserVersion, osName, osVersion } = getBrowserAndOsInfo(
+    window.navigator.userAgent,
+    userAgentHighEntropyValues
+  );
 
   const technicalDetails = Object.entries({
     [environment.siteName]: versionData.version,
-    [bowser.getBrowserName()]: bowser.getBrowserVersion(),
+    [browserName]: browserVersion ?? translate('issue_email.unknown'),
     ...(isBrave() ? { Brave: 'Yes' } : {}),
-    [bowser.getOSName()]: bowser.getOSVersion() ?? translate('issue_email.unknown'),
+    [osName]: osVersion ?? translate('issue_email.unknown'),
     URL: location.href,
     ...(errorInfo?.errorId ? { 'Error ID': errorInfo?.errorId } : {}),
     ...(errorInfo?.errorMessage ? { 'Error Message': errorInfo?.errorMessage } : {})
