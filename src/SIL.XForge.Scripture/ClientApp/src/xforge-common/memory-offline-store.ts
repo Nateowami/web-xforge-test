@@ -1,8 +1,12 @@
+import { cloneDeep } from 'lodash-es';
 import { OfflineData, OfflineStore } from './offline-store';
 import { performQuery, QueryParameters, QueryResults } from './query-parameters';
 
 /**
  * This class is a memory-based implementation of the real-time offline store. It is useful for testing.
+ *
+ * Like IndexedDB, it stores copies of the data it is given. Storing the objects themselves would let later in-place
+ * changes (e.g. ops applied to a doc's data) show up in the store without the store being updated.
  */
 export class MemoryOfflineStore extends OfflineStore {
   public storageQuotaFull: boolean = false;
@@ -15,7 +19,7 @@ export class MemoryOfflineStore extends OfflineStore {
       collectionData = new Map<string, OfflineData>();
       this.map.set(collection, collectionData);
     }
-    collectionData.set(data.id, data);
+    collectionData.set(data.id, cloneDeep(data));
   }
 
   getData<T extends OfflineData>(collection: string, id: string): T | undefined {
@@ -64,7 +68,7 @@ export class MemoryOfflineStore extends OfflineStore {
       collectionData = new Map<string, OfflineData>();
       this.map.set(collection, collectionData);
     }
-    collectionData.set(offlineData.id, offlineData);
+    collectionData.set(offlineData.id, cloneDeep(offlineData));
     return Promise.resolve();
   }
 
