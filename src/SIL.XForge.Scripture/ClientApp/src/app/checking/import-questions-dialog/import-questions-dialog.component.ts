@@ -104,6 +104,13 @@ type DialogStatus =
   | 'paratext_tag_selection'
   | DialogErrorState;
 
+/**
+ * Matches the verse part of a reference: a verse, optionally with a segment letter, or a list or range of such verses
+ * (e.g. "6", "6a", "6-21", "6,8"). VerseRef accepts any characters after the first verse number (e.g. "6=21"), so this
+ * is needed to reject references it would otherwise treat as a single, oddly named verse.
+ */
+const VERSE_PART_REGEXP = /^\d+[a-z]?([,-]\d+[a-z]?)*$/i;
+
 @Component({
   templateUrl: './import-questions-dialog.component.html',
   styleUrls: ['./import-questions-dialog.component.scss'],
@@ -733,10 +740,12 @@ export class ImportQuestionsDialogComponent implements OnDestroy {
         const refStartsWithBook: boolean = Canon.allBookIds.includes(reference.slice(0, 3)) && reference[3] === ' ';
         const fullReference: string =
           refStartsWithBook || defaultBookId == null ? reference : defaultBookId + ' ' + reference;
-        questions.push({
-          verseRef: new VerseRef(fullReference),
-          text: questionText
-        });
+        const verseRef = new VerseRef(fullReference);
+        if (!VERSE_PART_REGEXP.test(verseRef.verse)) {
+          invalidRows.push([rowNumber, reference, questionText]);
+          continue;
+        }
+        questions.push({ verseRef, text: questionText });
       } catch {
         invalidRows.push([rowNumber, reference, questionText]);
       }
