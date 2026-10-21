@@ -186,10 +186,6 @@ export class CheckingAnswersComponent implements OnInit {
       this.hideAnswerForm();
     }
     this._questionDoc = questionDoc;
-    if (this.projectUserConfigDoc != null && this.projectUserConfigDoc.data != null) {
-      this.userAnswerRefsRead = cloneDeep(this.projectUserConfigDoc.data.answerRefsRead);
-    }
-
     this.showRemoteAnswers();
     if (questionDoc == null) {
       return;
@@ -563,6 +559,11 @@ export class CheckingAnswersComponent implements OnInit {
   showRemoteAnswers(showUnreadClicked?: boolean): void {
     if (this.questionDoc == null || this.questionDoc.data == null) {
       return;
+    }
+    // Answers already on screen were marked as read when they were shown, so take a fresh copy of the read answers.
+    // Otherwise revealing new answers would spotlight the answers the user has already read as well.
+    if (this.projectUserConfigDoc?.data != null) {
+      this.userAnswerRefsRead = cloneDeep(this.projectUserConfigDoc.data.answerRefsRead);
     }
     this._answersToShow = this.questionDoc.getAnswers().map(answer => answer.dataId);
     this.refreshAnswersHighlightStatus();

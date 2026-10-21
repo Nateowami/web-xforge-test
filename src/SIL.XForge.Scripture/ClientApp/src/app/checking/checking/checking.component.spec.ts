@@ -1996,6 +1996,25 @@ describe('CheckingComponent', () => {
       expect(env.totalAnswersMessageCount).toEqual(2);
     }));
 
+    it('only highlights the newly shown answers when proj admin clicks show unread answers', fakeAsync(() => {
+      const env = new TestEnvironment({ user: ADMIN_USER });
+      env.selectQuestion(6);
+      expect(env.getAnswer(0).classes['attention']).withContext('setup: answer was unread').toBe(true);
+      expect(env.component.answersPanel!.projectUserConfigDoc!.data!.answerRefsRead)
+        .withContext('setup: answer is now read')
+        .toContain('a6Id');
+
+      env.simulateNewRemoteAnswer('remoteAnswerId123');
+      env.clickButton(env.showUnreadAnswersButton);
+      tick(env.questionReadTimer);
+      env.fixture.detectChanges();
+
+      expect(env.answers.length).toEqual(2);
+      expect(env.component.answersPanel!.answers.map(a => a.dataId)).toEqual(['remoteAnswerId123', 'a6Id']);
+      expect(env.getAnswer(0).classes['attention']).toBe(true);
+      expect(env.getAnswer(1).classes['attention']).toBeUndefined();
+    }));
+
     it('proj admin sees total answer count if >0 answers', fakeAsync(() => {
       const env = new TestEnvironment({ user: ADMIN_USER });
       // Select a question with at least one answer, but with no answers
