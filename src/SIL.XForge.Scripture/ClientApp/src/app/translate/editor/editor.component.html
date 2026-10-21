@@ -259,6 +259,7 @@
                   [isRightToLeft]="isTargetRightToLeft"
                   [fontSize]="fontSize"
                   [diffText]="target"
+                  [initialRevisionTimestamp]="tab.revisionTimestamp"
                   (revisionSelect)="onHistoryTabRevisionSelect(tab, $event)"
                 >
                 </app-editor-history>
@@ -271,6 +272,8 @@
                   [isRightToLeft]="isTargetRightToLeft"
                   [fontSize]="fontSize"
                   [timestamp]="draftTimestamp"
+                  [initialRevisionTimestamp]="tab.revisionTimestamp"
+                  (revisionSelect)="tab.revisionTimestamp = $event.timestamp"
                 >
                 </app-editor-draft>
               }

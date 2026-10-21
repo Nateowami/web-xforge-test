@@ -1124,6 +1124,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
 
   async onHistoryTabRevisionSelect(tab: EditorTabInfo, revision: Revision | undefined): Promise<void> {
     if (revision != null) {
+      tab.revisionTimestamp = revision.timestamp;
       const separator: string = this.i18n.isRtl ? `${RIGHT_TO_LEFT_MARK} - ` : ' - ';
       tab.headerText$ = of(
         `${this.targetLabel}${separator}${this.editorHistoryService.formatTimestamp(revision.timestamp)}`

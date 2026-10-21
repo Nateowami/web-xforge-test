@@ -1,5 +1,15 @@
 import { AsyncPipe, NgClass } from '@angular/common';
-import { AfterViewInit, Component, DestroyRef, Input, OnChanges, ViewChild } from '@angular/core';
+import {
+  AfterViewInit,
+  Component,
+  DestroyRef,
+  EventEmitter,
+  Input,
+  OnChanges,
+  Output,
+  SimpleChanges,
+  ViewChild
+} from '@angular/core';
 import { MatOption } from '@angular/material/autocomplete';
 import { MatButton } from '@angular/material/button';
 import { MatFormField } from '@angular/material/form-field';
@@ -96,6 +106,12 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
   @Input() isRightToLeft!: boolean;
   @Input() fontSize?: string;
   @Input() timestamp?: Date;
+  /**
+   * The timestamp of the draft revision to show when the drafts are first loaded. Takes precedence over `timestamp`,
+   * but only if a draft revision with this timestamp exists.
+   */
+  @Input() initialRevisionTimestamp?: string;
+  @Output() revisionSelect = new EventEmitter<Revision>();
 
   @ViewChild(TextComponent) draftText!: TextComponent;
 
@@ -117,6 +133,7 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
   private selectedRevision$ = this.selectedRevisionSubject.asObservable();
 
   private _draftRevisions: Revision[] = [];
+  private isInitialLoad = true;
 
   // 'asyncScheduler' prevents ExpressionChangedAfterItHasBeenCheckedError
   private loading$ = new BehaviorSubject<boolean>(false);
@@ -254,7 +271,12 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
     return this._draftRevisions;
   }
 
-  ngOnChanges(): void {
+  ngOnChanges(changes: SimpleChanges): void {
+    // The initial revision is only used on the first load, so a change to it must not reload the draft
+    if (changes.initialRevisionTimestamp != null && Object.keys(changes).length === 1) {
+      return;
+    }
+
     if (this.projectId == null || this.bookNum == null || this.chapter == null) {
       throw new Error('projectId, bookNum, or chapter is null');
     }
@@ -278,6 +300,7 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
   onSelectionChanged(e: MatSelectChange): void {
     this.selectedRevision = e.value;
     this.selectedRevisionSubject.next(this.selectedRevision);
+    this.revisionSelect.emit(e.value);
   }
 
   populateDraftTextInit(): void {
@@ -303,8 +326,15 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
                       return new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime();
                     });
                     const date = this.timestamp ?? new Date();
+                    const initialRevision: Revision | undefined = this.isInitialLoad
+                      ? this.draftRevisions.find(r => r.timestamp === this.initialRevisionTimestamp)
+                      : undefined;
+                    this.isInitialLoad = false;
                     // Don't emit this.selectedRevision$, as the merge will handle this
-                    this.selectedRevision = this.findClosestRevision(date, this.draftRevisions);
+                    this.selectedRevision = initialRevision ?? this.findClosestRevision(date, this.draftRevisions);
+                    if (this.selectedRevision != null) {
+                      this.revisionSelect.emit(this.selectedRevision);
+                    }
                     return { textDocId, timestamp: this.selectedRevision?.timestamp };
                   } else {
                     return { textDocId };
