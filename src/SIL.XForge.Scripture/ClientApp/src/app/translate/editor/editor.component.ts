@@ -190,6 +190,13 @@ const UNSUPPORTED_LANGUAGE_CODES = [
   'wuu',
   'zh'
 ];
+
+/**
+ * Prefix of the local settings keys that hold the last chapter the user viewed in each book of a project. Local
+ * settings are per device and are cleared on logout, so these are forgotten then.
+ */
+export const LAST_CHAPTERS_SETTING_PREFIX = 'translate_last_chapters';
+
 /** Scripture editing area. Used for Translate task.
  * ```
  * ┌─────────────────────────────────────┐
@@ -1799,7 +1806,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
 
   /** The local settings key holding the last chapter the user viewed in each book of the current project. */
   private lastChaptersSettingKey(): string {
-    return `translate_last_chapters:${this.projectId}:${this.userService.currentUserId}`;
+    return `${LAST_CHAPTERS_SETTING_PREFIX}:${this.projectId}:${this.userService.currentUserId}`;
   }
 
   private getLastChapters(): Record<number, number> {
