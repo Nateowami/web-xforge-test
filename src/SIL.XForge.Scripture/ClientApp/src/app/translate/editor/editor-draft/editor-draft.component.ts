@@ -410,7 +410,9 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
 
     // Subscribe to SignalR updates
     await this.draftNotificationService.start();
-    await this.draftNotificationService.subscribeToProject(this.textDocId.projectId);
+    const hasProgressUpdates: boolean = await this.draftNotificationService.subscribeToProject(
+      this.textDocId.projectId
+    );
 
     try {
       await this.projectService.onlineApplyPreTranslationToProject(
@@ -419,7 +421,13 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
         this.textDocId.projectId,
         new Date(this.selectedRevision.timestamp)
       );
-      this.draftCheckState = 'draft-applying';
+      if (hasProgressUpdates) {
+        this.draftCheckState = 'draft-applying';
+      } else {
+        // Only a SignalR notification ends the applying state, so do not enter it. The chapter text and the project
+        // doc still update through the realtime server when the background job has applied the draft.
+        this.noticeService.show(this.i18n.translateStatic('editor_draft_tab.applying_draft_without_progress'));
+      }
     } catch (err) {
       if (err instanceof CommandError && err.code === CommandErrorCode.Forbidden) {
         this.noticeService.showError(this.i18n.translateStatic('editor_draft_tab.permission_error'));

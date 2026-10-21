@@ -359,6 +359,22 @@
         </div>
       }
 
+      @if (importStartedWithoutProgress) {
+        <app-notice icon="info" type="primary" data-test-id="import-without-progress">
+          <transloco
+            key="draft_import_wizard.import_started_without_progress"
+            [params]="{
+              projectNameLabel: projectLabel(selectedParatextProject)
+            }"
+          ></transloco>
+        </app-notice>
+        <div class="button-strip align-end">
+          <button matButton="filled" color="primary" data-test-id="step-6-done" (click)="close()">
+            {{ t("done") }}
+          </button>
+        </div>
+      }
+
       @if (importComplete) {
         <app-notice [icon]="'check_circle'" type="success">{{ t("import_complete") }}</app-notice>
         <div class="button-strip align-end">

@@ -413,6 +413,7 @@
     "import_complete_no_sync": "Make sure to sync [b]{{ projectNameLabel }}[/b] in Scripture Forge, then do a Send/Receive in Paratext to make the draft available in Paratext.",
     "import_complete": "Import complete",
     "import_some_chapters_failed": "Imported {{ successful }} chapter(s) successfully. Failed to import {{ failed }} chapter(s). See details above.",
+    "import_started_without_progress": "The draft is being imported into [b]{{ projectNameLabel }}[/b], but its progress cannot be shown. The chapters may take a few minutes to appear. Once they have, sync the project in Scripture Forge, then do a Send/Receive in Paratext.",
     "importing_draft": "Importing draft",
     "importing": "Importing",
     "next": "Next",
@@ -539,6 +540,7 @@
   },
   "editor_draft_tab": {
     "apply_to_project": "Add to project",
+    "applying_draft_without_progress": "The draft is being added to the project. It will appear in the chapter when it is ready.",
     "cannot_import": "You cannot import this draft because you do not have permission to edit this chapter. Permissions can be updated in Paratext.",
     "click_book_to_preview": "Click a book below to preview the draft and add it to your project.",
     "draft_indicator_applied": "Added",

@@ -113,6 +113,7 @@ describe('EditorDraftComponent', () => {
     when(mockDraftHandlingService.getBookDraft(anything(), anything())).thenResolve(bookDraftByChapters);
     when(mockDraftHandlingService.opsHaveContent(anything())).thenReturn(true);
     when(mockSFProjectService.hasDraft(anything(), anything(), anything(), anything())).thenReturn(true);
+    when(mockDraftNotificationService.subscribeToProject(anything())).thenResolve(true);
 
     fixture = TestBed.createComponent(EditorDraftComponent);
     component = fixture.componentInstance;
@@ -599,6 +600,38 @@ describe('EditorDraftComponent', () => {
         )
       ).once();
       expect(component.isDraftApplied).toBe(true);
+      flush();
+    }));
+
+    it('should not stay in the applying state if SignalR cannot connect', fakeAsync(() => {
+      const testProjectDoc: SFProjectProfileDoc = {
+        data: createTestProjectProfile()
+      } as SFProjectProfileDoc;
+      when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), anything())).thenReturn(
+        of(draftHistory)
+      );
+      when(mockActivatedProjectService.changes$).thenReturn(of(testProjectDoc));
+      when(mockDraftHandlingService.canApplyDraft(anything(), anything(), anything(), anything())).thenReturn(true);
+      spyOn<any>(component, 'getTargetOps').and.returnValue(of([]));
+      fixture.detectChanges();
+      tick(EDITOR_READY_TIMEOUT);
+
+      // No SignalR notifications will arrive for the apply
+      when(mockDraftNotificationService.subscribeToProject(anything())).thenResolve(false);
+      when(
+        mockSFProjectService.onlineApplyPreTranslationToProject(anything(), anything(), anything(), anything())
+      ).thenResolve('jobId');
+      component.applyDraft();
+      tick();
+      fixture.detectChanges();
+
+      verify(
+        mockSFProjectService.onlineApplyPreTranslationToProject(anything(), anything(), anything(), anything())
+      ).once();
+      expect(component.draftCheckState).toBe('draft-present');
+      expect(fixture.nativeElement.querySelector('mat-progress-bar')).toBeNull();
+      expect(fixture.nativeElement.querySelector('.apply-draft-button-container button').disabled).toBe(false);
+      verify(mockNoticeService.show(anything())).once();
       flush();
     }));
 

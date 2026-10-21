@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HubConnectionBuilder } from '@microsoft/signalr';
 import { AuthService } from 'xforge-common/auth.service';
+import { ErrorReportingService } from 'xforge-common/error-reporting.service';
 import { NotificationServiceBase } from '../../core/notification-service-base';
 
 /**
@@ -10,8 +11,8 @@ import { NotificationServiceBase } from '../../core/notification-service-base';
   providedIn: 'root'
 })
 export class DraftNotificationService extends NotificationServiceBase {
-  constructor(authService: AuthService) {
-    super(authService);
+  constructor(authService: AuthService, errorReportingService: ErrorReportingService) {
+    super(authService, errorReportingService);
     this.connection = new HubConnectionBuilder()
       .withUrl('/draft-notifications', this.options)
       .withAutomaticReconnect()

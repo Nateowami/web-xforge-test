@@ -294,6 +294,8 @@ export class DraftImportWizardComponent implements OnInit {
   importProgress: ImportProgress[] = [];
   importError?: string;
   importComplete = false;
+  /** The import was started, but its progress and result cannot be shown as SignalR could not connect. */
+  importStartedWithoutProgress = false;
   importStepTriggered = false;
 
   // Step 7: Sync confirmation and completion
@@ -711,7 +713,7 @@ export class DraftImportWizardComponent implements OnInit {
 
     // Subscribe to SignalR updates
     await this.draftNotificationService.start();
-    await this.draftNotificationService.subscribeToProject(this.sourceProjectId);
+    const hasProgressUpdates: boolean = await this.draftNotificationService.subscribeToProject(this.sourceProjectId);
 
     // Build a scripture range and timestamp to import. Scope to the chapters that were actually drafted for each
     // selected book, so a partial-book draft imports only its chapters instead of attempting (and failing) every
@@ -733,6 +735,11 @@ export class DraftImportWizardComponent implements OnInit {
         this.targetProjectId,
         timestamp
       );
+      if (!hasProgressUpdates) {
+        // Only a SignalR notification ends the import, so stop waiting and tell the user it continues in the background
+        this.isImporting = false;
+        this.importStartedWithoutProgress = true;
+      }
     } catch (error) {
       if (error instanceof CommandError && error.code === CommandErrorCode.NotFound) {
         this.importError = this.i18n.translateStatic('draft_import_wizard.project_deleted');
@@ -903,6 +910,7 @@ export class DraftImportWizardComponent implements OnInit {
     this.importProgress = [];
     this.importError = undefined;
     this.importComplete = false;
+    this.importStartedWithoutProgress = false;
     this.importStepTriggered = false;
     this.selectedBooksWithLowConfidence = 0;
   }
