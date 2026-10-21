@@ -3,6 +3,7 @@ import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
+import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { BehaviorSubject, of, Subject } from 'rxjs';
 import { anything, mock, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
@@ -84,6 +85,7 @@ describe('NavigationComponent', () => {
       when(mockedResumeCheckingService.resumeLink$).thenReturn(of([]));
       when(mockedResumeTranslateService.resumeLink$).thenReturn(of([]));
       when(mockedFeatureFlagService.stillness).thenReturn(createTestFeatureFlag(false));
+      when(mockedProjectService.isSyncRequestPending(anything())).thenReturn(false);
 
       this.fixture = TestBed.createComponent(NavigationComponent);
       this.component = this.fixture.componentInstance;
@@ -92,6 +94,10 @@ describe('NavigationComponent', () => {
 
     get adminPagesList(): DebugElement | null {
       return this.fixture.debugElement.query(By.css('#admin-pages-menu-list'));
+    }
+
+    get syncIcon(): HTMLElement {
+      return this.fixture.debugElement.query(By.css('#sync-icon')).nativeElement;
     }
 
     get servalAdminNavItem(): DebugElement | null {
@@ -188,6 +194,43 @@ describe('NavigationComponent', () => {
 
     expect(env.adminPagesList).not.toBeNull();
     expect(env.servalAdminNavItem).toBeNull();
+    flush();
+  }));
+
+  it('spins the sync icon while the project is queued for sync', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.canSync$.next(true);
+    env.emitProjectChange({
+      id: 'project01',
+      data: createTestProjectProfile({ sync: { queuedCount: 1 } })
+    } as SFProjectProfileDoc);
+
+    expect(env.syncIcon.classList).toContain('sync-in-progress');
+    flush();
+  }));
+
+  it('does not spin the sync icon when no sync is queued or requested', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.canSync$.next(true);
+    env.emitProjectChange({
+      id: 'project01',
+      data: createTestProjectProfile({ sync: { queuedCount: 0 } })
+    } as SFProjectProfileDoc);
+
+    expect(env.syncIcon.classList).not.toContain('sync-in-progress');
+    flush();
+  }));
+
+  it('spins the sync icon as soon as a sync is requested, before the server queues it', fakeAsync(() => {
+    const env = new TestEnvironment();
+    when(mockedProjectService.isSyncRequestPending('project01')).thenReturn(true);
+    env.canSync$.next(true);
+    env.emitProjectChange({
+      id: 'project01',
+      data: createTestProjectProfile({ sync: { queuedCount: 0, lastSyncSuccessful: false } })
+    } as SFProjectProfileDoc);
+
+    expect(env.syncIcon.classList).toContain('sync-in-progress');
     flush();
   }));
 
