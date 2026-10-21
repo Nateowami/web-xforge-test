@@ -1206,6 +1206,27 @@ describe('TextComponent', () => {
     expect(env.component.editor!.getSelection()).toEqual(new QuillRange(footnoteIndex, 0));
   }));
 
+  it('moves the cursor over a note icon with the arrow keys', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    env.embedNoteAtVerse(1);
+    env.component.setSegment('verse_1_1', undefined, true);
+    tick();
+    const noteIconIndex: number = Array.from(env.component.embeddedElements.values())[0];
+    expect(noteIconIndex).withContext('setup').toBeGreaterThan(env.component.getSegmentRange('verse_1_1')!.index);
+
+    env.component.editor!.setSelection(noteIconIndex, 0, 'user');
+    expect(env.pressKey('ArrowRight')).withContext('handled by the editor').toBeTrue();
+    expect(env.component.editor!.getSelection()).toEqual(new QuillRange(noteIconIndex + 1, 0));
+
+    expect(env.pressKey('ArrowLeft')).withContext('handled by the editor').toBeTrue();
+    expect(env.component.editor!.getSelection()).toEqual(new QuillRange(noteIconIndex, 0));
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('leaves arrow keys to the browser when the cursor is not beside a footnote', fakeAsync(() => {
     const { env, footnoteIndex } = footnoteEnv(false);
 

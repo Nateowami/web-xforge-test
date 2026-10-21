@@ -18,6 +18,7 @@ import { isEqual, merge } from 'lodash-es';
 import { QuillEditorComponent } from 'ngx-quill';
 import Quill, { Delta, EmitterSource, Range } from 'quill';
 import QuillCursors from 'quill-cursors';
+import QuillEmbedBlot from 'quill/blots/embed';
 import { Operation } from 'realtime-server/lib/esm/common/models/project-rights';
 import { AuthType, getAuthType } from 'realtime-server/lib/esm/common/models/user';
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
@@ -49,7 +50,7 @@ import { MultiCursorViewer } from '../../translate/editor/multi-viewer/multi-vie
 import { attributeFromMouseEvent } from '../utils';
 import { getBaseVerse, getVerseRefFromSegmentRef, getVerseStrFromSegmentRef, VERSE_REGEX } from '../verse-utils';
 import { QuillFormatRegistryService } from './quill-editor-registration/quill-format-registry.service';
-import { NoteEmbed } from './quill-editor-registration/quill-formats/quill-blots';
+import { BlankEmbed, VerseEmbed } from './quill-editor-registration/quill-formats/quill-blots';
 import { getAttributesAtPosition, getRetainCount } from './quill-util';
 import { Segment } from './segment';
 import { NoteDialogData, TextNoteDialogComponent } from './text-note-dialog/text-note-dialog.component';
@@ -237,14 +238,14 @@ export class TextComponent implements AfterViewInit, OnDestroy {
         },
         'move next, segment end, right arrow': {
           key: 'ArrowRight',
-          handler: () => {
+          handler: (range: Range) => {
             if (this.isLtr && this.isSelectionAtSegmentEnd) {
               this.moveNextSegment(false);
               return false;
             } else if (this.isRtl && this.isSelectionAtSegmentStart) {
               this.movePrevSegment(true);
               return false;
-            } else if (this.moveCursorOverAdjacentNote(!this.isRtl)) {
+            } else if (this.moveCursorOverAdjacentEmbed(range, !this.isRtl)) {
               return false;
             }
             return true;
@@ -252,13 +253,13 @@ export class TextComponent implements AfterViewInit, OnDestroy {
         },
         'move next, segment end, left arrow': {
           key: 'ArrowLeft',
-          handler: () => {
+          handler: (range: Range) => {
             if (this.isRtl && this.isSelectionAtSegmentEnd) {
               this.moveNextSegment(false);
               return false;
             } else if (this.isLtr && this.isSelectionAtSegmentStart) {
               this.movePrevSegment(true);
-            } else if (this.moveCursorOverAdjacentNote(this.isRtl)) {
+            } else if (this.moveCursorOverAdjacentEmbed(range, this.isRtl)) {
               return false;
             }
             return true;
@@ -1566,21 +1567,21 @@ export class TextComponent implements AfterViewInit, OnDestroy {
   }
 
   /**
-   * Moves a collapsed cursor over the footnote or cross-reference immediately after it (or before it, if not
-   * `forward`). Returns whether the cursor was moved. Without this, the browser moves the caret into the note's
-   * guard nodes instead, so the cursor cannot get past the note with the arrow keys.
+   * Moves a collapsed cursor over the inline embed (footnote, note icon, figure, etc.) immediately after it (or before
+   * it, if not `forward`). Returns whether the cursor was moved. Without this, the browser moves the caret into the
+   * embed's guard nodes instead, so the cursor cannot get past the embed with the arrow keys. Verse and blank embeds
+   * are left out because they sit on segment boundaries, which the arrow key bindings handle first.
    */
-  private moveCursorOverAdjacentNote(forward: boolean): boolean {
-    const sel: Range | null | undefined = this._editor?.getSelection();
-    if (this._editor == null || sel == null || sel.length > 0) {
+  private moveCursorOverAdjacentEmbed(range: Range, forward: boolean): boolean {
+    if (this._editor == null || range.length > 0) {
       return false;
     }
     // getLeaf(index) returns the leaf that ends at index
-    const [leaf] = this._editor.getLeaf(forward ? sel.index + 1 : sel.index);
-    if (!(leaf instanceof NoteEmbed)) {
+    const [leaf] = this._editor.getLeaf(forward ? range.index + 1 : range.index);
+    if (!(leaf instanceof QuillEmbedBlot) || leaf instanceof VerseEmbed || leaf instanceof BlankEmbed) {
       return false;
     }
-    this._editor.setSelection(forward ? sel.index + 1 : sel.index - 1, 0, 'user');
+    this._editor.setSelection(forward ? range.index + 1 : range.index - 1, 0, 'user');
     return true;
   }
 
