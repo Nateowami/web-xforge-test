@@ -455,9 +455,15 @@ describe('ImportQuestionsDialogComponent', () => {
       ['MAT 1:7_8', 'Question 2'],
       ['MAT 1:8*13', 'Question 3'],
       ['MAT 1:9–10', 'Question 4'],
-      ['MAT 1:10-12', 'Question 5'],
-      ['MAT 1:13a', 'Question 6'],
-      ['MAT 1:14,16', 'Question 7']
+      ['MAT 1:6-8-10', 'Question 5'],
+      ['MAT 1:10-6', 'Question 6'],
+      ['MAT 1:6-6', 'Question 7'],
+      ['MAT 1:13c', 'Question 8'],
+      ['MAT 1:10-12', 'Question 9'],
+      ['MAT 1:13a', 'Question 10'],
+      ['MAT 1:13B', 'Question 11'],
+      ['MAT 1:14,16', 'Question 12'],
+      ['MAT 1:6-8,10b', 'Question 13']
     ]);
 
     expect(env.headerText).toBe('These rows in the CSV file were invalid and will be skipped.');
@@ -465,12 +471,22 @@ describe('ImportQuestionsDialogComponent', () => {
       'MAT 1:6=21',
       'MAT 1:7_8',
       'MAT 1:8*13',
-      'MAT 1:9–10'
+      'MAT 1:9–10',
+      'MAT 1:6-8-10',
+      'MAT 1:10-6',
+      'MAT 1:6-6',
+      'MAT 1:13c'
     ]);
 
     env.click(env.continueImportButton);
 
-    expect(env.tableRows.map(row => env.getRowReference(row))).toEqual(['MAT 1:10-12', 'MAT 1:13a', 'MAT 1:14,16']);
+    expect(env.tableRows.map(row => env.getRowReference(row))).toEqual([
+      'MAT 1:6-8,10b',
+      'MAT 1:10-12',
+      'MAT 1:13a',
+      'MAT 1:13B',
+      'MAT 1:14,16'
+    ]);
 
     env.click(env.backButton);
   }));
