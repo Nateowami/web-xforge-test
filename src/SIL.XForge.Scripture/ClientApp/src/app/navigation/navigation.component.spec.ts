@@ -3,6 +3,8 @@ import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
+import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
+import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { BehaviorSubject, of, Subject } from 'rxjs';
 import { anything, mock, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
@@ -81,8 +83,8 @@ describe('NavigationComponent', () => {
       when(mockedRouter.url).thenReturn('/projects/project01');
       when(mockedRouter.createUrlTree(anything(), anything())).thenReturn([] as any);
       when(mockedRouter.serializeUrl(anything())).thenReturn('');
-      when(mockedResumeCheckingService.resumeLink$).thenReturn(of([]));
-      when(mockedResumeTranslateService.resumeLink$).thenReturn(of([]));
+      when(mockedResumeCheckingService.resumeLink$).thenReturn(of(['']));
+      when(mockedResumeTranslateService.resumeLink$).thenReturn(of(['']));
       when(mockedFeatureFlagService.stillness).thenReturn(createTestFeatureFlag(false));
 
       this.fixture = TestBed.createComponent(NavigationComponent);
@@ -96,6 +98,31 @@ describe('NavigationComponent', () => {
 
     get servalAdminNavItem(): DebugElement | null {
       return this.fixture.debugElement.query(By.css('#serval-admin-nav-item'));
+    }
+
+    get draftSpinner(): DebugElement | null {
+      return this.fixture.debugElement.query(By.css('#tools-menu-list mat-spinner'));
+    }
+
+    get draftErrorIcon(): DebugElement | null {
+      return this.fixture.debugElement.query(By.css('#tools-menu-list mat-icon.status-icon'));
+    }
+
+    setOnline(isOnline: boolean): void {
+      (TestBed.inject(OnlineStatusService) as TestOnlineStatusService).setIsOnline(isOnline);
+      tick();
+      this.fixture.detectChanges();
+    }
+
+    emitProjectWithDraftState(draftInProgress: boolean, lastDraftSuccessful?: boolean): void {
+      this.canGenerateDraft$.next(true);
+      this.emitProjectChange({
+        id: 'project01',
+        data: createTestProjectProfile({
+          translateConfig: { draftConfig: { draftInProgress, lastDraftSuccessful } },
+          userRoles: { user01: SFProjectRole.ParatextAdministrator }
+        })
+      } as SFProjectProfileDoc);
     }
 
     emitProjectChange(projectDoc: SFProjectProfileDoc | undefined): void {
@@ -212,6 +239,47 @@ describe('NavigationComponent', () => {
     // The trailing emission fires at the end of the window: guard called exactly twice, not five times
     expect(callCount).toBe(2);
 
+    flush();
+  }));
+
+  it('shows a spinner on the generate draft item while a draft is in progress', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.emitProjectWithDraftState(true);
+
+    expect(env.draftSpinner).not.toBeNull();
+    expect(env.draftErrorIcon).toBeNull();
+    flush();
+  }));
+
+  it('hides the draft in progress spinner while offline', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.emitProjectWithDraftState(true);
+    expect(env.draftSpinner).not.toBeNull();
+
+    env.setOnline(false);
+    expect(env.draftSpinner).toBeNull();
+
+    env.setOnline(true);
+    expect(env.draftSpinner).not.toBeNull();
+    flush();
+  }));
+
+  it('does not show the previous draft failure while offline with a draft in progress', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setOnline(false);
+    env.emitProjectWithDraftState(true, false);
+
+    expect(env.draftSpinner).toBeNull();
+    expect(env.draftErrorIcon).toBeNull();
+    flush();
+  }));
+
+  it('shows the draft failed icon when the last draft failed', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.emitProjectWithDraftState(false, false);
+
+    expect(env.draftSpinner).toBeNull();
+    expect(env.draftErrorIcon).not.toBeNull();
     flush();
   }));
 });
