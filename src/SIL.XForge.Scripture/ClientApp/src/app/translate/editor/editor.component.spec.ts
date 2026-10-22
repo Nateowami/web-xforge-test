@@ -426,6 +426,16 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
+    it('does not restore the last selected segment when the url links to a lynx insight', fakeAsync(() => {
+      const env = new TestEnvironment();
+      when(mockedActivatedRoute.snapshot).thenReturn({ queryParams: { insight: 'insight01' } } as any);
+      env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_2' });
+      env.wait();
+      expect(env.component.target!.segmentRef).toBe('');
+
+      env.dispose();
+    }));
+
     it('select non-blank segment', fakeAsync(() => {
       const env = new TestEnvironment();
       env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_1' });
