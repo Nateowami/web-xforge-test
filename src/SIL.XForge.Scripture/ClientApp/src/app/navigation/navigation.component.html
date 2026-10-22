@@ -17,6 +17,7 @@
           <mat-icon class="mirror-rtl">auto_awesome</mat-icon>
           {{ t("generate_draft") }}
           @if (draftInProgress) {
+            <!-- Keep this nested: offline during a build, show no icon rather than a stale lastDraftFailed error -->
             @if (isAppOnline) {
               <mat-spinner class="status-icon" [diameter]="20" [strokeWidth]="3"></mat-spinner>
             }
