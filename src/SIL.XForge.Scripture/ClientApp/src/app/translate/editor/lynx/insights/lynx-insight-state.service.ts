@@ -1,4 +1,5 @@
 import { Inject, Injectable } from '@angular/core';
+import { Params, Router } from '@angular/router';
 import { isEqual } from 'lodash-es';
 import {
   LynxInsightFilter,
@@ -170,9 +171,30 @@ export class LynxInsightStateService {
     private readonly activatedBookChapter: ActivatedBookChapterService,
     private readonly activatedProject: ActivatedProjectService,
     private readonly activatedProjectUserConfig: ActivatedProjectUserConfigService,
-    private readonly lynxWorkspaceService: LynxWorkspaceService
+    private readonly lynxWorkspaceService: LynxWorkspaceService,
+    private readonly router: Router
   ) {
     this.init();
+  }
+
+  /** The query params of a url that links to the insight, so the editor shows the insight when opened at the url. */
+  getInsightLinkQueryParams(insightId: string): Params {
+    return { [this.defaults.queryParamName]: insightId };
+  }
+
+  /** The id of the insight that the current url links to, if any. */
+  getLinkedInsightId(): string | undefined {
+    return this.router.routerState.snapshot.root.queryParams[this.defaults.queryParamName];
+  }
+
+  /** Removes the insight link from the current url, so that it is not followed again once the insight is shown. */
+  clearInsightLink(): void {
+    if (this.getLinkedInsightId() == null) return;
+    void this.router.navigate([], {
+      queryParams: { [this.defaults.queryParamName]: null },
+      queryParamsHandling: 'merge',
+      replaceUrl: true
+    });
   }
 
   getInsight(id: string): LynxInsight | undefined {

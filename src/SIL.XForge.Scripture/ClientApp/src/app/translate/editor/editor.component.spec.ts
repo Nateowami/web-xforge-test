@@ -107,6 +107,7 @@ import { EditorDraftComponent } from './editor-draft/editor-draft.component';
 import { HistoryRevisionFormatPipe } from './editor-history/history-chooser/history-revision-format.pipe';
 import { EditorComponent } from './editor.component';
 import { LynxInsightEditorObjectsComponent } from './lynx/insights/lynx-insight-editor-objects/lynx-insight-editor-objects.component';
+import { LynxInsightStateService } from './lynx/insights/lynx-insight-state.service';
 import { LynxInsightsPanelComponent } from './lynx/insights/lynx-insights-panel/lynx-insights-panel.component';
 import { provideLynxInsights } from './lynx/insights/lynx-insights-providers';
 import { LynxWorkspaceService } from './lynx/insights/lynx-workspace.service';
@@ -428,7 +429,7 @@ describe('EditorComponent', () => {
 
     it('does not restore the last selected segment when the url links to a lynx insight', fakeAsync(() => {
       const env = new TestEnvironment();
-      when(mockedActivatedRoute.snapshot).thenReturn({ queryParams: { insight: 'insight01' } } as any);
+      spyOn(TestBed.inject(LynxInsightStateService), 'getLinkedInsightId').and.returnValue('insight01');
       env.setProjectUserConfig({ selectedBookNum: 40, selectedChapterNum: 1, selectedSegment: 'verse_1_2' });
       env.wait();
       expect(env.component.target!.segmentRef).toBe('');

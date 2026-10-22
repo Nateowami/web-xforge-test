@@ -1,6 +1,5 @@
 import { Component, DestroyRef, NO_ERRORS_SCHEMA, ViewChild } from '@angular/core';
 import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
-import { ActivatedRoute, Params } from '@angular/router';
 import { Delta } from 'quill';
 import { LynxInsightFilter, LynxInsightType } from 'realtime-server/lib/esm/scriptureforge/models/lynx-insight';
 import { BehaviorSubject, Subject } from 'rxjs';
@@ -27,7 +26,6 @@ const mockEditorReadyService = mock(QuillEditorReadyService);
 const mockOverlayService = mock(LynxInsightOverlayService);
 const mockLynxWorkspaceService = mock(LynxWorkspaceService);
 const mockActivatedBookChapterService = mock(ActivatedBookChapterService);
-const mockActivatedRoute = mock(ActivatedRoute);
 const mockDestroyRef = mock(DestroyRef);
 const mockTextModelConverter = mock<LynxTextModelConverter>();
 
@@ -42,7 +40,6 @@ describe('LynxInsightEditorObjectsComponent', () => {
       { provide: LynxInsightOverlayService, useMock: mockOverlayService },
       { provide: LynxWorkspaceService, useMock: mockLynxWorkspaceService },
       { provide: ActivatedBookChapterService, useMock: mockActivatedBookChapterService },
-      { provide: ActivatedRoute, useMock: mockActivatedRoute },
       { provide: DestroyRef, useMock: mockDestroyRef },
       { provide: LynxEditorAdapterFactory, useClass: TestLynxEditorAdapterFactory }
     ],
@@ -340,7 +337,7 @@ describe('LynxInsightEditorObjectsComponent', () => {
 
     it('should show the insight linked in the url when created', fakeAsync(() => {
       // Navigating from a route without a chapter recreates the editor after the insights panel set the active insight
-      new TestEnvironment({ queryParams: { insight: 'linked-insight' } });
+      new TestEnvironment({ linkedInsightId: 'linked-insight' });
       tick();
 
       verify(mockInsightStateService.clearDisplayState()).once();
@@ -360,6 +357,19 @@ describe('LynxInsightEditorObjectsComponent', () => {
 
       verify(mockInsightStateService.clearDisplayState()).twice();
       verify(mockInsightStateService.updateDisplayState(anything())).never();
+    }));
+
+    it('should clear the insight link once the chapter insights are rendered', fakeAsync(() => {
+      // Otherwise the insight would be shown again whenever this component is recreated on the same url
+      const env = new TestEnvironment({ initialEditorReady: false, linkedInsightId: 'linked-insight' });
+      tick();
+      verify(mockInsightStateService.clearInsightLink()).never();
+
+      env.setEditorReady(true);
+      tick();
+      flush();
+
+      verify(mockInsightStateService.clearInsightLink()).once();
     }));
   });
 
@@ -468,7 +478,7 @@ class HostComponent {
 interface TestEnvArgs {
   initialEditorReady?: boolean;
   insightsEnabled?: boolean;
-  queryParams?: Params;
+  linkedInsightId?: string;
 }
 
 class TestEnvironment {
@@ -546,7 +556,7 @@ class TestEnvironment {
     when(mockInsightStateService.filter$).thenReturn(this.filterSubject);
     when(mockInsightStateService.filteredInsightCountsByType$).thenReturn(this.filteredInsightCountsByTypeSubject);
     when(mockActivatedBookChapterService.activatedBookChapter$).thenReturn(this.activatedBookChapterSubject);
-    when(mockActivatedRoute.snapshot).thenReturn({ queryParams: args.queryParams ?? {} } as any);
+    when(mockInsightStateService.getLinkedInsightId()).thenReturn(args.linkedInsightId);
     when(mockLynxWorkspaceService.taskRunningStatus$).thenReturn(this.taskRunningStatusSubject);
     when(mockInsightStateService.updateDisplayState(anything())).thenReturn();
     when(mockInsightStateService.clearDisplayState()).thenReturn();
