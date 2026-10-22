@@ -1,4 +1,5 @@
-import { TestBed } from '@angular/core/testing';
+import { fakeAsync, TestBed, tick } from '@angular/core/testing';
+import { provideRouter, Router } from '@angular/router';
 import { Json0OpBuilder } from 'realtime-server/lib/esm/common/utils/json0-op-builder';
 import { LynxInsightFilter, LynxInsightType } from 'realtime-server/lib/esm/scriptureforge/models/lynx-insight';
 import { createTestProject } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
@@ -76,6 +77,7 @@ describe('LynxInsightStateService', () => {
 
   configureTestingModule(() => ({
     providers: [
+      provideRouter([]),
       LynxInsightStateService,
       { provide: LynxInsightFilterService, useMock: mockInsightFilterService },
       { provide: ActivatedBookChapterService, useMock: mockActivatedBookChapterService },
@@ -248,6 +250,39 @@ describe('LynxInsightStateService', () => {
       expect(state.actionOverlayActive).toBeUndefined();
       expect(state.cursorActiveInsightIds).toEqual([]);
     });
+  });
+
+  describe('insight link', () => {
+    it('should read the insight id from the link query params', fakeAsync(() => {
+      const router: Router = TestBed.inject(Router);
+      void router.navigate([], { queryParams: service.getInsightLinkQueryParams('test-1') });
+      tick();
+
+      expect(router.url).toBe('/?insight=test-1');
+      expect(service.getLinkedInsightId()).toBe('test-1');
+    }));
+
+    it('should remove only the insight link from the url', fakeAsync(() => {
+      const router: Router = TestBed.inject(Router);
+      void router.navigateByUrl('/?draft-active=true&insight=test-1');
+      tick();
+
+      service.clearInsightLink();
+      tick();
+
+      expect(router.url).toBe('/?draft-active=true');
+      expect(service.getLinkedInsightId()).toBeUndefined();
+    }));
+
+    it('should not navigate when the url does not link to an insight', fakeAsync(() => {
+      const router: Router = TestBed.inject(Router);
+      const navigateSpy = spyOn(router, 'navigate').and.callThrough();
+
+      service.clearInsightLink();
+      tick();
+
+      expect(navigateSpy).not.toHaveBeenCalled();
+    }));
   });
 
   describe('panel visibility', () => {

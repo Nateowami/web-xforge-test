@@ -536,7 +536,7 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
       await this.router.navigate(
         ['/projects', this.activatedProject.projectId, 'translate', insightBookId, insight.textDocId.chapterNum],
         {
-          queryParams: { [this.lynxInsightConfig.queryParamName]: insight.id }
+          queryParams: this.editorInsightState.getInsightLinkQueryParams(insight.id)
         }
       );
 
