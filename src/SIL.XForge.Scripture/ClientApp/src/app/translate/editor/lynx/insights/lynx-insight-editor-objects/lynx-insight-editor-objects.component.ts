@@ -9,6 +9,7 @@ import {
   OnInit,
   SimpleChanges
 } from '@angular/core';
+import { ActivatedRoute } from '@angular/router';
 import { isEqual } from 'lodash-es';
 import { Delta } from 'quill';
 import {
@@ -29,7 +30,13 @@ import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { EditorReadyService } from '../base-services/editor-ready.service';
 import { InsightRenderService } from '../base-services/insight-render.service';
 import { LynxableEditor, LynxTextModelConverter } from '../lynx-editor';
-import { LynxInsight, LynxInsightDisplayState, LynxInsightRange } from '../lynx-insight';
+import {
+  EDITOR_INSIGHT_DEFAULTS,
+  LynxInsight,
+  LynxInsightConfig,
+  LynxInsightDisplayState,
+  LynxInsightRange
+} from '../lynx-insight';
 import { LynxInsightActionPromptComponent } from '../lynx-insight-action-prompt/lynx-insight-action-prompt.component';
 import { LynxInsightOverlayService } from '../lynx-insight-overlay.service';
 import { LynxInsightScrollPositionIndicatorComponent } from '../lynx-insight-scroll-position-indicator/lynx-insight-scroll-position-indicator.component';
@@ -69,6 +76,8 @@ export class LynxInsightEditorObjectsComponent implements OnChanges, OnInit, OnD
     private readonly overlayService: LynxInsightOverlayService,
     private readonly lynxWorkspaceService: LynxWorkspaceService,
     private readonly activatedBookChapterService: ActivatedBookChapterService,
+    private readonly activatedRoute: ActivatedRoute,
+    @Inject(EDITOR_INSIGHT_DEFAULTS) private readonly lynxInsightConfig: LynxInsightConfig,
     @Inject(DOCUMENT) private readonly document: Document
   ) {}
 
@@ -135,6 +144,19 @@ export class LynxInsightEditorObjectsComponent implements OnChanges, OnInit, OnD
         // Clear display state when changing chapters.
         // This happens before active insights are assigned from the problems panel.
         this.insightState.clearDisplayState();
+
+        // The insights panel links to an insight in another chapter with the insight id as a query param.
+        // Navigating from a route without a chapter recreates the editor, and with it this component, after the panel
+        // has assigned the active insight, so show the linked insight here.
+        const linkedInsightId: string | undefined =
+          this.activatedRoute.snapshot.queryParams[this.lynxInsightConfig.queryParamName];
+        if (linkedInsightId != null) {
+          this.insightState.updateDisplayState({
+            activeInsightIds: [linkedInsightId],
+            promptActive: false,
+            actionOverlayActive: true
+          });
+        }
       });
 
     this.editorReadyService

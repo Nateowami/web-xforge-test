@@ -8,6 +8,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  Inject,
   OnDestroy,
   OnInit,
   QueryList,
@@ -144,6 +145,7 @@ import { EditorDraftComponent } from './editor-draft/editor-draft.component';
 import { EditorHistoryComponent } from './editor-history/editor-history.component';
 import { EditorHistoryService } from './editor-history/editor-history.service';
 import { EditorResourceComponent } from './editor-resource/editor-resource.component';
+import { EDITOR_INSIGHT_DEFAULTS, LynxInsightConfig } from './lynx/insights/lynx-insight';
 import { LynxInsightStateService } from './lynx/insights/lynx-insight-state.service';
 import { LynxInsightsPanelComponent } from './lynx/insights/lynx-insights-panel/lynx-insights-panel.component';
 import { MultiCursorViewer, MultiViewerComponent } from './multi-viewer/multi-viewer.component';
@@ -338,7 +340,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     private readonly breakpointObserver: BreakpointObserver,
     private readonly mediaBreakpointService: MediaBreakpointService,
     private readonly permissionsService: PermissionsService,
-    readonly editorInsightState: LynxInsightStateService
+    readonly editorInsightState: LynxInsightStateService,
+    @Inject(EDITOR_INSIGHT_DEFAULTS) private readonly lynxInsightConfig: LynxInsightConfig
   ) {
     super(noticeService, 'EditorComponent');
     const wordTokenizer = new LatinWordTokenizer();
@@ -1642,8 +1645,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
 
   private setSegment(selectedSegment?: string, selectedSegmentChecksum?: number): void {
     if (this.target == null || this.text == null) return;
+    // A link to a Lynx insight positions the editor at the insight, so do not restore the last selected segment
+    const isInsightLink: boolean =
+      this.activatedRoute.snapshot.queryParams[this.lynxInsightConfig.queryParamName] != null;
     if (
       selectedSegment == null &&
+      !isInsightLink &&
       this.projectUserConfigDoc?.data != null &&
       this.projectUserConfigDoc.data.selectedBookNum === this.text.bookNum &&
       this.projectUserConfigDoc.data.selectedChapterNum === this.chapter &&
