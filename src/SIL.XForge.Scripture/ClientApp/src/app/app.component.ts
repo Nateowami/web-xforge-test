@@ -379,7 +379,8 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
             if (!(this.currentUserDoc.id in this._selectedProjectDoc.data.userRoles)) {
               // The user has been removed from the project. Stop listening to it, as the sync that removed the user
               // goes on to change the project several more times before we have navigated away, and each change
-              // would otherwise show the dialog again.
+              // would otherwise show the dialog again. The realtime server still sends us these changes, as it only
+              // checks read access when a doc is fetched or subscribed to, not for each op sent to a subscriber.
               this.selectedProjectChangedSub?.unsubscribe();
               this.selectedProjectDeleteSub?.unsubscribe();
               void this.showProjectDeletedDialog();
