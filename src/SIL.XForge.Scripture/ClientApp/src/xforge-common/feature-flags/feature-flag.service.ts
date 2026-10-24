@@ -386,8 +386,6 @@ export class FeatureFlagService {
     new StaticFeatureFlagStore(true)
   );
 
-  // Off until we redesign how we determine whether the user has submitted feedback or dismissed the notice. Storing
-  // that on the project user config will let us skip the API call.
   readonly userFeedbackNotice: FeatureFlag = new FeatureFlagFromStorage(
     'UserFeedbackNotice',
     'Show user feedback notice on the generate draft page',

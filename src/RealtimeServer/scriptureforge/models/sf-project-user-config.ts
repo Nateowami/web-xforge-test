@@ -32,4 +32,8 @@ export interface SFProjectUserConfig extends ProjectData {
   lynxInsightState: LynxInsightUserData;
   selectedDraftTargetParatextId?: string;
   showEditorTabsInSinglePane?: boolean;
+  /** ISO date string of when the user last dismissed the notice asking for feedback on drafting. */
+  draftFeedbackDismissalDate?: string;
+  /** ISO date string of when the user last submitted feedback from the notice asking for feedback on drafting. */
+  draftFeedbackSubmissionDate?: string;
 }

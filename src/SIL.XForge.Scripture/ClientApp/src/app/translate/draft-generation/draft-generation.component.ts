@@ -17,6 +17,7 @@ import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
 import { ProjectType } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
 import { asyncScheduler, combineLatest, of, Subscription } from 'rxjs';
 import { catchError, filter, switchMap, tap, throttleTime } from 'rxjs/operators';
+import { ActivatedProjectUserConfigService } from 'xforge-common/activated-project-user-config.service';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
 import { AuthService } from 'xforge-common/auth.service';
 import { DataLoadingComponent } from 'xforge-common/data-loading-component';
@@ -33,6 +34,7 @@ import { issuesEmailTemplate } from 'xforge-common/utils';
 import { environment } from '../../../environments/environment';
 import { SelectableProject } from '../../core/models/selectable-project';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
+import { SFProjectUserConfigDoc } from '../../core/models/sf-project-user-config-doc';
 import { PermissionsService } from '../../core/permissions.service';
 import { SFProjectService } from '../../core/sf-project.service';
 import { BuildDto } from '../../machine-api/build-dto';
@@ -40,7 +42,6 @@ import { BuildStates } from '../../machine-api/build-states';
 import { NoticeComponent } from '../../shared/notice/notice.component';
 import { VerboseScriptureRange } from '../../shared/scripture-range';
 import { formatScriptureRangeWithChapters } from '../../shared/scripture-range-display';
-import { FeedbackSourcePage } from '../../shared/user-feedback/user-feedback-dialog.component';
 import { UserFeedbackComponent } from '../../shared/user-feedback/user-feedback.component';
 import { projectLabel } from '../../shared/utils';
 import { NllbLanguageService } from '../nllb-language.service';
@@ -138,12 +139,15 @@ export class DraftGenerationComponent extends DataLoadingComponent implements On
   onboardingRequest?: OpenOnboardingRequest | null;
   responseDays = DRAFT_SIGNUP_RESPONSE_DAYS;
 
-  hasUserSubmittedFeedback?: boolean;
   cancelDialogRef?: MatDialogRef<any>;
 
   readonly draftDurationHours = 1.5;
   /** Duration to throttle large amounts of incoming project changes. 500 is a guess for what may be useful. */
   private readonly projectChangeThrottlingMs = 500;
+  private readonly feedbackNoticeDismissalDays = 180;
+  private readonly feedbackNoticeSubmissionDays = 365;
+
+  private projectUserConfigDoc?: SFProjectUserConfigDoc;
 
   get draftEnabled(): boolean {
     return this.isBackTranslation || this.isPreTranslationApproved;
@@ -154,6 +158,7 @@ export class DraftGenerationComponent extends DataLoadingComponent implements On
     private readonly router: Router,
     private readonly dialogService: DialogService,
     private readonly activatedProject: ActivatedProjectService,
+    private readonly activatedProjectUserConfig: ActivatedProjectUserConfigService,
     private readonly authService: AuthService,
     private readonly draftGenerationService: DraftGenerationService,
     private readonly draftSourcesService: DraftSourcesService,
@@ -200,7 +205,7 @@ export class DraftGenerationComponent extends DataLoadingComponent implements On
   get showUserFeedbackNotice(): boolean {
     return (
       this.featureFlags.userFeedbackNotice.enabled &&
-      this.hasUserSubmittedFeedback === false &&
+      this.isUserFeedbackDue &&
       this.hasUsedDraftGenerationThreeMonths &&
       !this.isDraftFaulted(this.draftJob)
     );
@@ -226,6 +231,19 @@ export class DraftGenerationComponent extends DataLoadingComponent implements On
 
   get hasConfigureSourcePermission(): boolean {
     return this.permissions.canConfigureSources(this.activatedProject.projectDoc);
+  }
+
+  /**
+   * Whether enough time has passed since the user last dismissed the feedback notice or submitted feedback. False
+   * until the project user config has loaded, so the notice does not flash up for users who have dismissed it.
+   */
+  private get isUserFeedbackDue(): boolean {
+    const config = this.projectUserConfigDoc?.data;
+    if (config == null) return false;
+    return (
+      !this.isWithinDays(config.draftFeedbackDismissalDate, this.feedbackNoticeDismissalDays) &&
+      !this.isWithinDays(config.draftFeedbackSubmissionDate, this.feedbackNoticeSubmissionDays)
+    );
   }
 
   private get hasUsedDraftGenerationThreeMonths(): boolean {
@@ -331,18 +349,23 @@ export class DraftGenerationComponent extends DataLoadingComponent implements On
       this.targetLanguageDisplayName = this.i18n.getLanguageDisplayName(this.targetLanguage);
     });
 
-    const projectId: string | undefined = this.activatedProject.projectId;
-    if (projectId != null && this.featureFlags.userFeedbackNotice.enabled) {
-      void this.onlineStatusService.online.then(() =>
-        this.projectService
-          .onlineHasUserSubmittedFeedback(projectId, FeedbackSourcePage.GenerateDraftPage)
-          .then(hasFeedback => {
-            this.hasUserSubmittedFeedback = hasFeedback;
-          })
-          // Leaves the flag undefined on failure so that the notice remains hidden
-          .catch(() => {})
-      );
-    }
+    this.activatedProjectUserConfig.projectUserConfigDoc$
+      .pipe(quietTakeUntilDestroyed(this.destroyRef))
+      .subscribe(projectUserConfigDoc => {
+        this.projectUserConfigDoc = projectUserConfigDoc;
+      });
+  }
+
+  onUserFeedbackDismissed(): void {
+    void this.projectUserConfigDoc?.submitJson0Op(op =>
+      op.set(puc => puc.draftFeedbackDismissalDate, new Date().toISOString())
+    );
+  }
+
+  onUserFeedbackSubmitted(): void {
+    void this.projectUserConfigDoc?.submitJson0Op(op =>
+      op.set(puc => puc.draftFeedbackSubmissionDate, new Date().toISOString())
+    );
   }
 
   get formattingOptionsRequired(): boolean {
@@ -579,5 +602,12 @@ export class DraftGenerationComponent extends DataLoadingComponent implements On
       projectDoc.data?.translateConfig.preTranslate === true &&
       projectDoc.data?.translateConfig.draftConfig.lastSelectedTranslationScriptureRanges != null
     );
+  }
+
+  /** Whether the ISO date string is set and fewer than the specified number of days in the past. */
+  private isWithinDays(isoDate: string | undefined, days: number): boolean {
+    if (isoDate == null) return false;
+    const elapsedMs = Date.now() - new Date(isoDate).getTime();
+    return elapsedMs < days * 24 * 60 * 60 * 1000;
   }
 }
