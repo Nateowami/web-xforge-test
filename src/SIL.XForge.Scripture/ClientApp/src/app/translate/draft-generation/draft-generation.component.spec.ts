@@ -1527,6 +1527,31 @@ describe('DraftGenerationComponent', () => {
       expect(env.component.showUserFeedbackNotice).toBe(false);
     }));
 
+    it('should be false until the project user config has loaded', fakeAsync(() => {
+      let resolveUserConfig!: () => void;
+      const env = new TestEnvironment(() =>
+        mockSFProjectService.getUserConfig.and.callFake(
+          (projId: string, userId: string) =>
+            new Promise<SFProjectUserConfigDoc>(resolve => {
+              resolveUserConfig = () =>
+                resolve(
+                  TestBed.inject(TestRealtimeService).subscribe<SFProjectUserConfigDoc>(
+                    SFProjectUserConfigDoc.COLLECTION,
+                    getSFProjectUserConfigDocId(projId, userId)
+                  )
+                );
+            })
+        )
+      );
+      tick();
+      env.setBuildHistory(['2025-01-01', '2025-06-01']);
+      expect(env.component.showUserFeedbackNotice).toBe(false);
+
+      resolveUserConfig();
+      tick();
+      expect(env.component.showUserFeedbackNotice).toBe(true);
+    }));
+
     it('should be false when the user dismissed the notice less than 180 days ago', fakeAsync(() => {
       const env = new TestEnvironment(
         () => (projectUserConfig = { draftFeedbackDismissalDate: TestEnvironment.daysAgo(179) })
