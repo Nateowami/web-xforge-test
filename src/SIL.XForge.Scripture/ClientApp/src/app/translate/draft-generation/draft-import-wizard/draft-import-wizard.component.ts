@@ -614,7 +614,13 @@ export class DraftImportWizardComponent implements OnInit {
     this.booksWithExistingText = [];
     const booksToCheck: BookForImport[] = this.booksToImport;
 
-    this.selectedBooksWithLowConfidence = 0;
+    // Set before the chapter lookups below, so the banner neither flickers nor double counts when calls overlap
+    const lowConfidenceBooks = booksToCheck.filter(b => this.booksWithLowConfidence.includes(b.bookId));
+    this.selectedBooksWithLowConfidence = lowConfidenceBooks.length;
+    if (lowConfidenceBooks.length > 0) {
+      this.bookNameWithLowConfidence = this.i18n.localizeBook(lowConfidenceBooks[0].bookId);
+    }
+
     for (const book of booksToCheck) {
       let chapterNumbersWithText: number[] = await this.getChaptersWithText(book.bookNum);
       // Only warn about chapters we will actually overwrite: the drafted chapters that already have target text. For a
@@ -629,11 +635,6 @@ export class DraftImportWizardComponent implements OnInit {
           bookName: book.bookName,
           chapterNumbersWithText
         });
-      }
-
-      if (this.booksWithLowConfidence.includes(book.bookId)) {
-        this.bookNameWithLowConfidence = this.i18n.localizeBook(book.bookId);
-        this.selectedBooksWithLowConfidence++;
       }
     }
 

@@ -372,13 +372,32 @@ describe('DraftImportWizardComponent', () => {
       totalChapters: 0
     } as DraftApplyState);
     env.wait();
-    env.component.clearImport();
-    env.wait();
-    env.isStepVisible(5);
-    env.component.stepper!.previous();
-    env.wait();
+    expect(env.importErrorNotice()?.textContent).toContain('Permission denied');
+    env.clickNextButton(6, 'back');
+    env.clickNextButton(5, 'back');
     env.isStepVisible(4);
 
+    expect(env.lowConfidenceWarning()?.textContent).toContain('2 books');
+    env.component.cancel();
+  }));
+
+  it('counts low confidence books once when book checkboxes change in quick succession', fakeAsync(() => {
+    configureDraft('GEN;EXO', true);
+    const env = new TestEnvironment();
+    env.wait();
+
+    env.selectProject('paratext04');
+    env.clickNextButton(1);
+    expect(env.lowConfidenceWarning()?.textContent).toContain('2 books');
+
+    // Uncheck and recheck Exodus before the first change's chapter lookups finish
+    const exodus = env.component.availableBooksForImport.find(b => b.bookId === 'EXO')!;
+    env.component.onBookCheckboxChange(exodus, false);
+    expect(env.component.selectedBooksWithLowConfidence).toBe(1);
+    env.component.onBookCheckboxChange(exodus, true);
+    env.wait();
+
+    expect(env.component.selectedBooksWithLowConfidence).toBe(2);
     expect(env.lowConfidenceWarning()?.textContent).toContain('2 books');
     env.component.cancel();
   }));
@@ -532,6 +551,12 @@ class TestEnvironment {
       totalChapters: 0
     } as DraftApplyState);
     this.wait();
+  }
+
+  importErrorNotice(): HTMLElement | null {
+    // The low confidence banner is also an error notice, so find the one just above the import step's Back button
+    const backButton: HTMLElement | null = this.fixture.nativeElement.querySelector('[data-test-id="step-6-back"]');
+    return (backButton?.closest('.button-strip')?.previousElementSibling as HTMLElement | null) ?? null;
   }
 
   lowConfidenceWarning(): HTMLElement | null {

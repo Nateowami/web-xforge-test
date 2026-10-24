@@ -300,7 +300,12 @@
         </form>
 
         <div class="button-strip">
-          <button matButton="outlined" matStepperPrevious [disabled]="isConnecting || isImporting">
+          <button
+            matButton="outlined"
+            matStepperPrevious
+            data-test-id="step-5-back"
+            [disabled]="isConnecting || isImporting"
+          >
             <mat-icon>chevron_{{ i18n.backwardDirectionWord }}</mat-icon>
             {{ t("back") }}
           </button>
@@ -348,7 +353,12 @@
       @if (importError != null && importError.length > 0) {
         <app-notice type="error">{{ importError }}</app-notice>
         <div class="button-strip">
-          <button matButton="outlined" (click)="clearImport()" [disabled]="isConnecting || isImporting">
+          <button
+            matButton="outlined"
+            data-test-id="step-6-back"
+            (click)="clearImport()"
+            [disabled]="isConnecting || isImporting"
+          >
             <mat-icon>chevron_{{ i18n.backwardDirectionWord }}</mat-icon>
             {{ t("back") }}
           </button>
