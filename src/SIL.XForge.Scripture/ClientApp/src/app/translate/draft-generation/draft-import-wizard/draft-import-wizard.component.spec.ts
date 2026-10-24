@@ -300,7 +300,7 @@ describe('DraftImportWizardComponent', () => {
 
     // Step 1
     env.selectProject('paratext04');
-    expect(env.lowConfidenceWarning).not.toBeUndefined();
+    expect(env.lowConfidenceWarning()).not.toBeNull();
     env.clickNextButton(1);
 
     // Step 5
@@ -332,7 +332,7 @@ describe('DraftImportWizardComponent', () => {
     env.clickNextButton(1);
 
     // Step 4
-    expect(env.lowConfidenceWarning).not.toBeUndefined();
+    expect(env.lowConfidenceWarning()).not.toBeNull();
     env.clickNextButton(4);
 
     // Step 5
@@ -349,6 +349,38 @@ describe('DraftImportWizardComponent', () => {
     // Close the dialog and verify it closed
     env.clickNextButton(7, 'done');
     verify(mockMatDialogRef.close(true)).once();
+  }));
+
+  it('still shows the low confidence warning after going back from a failed import', fakeAsync(() => {
+    configureDraft('GEN;EXO', true);
+    const env = new TestEnvironment();
+    env.wait();
+
+    env.selectProject('paratext04');
+    env.clickNextButton(1);
+    expect(env.lowConfidenceWarning()?.textContent).toContain('2 books');
+    env.clickNextButton(4);
+    env.clickOverwriteCheckbox();
+    env.clickNextButton(5);
+
+    // The import fails, so the user goes back to the book selection
+    env.component.updateDraftApplyState('project01', {
+      bookNum: 0,
+      chapterNum: 0,
+      status: DraftApplyStatus.Failed,
+      message: 'Permission denied',
+      totalChapters: 0
+    } as DraftApplyState);
+    env.wait();
+    env.component.clearImport();
+    env.wait();
+    env.isStepVisible(5);
+    env.component.stepper!.previous();
+    env.wait();
+    env.isStepVisible(4);
+
+    expect(env.lowConfidenceWarning()?.textContent).toContain('2 books');
+    env.component.cancel();
   }));
 });
 
@@ -503,7 +535,7 @@ class TestEnvironment {
   }
 
   lowConfidenceWarning(): HTMLElement | null {
-    return this.fixture.nativeElement.querySelector(`[data-test-id="low-confidence-warning"]`);
+    return this.fixture.nativeElement.querySelector('app-display-confidence app-notice');
   }
 
   selectProject(paratextId: string): void {

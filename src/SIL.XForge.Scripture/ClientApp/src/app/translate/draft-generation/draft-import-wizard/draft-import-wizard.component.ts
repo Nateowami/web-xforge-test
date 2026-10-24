@@ -904,6 +904,5 @@ export class DraftImportWizardComponent implements OnInit {
     this.importError = undefined;
     this.importComplete = false;
     this.importStepTriggered = false;
-    this.selectedBooksWithLowConfidence = 0;
   }
 }
