@@ -1,11 +1,24 @@
-<app-notice type="primary" mode="basic" icon="chat_bubble_outline">
-  @for (i of feedbackPrompt | async; track $index) {
-    <!-- prettier-ignore -->
-    @if (i.id == null) {{{ i.text }}}
-    @else if (i.id === 1) {
-      <a href="javascript:;" (click)="onSendFeedback()">{{ i.text }}</a>
-    } @else if (i.id === 3) {
-      <a href="mailto:{{ issueEmail }}" target="_blank" rel="noopener noreferrer">{{ i.text }}</a>
-    }
-  }
+<app-notice type="primary" mode="basic" icon="chat_bubble_outline" *transloco="let t; read: 'user_feedback'">
+  <div class="user-feedback-notice-content">
+    <span>
+      @for (i of feedbackPrompt | async; track $index) {
+        <!-- prettier-ignore -->
+        @if (i.id == null) {{{ i.text }}}
+        @else if (i.id === 1) {
+          <a href="javascript:;" (click)="onSendFeedback()">{{ i.text }}</a>
+        } @else if (i.id === 3) {
+          <a href="mailto:{{ issueEmail }}" target="_blank" rel="noopener noreferrer">{{ i.text }}</a>
+        }
+      }
+    </span>
+    <button
+      mat-icon-button
+      class="dismiss-button"
+      (click)="dismissed.emit()"
+      [matTooltip]="t('dismiss')"
+      [attr.aria-label]="t('dismiss')"
+    >
+      <mat-icon>close</mat-icon>
+    </button>
+  </div>
 </app-notice>

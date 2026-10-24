@@ -157,6 +157,12 @@ export class SFProjectUserConfigService extends SFProjectDataService<SFProjectUs
       },
       showEditorTabsInSinglePane: {
         bsonType: 'bool'
+      },
+      draftFeedbackDismissalDate: {
+        bsonType: 'string'
+      },
+      draftFeedbackSubmissionDate: {
+        bsonType: 'string'
       }
     },
     additionalProperties: false
@@ -179,6 +185,8 @@ export class SFProjectUserConfigService extends SFProjectDataService<SFProjectUs
       this.pathTemplate(puc => puc.biblicalTermsEnabled!),
       this.pathTemplate(puc => puc.transliterateBiblicalTerms),
       this.pathTemplate(puc => puc.showEditorTabsInSinglePane!),
+      this.pathTemplate(puc => puc.draftFeedbackDismissalDate!),
+      this.pathTemplate(puc => puc.draftFeedbackSubmissionDate!),
       this.pathTemplate(puc => puc.editorTabsOpen),
       this.pathTemplate(puc => puc.lynxInsightState),
       this.pathTemplate(puc => puc.noteRefsRead),

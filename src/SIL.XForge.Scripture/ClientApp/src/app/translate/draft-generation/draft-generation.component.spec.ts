@@ -8,6 +8,11 @@ import { createTestUser } from 'realtime-server/lib/esm/common/models/user-test-
 import { SFProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project';
 import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
 import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
+import {
+  getSFProjectUserConfigDocId,
+  SFProjectUserConfig
+} from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
+import { createTestProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config-test-data';
 import { TextInfoPermission } from 'realtime-server/lib/esm/scriptureforge/models/text-info-permission';
 import { ProjectType } from 'realtime-server/lib/esm/scriptureforge/models/translate-config';
 import { EMPTY, of, Subject, throwError } from 'rxjs';
@@ -21,10 +26,14 @@ import { NoticeService } from 'xforge-common/notice.service';
 import { OnlineStatusService } from 'xforge-common/online-status.service';
 import { provideTestOnlineStatus } from 'xforge-common/test-online-status-providers';
 import { TestOnlineStatusService } from 'xforge-common/test-online-status.service';
+import { provideTestRealtime } from 'xforge-common/test-realtime-providers';
+import { TestRealtimeService } from 'xforge-common/test-realtime.service';
 import { getTestTranslocoModule } from 'xforge-common/test-utils';
 import { UserService } from 'xforge-common/user.service';
 import { BrandingService } from '../../core/branding.service';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
+import { SFProjectUserConfigDoc } from '../../core/models/sf-project-user-config-doc';
+import { SF_TYPE_REGISTRY } from '../../core/models/sf-type-registry';
 import { ProjectNotificationService } from '../../core/project-notification.service';
 import { SFProjectService } from '../../core/sf-project.service';
 import { TextDocService } from '../../core/text-doc.service';
@@ -70,9 +79,11 @@ describe('DraftGenerationComponent', () => {
   };
 
   const projectId = 'testProjectId';
+  let projectUserConfig: Partial<SFProjectUserConfig>;
 
   class TestEnvironment {
     readonly testOnlineStatusService: TestOnlineStatusService;
+    readonly realtimeService: TestRealtimeService;
     readonly startedOrActiveBuild$ = new Subject<StartBuildResult>();
     component!: DraftGenerationComponent;
     fixture!: ComponentFixture<DraftGenerationComponent>;
@@ -89,6 +100,7 @@ describe('DraftGenerationComponent', () => {
         providers: [
           provideRouter([]),
           provideTestOnlineStatus(),
+          provideTestRealtime(SF_TYPE_REGISTRY),
           defaultTranslocoMarkupTranspilers(),
           { provide: AuthService, useValue: mockAuthService },
           { provide: DraftGenerationService, useValue: mockDraftGenerationService },
@@ -111,6 +123,15 @@ describe('DraftGenerationComponent', () => {
       });
 
       this.testOnlineStatusService = TestBed.inject(OnlineStatusService) as TestOnlineStatusService;
+      this.realtimeService = TestBed.inject(TestRealtimeService);
+      this.realtimeService.addSnapshot<SFProjectUserConfig>(SFProjectUserConfigDoc.COLLECTION, {
+        id: getSFProjectUserConfigDocId(projectId, mockUserService.currentUserId),
+        data: createTestProjectUserConfig({
+          projectRef: projectId,
+          ownerRef: mockUserService.currentUserId,
+          ...projectUserConfig
+        })
+      });
       this.fixture = TestBed.createComponent(DraftGenerationComponent);
       this.component = this.fixture.componentInstance;
       this.fixture.detectChanges();
@@ -118,6 +139,7 @@ describe('DraftGenerationComponent', () => {
 
     // Default setup
     setup(): void {
+      projectUserConfig = {};
       mockDialogService = jasmine.createSpyObj<DialogService>(['openGenericDialog', 'message']);
       mockNoticeService = jasmine.createSpyObj<NoticeService>([
         'loadingStarted',
@@ -219,10 +241,15 @@ describe('DraftGenerationComponent', () => {
         asymmetricMatch: (proj: SFProjectProfile | undefined) =>
           proj != null && proj.paratextId === projectDoc.data?.paratextId
       };
-      mockSFProjectService = jasmine.createSpyObj<SFProjectService>(['hasDraft', 'onlineHasUserSubmittedFeedback']);
+      mockSFProjectService = jasmine.createSpyObj<SFProjectService>(['hasDraft', 'getUserConfig']);
       mockSFProjectService.hasDraft.withArgs(matchThisProject).and.returnValue(preTranslate);
       mockSFProjectService.hasDraft.withArgs(matchThisProject, jasmine.anything()).and.returnValue(preTranslate);
-      mockSFProjectService.onlineHasUserSubmittedFeedback.and.returnValue(Promise.resolve(false));
+      mockSFProjectService.getUserConfig.and.callFake((projId: string, userId: string) =>
+        TestBed.inject(TestRealtimeService).subscribe<SFProjectUserConfigDoc>(
+          SFProjectUserConfigDoc.COLLECTION,
+          getSFProjectUserConfigDocId(projId, userId)
+        )
+      );
       mockProjectNotificationService = jasmine.createSpyObj<ProjectNotificationService>([
         'setNotifyBuildProgressHandler',
         'start',
@@ -254,6 +281,21 @@ describe('DraftGenerationComponent', () => {
 
     get userFeedbackNotice(): HTMLElement | null {
       return (this.fixture.nativeElement as HTMLElement).querySelector('app-user-feedback');
+    }
+
+    static daysAgo(days: number): string {
+      return new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    }
+
+    static isRecent(isoDate: string | undefined): boolean {
+      return isoDate != null && Date.now() - new Date(isoDate).getTime() < 60 * 1000;
+    }
+
+    get projectUserConfigDoc(): SFProjectUserConfigDoc {
+      return this.realtimeService.get<SFProjectUserConfigDoc>(
+        SFProjectUserConfigDoc.COLLECTION,
+        getSFProjectUserConfigDocId(projectId, mockUserService.currentUserId)
+      );
     }
 
     setBuildHistory(dates: string[]): void {
@@ -1478,29 +1520,96 @@ describe('DraftGenerationComponent', () => {
       expect(env.component.showUserFeedbackNotice).toBe(true);
     }));
 
-    it('should be false and not check for submitted feedback when the feature flag is off', fakeAsync(() => {
+    it('should be false when the feature flag is off', fakeAsync(() => {
       const env = new TestEnvironment(() => (mockFeatureFlagService.userFeedbackNotice.enabled = false));
       tick();
       env.setBuildHistory(['2025-01-01', '2025-06-01']);
       expect(env.component.showUserFeedbackNotice).toBe(false);
-      expect(mockSFProjectService.onlineHasUserSubmittedFeedback).not.toHaveBeenCalled();
     }));
 
-    it('should be false when the user has already submitted feedback, even after three months of use', fakeAsync(() => {
-      const env = new TestEnvironment(() =>
-        mockSFProjectService.onlineHasUserSubmittedFeedback.and.returnValue(Promise.resolve(true))
+    it('should be false when the user dismissed the notice less than 180 days ago', fakeAsync(() => {
+      const env = new TestEnvironment(
+        () => (projectUserConfig = { draftFeedbackDismissalDate: TestEnvironment.daysAgo(179) })
       );
       tick();
       env.setBuildHistory(['2025-01-01', '2025-06-01']);
       expect(env.component.showUserFeedbackNotice).toBe(false);
     }));
 
-    it('should be false when checking for submitted feedback fails', fakeAsync(() => {
-      const env = new TestEnvironment(() =>
-        mockSFProjectService.onlineHasUserSubmittedFeedback.and.returnValue(Promise.reject(new Error('error')))
+    it('should be true when the user dismissed the notice more than 180 days ago', fakeAsync(() => {
+      const env = new TestEnvironment(
+        () => (projectUserConfig = { draftFeedbackDismissalDate: TestEnvironment.daysAgo(181) })
       );
       tick();
       env.setBuildHistory(['2025-01-01', '2025-06-01']);
+      expect(env.component.showUserFeedbackNotice).toBe(true);
+    }));
+
+    it('should be false when the user submitted feedback less than a year ago', fakeAsync(() => {
+      // Dismissal on its own would no longer hide the notice
+      const env = new TestEnvironment(
+        () =>
+          (projectUserConfig = {
+            draftFeedbackSubmissionDate: TestEnvironment.daysAgo(364),
+            draftFeedbackDismissalDate: TestEnvironment.daysAgo(181)
+          })
+      );
+      tick();
+      env.setBuildHistory(['2025-01-01', '2025-06-01']);
+      expect(env.component.showUserFeedbackNotice).toBe(false);
+    }));
+
+    it('should be true when the user submitted feedback more than a year ago', fakeAsync(() => {
+      const env = new TestEnvironment(
+        () => (projectUserConfig = { draftFeedbackSubmissionDate: TestEnvironment.daysAgo(366) })
+      );
+      tick();
+      env.setBuildHistory(['2025-01-01', '2025-06-01']);
+      expect(env.component.showUserFeedbackNotice).toBe(true);
+    }));
+
+    it('should record the dismissal date and hide the notice when the notice is dismissed', fakeAsync(() => {
+      const env = new TestEnvironment();
+      tick();
+      env.setBuildHistory(['2025-01-01', '2025-06-01']);
+      env.component.isTargetLanguageSupported = true;
+      env.fixture.detectChanges();
+      expect(env.userFeedbackNotice).not.toBeNull();
+
+      env.userFeedbackNotice!.querySelector<HTMLButtonElement>('.dismiss-button')!.click();
+      tick();
+      env.fixture.detectChanges();
+
+      expect(TestEnvironment.isRecent(env.projectUserConfigDoc.data!.draftFeedbackDismissalDate)).toBe(true);
+      expect(env.projectUserConfigDoc.data!.draftFeedbackSubmissionDate).toBeUndefined();
+      expect(env.component.showUserFeedbackNotice).toBe(false);
+      expect(env.userFeedbackNotice).toBeNull();
+    }));
+
+    it('should record the dismissal date when the notice is dismissed while offline', fakeAsync(() => {
+      const env = new TestEnvironment();
+      tick();
+      env.testOnlineStatusService.setIsOnline(false);
+      env.setBuildHistory(['2025-01-01', '2025-06-01']);
+      expect(env.component.showUserFeedbackNotice).toBe(true);
+
+      env.component.onUserFeedbackDismissed();
+      tick();
+
+      expect(TestEnvironment.isRecent(env.projectUserConfigDoc.data!.draftFeedbackDismissalDate)).toBe(true);
+      expect(env.component.showUserFeedbackNotice).toBe(false);
+    }));
+
+    it('should record the submission date and hide the notice when feedback is submitted', fakeAsync(() => {
+      const env = new TestEnvironment();
+      tick();
+      env.setBuildHistory(['2025-01-01', '2025-06-01']);
+
+      env.component.onUserFeedbackSubmitted();
+      tick();
+
+      expect(TestEnvironment.isRecent(env.projectUserConfigDoc.data!.draftFeedbackSubmissionDate)).toBe(true);
+      expect(env.projectUserConfigDoc.data!.draftFeedbackDismissalDate).toBeUndefined();
       expect(env.component.showUserFeedbackNotice).toBe(false);
     }));
 

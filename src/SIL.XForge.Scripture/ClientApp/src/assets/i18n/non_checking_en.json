@@ -1040,6 +1040,7 @@
   },
   "user_feedback": {
     "close": "Close",
+    "dismiss": "Dismiss",
     "error_occurred": "An error occurred. Please try submitting feedback later.",
     "has_drafting_helped_project_send_feedback": "Has {{ siteName }} drafting helped your project? { 1 }Send feedback{ 2 } or { 3 }ask for help{ 4 }.",
     "thank_you_for_your_feedback": "Thank you! We greatly value your feedback."

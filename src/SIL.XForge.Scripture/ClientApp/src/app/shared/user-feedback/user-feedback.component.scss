@@ -1,0 +1,11 @@
+.user-feedback-notice-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  column-gap: 8px;
+}
+
+// Keep the button from making the notice taller than its single line of text
+.dismiss-button {
+  margin-block: -12px;
+}
