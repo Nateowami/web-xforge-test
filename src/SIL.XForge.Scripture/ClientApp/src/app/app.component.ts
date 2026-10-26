@@ -360,27 +360,22 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
           }
         });
 
+        // Serval admins can view projects they are not a member of, so only a change from being on the project to
+        // not being on it means the user was removed.
+        let wasOnProject: boolean =
+          this.currentUserDoc != null && this.currentUserDoc.id in (this._selectedProjectDoc.data?.userRoles ?? {});
         this.selectedProjectChangedSub?.unsubscribe();
         this.selectedProjectChangedSub = this._selectedProjectDoc?.remoteChanges$.subscribe(() => {
           if (this._selectedProjectDoc?.data != null && this.currentUserDoc != null) {
             // Ensure the project font is up to date
             this.projectFont = this.fontService.getFontFamilyFromProject(this._selectedProjectDoc.data);
-            // If the user is in the Serval administration area, do not check access, as they will be modifying the
-            // project's properties. We suppress this in the event log, as if a sync occurs while a serval admin is
-            // viewing it, it will result in the project deleted dialog erroneously being shown.
-            const servalAdminAreaRegex = /serval-administration|event-log/;
-            if (
-              servalAdminAreaRegex.test(this.locationService.pathname) &&
-              this.currentUser?.roles.includes(SystemRole.ServalAdmin)
-            ) {
-              return;
-            }
-            // See if the user was removed from the project
-            if (!(this.currentUserDoc.id in this._selectedProjectDoc.data.userRoles)) {
+            const isOnProject: boolean = this.currentUserDoc.id in this._selectedProjectDoc.data.userRoles;
+            if (wasOnProject && !isOnProject) {
               // The user has been removed from the project
               void this.showProjectDeletedDialog();
               void this.projectService.localDelete(this._selectedProjectDoc.id);
             }
+            wasOnProject = isOnProject;
 
             checkAppAccess(
               this._selectedProjectDoc,
