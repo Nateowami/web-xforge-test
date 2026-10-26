@@ -394,6 +394,28 @@ describe('ImportQuestionsDialogComponent', () => {
     env.click(env.backButton);
   }));
 
+  it('imports a CSV question as new when the same text exists at a different reference', fakeAsync(() => {
+    const question = { data: { text: 'Same question', verseRef: { bookNum: 40, chapterNum: 1, verseNum: 1 } } };
+    const env = new TestEnvironment({ existingQuestions: [question as QuestionDoc] });
+
+    env.selectFileWithContents([
+      ['Reference', 'Questions'],
+      ['MAT 1:2', 'Same question']
+    ]);
+
+    expect(env.tableRows.length).toBe(1);
+    expect(env.component.filteredList[0].sfVersionOfQuestion).toBeUndefined();
+    env.selectQuestion(env.tableRows[0]);
+    verify(mockedDialogService.openMatDialog(anything(), anything())).never();
+    expect(env.footerText).toBe('');
+
+    env.click(env.importSelectedQuestionsButton);
+    verify(mockedQuestionsService.createQuestion('project01', anything(), undefined, undefined)).once();
+    const createdQuestion = capture(mockedQuestionsService.createQuestion).last()[1];
+    expect(createdQuestion.text).toBe('Same question');
+    expect(createdQuestion.verseRef).toEqual(jasmine.objectContaining({ bookNum: 40, chapterNum: 1, verseNum: 2 }));
+  }));
+
   it('does not import from a CSV file with unknown columns', fakeAsync(() => {
     const env = new TestEnvironment();
 
