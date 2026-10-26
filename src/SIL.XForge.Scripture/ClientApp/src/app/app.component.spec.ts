@@ -411,15 +411,50 @@ describe('AppComponent', () => {
     expect(env.location.path()).toEqual('/projects/project01/settings');
   }));
 
-  it('shows the project deleted dialog to a serval admin removed from a project they were on', fakeAsync(() => {
+  it('keeps a serval admin removed from a project on a page they can view as a serval admin', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setCurrentUser('user05');
+    when(mockedAuthService.currentUserRoles).thenReturn([SystemRole.ServalAdmin]);
     env.changeUserRole('project01', 'user05', SFProjectRole.ParatextAdministrator);
     env.navigate(['/projects', 'project01', 'settings']);
     when(mockedLocationService.pathname).thenReturn('/projects/project01/settings');
     env.init();
 
     expect(env.selectedProjectId).toEqual('project01');
+    env.removeUserFromProject('project01', 'user05');
+    verify(mockedDialogService.message(anything())).never();
+    verify(mockedSFProjectService.localDelete(anything())).never();
+    tick();
+    expect(env.location.path()).toEqual('/projects/project01/settings');
+  }));
+
+  it('shows the project deleted dialog to a serval admin removed from a project while drafting', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setCurrentUser('user05');
+    when(mockedAuthService.currentUserRoles).thenReturn([SystemRole.ServalAdmin]);
+    env.changeUserRole('project01', 'user05', SFProjectRole.ParatextAdministrator);
+    env.navigate(['/projects', 'project01', 'draft-generation']);
+    when(mockedLocationService.pathname).thenReturn('/projects/project01/draft-generation');
+    env.init();
+
+    expect(env.selectedProjectId).toEqual('project01');
+    env.removeUserFromProject('project01', 'user05');
+    verify(mockedDialogService.message(anything())).once();
+    verify(mockedSFProjectService.localDelete('project01')).once();
+    tick();
+    expect(env.location.path()).toEqual('/projects');
+  }));
+
+  it('shows the project deleted dialog to a user who joined the project after opening it and was then removed', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setCurrentUser('user05');
+    env.navigate(['/projects', 'project01', 'settings']);
+    when(mockedLocationService.pathname).thenReturn('/projects/project01/settings');
+    env.init();
+
+    expect(env.selectedProjectId).toEqual('project01');
+    env.changeUserRole('project01', 'user05', SFProjectRole.ParatextAdministrator);
+    verify(mockedDialogService.message(anything())).never();
     env.removeUserFromProject('project01', 'user05');
     verify(mockedDialogService.message(anything())).once();
     tick();

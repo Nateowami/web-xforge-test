@@ -63,6 +63,9 @@ import { checkAppAccess } from './shared/utils';
 
 declare function gtag(...args: any): void;
 
+/** Project pages that a Serval admin can view without being on the project. */
+const SERVAL_ADMIN_VIEWABLE_PATH = /^\/(serval-administration|projects\/[^/]+\/(event-log|settings|sync|users))(\/|$)/;
+
 @Component({
   selector: 'app-root',
   templateUrl: './app.component.html',
@@ -370,7 +373,10 @@ export class AppComponent extends DataLoadingComponent implements OnInit, OnDest
             // Ensure the project font is up to date
             this.projectFont = this.fontService.getFontFamilyFromProject(this._selectedProjectDoc.data);
             const isOnProject: boolean = this.currentUserDoc.id in this._selectedProjectDoc.data.userRoles;
-            if (wasOnProject && !isOnProject) {
+            // A Serval admin removed from the project can still view some of its pages, so keep them there
+            const servalAdminCanStay: boolean =
+              this.isServalAdmin && SERVAL_ADMIN_VIEWABLE_PATH.test(this.locationService.pathname);
+            if (wasOnProject && !isOnProject && !servalAdminCanStay) {
               // The user has been removed from the project
               void this.showProjectDeletedDialog();
               void this.projectService.localDelete(this._selectedProjectDoc.id);
