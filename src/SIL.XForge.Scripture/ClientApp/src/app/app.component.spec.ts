@@ -397,6 +397,35 @@ describe('AppComponent', () => {
     verify(mockedDialogService.message(anything())).never();
   }));
 
+  it('does not show the project deleted dialog to a serval admin viewing project settings during a sync', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setCurrentUser('user05');
+    env.navigate(['/projects', 'project01', 'settings']);
+    when(mockedLocationService.pathname).thenReturn('/projects/project01/settings');
+    env.init();
+
+    expect(env.selectedProjectId).toEqual('project01');
+    // Simulate an op from a sync run by a project member
+    env.updatePreTranslate('project01');
+    verify(mockedDialogService.message(anything())).never();
+    expect(env.location.path()).toEqual('/projects/project01/settings');
+  }));
+
+  it('shows the project deleted dialog to a serval admin removed from a project they were on', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setCurrentUser('user05');
+    env.changeUserRole('project01', 'user05', SFProjectRole.ParatextAdministrator);
+    env.navigate(['/projects', 'project01', 'settings']);
+    when(mockedLocationService.pathname).thenReturn('/projects/project01/settings');
+    env.init();
+
+    expect(env.selectedProjectId).toEqual('project01');
+    env.removeUserFromProject('project01', 'user05');
+    verify(mockedDialogService.message(anything())).once();
+    tick();
+    expect(env.location.path()).toEqual('/projects');
+  }));
+
   it('does not show the checking disabled message to a serval admin who is not on the project', fakeAsync(() => {
     const env = new TestEnvironment();
     env.setCurrentUser('user05');
@@ -1009,9 +1038,9 @@ class TestEnvironment {
     this.wait();
   }
 
-  removeUserFromProject(projectId: string): void {
+  removeUserFromProject(projectId: string, userId: string = 'user01'): void {
     const projectDoc = this.realtimeService.get<SFProjectProfileDoc>(SFProjectProfileDoc.COLLECTION, projectId);
-    projectDoc.submitJson0Op(op => op.unset<string>(p => p.userRoles['user01']), false);
+    projectDoc.submitJson0Op(op => op.unset<string>(p => p.userRoles[userId]), false);
     this.wait();
   }
 
