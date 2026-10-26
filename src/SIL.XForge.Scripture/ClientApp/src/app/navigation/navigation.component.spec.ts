@@ -3,6 +3,8 @@ import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core
 import { By } from '@angular/platform-browser';
 import { ActivatedRoute, Router } from '@angular/router';
 import { SystemRole } from 'realtime-server/lib/esm/common/models/system-role';
+import { SFProjectRole } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-role';
+import { createTestProjectProfile } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-test-data';
 import { BehaviorSubject, of, Subject } from 'rxjs';
 import { anything, mock, when } from 'ts-mockito';
 import { ActivatedProjectService } from 'xforge-common/activated-project.service';
@@ -81,8 +83,8 @@ describe('NavigationComponent', () => {
       when(mockedRouter.url).thenReturn('/projects/project01');
       when(mockedRouter.createUrlTree(anything(), anything())).thenReturn([] as any);
       when(mockedRouter.serializeUrl(anything())).thenReturn('');
-      when(mockedResumeCheckingService.resumeLink$).thenReturn(of([]));
-      when(mockedResumeTranslateService.resumeLink$).thenReturn(of([]));
+      when(mockedResumeCheckingService.resumeLink$).thenReturn(of(['/projects', 'project01', 'checking']));
+      when(mockedResumeTranslateService.resumeLink$).thenReturn(of(['/projects', 'project01', 'translate']));
       when(mockedFeatureFlagService.stillness).thenReturn(createTestFeatureFlag(false));
 
       this.fixture = TestBed.createComponent(NavigationComponent);
@@ -92,6 +94,10 @@ describe('NavigationComponent', () => {
 
     get adminPagesList(): DebugElement | null {
       return this.fixture.debugElement.query(By.css('#admin-pages-menu-list'));
+    }
+
+    get draftStatusSpinner(): DebugElement | null {
+      return this.fixture.debugElement.query(By.css('mat-spinner.status-icon'));
     }
 
     get servalAdminNavItem(): DebugElement | null {
@@ -166,6 +172,29 @@ describe('NavigationComponent', () => {
     env.emitProjectChange(projectDoc);
     expect(env.adminPagesList).toBeNull();
 
+    flush();
+  }));
+
+  it('hides the draft in progress spinner when offline', fakeAsync(() => {
+    const env = new TestEnvironment();
+    const onlineStatusService = TestBed.inject(OnlineStatusService) as TestOnlineStatusService;
+    env.canGenerateDraft$.next(true);
+    env.emitProjectChange({
+      id: 'project01',
+      data: createTestProjectProfile({
+        userRoles: { user01: SFProjectRole.ParatextAdministrator },
+        translateConfig: { draftConfig: { draftInProgress: true } }
+      })
+    } as SFProjectProfileDoc);
+    expect(env.draftStatusSpinner).not.toBeNull();
+
+    onlineStatusService.setIsOnline(false);
+    env.fixture.detectChanges();
+    expect(env.draftStatusSpinner).toBeNull();
+
+    onlineStatusService.setIsOnline(true);
+    env.fixture.detectChanges();
+    expect(env.draftStatusSpinner).not.toBeNull();
     flush();
   }));
 

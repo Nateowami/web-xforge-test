@@ -120,7 +120,11 @@
 
     @if (!isOnline) {
       <section>
-        <p class="offline-text">{{ t("offline_message") }}</p>
+        @if (lastKnownDraftInProgress) {
+          <p class="offline-text">{{ t("offline_draft_in_progress_message") }}</p>
+        } @else {
+          <p class="offline-text">{{ t("offline_message") }}</p>
+        }
       </section>
     } @else {
       @if (!draftEnabled) {
