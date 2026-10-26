@@ -679,6 +679,7 @@ describe('ImportQuestionsDialogComponent', () => {
         }
       ];
       const preexistingQuestion = TestEnvironment.createQuestionDocWithSource(
+        'paratext',
         'note-1',
         new VerseRef('MAT 1:1'),
         'text'
@@ -718,6 +719,36 @@ describe('ImportQuestionsDialogComponent', () => {
       expect(note3.question.id).toBe('note-3');
       expect(note3.question.text).toBe('Question 3');
       expect(note3.sfVersionOfQuestion).toBeUndefined();
+    }));
+
+    it('does not match a Paratext note to a Transcelerator question with the same ID', fakeAsync(() => {
+      const tagQuestions: ParatextNoteTag = { id: 7, name: 'Questions' };
+      const notes: ParatextNote[] = [
+        {
+          id: '2',
+          verseRef: 'MAT 1:1',
+          comments: [{ verseRef: 'MAT 1:1', content: '<p>Note question</p>', tag: tagQuestions }]
+        }
+      ];
+      const transceleratorQuestion = TestEnvironment.createQuestionDocWithSource(
+        'transcelerator',
+        '2',
+        new VerseRef('MAT 1:1'),
+        'Transcelerator question'
+      );
+      const env = new TestEnvironment({ existingQuestions: [transceleratorQuestion], paratextNotes: notes });
+      env.setParatextNotes(env.component, notes);
+      env.setParatextTagOptions(env.component, env.collectParatextTagOptions(env.component, notes));
+      env.component.selectedParatextTagId = tagQuestions.id;
+      env.component.questionSource = 'paratext';
+      env.component.showParatextTagSelector = true;
+
+      void env.component.confirmParatextTagSelection();
+      tick();
+      env.fixture.detectChanges();
+
+      expect(env.component.filteredList.length).toBe(1);
+      expect(env.component.filteredList[0].sfVersionOfQuestion).toBeUndefined();
     }));
 
     it('shows an error when no Paratext project can be found', fakeAsync(() => {
@@ -1043,10 +1074,16 @@ class TestEnvironment {
     return (component as unknown as { paratextTagOptions: ParatextNoteTag[] }).paratextTagOptions;
   }
 
-  static createQuestionDocWithSource(sourceId: string, verse: VerseRef, text: string): QuestionDoc {
+  static createQuestionDocWithSource(
+    source: 'transcelerator' | 'paratext',
+    sourceId: string,
+    verse: VerseRef,
+    text: string
+  ): QuestionDoc {
     return {
       data: {
-        transceleratorQuestionId: sourceId,
+        transceleratorQuestionId: source === 'transcelerator' ? sourceId : undefined,
+        paratextNoteId: source === 'paratext' ? sourceId : undefined,
         verseRef: fromVerseRef(verse),
         text,
         answers: [] as Answer[]
