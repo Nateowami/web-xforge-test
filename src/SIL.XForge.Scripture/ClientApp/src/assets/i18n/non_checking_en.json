@@ -187,7 +187,7 @@
     "instructions_scripture_forge_assist_back_translation_subtext": "If your team has already drafted one or more books and then back translated one or more of them, Scripture Forge can use the back translated books to generate a draft of the next book you are working on.",
     "instructions_scripture_forge_assist_forward_translation": "Scripture Forge can assist with drafting a translation.",
     "instructions_scripture_forge_assist_forward_translation_subtext": "Based on your existing translation progress you can use the books you have already translated to generate a draft of the next book you are working on.",
-    "offline_draft_in_progress_message": "Scripture Forge cannot be reached while you are offline. When last checked, your draft was still being generated. You will be able to see its progress when you are back online.",
+    "offline_draft_in_progress_message": "Scripture Forge cannot be reached while you are offline. When last checked, your draft was still being generated. You will be able to check on it when you are back online.",
     "offline_message": "Draft generation is not available when offline.",
     "preview_draft_button": "Preview draft",
     "preview_last_draft_button": "Preview last draft",
