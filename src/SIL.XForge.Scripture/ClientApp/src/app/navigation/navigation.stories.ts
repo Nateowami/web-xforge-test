@@ -272,6 +272,14 @@ export const DraftInProgress: Story = {
   }
 };
 
+export const DraftInProgressOffline: Story = {
+  args: { ...Default.args, draftInProgress: true, online: false },
+  play: async ({ canvasElement }) => {
+    expect(canvasElement.querySelector('mat-icon.status-icon')).toBeNull();
+    expect(canvasElement.querySelector('mat-spinner.status-icon')).toBeNull();
+  }
+};
+
 export const DraftInProgressRTL: Story = {
   args: { ...Default.args, draftInProgress: true },
   parameters: { locale: 'ar' }

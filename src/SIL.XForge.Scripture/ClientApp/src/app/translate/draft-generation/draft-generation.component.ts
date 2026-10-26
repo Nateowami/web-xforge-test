@@ -219,6 +219,14 @@ export class DraftGenerationComponent extends DataLoadingComponent implements On
     return this.activatedProject.projectDoc?.data?.sync.lastSyncSuccessful ?? false;
   }
 
+  /**
+   * Whether a draft was being generated when the project was last received from the server. Only meaningful offline,
+   * where the build itself cannot be fetched.
+   */
+  get lastKnownDraftInProgress(): boolean {
+    return this.activatedProject.projectDoc?.data?.translateConfig.draftConfig.draftInProgress === true;
+  }
+
   /** Have drafting sources been adequately configured that a draft can be generated? */
   get isSourcesConfigurationComplete(): boolean {
     return this.source != null && (this.trainingSource != null || this.secondTrainingSource != null);

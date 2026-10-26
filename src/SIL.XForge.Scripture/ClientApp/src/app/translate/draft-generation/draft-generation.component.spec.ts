@@ -339,6 +339,22 @@ describe('DraftGenerationComponent', () => {
       expect(env.offlineTextElement).not.toBeNull();
     });
 
+    it('should say a draft was in progress when offline during a build', () => {
+      const env = new TestEnvironment(() => {
+        mockActivatedProjectService.projectDoc!.data!.translateConfig.draftConfig.draftInProgress = true;
+      });
+      env.testOnlineStatusService.setIsOnline(false);
+      env.fixture.detectChanges();
+      expect(env.offlineTextElement!.textContent).toContain('your draft was still being generated');
+    });
+
+    it('should say draft generation is unavailable when offline without a build in progress', () => {
+      const env = new TestEnvironment();
+      env.testOnlineStatusService.setIsOnline(false);
+      env.fixture.detectChanges();
+      expect(env.offlineTextElement!.textContent).toContain('Draft generation is not available when offline');
+    });
+
     it('should not display offline message when online', () => {
       const env = new TestEnvironment();
       env.fixture.detectChanges();
