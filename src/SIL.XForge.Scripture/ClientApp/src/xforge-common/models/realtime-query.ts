@@ -177,7 +177,11 @@ export class RealtimeQuery<T extends RealtimeDoc = RealtimeDoc> {
 
           case 'remove':
             const removeDiff = diff as RemoveDiff;
-            this.onRemove(removeDiff.index, before.slice(removeDiff.index, removeDiff.index + removeDiff.howMany));
+            this.onRemove(
+              removeDiff.index,
+              before.slice(removeDiff.index, removeDiff.index + removeDiff.howMany),
+              emitRemoteChanges
+            );
             break;
 
           case 'move':
@@ -217,10 +221,10 @@ export class RealtimeQuery<T extends RealtimeDoc = RealtimeDoc> {
     this._docs.splice(index, 0, ...newDocs);
   }
 
-  private onRemove(index: number, docIds: string[]): void {
+  private onRemove(index: number, docIds: string[], removedByServer: boolean): void {
     const removedDocs = this._docs.splice(index, docIds.length);
     for (const doc of removedDocs) {
-      doc.onRemovedFromSubscribeQuery();
+      doc.onRemovedFromSubscribeQuery(removedByServer);
       const subscription = this.docSubscriptions.get(doc.id);
       if (subscription != null) {
         subscription.unsubscribe();
