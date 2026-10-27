@@ -158,10 +158,21 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     await this.onSubscribe();
   }
 
-  onRemovedFromSubscribeQuery(): void {
+  /**
+   * @param removedByServer Whether the doc was removed from the results by the server, rather than by a query of the
+   * offline store or by the query being disposed.
+   */
+  onRemovedFromSubscribeQuery(removedByServer: boolean = false): void {
     void this.updateOfflineData();
     this.subscribeQueryCount--;
     if (this.isLoaded) {
+      if (removedByServer && !this.subscribed) {
+        // The change that removed the doc from the results is either still on its way (ShareDB sends the results
+        // change before the op), or was never sent because this client was not listening when it was made. Either way,
+        // nothing else will update the offline copy, and a stale copy that still matches the query would be put back
+        // in the results by the next local update of any doc in the collection.
+        void this.refreshOfflineData();
+      }
       void this.checkExists();
     }
   }
@@ -269,6 +280,17 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
       await promise;
     }
     await this.onSubscribe();
+  }
+
+  private async refreshOfflineData(): Promise<void> {
+    try {
+      await this.adapter.fetch();
+    } catch {
+      // The doc could not be fetched, e.g. because the user can no longer read it, so leave the offline copy as it is
+      return;
+    }
+    // Force the update, since the doc is no longer subscribed
+    await this.updateOfflineData(true);
   }
 
   private async checkExists(): Promise<void> {

@@ -77,8 +77,8 @@ export abstract class ProjectDataDoc<T extends ProjectData = ProjectData> extend
     return Promise.resolve();
   }
 
-  onRemovedFromSubscribeQuery(): void {
-    super.onRemovedFromSubscribeQuery();
+  onRemovedFromSubscribeQuery(removedByServer: boolean = false): void {
+    super.onRemovedFromSubscribeQuery(removedByServer);
   }
 
   async dispose(): Promise<void> {
