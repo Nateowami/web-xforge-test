@@ -60,6 +60,26 @@ describe('RealtimeQuery', () => {
     expect(env.offlineQuestion('q2').isArchived).toBe(true);
   }));
 
+  it('does not restore a doc that the first server results leave out when its offline copy is stale', fakeAsync(() => {
+    const env = new TestEnvironment();
+    // Load q2 from its offline copy before it is archived, so that its in-memory copy is stale, as it is when ShareDB
+    // ingests the offline snapshot on page load
+    const q2Adapter = env.adapter('q2');
+    // The question is archived while the page is closed, so the op only arrives with the fetch
+    env.archiveOnServer('q2');
+    const fetchSpy = spyOn(q2Adapter, 'fetch').and.callFake(() => q2Adapter.submitOp(cloneDeep(ARCHIVE_OP), false));
+
+    // The offline store still lists q2, and the first server results remove it
+    const query = env.subscribeToActiveQuestions();
+    expect(env.docIds(query)).toEqual([env.docId('q1')]);
+    expect(fetchSpy).toHaveBeenCalledTimes(1);
+
+    env.answerLocally('q1');
+
+    expect(env.docIds(query)).toEqual([env.docId('q1')]);
+    expect(env.offlineQuestion('q2').isArchived).toBe(true);
+  }));
+
   it('does not fetch docs that are removed when the query is disposed', fakeAsync(() => {
     const env = new TestEnvironment();
     const query = env.subscribeToActiveQuestions();
