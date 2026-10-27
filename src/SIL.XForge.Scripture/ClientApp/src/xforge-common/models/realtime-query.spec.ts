@@ -45,11 +45,11 @@ describe('RealtimeQuery', () => {
     expect(env.offlineQuestion('q2').isArchived).toBe(true);
   }));
 
-  it('does not restore a doc removed by the server when its change was made while not listening', fakeAsync(() => {
+  it('does not restore a doc removed by the server when the op has not reached it', fakeAsync(() => {
     const env = new TestEnvironment();
     const query = env.subscribeToActiveQuestions();
 
-    // The server never sends the op, since the doc was not subscribed when it was made, so only the fetch gets it
+    // The op has not reached this client, so only the fetch brings it
     spyOn(env.adapter('q2'), 'fetch').and.callFake(() => env.adapter('q2').submitOp(ARCHIVE_OP, false));
     env.archiveOnServer('q2');
     tick();
@@ -65,7 +65,7 @@ describe('RealtimeQuery', () => {
     // Load q2 from its offline copy before it is archived, so that its in-memory copy is stale, as it is when ShareDB
     // ingests the offline snapshot on page load
     const q2Adapter = env.adapter('q2');
-    // The question is archived while the page is closed, so the op only arrives with the fetch
+    // The question is archived while the page is closed. Here only the fetch brings the op.
     env.archiveOnServer('q2');
     const fetchSpy = spyOn(q2Adapter, 'fetch').and.callFake(() => q2Adapter.submitOp(cloneDeep(ARCHIVE_OP), false));
 
