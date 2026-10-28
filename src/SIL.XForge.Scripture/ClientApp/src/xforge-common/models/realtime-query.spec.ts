@@ -31,64 +31,46 @@ describe('RealtimeQuery', () => {
     expect(env.docIds(query)).toEqual([env.docId('q1'), env.docId('q2')]);
 
     // ShareDB sends the change to the results before the op that caused it
-    let completeFetch: () => void = () => {};
-    spyOn(env.adapter('q2'), 'fetch').and.returnValue(new Promise<void>(resolve => (completeFetch = resolve)));
     env.archiveOnServer('q2');
     expect(env.docIds(query)).toEqual([env.docId('q1')]);
     env.receiveRemoteOp('q2', ARCHIVE_OP);
-    completeFetch();
-    tick();
 
     env.answerLocally('q1');
 
     expect(env.docIds(query)).toEqual([env.docId('q1')]);
-    expect(env.offlineQuestion('q2').isArchived).toBe(true);
-  }));
-
-  it('does not restore a doc removed by the server when the op has not reached it', fakeAsync(() => {
-    const env = new TestEnvironment();
-    const query = env.subscribeToActiveQuestions();
-
-    // The op has not reached this client, so only the fetch brings it
-    spyOn(env.adapter('q2'), 'fetch').and.callFake(() => env.adapter('q2').submitOp(ARCHIVE_OP, false));
-    env.archiveOnServer('q2');
-    tick();
-
-    env.answerLocally('q1');
-
-    expect(env.docIds(query)).toEqual([env.docId('q1')]);
-    expect(env.offlineQuestion('q2').isArchived).toBe(true);
+    expect(env.offlineQuestion('q2')!.isArchived).toBe(true);
   }));
 
   it('does not restore a doc that the first server results leave out when its offline copy is stale', fakeAsync(() => {
     const env = new TestEnvironment();
-    // Load q2 from its offline copy before it is archived, so that its in-memory copy is stale, as it is when ShareDB
-    // ingests the offline snapshot on page load
-    const q2Adapter = env.adapter('q2');
-    // The question is archived while the page is closed. Here only the fetch brings the op.
+    // Create q2 before it is archived, so that it loads the unarchived question, as ShareDB does when it ingests the
+    // offline copy on page load
+    env.adapter('q2');
+    // The question is archived while the page is closed
     env.archiveOnServer('q2');
-    const fetchSpy = spyOn(q2Adapter, 'fetch').and.callFake(() => q2Adapter.submitOp(cloneDeep(ARCHIVE_OP), false));
 
-    // The offline store still lists q2, and the first server results remove it
+    // The offline store still lists q2, and the first server results remove it. ShareDB catches up q2 afterwards.
     const query = env.subscribeToActiveQuestions();
     expect(env.docIds(query)).toEqual([env.docId('q1')]);
-    expect(fetchSpy).toHaveBeenCalledTimes(1);
+    env.receiveRemoteOp('q2', ARCHIVE_OP);
 
     env.answerLocally('q1');
 
     expect(env.docIds(query)).toEqual([env.docId('q1')]);
-    expect(env.offlineQuestion('q2').isArchived).toBe(true);
+    expect(env.offlineQuestion('q2')!.isArchived).toBe(true);
   }));
 
-  it('does not fetch docs that are removed when the query is disposed', fakeAsync(() => {
+  it('does not store a remote change to an unsubscribed doc that has no offline copy', fakeAsync(() => {
     const env = new TestEnvironment();
-    const query = env.subscribeToActiveQuestions();
-    const fetchSpy = spyOn(env.adapter('q1'), 'fetch').and.callThrough();
+    env.realtimeService.addSnapshot<Question>(QUESTIONS_COLLECTION, {
+      id: env.docId('q3'),
+      data: env.createQuestion('q3')
+    });
+    env.adapter('q3');
 
-    query.dispose();
-    tick();
+    env.receiveRemoteOp('q3', ARCHIVE_OP);
 
-    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(env.offlineQuestion('q3')).toBeUndefined();
   }));
 });
 
@@ -127,9 +109,9 @@ class TestEnvironment {
       .adapter as MemoryRealtimeDocAdapter;
   }
 
-  offlineQuestion(dataId: string): Question {
+  offlineQuestion(dataId: string): Question | undefined {
     const offlineStore = this.realtimeService.offlineStore as MemoryOfflineStore;
-    return offlineStore.getData<RealtimeOfflineData>(QUESTIONS_COLLECTION, this.docId(dataId))!.data;
+    return offlineStore.getData<RealtimeOfflineData>(QUESTIONS_COLLECTION, this.docId(dataId))?.data;
   }
 
   subscribeToActiveQuestions(): RealtimeQuery<QuestionDoc> {
@@ -173,7 +155,7 @@ class TestEnvironment {
     tick();
   }
 
-  private createQuestion(dataId: string): Question {
+  createQuestion(dataId: string): Question {
     return {
       dataId,
       projectRef: PROJECT_ID,
