@@ -1,4 +1,5 @@
 import { merge, Observable, Subject, Subscription } from 'rxjs';
+import { map } from 'rxjs/operators';
 import { Presence } from 'sharedb/lib/sharedb';
 import { RealtimeService } from 'xforge-common/realtime.service';
 import { PresenceData } from '../../app/shared/text/text.component';
@@ -39,14 +40,20 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     public readonly adapter: RealtimeDocAdapter
   ) {
     this._delete$ = merge(this.localDelete$, this.adapter.delete$);
-    this.updateOfflineDataSub = merge(this.adapter.remoteChanges$, this.adapter.idle$, this.adapter.create$).subscribe(
-      async () => {
-        if (this.subscribePromise != null) {
-          await this.subscribePromise;
-        }
-        void this.updateOfflineData();
+    this.updateOfflineDataSub = merge(
+      // A remote op can reach a doc after it has left the results of its last query: ShareDB sends a change to the
+      // results before the op that caused it, and on subscribe, the ops that catch up docs loaded from the offline
+      // store can arrive after the first results. Write such an op to an existing offline copy, or the next local
+      // query of the collection could match the stale copy and put the doc back in the results.
+      this.adapter.remoteChanges$.pipe(map(() => this.offlineSnapshotVersion != null)),
+      this.adapter.idle$.pipe(map(() => false)),
+      this.adapter.create$.pipe(map(() => false))
+    ).subscribe(async (force: boolean) => {
+      if (this.subscribePromise != null) {
+        await this.subscribePromise;
       }
-    );
+      void this.updateOfflineData(force);
+    });
     this.onDeleteSub = this.adapter.delete$.subscribe(() => this.onDelete());
   }
 
@@ -158,21 +165,10 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     await this.onSubscribe();
   }
 
-  /**
-   * @param removedByServer Whether the doc was removed from the results by the server, rather than by a query of the
-   * offline store or by the query being disposed.
-   */
-  onRemovedFromSubscribeQuery(removedByServer: boolean = false): void {
+  onRemovedFromSubscribeQuery(): void {
     void this.updateOfflineData();
     this.subscribeQueryCount--;
     if (this.isLoaded) {
-      if (removedByServer && !this.subscribed) {
-        // The op that took the doc out of the results reaches it only after it has been removed, if at all: ShareDB
-        // sends the results change first, also when it catches up docs loaded from the offline store on subscribe.
-        // So updateOfflineData() skips the op, nothing else updates the offline copy, and a stale copy that still
-        // matches the query would be put back in the results by the next local update of any doc in the collection.
-        void this.refreshOfflineData();
-      }
       void this.checkExists();
     }
   }
@@ -280,17 +276,6 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
       await promise;
     }
     await this.onSubscribe();
-  }
-
-  private async refreshOfflineData(): Promise<void> {
-    try {
-      await this.adapter.fetch();
-    } catch {
-      // The doc could not be fetched, e.g. because the user can no longer read it, so leave the offline copy as it is
-      return;
-    }
-    // Force the update, since the doc is no longer subscribed
-    await this.updateOfflineData(true);
   }
 
   private async checkExists(): Promise<void> {
