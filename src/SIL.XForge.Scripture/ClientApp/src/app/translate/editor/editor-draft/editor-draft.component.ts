@@ -52,6 +52,7 @@ import { BuildDto } from '../../../machine-api/build-dto';
 import { BuildStates } from '../../../machine-api/build-states';
 import { NoticeComponent } from '../../../shared/notice/notice.component';
 import { TextComponent } from '../../../shared/text/text.component';
+import { booksFromScriptureRange } from '../../../shared/utils';
 import { DisplayConfidenceComponent } from '../../draft-generation/build-confidences/display-confidence.component';
 import { DraftGenerationService } from '../../draft-generation/draft-generation.service';
 import { DraftHandlingService } from '../../draft-generation/draft-handling.service';
@@ -210,16 +211,22 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
 
   get hasLowConfidence(): boolean {
     let revisionTime: number;
+    let builds: BuildDto[] = this.builds;
     if (this.selectedRevision != null) {
       revisionTime = new Date(this.selectedRevision.timestamp).getTime();
     } else if (this.draftCheckState === 'draft-empty') {
-      // This chapter has never been drafted, so warn about the book's draft from the latest build
+      // This chapter has never been drafted, so warn about the book's draft from the latest build that drafted the book
       revisionTime = Number.POSITIVE_INFINITY;
+      builds = builds.filter(build =>
+        (build.additionalInfo?.translationScriptureRanges ?? []).some(range =>
+          booksFromScriptureRange(range.scriptureRange).includes(this.bookNum!)
+        )
+      );
     } else {
       return false;
     }
 
-    const build = this.builds.reduce<BuildDto | undefined>((latest, current) => {
+    const build = builds.reduce<BuildDto | undefined>((latest, current) => {
       const finished = current.additionalInfo?.dateFinished;
       if (finished == null || current.state !== BuildStates.Completed) {
         return latest;

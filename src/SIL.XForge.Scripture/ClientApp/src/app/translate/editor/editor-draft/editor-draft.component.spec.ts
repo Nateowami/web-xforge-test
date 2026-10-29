@@ -531,7 +531,10 @@ describe('EditorDraftComponent', () => {
       of([
         {
           state: BuildStates.Completed,
-          additionalInfo: { dateFinished: draftHistory[0].timestamp },
+          additionalInfo: {
+            dateFinished: draftHistory[0].timestamp,
+            translationScriptureRanges: [{ projectId: 'source01', scriptureRange: 'GEN2-3' }]
+          },
           executionData: {
             diagnostics: [
               { code: ServalDiagnosticCode.LowConfidence, data: { bookId: 'GEN' } } as Partial<ServalBuildDiagnostic>
@@ -553,6 +556,47 @@ describe('EditorDraftComponent', () => {
     flush();
   }));
 
+  it('should use the latest build that drafted the book for the low confidence warning on a chapter with no draft', fakeAsync(() => {
+    const testProjectDoc: SFProjectProfileDoc = {
+      data: createTestProjectProfile()
+    } as SFProjectProfileDoc;
+    when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), anything())).thenReturn(of([]));
+    // The earlier build drafted Genesis with low confidence. The latest build only drafted Exodus.
+    when(mockDraftGenerationService.getBuildHistory(anything())).thenReturn(
+      of([
+        {
+          state: BuildStates.Completed,
+          additionalInfo: {
+            dateFinished: draftHistory[1].timestamp,
+            translationScriptureRanges: [{ projectId: 'source01', scriptureRange: 'GEN2-3' }]
+          },
+          executionData: {
+            diagnostics: [
+              { code: ServalDiagnosticCode.LowConfidence, data: { bookId: 'GEN' } } as Partial<ServalBuildDiagnostic>
+            ]
+          }
+        } as BuildDto,
+        {
+          state: BuildStates.Completed,
+          additionalInfo: {
+            dateFinished: draftHistory[0].timestamp,
+            translationScriptureRanges: [{ projectId: 'source01', scriptureRange: 'EXO' }]
+          },
+          executionData: { diagnostics: [] as ServalBuildDiagnostic[] }
+        } as BuildDto
+      ])
+    );
+    when(mockActivatedProjectService.changes$).thenReturn(of(testProjectDoc));
+    spyOn<any>(component, 'getTargetOps').and.returnValue(of(targetDelta.ops!));
+
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+
+    expect(component.draftCheckState).toEqual('draft-empty');
+    expect(component.hasLowConfidence).toBeTrue();
+    flush();
+  }));
+
   it('should use the latest build for the low confidence warning after moving to a chapter with no draft', fakeAsync(() => {
     const testProjectDoc: SFProjectProfileDoc = {
       data: createTestProjectProfile()
@@ -561,7 +605,7 @@ describe('EditorDraftComponent', () => {
       of([draftHistory[1]])
     );
     when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), 2)).thenReturn(of([]));
-    // Chapter 1 was drafted by an earlier, low confidence, build. The latest build is not low confidence for Genesis.
+    // Chapter 1 was drafted by an earlier, low confidence, build. The latest build drafted Genesis without low confidence.
     when(mockDraftGenerationService.getBuildHistory(anything())).thenReturn(
       of([
         {
@@ -575,7 +619,10 @@ describe('EditorDraftComponent', () => {
         } as BuildDto,
         {
           state: BuildStates.Completed,
-          additionalInfo: { dateFinished: draftHistory[0].timestamp },
+          additionalInfo: {
+            dateFinished: draftHistory[0].timestamp,
+            translationScriptureRanges: [{ projectId: 'source01', scriptureRange: 'GEN3' }]
+          },
           executionData: { diagnostics: [] as ServalBuildDiagnostic[] }
         } as BuildDto
       ])
