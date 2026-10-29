@@ -522,6 +522,85 @@ describe('EditorDraftComponent', () => {
     flush();
   }));
 
+  it('should show the low confidence warning for a chapter with no draft if the book has low confidence', fakeAsync(() => {
+    const testProjectDoc: SFProjectProfileDoc = {
+      data: createTestProjectProfile()
+    } as SFProjectProfileDoc;
+    when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), anything())).thenReturn(of([]));
+    when(mockDraftGenerationService.getBuildHistory(anything())).thenReturn(
+      of([
+        {
+          state: BuildStates.Completed,
+          additionalInfo: { dateFinished: draftHistory[0].timestamp },
+          executionData: {
+            diagnostics: [
+              { code: ServalDiagnosticCode.LowConfidence, data: { bookId: 'GEN' } } as Partial<ServalBuildDiagnostic>
+            ]
+          }
+        } as BuildDto
+      ])
+    );
+    when(mockActivatedProjectService.changes$).thenReturn(of(testProjectDoc));
+    spyOn<any>(component, 'getTargetOps').and.returnValue(of(targetDelta.ops!));
+
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+    fixture.detectChanges();
+
+    expect(component.draftCheckState).toEqual('draft-empty');
+    expect(component.hasLowConfidence).toBeTrue();
+    expect(fixture.nativeElement.querySelector('app-display-confidence app-notice')).not.toBeNull();
+    flush();
+  }));
+
+  it('should use the latest build for the low confidence warning after moving to a chapter with no draft', fakeAsync(() => {
+    const testProjectDoc: SFProjectProfileDoc = {
+      data: createTestProjectProfile()
+    } as SFProjectProfileDoc;
+    when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), 1)).thenReturn(
+      of([draftHistory[1]])
+    );
+    when(mockDraftGenerationService.getGeneratedDraftHistory(anything(), anything(), 2)).thenReturn(of([]));
+    // Chapter 1 was drafted by an earlier, low confidence, build. The latest build is not low confidence for Genesis.
+    when(mockDraftGenerationService.getBuildHistory(anything())).thenReturn(
+      of([
+        {
+          state: BuildStates.Completed,
+          additionalInfo: { dateFinished: draftHistory[1].timestamp },
+          executionData: {
+            diagnostics: [
+              { code: ServalDiagnosticCode.LowConfidence, data: { bookId: 'GEN' } } as Partial<ServalBuildDiagnostic>
+            ]
+          }
+        } as BuildDto,
+        {
+          state: BuildStates.Completed,
+          additionalInfo: { dateFinished: draftHistory[0].timestamp },
+          executionData: { diagnostics: [] as ServalBuildDiagnostic[] }
+        } as BuildDto
+      ])
+    );
+    when(mockActivatedProjectService.changes$).thenReturn(of(testProjectDoc));
+    spyOn<any>(component, 'getTargetOps').and.returnValue(of(targetDelta.ops!));
+
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+    expect(component.draftCheckState).toEqual('draft-present');
+    expect(component.hasLowConfidence).toBeTrue();
+
+    // SUT
+    component.chapter = 2;
+    component.ngOnChanges();
+    fixture.detectChanges();
+    tick(EDITOR_READY_TIMEOUT);
+
+    expect(component.draftCheckState).toEqual('draft-empty');
+    expect(component.selectedRevision).toBeUndefined();
+    expect(component.draftRevisions).toEqual([]);
+    expect(component.hasLowConfidence).toBeFalse();
+    flush();
+  }));
+
   it('should not reload the build history when the chapter changes', fakeAsync(() => {
     const testProjectDoc: SFProjectProfileDoc = {
       data: createTestProjectProfile()

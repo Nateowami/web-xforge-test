@@ -209,11 +209,16 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
   }
 
   get hasLowConfidence(): boolean {
-    if (this.selectedRevision == null) {
+    let revisionTime: number;
+    if (this.selectedRevision != null) {
+      revisionTime = new Date(this.selectedRevision.timestamp).getTime();
+    } else if (this.draftCheckState === 'draft-empty') {
+      // This chapter has never been drafted, so warn about the book's draft from the latest build
+      revisionTime = Number.POSITIVE_INFINITY;
+    } else {
       return false;
     }
 
-    const revisionTime = new Date(this.selectedRevision.timestamp).getTime();
     const build = this.builds.reduce<BuildDto | undefined>((latest, current) => {
       const finished = current.additionalInfo?.dateFinished;
       if (finished == null || current.state !== BuildStates.Completed) {
@@ -307,6 +312,9 @@ export class EditorDraftComponent implements AfterViewInit, OnChanges {
                     this.selectedRevision = this.findClosestRevision(date, this.draftRevisions);
                     return { textDocId, timestamp: this.selectedRevision?.timestamp };
                   } else {
+                    // Forget the previously viewed chapter's revisions, as they do not apply to this chapter
+                    this.draftRevisions = [];
+                    this.selectedRevision = undefined;
                     return { textDocId };
                   }
                 })
