@@ -1819,7 +1819,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   /** Gets the information needed to format a particular featured verse. */
   private getFeaturedVerseRefInfo(threadDoc: NoteThreadDoc): FeaturedVerseRefInfo | undefined {
     const notes: Note[] = threadDoc.notesInOrderClone(threadDoc.data!.notes);
-    let preview: string = notes[0].content != null ? XmlUtils.convertXmlToPlainText(notes[0].content).trim() : '';
+    let preview: string = notes[0].content != null ? XmlUtils.convertXmlToPlainText(notes[0].content) : '';
     const numberOfNotes: number = notes.filter(n => !n.deleted).length;
     if (numberOfNotes > 1) {
       preview += '\n' + this.i18n.translateStatic('editor.more_notes', { count: numberOfNotes - 1 });

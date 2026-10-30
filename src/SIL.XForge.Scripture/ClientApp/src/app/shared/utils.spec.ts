@@ -169,7 +169,9 @@ describe('shared utils', () => {
       expect(XmlUtils.convertXmlToPlainText('')).toEqual('');
       expect(XmlUtils.convertXmlToPlainText('string without formatting')).toEqual('string without formatting');
       expect(XmlUtils.convertXmlToPlainText('&lt;test comment&gt; &amp;')).toEqual('<test comment> &');
-      expect(XmlUtils.convertXmlToPlainText('<p>a &lt; b</p><p><bold>c</bold> &amp; d</p>')).toEqual('a < bc & d');
+      expect(XmlUtils.convertXmlToPlainText('<p>a &lt; b</p><p><bold>c</bold> &amp; d</p>')).toEqual('a < b\nc & d');
+      expect(XmlUtils.convertXmlToPlainText('<p>first</p><p></p><p/><p>second</p>')).toEqual('first\nsecond');
+      expect(XmlUtils.convertXmlToPlainText('  padded text\n')).toEqual('padded text');
       expect(XmlUtils.convertXmlToPlainText('content in paragraph.\nsecond paragraph')).toEqual(
         'content in paragraph.\nsecond paragraph'
       );

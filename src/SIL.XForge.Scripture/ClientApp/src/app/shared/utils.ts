@@ -207,11 +207,16 @@ export class XmlUtils {
   }
 
   /**
-   * Convert xml note content to plain text, such as for a tooltip. Tags are dropped and escaped characters such as
-   * &amp;lt; are decoded. Unlike decodeFromXml, malformed xml does not throw.
+   * Convert xml note content to plain text, such as for a tooltip. Tags are dropped, escaped characters such as
+   * &amp;lt; are decoded, and paragraphs are put on separate lines. Unlike decodeFromXml, malformed xml does not throw.
    */
   static convertXmlToPlainText(xml: string): string {
-    return new DOMParser().parseFromString(xml, 'text/html').documentElement.textContent ?? '';
+    const root: HTMLElement = new DOMParser().parseFromString(xml, 'text/html').documentElement;
+    // Like convertXmlToHtml, end each non-empty paragraph with a line break and skip empty paragraphs
+    for (const paragraph of Array.from(root.querySelectorAll('p'))) {
+      if (paragraph.hasChildNodes()) paragraph.append('\n');
+    }
+    return (root.textContent ?? '').trim();
   }
 
   /** Convert xml note content to html to display in the browser. */
