@@ -42,7 +42,13 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     this.updateOfflineDataSub = merge(this.adapter.remoteChanges$, this.adapter.idle$, this.adapter.create$).subscribe(
       async () => {
         if (this.subscribePromise != null) {
-          await this.subscribePromise;
+          try {
+            await this.subscribePromise;
+          } catch {
+            // ShareDB reports that nothing is pending after a failed subscribe as well. The caller of subscribe() is
+            // given that error, so it must not also become an unhandled rejection here.
+            return;
+          }
         }
         void this.updateOfflineData();
       }
