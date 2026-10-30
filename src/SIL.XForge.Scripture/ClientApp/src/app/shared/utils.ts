@@ -206,6 +206,14 @@ export class XmlUtils {
     return xmlDoc.documentElement.textContent!;
   }
 
+  /**
+   * Convert xml note content to plain text, such as for a tooltip. Tags are dropped and escaped characters such as
+   * &amp;lt; are decoded. Unlike decodeFromXml, malformed xml does not throw.
+   */
+  static convertXmlToPlainText(xml: string): string {
+    return new DOMParser().parseFromString(xml, 'text/html').documentElement.textContent ?? '';
+  }
+
   /** Convert xml note content to html to display in the browser. */
   static convertXmlToHtml(xml: string): string {
     const xmlDoc: XMLDocument = document.implementation.createDocument(null, 'root');
