@@ -165,6 +165,20 @@ describe('shared utils', () => {
       expect(() => XmlUtils.decodeFromXml('<p>')).toThrow();
     });
 
+    it('should convert xml to plain text', () => {
+      expect(XmlUtils.convertXmlToPlainText('')).toEqual('');
+      expect(XmlUtils.convertXmlToPlainText('string without formatting')).toEqual('string without formatting');
+      expect(XmlUtils.convertXmlToPlainText('&lt;test comment&gt; &amp;')).toEqual('<test comment> &');
+      expect(XmlUtils.convertXmlToPlainText('<p>a &lt; b</p><p><bold>c</bold> &amp; d</p>')).toEqual('a < bc & d');
+      expect(XmlUtils.convertXmlToPlainText('content in paragraph.\nsecond paragraph')).toEqual(
+        'content in paragraph.\nsecond paragraph'
+      );
+
+      // malformed xml
+      expect(XmlUtils.convertXmlToPlainText('<p>unclosed')).toEqual('unclosed');
+      expect(XmlUtils.convertXmlToPlainText('<p')).toEqual('');
+    });
+
     it('should convert xml to html', () => {
       expect(XmlUtils.convertXmlToHtml('')).toEqual('');
       expect(XmlUtils.convertXmlToHtml('string without formatting')).toEqual('string without formatting');
