@@ -1,6 +1,7 @@
 import { Dir } from '@angular/cdk/bidi';
 import { NgClass } from '@angular/common';
 import {
+  AfterViewChecked,
   AfterViewInit,
   ChangeDetectorRef,
   Component,
@@ -101,7 +102,7 @@ export interface EmbedsByVerse {
   providers: [TextViewModel],
   imports: [LynxInsightEditorObjectsComponent, QuillEditorComponent, NgClass, Dir]
 })
-export class TextComponent implements AfterViewInit, OnDestroy {
+export class TextComponent implements AfterViewInit, AfterViewChecked, OnDestroy {
   @Input() enablePresence: boolean = false;
   @Input() markInvalid: boolean = false;
   @Input() multiSegmentSelection = false;
@@ -152,6 +153,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
   private clickSubs: Map<string, Subscription[]> = new Map<string, Subscription[]>();
   private _isReadOnly: boolean = true;
+  private renderedReadOnly: boolean = true;
   private _editorStyles: any = { fontSize: '1rem' };
   private activePresenceSubscription?: Subscription;
   private onCreateSub?: Subscription;
@@ -674,6 +676,18 @@ export class TextComponent implements AfterViewInit, OnDestroy {
 
         this.isShiftDown = false;
       });
+  }
+
+  ngAfterViewChecked(): void {
+    // Read-only and editable text are styled differently, so switching between them changes the height of the text. The
+    // editor can become editable after the cursor was placed in the segment the user was last editing, which pushes
+    // that segment partly out of view.
+    if (this.readOnlyEnabled !== this.renderedReadOnly) {
+      this.renderedReadOnly = this.readOnlyEnabled;
+      if (this._editor?.hasFocus()) {
+        this._editor.scrollSelectionIntoView();
+      }
+    }
   }
 
   ngOnDestroy(): void {

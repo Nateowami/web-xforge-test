@@ -659,6 +659,44 @@ describe('TextComponent', () => {
     expect(env.component.segmentRef).toEqual('verse_1_3');
   }));
 
+  it('scrolls the selection into view when the focused editor becomes editable', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.hostComponent.isReadOnly = true;
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    const editor: Quill = env.component.editor!;
+    editor.setSelection(env.component.getSegmentRange('verse_1_3')!.index, 0, 'user');
+    tick();
+    spyOn(editor, 'hasFocus').and.returnValue(true);
+    const scrollSpy = spyOn(editor, 'scrollSelectionIntoView').and.callThrough();
+
+    env.hostComponent.isReadOnly = false;
+    env.fixture.detectChanges();
+
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+
+    // Later change detection with no change to read-only does not scroll
+    env.fixture.detectChanges();
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+  }));
+
+  it('does not scroll when an editor without focus becomes editable', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.hostComponent.isReadOnly = true;
+    env.fixture.detectChanges();
+    env.id = new TextDocId('project01', 40, 1);
+    env.waitForEditor();
+    const editor: Quill = env.component.editor!;
+    spyOn(editor, 'hasFocus').and.returnValue(false);
+    const scrollSpy = spyOn(editor, 'scrollSelectionIntoView').and.callThrough();
+
+    env.hostComponent.isReadOnly = false;
+    env.fixture.detectChanges();
+
+    expect(scrollSpy).not.toHaveBeenCalled();
+  }));
+
   describe('MultiCursor Presence', () => {
     it('should update presence if the user moves the cursor', fakeAsync(() => {
       const env: TestEnvironment = new TestEnvironment();
