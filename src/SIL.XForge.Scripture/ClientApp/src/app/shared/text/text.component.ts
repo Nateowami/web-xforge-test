@@ -116,6 +116,8 @@ export class TextComponent implements AfterViewInit, AfterViewChecked, OnDestroy
   @Output() focused = new EventEmitter<boolean>(true);
   @Output() presenceChange = new EventEmitter<RemotePresences | undefined>(true);
   @Output() readonly editorCreated = new ReplaySubject<void>(1);
+  /** Emits after the text scrolled the selection back into view, because switching to or from read-only moved it. */
+  @Output() selectionScrolledIntoView = new EventEmitter<void>(true);
 
   lang: string = '';
 
@@ -154,6 +156,7 @@ export class TextComponent implements AfterViewInit, AfterViewChecked, OnDestroy
   private clickSubs: Map<string, Subscription[]> = new Map<string, Subscription[]>();
   private _isReadOnly: boolean = true;
   private renderedReadOnly: boolean = true;
+  private renderedEmpty: boolean = true;
   private _editorStyles: any = { fontSize: '1rem' };
   private activePresenceSubscription?: Subscription;
   private onCreateSub?: Subscription;
@@ -682,11 +685,15 @@ export class TextComponent implements AfterViewInit, AfterViewChecked, OnDestroy
     // Read-only and editable text are styled differently, so switching between them changes the height of the text. The
     // editor can become editable after the cursor was placed in the segment the user was last editing, which pushes
     // that segment partly out of view.
-    if (this.readOnlyEnabled !== this.renderedReadOnly) {
-      this.renderedReadOnly = this.readOnlyEnabled;
-      if (this._editor?.hasFocus()) {
-        this._editor.scrollSelectionIntoView();
-      }
+    // Only scroll when the text was already shown and stays shown. While a text loads or unloads, the selection may
+    // still be in the previous text, and restoring the segment scrolls to it anyway.
+    const readOnlyChanged: boolean = this._isReadOnly !== this.renderedReadOnly;
+    const textWasShown: boolean = !this.renderedEmpty;
+    this.renderedReadOnly = this._isReadOnly;
+    this.renderedEmpty = this.viewModel.isEmpty;
+    if (readOnlyChanged && textWasShown && !this.viewModel.isEmpty && this._editor?.hasFocus()) {
+      this._editor.scrollSelectionIntoView();
+      this.selectionScrolledIntoView.emit();
     }
   }
 
