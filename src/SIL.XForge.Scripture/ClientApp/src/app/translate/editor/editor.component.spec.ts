@@ -3441,19 +3441,10 @@ describe('EditorComponent', () => {
       env.dispose();
     }));
 
-    it('scrolls a resource tab to the target selection', fakeAsync(() => {
+    it('scrolls a resource tab to the target selection when the project has no source', fakeAsync(() => {
       const env = new TestEnvironment();
-      env.setupProject({
-        translateConfig: {
-          source: {
-            paratextId: 'resource01',
-            name: 'Resource 1',
-            shortName: 'SRC',
-            projectRef: 'resource01',
-            writingSystem: { tag: 'qaa' }
-          }
-        }
-      });
+      delete env.testProjectProfile.translateConfig.source;
+      env.setupProject();
       env.setProjectUserConfig({
         editorTabsOpen: [{ tabType: 'project-resource', groupId: 'source', projectId: 'project02', isSelected: true }]
       });
@@ -3474,9 +3465,48 @@ describe('EditorComponent', () => {
         () => resourceTab!.resourceText
       );
 
+      expect(env.component['hasSource']).toBeFalse();
+
       env.component['syncScroll']();
 
       expect(scroll.scrollTop()).toEqual(900);
+
+      env.dispose();
+    }));
+
+    it('syncs the scroll when a resource tab loads its text', fakeAsync(() => {
+      const env = new TestEnvironment();
+      delete env.testProjectProfile.translateConfig.source;
+      env.setupProject();
+      env.setProjectUserConfig({
+        editorTabsOpen: [{ tabType: 'project-resource', groupId: 'source', projectId: 'project02', isSelected: true }]
+      });
+      env.wait();
+      const resourceText: TextComponent = env.component.resourceTabs!.first.resourceText;
+      const syncScrollSpy = spyOn<any>(env.component, 'syncScroll');
+      tick(100);
+      syncScrollSpy.calls.reset();
+
+      resourceText.updated.emit({ delta: new Delta() });
+      tick(100);
+
+      expect(syncScrollSpy).toHaveBeenCalledTimes(1);
+
+      env.dispose();
+    }));
+
+    it('syncs the scroll when the target scrolls its selection into view', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setProjectUserConfig();
+      env.wait();
+      const syncScrollSpy = spyOn<any>(env.component, 'syncScroll');
+      tick(100);
+      syncScrollSpy.calls.reset();
+
+      env.component.target!.selectionScrolledIntoView.emit();
+      tick(100);
+
+      expect(syncScrollSpy).toHaveBeenCalledTimes(1);
 
       env.dispose();
     }));

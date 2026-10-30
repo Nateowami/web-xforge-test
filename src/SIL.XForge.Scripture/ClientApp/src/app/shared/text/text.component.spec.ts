@@ -670,15 +670,40 @@ describe('TextComponent', () => {
     tick();
     spyOn(editor, 'hasFocus').and.returnValue(true);
     const scrollSpy = spyOn(editor, 'scrollSelectionIntoView').and.callThrough();
+    let scrolledEvents = 0;
+    env.component.selectionScrolledIntoView.subscribe(() => scrolledEvents++);
 
     env.hostComponent.isReadOnly = false;
     env.fixture.detectChanges();
+    tick();
 
     expect(scrollSpy).toHaveBeenCalledTimes(1);
+    expect(scrolledEvents).toEqual(1);
 
     // Later change detection with no change to read-only does not scroll
     env.fixture.detectChanges();
+    tick();
     expect(scrollSpy).toHaveBeenCalledTimes(1);
+    expect(scrolledEvents).toEqual(1);
+  }));
+
+  it('does not scroll the selection into view when the focused editor loads another text', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.hostComponent.isReadOnly = false;
+    env.fixture.detectChanges();
+    env.id = env.matTextDocId;
+    env.waitForEditor();
+    const editor: Quill = env.component.editor!;
+    editor.setSelection(env.component.getSegmentRange('verse_1_3')!.index, 0, 'user');
+    tick();
+    spyOn(editor, 'hasFocus').and.returnValue(true);
+    const scrollSpy = spyOn(editor, 'scrollSelectionIntoView').and.callThrough();
+
+    // The text is read-only while it is empty during the load, and the selection is still in the previous text
+    env.id = env.mrkTextDocId;
+    env.waitForEditor();
+
+    expect(scrollSpy).not.toHaveBeenCalled();
   }));
 
   it('does not scroll when an editor without focus becomes editable', fakeAsync(() => {

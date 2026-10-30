@@ -922,8 +922,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
         this.toggleVerseRefElement(verseRef);
       }
     } else {
-      if (this.source != null && this.source.segmentRef !== this.target.segmentRef) {
-        this.source.setSegment(this.target.segmentRef);
+      for (const text of this.parallelTexts) {
+        if (text.segmentRef !== this.target.segmentRef) {
+          text.setSegment(this.target.segmentRef);
+        }
       }
 
       if (
@@ -963,6 +965,10 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       return;
     }
 
+    this.syncScrollRequested$.next();
+  }
+
+  onTargetSelectionScrolledIntoView(): void {
     this.syncScrollRequested$.next();
   }
 
