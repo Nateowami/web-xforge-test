@@ -120,6 +120,33 @@ describe('cache service', () => {
 
       flush();
     }));
+
+    it('skips a text the user is no longer allowed to read', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      when(mockedProjectDoc.id).thenReturn('project01');
+      const deniedTextId = new TextDocId('project01', 0, 1, 'target');
+      when(mockedProjectService.getText(anything())).thenResolve();
+      when(mockedProjectService.getText(deepEqual(deniedTextId))).thenReject(
+        new Error(`403: Permission denied (read), collection: texts, docId: ${deniedTextId}`)
+      );
+
+      await expectAsync(env.service.cache(env.projectDoc)).toBeResolved();
+      env.wait();
+
+      verify(mockedProjectService.getText(anything())).times(200 * 100 * 2);
+
+      flush();
+    }));
+
+    it('reports other errors loading a text', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      when(mockedProjectService.getText(anything())).thenReject(new Error('Some other error'));
+
+      await expectAsync(env.service.cache(env.projectDoc)).toBeRejectedWithError('Some other error');
+      env.wait();
+
+      flush();
+    }));
   });
 });
 

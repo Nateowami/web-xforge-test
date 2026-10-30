@@ -32,16 +32,10 @@ export class CacheService {
         for (const chapter of text.chapters) {
           if (abort) return;
 
-          const textDocId = new TextDocId(project.id, text.bookNum, chapter.number, 'target');
-          if (await this.permissionsService.canAccessTextAsync(textDocId)) {
-            await this.projectService.getText(textDocId);
-          }
+          await this.cacheText(new TextDocId(project.id, text.bookNum, chapter.number, 'target'));
 
           if (text.hasSource && sourceId != null) {
-            const sourceTextDocId = new TextDocId(sourceId, text.bookNum, chapter.number, 'target');
-            if (await this.permissionsService.canAccessTextAsync(sourceTextDocId)) {
-              await this.projectService.getText(sourceTextDocId);
-            }
+            await this.cacheText(new TextDocId(sourceId, text.bookNum, chapter.number, 'target'));
           }
         }
       }
@@ -53,4 +47,21 @@ export class CacheService {
       deleteSub.unsubscribe();
     }
   }
+
+  private async cacheText(textDocId: TextDocId): Promise<void> {
+    if (!(await this.permissionsService.canAccessTextAsync(textDocId))) return;
+    try {
+      await this.projectService.getText(textDocId);
+    } catch (error) {
+      // The user can lose access to a text while it is loading, such as when they are removed from the project. The
+      // permission check above will skip the remaining texts once the change reaches this client, so skip this one.
+      if (!isReadDeniedError(error)) throw error;
+    }
+  }
+}
+
+/** Whether the realtime server refused to let the user read a doc. */
+function isReadDeniedError(error: unknown): boolean {
+  // ShareDB passes on the access control error as a message without a distinguishing error code
+  return error instanceof Error && error.message.startsWith('403: Permission denied (read)');
 }
