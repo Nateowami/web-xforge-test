@@ -4,6 +4,12 @@ import { Presence } from 'sharedb/lib/sharedb';
 import { Snapshot } from './models/snapshot';
 import { QueryParameters } from './query-parameters';
 
+/** Whether the realtime server refused to let the user read a doc, such as after they were removed from its project. */
+export function isReadDeniedError(error: unknown): boolean {
+  // ShareDB passes on the access control error as a message without a distinguishing error code
+  return error instanceof Error && error.message.startsWith('403: Permission denied (read)');
+}
+
 /**
  * This is the abstract base class for real-time remote store implementations. A remote store is responsible for
  * communicating with the real-time backend.

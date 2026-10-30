@@ -1,4 +1,5 @@
 import { EventEmitter, Injectable } from '@angular/core';
+import { isReadDeniedError } from 'xforge-common/realtime-remote-store';
 import { SFProjectProfileDoc } from '../../core/models/sf-project-profile-doc';
 import { TextDocId } from '../../core/models/text-doc';
 import { PermissionsService } from '../../core/permissions.service';
@@ -58,10 +59,4 @@ export class CacheService {
       if (!isReadDeniedError(error)) throw error;
     }
   }
-}
-
-/** Whether the realtime server refused to let the user read a doc. */
-function isReadDeniedError(error: unknown): boolean {
-  // ShareDB passes on the access control error as a message without a distinguishing error code
-  return error instanceof Error && error.message.startsWith('403: Permission denied (read)');
 }
