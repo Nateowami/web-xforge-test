@@ -19,6 +19,7 @@ import { Router } from '@angular/router';
 import { Range } from 'quill';
 import Delta from 'quill-delta';
 import { LynxInsightSortOrder, LynxInsightType } from 'realtime-server/lib/esm/scriptureforge/models/lynx-insight';
+import { DeltaOperation } from 'rich-text';
 import { BehaviorSubject, of } from 'rxjs';
 import { anything, deepEqual, instance, mock, verify, when } from 'ts-mockito';
 import { ActivatedBookChapterService, RouteBookChapter } from 'xforge-common/activated-book-chapter.service';
@@ -32,7 +33,12 @@ import { EditorSegmentService } from '../base-services/editor-segment.service';
 import { EDITOR_INSIGHT_DEFAULTS, LynxInsight, LynxInsightConfig } from '../lynx-insight';
 import { LynxInsightStateService } from '../lynx-insight-state.service';
 import { LynxInsightsPanelHeaderComponent } from './lynx-insights-panel-header/lynx-insights-panel-header.component';
-import { InsightDescription, InsightPanelNode, LynxInsightsPanelComponent } from './lynx-insights-panel.component';
+import {
+  InsightDescription,
+  InsightPanelNode,
+  InsightRangeSampleText,
+  LynxInsightsPanelComponent
+} from './lynx-insights-panel.component';
 
 const mockLynxInsightStateService = mock<LynxInsightStateService>();
 const mockActivatedProjectService = mock<ActivatedProjectService>();
@@ -720,6 +726,64 @@ describe('LynxInsightsPanelComponent', () => {
       expect(() => {
         env.component.onNodeExpansionChange(veryLargeNode, true);
       }).not.toThrow();
+    }));
+  });
+
+  describe('processInsightText()', () => {
+    const chapterOps: DeltaOperation[] = [
+      { insert: { chapter: { number: '2', style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'When the master did not know where', attributes: { segment: 'verse_2_1' } },
+      { insert: { verse: { number: '2', style: 'v' } } },
+      { insert: 'Then “ the poor wine.', attributes: { segment: 'verse_2_2' } },
+      { insert: { verse: { number: '3', style: 'v' } } },
+      {
+        insert: 'When the wine ran out, the mother of Jesus said to him, They have no wine.',
+        attributes: { segment: 'verse_2_3' }
+      }
+    ];
+
+    /** Gets the text doc index of the given text, counting each embed as one character. */
+    function indexOf(text: string): number {
+      return chapterOps
+        .map(op => (typeof op.insert === 'string' ? op.insert : '￼'))
+        .join('')
+        .indexOf(text);
+    }
+
+    function processInsightText(env: TestEnvironment, index: number, length: number): InsightRangeSampleText {
+      const insight = createTestInsight('insight', 'warning', 'Test', testTextDocId, { index, length });
+      return (env.component as any).processInsightText(insight, { ops: chapterOps }).sampleTextParts;
+    }
+
+    it('should not include text from the previous verse', fakeAsync(() => {
+      const env = new TestEnvironment({ insights: [testInsight1, testInsight2] });
+
+      expect(processInsightText(env, indexOf('“'), 1)).toEqual({
+        preText: 'Then ',
+        insightText: '“',
+        postText: ' the poor wine.'
+      });
+    }));
+
+    it('should not include text from the next verse', fakeAsync(() => {
+      const env = new TestEnvironment({ insights: [testInsight1, testInsight2] });
+
+      expect(processInsightText(env, indexOf('wine.') + 4, 1)).toEqual({
+        preText: 'Then “ the poor wine',
+        insightText: '.',
+        postText: ''
+      });
+    }));
+
+    it('should trim partial words when the verse is longer than the sample', fakeAsync(() => {
+      const env = new TestEnvironment({ insights: [testInsight1, testInsight2] });
+
+      expect(processInsightText(env, indexOf('mother'), 6)).toEqual({
+        preText: 'the wine ran out, the ',
+        insightText: 'mother',
+        postText: ' of Jesus said to him,'
+      });
     }));
   });
 
