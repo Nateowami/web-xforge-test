@@ -96,7 +96,7 @@ import {
 } from '../../shared/sf-tab-group';
 import { getCombinedVerseTextDoc, paratextUsersFromRoles } from '../../shared/test-utils';
 import { provideQuillRegistrations } from '../../shared/text/quill-editor-registration/quill-providers';
-import { PRESENCE_EDITOR_ACTIVE_TIMEOUT } from '../../shared/text/text.component';
+import { PRESENCE_EDITOR_ACTIVE_TIMEOUT, TextComponent } from '../../shared/text/text.component';
 import { XmlUtils } from '../../shared/utils';
 import { BiblicalTermsComponent } from '../biblical-terms/biblical-terms.component';
 import { DraftGenerationService } from '../draft-generation/draft-generation.service';
@@ -105,6 +105,7 @@ import { DraftOptionsService } from '../draft-generation/draft-options.service';
 import { DraftPreviewBooksComponent } from '../draft-generation/draft-preview-books/draft-preview-books.component';
 import { EditorDraftComponent } from './editor-draft/editor-draft.component';
 import { HistoryRevisionFormatPipe } from './editor-history/history-chooser/history-revision-format.pipe';
+import { EditorResourceComponent } from './editor-resource/editor-resource.component';
 import { EditorComponent } from './editor.component';
 import { LynxInsightEditorObjectsComponent } from './lynx/insights/lynx-insight-editor-objects/lynx-insight-editor-objects.component';
 import { LynxInsightsPanelComponent } from './lynx/insights/lynx-insights-panel/lynx-insights-panel.component';
@@ -3251,9 +3252,9 @@ describe('EditorComponent', () => {
 
   describe('source scroll sync', () => {
     /**
-     * Sets up the source scroll container and the source/target selection bounds that syncScroll reads, and returns
-     * a getter for the source scroll position it produces. Selection bounds are relative to the viewport, as Quill
-     * reports them.
+     * Sets up the scroll container of the source (or of the given parallel text) and the source/target selection bounds
+     * that syncScroll reads, and returns a getter for the source scroll position it produces. Selection bounds are
+     * relative to the viewport, as Quill reports them.
      */
     function setUpScrollSync(
       env: TestEnvironment,
@@ -3264,13 +3265,15 @@ describe('EditorComponent', () => {
         sourceSelectionTop: number;
         sourceSelectionHeight: number;
         targetSelectionTop: number;
-      }
+      },
+      getParallelText: () => TextComponent = () => env.component.source!
     ): { scrollTop: () => number } {
       env.clickSegmentRef('verse_1_1');
       env.component.targetFocused = true;
-      expect(env.component.source?.segment).withContext('source segment').not.toBeNull();
+      const parallelText: TextComponent = getParallelText();
+      expect(parallelText.segment).withContext('parallel text segment').not.toBeNull();
 
-      const container = env.component['sourceScrollContainer'] as HTMLElement;
+      const container: HTMLElement = parallelText.editor!.root;
       let scrollTop: number = options.scrollTop;
       Object.defineProperty(container, 'scrollTop', {
         get: () => scrollTop,
@@ -3283,7 +3286,7 @@ describe('EditorComponent', () => {
         height: options.containerHeight,
         bottom: options.containerTop + options.containerHeight
       } as DOMRect);
-      spyOn(env.component.source!.editor!.selection, 'getBounds').and.returnValue({
+      spyOn(parallelText.editor!.selection, 'getBounds').and.returnValue({
         top: options.sourceSelectionTop,
         height: options.sourceSelectionHeight,
         bottom: options.sourceSelectionTop + options.sourceSelectionHeight,
@@ -3430,6 +3433,46 @@ describe('EditorComponent', () => {
         sourceSelectionHeight: 800,
         targetSelectionTop: 400
       });
+
+      env.component['syncScroll']();
+
+      expect(scroll.scrollTop()).toEqual(900);
+
+      env.dispose();
+    }));
+
+    it('scrolls a resource tab to the target selection', fakeAsync(() => {
+      const env = new TestEnvironment();
+      env.setupProject({
+        translateConfig: {
+          source: {
+            paratextId: 'resource01',
+            name: 'Resource 1',
+            shortName: 'SRC',
+            projectRef: 'resource01',
+            writingSystem: { tag: 'qaa' }
+          }
+        }
+      });
+      env.setProjectUserConfig({
+        editorTabsOpen: [{ tabType: 'project-resource', groupId: 'source', projectId: 'project02', isSelected: true }]
+      });
+      env.wait();
+      const resourceTab: EditorResourceComponent | undefined = env.component.resourceTabs?.first;
+      expect(resourceTab).withContext('resource tab').toBeDefined();
+
+      const scroll = setUpScrollSync(
+        env,
+        {
+          scrollTop: 0,
+          containerTop: 100,
+          containerHeight: 600,
+          sourceSelectionTop: 1300,
+          sourceSelectionHeight: 140,
+          targetSelectionTop: 400
+        },
+        () => resourceTab!.resourceText
+      );
 
       env.component['syncScroll']();
 

@@ -267,8 +267,8 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
   @ViewChild('fabBottomSheet') TemplateBottomSheet?: TemplateRef<any>;
   @ViewChild('mobileNoteTextarea') mobileNoteTextarea?: ElementRef<HTMLTextAreaElement>;
   @ViewChildren('target') targetTextComponent?: QueryList<TextComponent>;
+  @ViewChildren(EditorResourceComponent) resourceTabs?: QueryList<EditorResourceComponent>;
 
-  private sourceScrollContainer: Element | undefined;
   private targetScrollContainer: Element | undefined;
   private readonly sourceWordTokenizer: RangeTokenizer;
   private readonly targetWordTokenizer: RangeTokenizer;
@@ -894,10 +894,12 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     }
 
     if (segment !== prevSegment) {
-      if (this.source != null) {
-        this.source.setSegment(this.target.segmentRef);
-        this.syncScrollRequested$.next();
+      // Set the segment of the parallel texts now, rather than waiting for change detection, so that the scroll sync
+      // can align them with the target.
+      for (const text of this.parallelTexts) {
+        text.setSegment(this.target.segmentRef);
       }
+      this.syncScrollRequested$.next();
       if (segment == null || !VERSE_REGEX.test(segment.ref)) {
         this.resetCommenterVerseSelection();
       }
@@ -968,7 +970,6 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     switch (textType) {
       case 'source':
         this.sourceLoaded = true;
-        this.sourceScrollContainer = this.source?.editor?.root;
         break;
       case 'target':
         this.targetLoaded = true;
@@ -2248,42 +2249,49 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
     );
   }
 
+  /** The texts shown alongside the target that follow its selected segment: the project source and resource tabs. */
+  private get parallelTexts(): TextComponent[] {
+    const texts: TextComponent[] = (this.resourceTabs?.map(tab => tab.resourceText) ?? []).filter(text => text != null);
+    if (this.hasSource && this.source != null) {
+      texts.unshift(this.source);
+    }
+    return texts;
+  }
+
   private syncScroll(): void {
-    if (
-      !this.hasSource ||
-      this.source == null ||
-      this.source.segment == null ||
-      this.source.editor == null ||
-      this.sourceScrollContainer == null ||
-      this.target == null ||
-      this.target.segment == null ||
-      this.target.editor == null ||
-      !this.targetFocused
-    ) {
+    if (this.target == null || this.target.segment == null || this.target.editor == null || !this.targetFocused) {
       return;
     }
 
     const targetRange: Range = this.target.segment.range;
     const targetSelectionBounds: DOMRect | Bounds = this.target.editor.selection.getBounds(targetRange.index)!;
+    for (const text of this.parallelTexts) {
+      this.syncScrollText(text, targetSelectionBounds);
+    }
+  }
 
-    const sourceRange: Range = this.source.segment.range;
-    const sourceSelectionBounds: DOMRect | Bounds = this.source.editor.selection.getBounds(
+  private syncScrollText(text: TextComponent, targetSelectionBounds: DOMRect | Bounds): void {
+    const scrollContainer: HTMLElement | undefined = text.editor?.root;
+    if (text.segment == null || text.editor == null || scrollContainer == null) {
+      return;
+    }
+
+    const sourceRange: Range = text.segment.range;
+    const sourceSelectionBounds: DOMRect | Bounds = text.editor.selection.getBounds(
       sourceRange.index,
       sourceRange.length
     )!;
 
-    let newScrollTop: number =
-      this.sourceScrollContainer.scrollTop + sourceSelectionBounds.top - targetSelectionBounds.top;
+    let newScrollTop: number = scrollContainer.scrollTop + sourceSelectionBounds.top - targetSelectionBounds.top;
 
     // Check whether the top of the source selection would be visible after the scroll. The scroll above puts the
     // source selection where the target selection is, so the target selection's position decides visibility, not
     // where the source selection is now.
-    const sourceTopPosition: number =
-      targetSelectionBounds.top - this.sourceScrollContainer.getBoundingClientRect().top;
+    const sourceTopPosition: number = targetSelectionBounds.top - scrollContainer.getBoundingClientRect().top;
 
     // Check whether the bottom of the source selection would be visible after the scroll
     const sourceBottomPosition: number =
-      sourceTopPosition + sourceSelectionBounds.height - this.sourceScrollContainer.clientHeight;
+      sourceTopPosition + sourceSelectionBounds.height - scrollContainer.clientHeight;
 
     // Adjust the scroll so the selection fits in the container. Scroll for the bottom only when that keeps the top
     // visible. A selection taller than the container keeps its top in view instead. A selection exactly as tall as
@@ -2294,7 +2302,7 @@ export class EditorComponent extends DataLoadingComponent implements OnDestroy, 
       newScrollTop += sourceBottomPosition;
     }
 
-    this.sourceScrollContainer.scrollTop = newScrollTop;
+    scrollContainer.scrollTop = newScrollTop;
   }
 
   private observeResize(scrollContainer: Element): void {

@@ -10,6 +10,7 @@
         [subscribeToUpdates]="false"
         [highlightSegment]="highlightSegment ?? false"
         [segmentRef]="segmentRef ?? ''"
+        (updated)="textUpdated.emit($event)"
         [isRightToLeft]="isRightToLeft"
         [fontSize]="fontSize"
         [style.--project-font]="font"

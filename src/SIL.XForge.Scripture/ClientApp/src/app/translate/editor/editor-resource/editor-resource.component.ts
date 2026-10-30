@@ -1,10 +1,10 @@
-import { AfterViewInit, Component, DestroyRef, Input, OnChanges, ViewChild } from '@angular/core';
+import { AfterViewInit, Component, DestroyRef, EventEmitter, Input, OnChanges, Output, ViewChild } from '@angular/core';
 import { combineLatest, EMPTY, startWith, Subject, switchMap } from 'rxjs';
 import { FontService } from 'xforge-common/font.service';
 import { quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { SFProjectProfileDoc } from '../../../core/models/sf-project-profile-doc';
 import { SFProjectService } from '../../../core/sf-project.service';
-import { TextComponent } from '../../../shared/text/text.component';
+import { TextComponent, TextUpdatedEvent } from '../../../shared/text/text.component';
 import { formatFontSizeToRems } from '../../../shared/utils';
 import { CopyrightBannerComponent } from '../../../shared/copyright-banner/copyright-banner.component';
 import { TextDocIdPipe } from '../../../shared/text/text-doc-id.pipe';
@@ -20,6 +20,7 @@ export class EditorResourceComponent implements AfterViewInit, OnChanges {
   @Input() chapter?: number;
   @Input() segmentRef?: string;
   @Input() highlightSegment?: boolean;
+  @Output() textUpdated = new EventEmitter<TextUpdatedEvent>();
 
   @ViewChild(TextComponent) resourceText!: TextComponent;
 
