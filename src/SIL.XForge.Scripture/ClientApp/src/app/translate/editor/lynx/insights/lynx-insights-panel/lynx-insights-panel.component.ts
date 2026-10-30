@@ -12,7 +12,7 @@ import { TranslocoModule } from '@ngneat/transloco';
 import { Canon, VerseRef } from '@sillsdev/scripture';
 import { groupBy } from 'lodash-es';
 import { Range } from 'quill';
-import Delta from 'quill-delta';
+import Delta, { Op } from 'quill-delta';
 import {
   LynxInsightSortOrder,
   LynxInsightType,
@@ -752,20 +752,63 @@ export class LynxInsightsPanelComponent implements AfterViewInit {
     // Pad up to the goal length (and at least 10 characters)
     const padding: number = Math.max(10, textGoalLength - insightText.length);
 
-    const prePadIndex: number = insight.range.index - padding;
-    const prePadRange: Range = {
-      index: Math.max(0, prePadIndex),
-      length: prePadIndex < 0 ? padding - insight.range.index : padding
-    };
-    const preText: string = this.getText(delta, prePadRange, 'trim-word-start');
+    // Keep the padding within the segment (verse) of the insight, so the sample does not show text from other verses
+    const insightEnd: number = insight.range.index + insight.range.length;
+    const startSegmentRange: Range | undefined = this.getSegmentRange(delta, insight.range.index);
+    const endSegmentRange: Range | undefined = this.getSegmentRange(
+      delta,
+      Math.max(insight.range.index, insightEnd - 1)
+    );
+    const minPreIndex: number = startSegmentRange?.index ?? 0;
+    const maxPostIndex: number =
+      endSegmentRange != null ? endSegmentRange.index + endSegmentRange.length : delta.length();
 
-    const postPadRange: Range = { index: insight.range.index + insight.range.length, length: padding };
-    const postText: string = this.getText(delta, postPadRange, 'trim-word-end');
+    const preIndex: number = Math.max(minPreIndex, insight.range.index - padding);
+    const prePadRange: Range = { index: preIndex, length: insight.range.index - preIndex };
+    const preText: string = this.getText(
+      delta,
+      prePadRange,
+      preIndex > minPreIndex ? 'trim-word-start' : 'trim-none'
+    ).trimStart();
+
+    const postLength: number = Math.max(0, Math.min(padding, maxPostIndex - insightEnd));
+    const postPadRange: Range = { index: insightEnd, length: postLength };
+    const postText: string = this.getText(
+      delta,
+      postPadRange,
+      insightEnd + postLength < maxPostIndex ? 'trim-word-end' : 'trim-none'
+    ).trimEnd();
 
     return {
       ...insight,
       sampleTextParts: { preText, insightText, postText }
     };
+  }
+
+  /**
+   * Gets the range of the segment (e.g. 'verse_2_2') containing the character at the given index.
+   * @returns The segment range, or undefined if the character is not part of a segment.
+   */
+  private getSegmentRange(delta: Delta, index: number): Range | undefined {
+    let segmentRef: string | undefined;
+    let segmentStart: number = 0;
+    let opStart: number = 0;
+    for (const op of delta.ops) {
+      const opSegmentRef: string | undefined = op.attributes?.['segment'] as string | undefined;
+      if (opSegmentRef !== segmentRef) {
+        if (index < opStart) {
+          break;
+        }
+        segmentRef = opSegmentRef;
+        segmentStart = opStart;
+      }
+      opStart += Op.length(op);
+    }
+
+    if (segmentRef == null || index >= opStart) {
+      return undefined;
+    }
+    return { index: segmentStart, length: opStart - segmentStart };
   }
 
   /**
