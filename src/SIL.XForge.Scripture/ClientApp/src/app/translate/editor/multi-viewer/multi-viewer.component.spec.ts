@@ -101,8 +101,27 @@ describe('MultiViewerComponent', () => {
       component.maxAvatars = maxAvatars;
       expect(component.avatarViewers.length + component.hiddenViewerCount).toEqual(8);
       expect(component.hiddenViewerCount).toEqual(expectedCount);
-      expect(component.hiddenViewersLabel).toEqual(`${expectedCount} other viewers`);
+      expect(component.overflowButtonTooltip).toEqual(`${expectedCount} other viewers`);
     }
+  });
+
+  it('should count every viewer in the tooltip of the overflow button while the menu is open', () => {
+    component.viewers = createViewers(5);
+    fixture.detectChanges();
+    const overflowButton = fixture.debugElement.query(By.css('button[mat-mini-fab]'));
+    const tooltip = overflowButton.injector.get(MatTooltip);
+    expect(tooltip.message).withContext('setup').toEqual('3 other viewers');
+
+    // With the menu open no avatars are shown, and the menu heading counts all viewers
+    component.toggleMenu();
+    fixture.detectChanges();
+    expect(component.avatarViewers.length).withContext('setup').toEqual(0);
+    expect(tooltip.message).toEqual('5 other viewers');
+    expect(tooltip.message).toEqual(component.otherViewersLabel);
+
+    component.closeMenu();
+    fixture.detectChanges();
+    expect(tooltip.message).toEqual('3 other viewers');
   });
 });
 

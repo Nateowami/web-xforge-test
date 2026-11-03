@@ -15,7 +15,7 @@
         mat-mini-fab
         [matMenuTriggerFor]="menu"
         class="mat-elevation-z"
-        [matTooltip]="hiddenViewersLabel"
+        [matTooltip]="overflowButtonTooltip"
         (click)="toggleMenu()"
       >
         @if (!isMenuOpen) {
