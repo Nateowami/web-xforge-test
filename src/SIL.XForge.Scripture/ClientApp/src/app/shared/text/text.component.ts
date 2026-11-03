@@ -375,7 +375,9 @@ export class TextComponent implements AfterViewInit, OnDestroy {
         // worked out the location yet, as when the editor is still loading a project. Show nothing rather than an
         // error.
         if (this.id == null) return '';
-        if (this.project == null) return this.transloco.translate('text.error');
+        // Only seen when an earlier bind of this same location set 'no-content' and a rebind has since cleared the
+        // project to fetch it again. The rebind will set the state once it has the project.
+        if (this.project == null) return this.transloco.translate('text.loading');
 
         const bookId = Canon.bookNumberToId(this.id.bookNum);
         const bookName = this.transloco.translate(`canon.book_names.${bookId}`);
@@ -1139,6 +1141,9 @@ export class TextComponent implements AfterViewInit, OnDestroy {
       return false;
     }
     const profileDoc: SFProjectProfileDoc = await this.projectService.getProfile(this.projectId);
+    // If the location changed while the profile was being fetched, a newer bindQuill is checking the new location and
+    // owns the loading state. Writing this result now would show this location's message for the new one.
+    if (!isEqual(this.id, id)) return false;
     if (profileDoc.data == null) throw new Error('Failed to fetch project profile.');
     this.project = profileDoc.data;
     const chapterExists = this.project.texts.some(
