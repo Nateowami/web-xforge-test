@@ -45,8 +45,12 @@ export class MultiViewerComponent implements OnInit {
     return this.viewers.length - this.maxAvatars + 1;
   }
 
-  /** Tooltip for the "+N" button, which counts only the viewers that the button stands for. */
-  get hiddenViewersLabel(): string {
+  /**
+   * Tooltip for the overflow button. While the menu is closed the button shows "+N" and stands for the viewers without
+   * an avatar. While it is open no avatars are shown and the menu lists every viewer, so the tooltip matches its heading.
+   */
+  get overflowButtonTooltip(): string {
+    if (this.isMenuOpen) return this.otherViewersLabel;
     return translate('multi_viewer.other_viewers', { count: this.hiddenViewerCount });
   }
 
