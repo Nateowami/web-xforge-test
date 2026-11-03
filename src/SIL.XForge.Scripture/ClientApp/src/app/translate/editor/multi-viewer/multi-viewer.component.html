@@ -15,7 +15,7 @@
         mat-mini-fab
         [matMenuTriggerFor]="menu"
         class="mat-elevation-z"
-        [matTooltip]="otherViewersLabel"
+        [matTooltip]="hiddenViewersLabel"
         (click)="toggleMenu()"
       >
         @if (!isMenuOpen) {
@@ -23,7 +23,7 @@
             @if (maxAvatars > 1) {
               <span>+</span>
             }
-            {{ viewers.length - maxAvatars + 1 }}</span
+            {{ hiddenViewerCount }}</span
           >
         } @else {
           <mat-icon>arrow_drop_up</mat-icon>
