@@ -1,5 +1,13 @@
 import { Component, ViewChild } from '@angular/core';
-import { ComponentFixture, fakeAsync, flush, TestBed, tick } from '@angular/core/testing';
+import {
+  ComponentFixture,
+  discardPeriodicTasks,
+  fakeAsync,
+  flush,
+  flushMicrotasks,
+  TestBed,
+  tick
+} from '@angular/core/testing';
 import { TranslocoService } from '@ngneat/transloco';
 import { VerseRef } from '@sillsdev/scripture';
 import { QuillService } from 'ngx-quill';
@@ -250,6 +258,34 @@ describe('TextComponent', () => {
     env.id = env.lukTextDocId;
     env.waitForEditor();
     expect(env.component.placeholder).toEqual('text.loading');
+  }));
+
+  it('keeps showing loading when the check for a previous location finishes late', fakeAsync(() => {
+    const env = new TestEnvironment({ presenceEnabled: false });
+    env.component.onEditorCreated(new MockQuill('quill-editor'));
+    env.waitForEditor();
+
+    // The user goes to a chapter that the project does not have. Checking the project takes a while.
+    let resolveFirstProfile: (doc: Promise<SFProjectProfileDoc>) => void = () => {};
+    when(mockedProjectService.getProfile(anything())).thenReturn(
+      new Promise<SFProjectProfileDoc>(resolve => (resolveFirstProfile = resolve))
+    );
+    env.hostComponent.id = env.notPresentTextDocId;
+    env.fixture.detectChanges();
+    flushMicrotasks();
+
+    // Before that check finishes, the user goes to a chapter that the project does have, and that check also takes a
+    // while. The first check finishes in the meantime.
+    when(mockedProjectService.getProfile(anything())).thenReturn(new Promise<SFProjectProfileDoc>(() => {}));
+    env.hostComponent.id = env.matTextDocId;
+    env.fixture.detectChanges();
+    resolveFirstProfile(env.realtimeService.subscribe(SFProjectProfileDoc.COLLECTION, 'project01'));
+    flushMicrotasks();
+
+    // The first check's result is for a chapter the user has left, so it must not replace 'loading' with "This chapter
+    // does not exist".
+    expect(env.component.placeholder).toEqual('text.loading');
+    discardPeriodicTasks();
   }));
 
   it('does not apply right to left for placeholder message', fakeAsync(() => {
