@@ -29,6 +29,7 @@ describe('LynxInsightActionPromptComponent', () => {
   let env: TestEnvironment;
 
   afterEach(() => {
+    env.fixture.destroy();
     env.editorRoot.remove();
   });
 

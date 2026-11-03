@@ -1,7 +1,7 @@
 import { NgClass } from '@angular/common';
 import { Component, DestroyRef, Input, NgZone, OnInit } from '@angular/core';
 import { LynxInsightType } from 'realtime-server/lib/esm/scriptureforge/models/lynx-insight';
-import { combineLatest, debounceTime, filter, map, startWith, switchMap } from 'rxjs';
+import { combineLatest, filter, map, startWith, switchMap } from 'rxjs';
 import { fromElementResize, quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { EditorReadyService } from '../base-services/editor-ready.service';
 import { LynxableEditor, LynxEditor } from '../lynx-editor';
@@ -48,8 +48,9 @@ export class LynxInsightScrollPositionIndicatorComponent implements OnInit {
 
     combineLatest([
       this.editorReadyService.listenEditorReadyState(this.lynxEditor.getEditor()).pipe(filter(loaded => loaded)),
-      fromElementResize(this.lynxEditor.getScrollingContainer(), this.ngZone).pipe(
-        debounceTime(SCROLL_POSITION_RESIZE_DEBOUNCE_MS),
+      // Watch the editor root, as the action prompt does: it holds the text, and a change in its width is what reflows
+      // the text and moves the insights. (In the Quill adapter it is also the scrolling container.)
+      fromElementResize(this.lynxEditor.getRoot(), this.ngZone, SCROLL_POSITION_RESIZE_DEBOUNCE_MS).pipe(
         startWith(undefined)
       )
     ])

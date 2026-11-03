@@ -66,13 +66,16 @@ describe('quietTakeUntilDestroyed', () => {
 });
 
 describe('fromElementResize', () => {
+  const debounceMs = 50;
   let element: HTMLElement;
+  let ngZone: NgZone;
 
   beforeEach(() => {
     element = document.createElement('div');
     element.style.width = '100px';
     element.style.height = '50px';
     document.body.appendChild(element);
+    ngZone = TestBed.inject(NgZone);
   });
 
   afterEach(() => {
@@ -84,47 +87,87 @@ describe('fromElementResize', () => {
     return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
   }
 
-  it('should emit when the element is resized without the window being resized', async () => {
-    const emissions: ResizeObserverEntry[][] = [];
-    const subscription = fromElementResize(element, TestBed.inject(NgZone)).subscribe(entries =>
-      emissions.push(entries)
-    );
+  /** Waits for a ResizeObserver notification and for the debounce after it to pass. */
+  async function settle(): Promise<void> {
     await nextFrames();
-    const emissionCountBeforeResize = emissions.length;
+    await new Promise(resolve => setTimeout(resolve, debounceMs + 50));
+  }
+
+  it('should emit when the element is resized without the window being resized', async () => {
+    let emissionCount = 0;
+    const subscription = fromElementResize(element, ngZone, debounceMs).subscribe(() => emissionCount++);
+    await settle();
+    const emissionCountBeforeResize = emissionCount;
 
     element.style.width = '300px';
-    await nextFrames();
+    await settle();
 
-    expect(emissions.length).toBe(emissionCountBeforeResize + 1);
-    expect(emissions[emissions.length - 1][0].contentRect.width).toBe(300);
+    expect(emissionCount).toBe(emissionCountBeforeResize + 1);
+    subscription.unsubscribe();
+  });
+
+  it('should emit once when the element is resized over several frames', async () => {
+    let emissionCount = 0;
+    const subscription = fromElementResize(element, ngZone, debounceMs).subscribe(() => emissionCount++);
+    await settle();
+    const emissionCountBeforeResize = emissionCount;
+
+    // Like a pane being dragged: a new size on each frame
+    for (const width of [150, 200, 250, 300]) {
+      element.style.width = `${width}px`;
+      await nextFrames();
+    }
+    await settle();
+
+    expect(emissionCount).toBe(emissionCountBeforeResize + 1);
     subscription.unsubscribe();
   });
 
   it('should stop observing when unsubscribed', async () => {
-    const emissions: ResizeObserverEntry[][] = [];
-    const subscription = fromElementResize(element, TestBed.inject(NgZone)).subscribe(entries =>
-      emissions.push(entries)
-    );
-    await nextFrames();
-    const emissionCountBeforeUnsubscribe = emissions.length;
+    let emissionCount = 0;
+    const subscription = fromElementResize(element, ngZone, debounceMs).subscribe(() => emissionCount++);
+    await settle();
+    const emissionCountBeforeUnsubscribe = emissionCount;
     subscription.unsubscribe();
 
     element.style.width = '300px';
-    await nextFrames();
+    await settle();
 
-    expect(emissions.length).toBe(emissionCountBeforeUnsubscribe);
+    expect(emissionCount).toBe(emissionCountBeforeUnsubscribe);
   });
 
   it('should emit inside the Angular zone so that change detection runs', async () => {
     const insideAngularZone: boolean[] = [];
-    const subscription = fromElementResize(element, TestBed.inject(NgZone)).subscribe(() =>
-      insideAngularZone.push(NgZone.isInAngularZone())
+    const subscription = ngZone.runOutsideAngular(() =>
+      fromElementResize(element, ngZone, debounceMs).subscribe(() => insideAngularZone.push(NgZone.isInAngularZone()))
     );
     element.style.width = '300px';
-    await nextFrames();
+    await settle();
 
     expect(insideAngularZone.length).toBeGreaterThan(0);
     expect(insideAngularZone.every(inZone => inZone)).toBeTrue();
+    subscription.unsubscribe();
+  });
+
+  it('should enter the Angular zone once per emission, not once per resize notification', async () => {
+    // A stand-in zone, because Angular itself also calls run() on the real one
+    const zone = {
+      run: jasmine.createSpy('run').and.callFake((fn: () => unknown) => fn()),
+      runOutsideAngular: jasmine.createSpy('runOutsideAngular').and.callFake((fn: () => unknown) => fn())
+    };
+    let emissionCount = 0;
+    const subscription = fromElementResize(element, zone as unknown as NgZone, debounceMs).subscribe(
+      () => emissionCount++
+    );
+    for (const width of [150, 200, 250, 300]) {
+      element.style.width = `${width}px`;
+      await nextFrames();
+    }
+    await settle();
+
+    expect(zone.runOutsideAngular).toHaveBeenCalledTimes(1);
+    expect(emissionCount).toBeGreaterThan(0);
+    expect(zone.run).toHaveBeenCalledTimes(emissionCount);
     subscription.unsubscribe();
   });
 });
