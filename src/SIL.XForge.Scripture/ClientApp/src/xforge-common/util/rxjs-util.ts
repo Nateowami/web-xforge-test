@@ -1,7 +1,7 @@
 import { DestroyRef, NgZone } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MonoTypeOperatorFunction, Observable, OperatorFunction } from 'rxjs';
-import { filter } from 'rxjs/operators';
+import { debounceTime, filter } from 'rxjs/operators';
 import { hasStringProp } from '../../type-utils';
 
 /**
@@ -41,16 +41,24 @@ export function quietTakeUntilDestroyed<T>(
 }
 
 /**
- * Creates an observable that emits whenever the size of the element changes, including changes that come from layout
- * around the element (such as a neighbouring pane being shown or hidden) rather than from the window being resized.
+ * Creates an observable that emits once the size of the element has stopped changing for `debounceMs`. This includes
+ * changes that come from layout around the element (such as a neighbouring pane being shown or hidden) rather than from
+ * the window being resized.
  *
- * Zone.js does not patch ResizeObserver, so emissions are made inside the given Angular zone. This lets them trigger
- * change detection, as `fromEvent` emissions do.
+ * ResizeObserver reports on every frame while the element is being resized. Those reports and the debounce timer run
+ * outside the Angular zone, and only the debounced emission enters it, so change detection runs once per resize rather
+ * than once per frame. (Zone.js does not patch ResizeObserver, so without that last step the emission would not trigger
+ * change detection at all.)
  */
-export function fromElementResize(element: Element, ngZone: NgZone): Observable<ResizeObserverEntry[]> {
-  return new Observable<ResizeObserverEntry[]>(subscriber => {
-    const resizeObserver = new ResizeObserver(entries => ngZone.run(() => subscriber.next(entries)));
+export function fromElementResize(element: Element, ngZone: NgZone, debounceMs: number): Observable<void> {
+  const resizes$ = new Observable<void>(subscriber => {
+    const resizeObserver = new ResizeObserver(() => subscriber.next());
     resizeObserver.observe(element);
     return () => resizeObserver.disconnect();
   });
+  return new Observable<void>(subscriber =>
+    ngZone.runOutsideAngular(() =>
+      resizes$.pipe(debounceTime(debounceMs)).subscribe(() => ngZone.run(() => subscriber.next()))
+    )
+  );
 }

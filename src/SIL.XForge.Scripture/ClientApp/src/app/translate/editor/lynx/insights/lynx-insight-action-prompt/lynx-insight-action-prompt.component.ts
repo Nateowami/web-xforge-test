@@ -2,19 +2,7 @@ import { Directionality } from '@angular/cdk/bidi';
 import { Component, DestroyRef, ElementRef, Input, NgZone, OnInit, Renderer2 } from '@angular/core';
 import { MatIcon } from '@angular/material/icon';
 import { Bounds } from 'quill';
-import {
-  combineLatest,
-  debounceTime,
-  EMPTY,
-  filter,
-  fromEvent,
-  iif,
-  map,
-  Observable,
-  startWith,
-  switchMap,
-  tap
-} from 'rxjs';
+import { combineLatest, EMPTY, filter, fromEvent, iif, map, Observable, startWith, switchMap, tap } from 'rxjs';
 import { fromElementResize, quietTakeUntilDestroyed } from 'xforge-common/util/rxjs-util';
 import { EditorReadyService } from '../base-services/editor-ready.service';
 import { LynxableEditor, LynxEditor, LynxTextModelConverter } from '../lynx-editor';
@@ -95,8 +83,7 @@ export class LynxInsightActionPromptComponent implements OnInit {
         })
       );
 
-    const editorResize$ = fromElementResize(this.lynxEditor.getRoot(), this.ngZone).pipe(
-      debounceTime(PROMPT_RESIZE_DEBOUNCE_MS),
+    const editorResize$ = fromElementResize(this.lynxEditor.getRoot(), this.ngZone, PROMPT_RESIZE_DEBOUNCE_MS).pipe(
       startWith(undefined)
     );
 
