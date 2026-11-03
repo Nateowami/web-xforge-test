@@ -40,6 +40,17 @@ export class MultiViewerComponent implements OnInit {
     return this.viewers.length > this.maxAvatars ? slice(this.viewers, 0, this.maxAvatars - 1) : this.viewers;
   }
 
+  /** The number of viewers that do not have their own avatar, and are summarized by the "+N" button. */
+  get hiddenViewerCount(): number {
+    return this.viewers.length - this.maxAvatars + 1;
+  }
+
+  /** Tooltip for the "+N" button, which counts only the viewers that the button stands for. */
+  get hiddenViewersLabel(): string {
+    return translate('multi_viewer.other_viewers', { count: this.hiddenViewerCount });
+  }
+
+  /** Heading of the menu, which lists every viewer. */
   get otherViewersLabel(): string {
     return translate('multi_viewer.other_viewers', { count: this.viewers.length });
   }
