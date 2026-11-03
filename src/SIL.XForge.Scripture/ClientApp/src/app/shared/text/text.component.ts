@@ -371,7 +371,11 @@ export class TextComponent implements AfterViewInit, OnDestroy {
         // There isn't any content to show, even if we were online. Setting the placeholder Input customizes this
         // no-content message.
         if (this._placeholder != null) return this._placeholder;
-        if (this.id == null || this.project == null) return this.transloco.translate('text.error');
+        // Without a text location there is no way to tell why there is nothing to show. Usually the host has not
+        // worked out the location yet, as when the editor is still loading a project. Show nothing rather than an
+        // error.
+        if (this.id == null) return '';
+        if (this.project == null) return this.transloco.translate('text.error');
 
         const bookId = Canon.bookNumberToId(this.id.bookNum);
         const bookName = this.transloco.translate(`canon.book_names.${bookId}`);

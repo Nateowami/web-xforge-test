@@ -73,21 +73,20 @@ describe('TextComponent', () => {
   });
 
   it('shows proper placeholder messages for situations', fakeAsync(() => {
-    // Suppose a user comes to a page with a text component, which has no content to show. The placeholder will be a
-    // 'no-content' indication, or that specified as a placeholder Input. Here we will not specify the placeholder
-    // input.
+    // Suppose a user comes to a page with a text component, and the page has not yet given the text component a
+    // location, as when the editor is still loading the project. There is no content to show, but nothing has gone
+    // wrong. Without a placeholder Input, the placeholder is blank rather than an error message (SF-3766).
     const env: TestEnvironment = new TestEnvironment({ placeholderInput: undefined });
     // No location is specified so no content is requested.
     expect(env.id).withContext('setup').toBeUndefined();
     const mockedQuill = new MockQuill('quill-editor');
     env.component.onEditorCreated(mockedQuill);
     env.waitForEditor();
-    // Placeholder should be no-content, as there is nothing to show.
-    expect(env.component.placeholder).toEqual('text.error');
-    // The user goes offline, but 'no-content' is still the placeholder.
+    expect(env.component.placeholder).toEqual('');
+    // The user goes offline. Being offline is not why there is nothing to show, so the placeholder stays blank.
     env.onlineStatus = false;
     env.waitForEditor();
-    expect(env.component.placeholder).toEqual('text.error');
+    expect(env.component.placeholder).toEqual('');
     env.onlineStatus = true;
     env.waitForEditor();
 
@@ -134,10 +133,11 @@ describe('TextComponent', () => {
     env.waitForEditor();
 
     // If the text component is of the source text, id can be set to undefined by editor.component when the current book
-    // is not present in the source text. Suppose this is so. Then the placeholder should indicate 'no-content'.
+    // is not present in the source text. Suppose this is so. The text component cannot tell why it has no location, so
+    // without a placeholder Input it shows nothing rather than an error message.
     env.id = undefined;
     env.waitForEditor();
-    expect(env.component.placeholder).toEqual('text.error');
+    expect(env.component.placeholder).toEqual('');
 
     // Suppose we are offline and id was set to undefined by editor.component because the current book is not present in
     // the source text. The problem is that the book is not present, not that we are offline. So the placeholder should
@@ -253,10 +253,10 @@ describe('TextComponent', () => {
   }));
 
   it('does not apply right to left for placeholder message', fakeAsync(() => {
-    const env = new TestEnvironment();
+    const env = new TestEnvironment({ placeholderInput: 'my custom no-content message' });
     env.hostComponent.isTextRightToLeft = true;
     env.waitForEditor();
-    expect(env.component.placeholder).toEqual('text.error');
+    expect(env.component.placeholder).toEqual('my custom no-content message');
     expect(env.component.isRtl).toBe(false);
     expect(env.fixture.nativeElement.querySelector('quill-editor[dir="auto"]')).not.toBeNull();
   }));
