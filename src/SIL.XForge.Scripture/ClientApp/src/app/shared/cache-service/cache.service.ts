@@ -32,27 +32,32 @@ export class CacheService {
         for (const chapter of text.chapters) {
           if (abort) return;
 
-          const textDocId = new TextDocId(project.id, text.bookNum, chapter.number, 'target');
-          if (await this.permissionsService.canAccessTextAsync(textDocId)) {
-            await this.projectService.getText(textDocId);
-          }
+          await this.cacheText(new TextDocId(project.id, text.bookNum, chapter.number, 'target'));
 
           if (text.hasSource && sourceId != null) {
-            const sourceTextDocId = new TextDocId(sourceId, text.bookNum, chapter.number, 'target');
-            if (await this.permissionsService.canAccessTextAsync(sourceTextDocId)) {
-              await this.projectService.getText(sourceTextDocId);
-            }
+            await this.cacheText(new TextDocId(sourceId, text.bookNum, chapter.number, 'target'));
           }
         }
       }
     } catch (error) {
       // A chapter that was loading when the project was deleted can fail to load. Caching has stopped, so ignore it.
-      // The same goes for a chapter the user lost access to while it was loading, such as when they were removed from
-      // the project. Caching is only a background convenience, so stop rather than report it as an error.
-      if (!abort && !isReadPermissionDenied(error)) throw error;
+      if (!abort) throw error;
     } finally {
       abortSub.unsubscribe();
       deleteSub.unsubscribe();
+    }
+  }
+
+  private async cacheText(textDocId: TextDocId): Promise<void> {
+    if (!(await this.permissionsService.canAccessTextAsync(textDocId))) return;
+    try {
+      await this.projectService.getText(textDocId);
+    } catch (error) {
+      // The local project and user docs can lag behind the server, so the server may refuse a chapter that
+      // canAccessTextAsync allowed: the user was just removed from the project, or a sync just took away their access
+      // to one book. Skip the chapter and carry on with the rest. Once the local docs catch up, canAccessTextAsync
+      // returns false, so a removed user does not keep requesting chapters.
+      if (!isReadPermissionDenied(error)) throw error;
     }
   }
 }

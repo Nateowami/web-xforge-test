@@ -121,16 +121,33 @@ describe('cache service', () => {
       flush();
     }));
 
-    it('stops quietly when the user can no longer read a text', fakeAsync(async () => {
-      // Such as when the user was removed from the project while its chapters were being cached
+    it('skips a text the user can no longer read and caches the rest', fakeAsync(async () => {
+      // Such as when a sync just took away the user's access to a book, but the local project doc does not show it yet
+      const env = new TestEnvironment();
+      let textsGotten = 0;
+      when(mockedProjectService.getText(anything())).thenCall(() => {
+        textsGotten++;
+        if (textsGotten === 10) return Promise.reject(env.readDeniedError());
+        return Promise.resolve();
+      });
+
+      await expectAsync(env.service.cache(env.projectDoc)).toBeResolved();
+      env.wait();
+
+      verify(mockedProjectService.getText(anything())).times(200 * 100 * 2);
+
+      flush();
+    }));
+
+    it('stops getting texts once the local docs show the user was removed from the project', fakeAsync(async () => {
       const env = new TestEnvironment();
       let textsGotten = 0;
       when(mockedProjectService.getText(anything())).thenCall(() => {
         textsGotten++;
         if (textsGotten === 10) {
-          return Promise.reject(
-            new Error('403: Permission denied (read), collection: texts, docId: project01:GEN:10:target')
-          );
+          // The server refuses the read first, then the user and project docs catch up with the removal
+          when(mockedPermissionService.canAccessTextAsync(anything())).thenResolve(false);
+          return Promise.reject(env.readDeniedError());
         }
         return Promise.resolve();
       });
@@ -176,6 +193,10 @@ class TestEnvironment {
     when(mockedProjectDoc.data).thenReturn(data);
     when(mockedProjectDoc.delete$).thenReturn(this.projectDeleted$);
     when(mockedPermissionService.canAccessTextAsync(anything())).thenResolve(true);
+  }
+
+  readDeniedError(): Error {
+    return new Error('403: Permission denied (read), collection: texts, docId: project01:GEN:10:target');
   }
 
   createTexts(): TextInfo[] {
