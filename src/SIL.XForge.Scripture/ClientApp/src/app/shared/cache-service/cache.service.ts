@@ -47,10 +47,20 @@ export class CacheService {
       }
     } catch (error) {
       // A chapter that was loading when the project was deleted can fail to load. Caching has stopped, so ignore it.
-      if (!abort) throw error;
+      // The same goes for a chapter the user lost access to while it was loading, such as when they were removed from
+      // the project. Caching is only a background convenience, so stop rather than report it as an error.
+      if (!abort && !isReadPermissionDenied(error)) throw error;
     } finally {
       abortSub.unsubscribe();
       deleteSub.unsubscribe();
     }
   }
+}
+
+/**
+ * Whether the realtime server refused to let the user read a doc. ShareDB gives such an error a generic code, so only its
+ * message (written by sharedb-access) identifies it.
+ */
+function isReadPermissionDenied(error: unknown): boolean {
+  return error instanceof Error && error.message.startsWith('403: Permission denied (read)');
 }

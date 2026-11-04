@@ -120,6 +120,38 @@ describe('cache service', () => {
 
       flush();
     }));
+
+    it('stops quietly when the user can no longer read a text', fakeAsync(async () => {
+      // Such as when the user was removed from the project while its chapters were being cached
+      const env = new TestEnvironment();
+      let textsGotten = 0;
+      when(mockedProjectService.getText(anything())).thenCall(() => {
+        textsGotten++;
+        if (textsGotten === 10) {
+          return Promise.reject(
+            new Error('403: Permission denied (read), collection: texts, docId: project01:GEN:10:target')
+          );
+        }
+        return Promise.resolve();
+      });
+
+      await expectAsync(env.service.cache(env.projectDoc)).toBeResolved();
+      env.wait();
+
+      verify(mockedProjectService.getText(anything())).times(10);
+
+      flush();
+    }));
+
+    it('reports other errors loading a text', fakeAsync(async () => {
+      const env = new TestEnvironment();
+      when(mockedProjectService.getText(anything())).thenReject(new Error('Something else went wrong'));
+
+      await expectAsync(env.service.cache(env.projectDoc)).toBeRejectedWithError('Something else went wrong');
+      env.wait();
+
+      flush();
+    }));
   });
 });
 

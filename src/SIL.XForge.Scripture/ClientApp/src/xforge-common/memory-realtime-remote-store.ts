@@ -1,6 +1,6 @@
 import { cloneDeep, isEqual } from 'lodash-es';
 import * as OTJson0 from 'ot-json0';
-import { EMPTY, Subject } from 'rxjs';
+import { EMPTY, Observable, Subject } from 'rxjs';
 import { OTType, types } from 'sharedb/lib/client';
 import { Callback, LocalPresence, Presence } from 'sharedb/lib/sharedb';
 import { Snapshot } from './models/snapshot';
@@ -66,7 +66,7 @@ export class MemoryRealtimeDocAdapter implements RealtimeDocAdapter {
   readonly remoteChanges$ = new Subject<any>();
   readonly create$ = new Subject<void>();
   readonly delete$ = new Subject<void>();
-  readonly idle$ = EMPTY;
+  readonly idle$: Observable<void> = EMPTY;
   readonly channelPresence: Presence = {
     remotePresences: {},
     subscribe: (_callback?: Callback) => {},

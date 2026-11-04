@@ -41,9 +41,9 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
     this._delete$ = merge(this.localDelete$, this.adapter.delete$);
     this.updateOfflineDataSub = merge(this.adapter.remoteChanges$, this.adapter.idle$, this.adapter.create$).subscribe(
       async () => {
-        if (this.subscribePromise != null) {
-          await this.subscribePromise;
-        }
+        // ShareDB also signals idle after a subscribe fails, e.g. when the user may no longer read this doc. The caller
+        // of subscribe() handles that failure, so awaiting it here must not raise it again as an unhandled rejection.
+        if (!(await this.subscribeSucceeded())) return;
         void this.updateOfflineData();
       }
     );
@@ -176,9 +176,7 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
    * @returns {Promise<void>} Resolves when the data has been successfully disposed.
    */
   async dispose(): Promise<void> {
-    if (this.subscribePromise != null) {
-      await this.subscribePromise;
-    }
+    await this.subscribeSucceeded();
     this.updateOfflineDataSub.unsubscribe();
     this.onDeleteSub.unsubscribe();
     await this.adapter.destroy();
@@ -269,6 +267,16 @@ export abstract class RealtimeDoc<T = any, Ops = any, P = any> {
       await promise;
     }
     await this.onSubscribe();
+  }
+
+  /** Waits for any subscribe in progress. Resolves false, rather than rejecting, if it failed. */
+  private async subscribeSucceeded(): Promise<boolean> {
+    try {
+      await this.subscribePromise;
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   private async checkExists(): Promise<void> {
