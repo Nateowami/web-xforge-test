@@ -424,9 +424,44 @@ describe('TextComponent', () => {
     const verse1 = env.component.editor!.container.querySelector('usx-segment[data-segment="verse_1_1"]')!;
     expect(verse1.getAttribute('data-style-description')).toBeNull();
 
-    // The title segment should still have its data attribute, but no pseudo element
-    expect(titleSegment.getAttribute('data-style-description')).toEqual('s - Heading - Section Level 1');
+    // The description is removed from the previously highlighted title
+    expect(titleSegment.getAttribute('data-style-description')).toBeNull();
     expect(window.getComputedStyle(titleSegment, '::before').content).toEqual('none');
+  }));
+
+  it('only shows the usfm label of the selected paragraph', fakeAsync(() => {
+    // Mirrors "\li2\n\v 2 ..." USFM: each list paragraph begins with a blank segment belonging to the previous verse
+    const textDocOps: RichText.DeltaOperation[] = [
+      { insert: { chapter: { number: '1', style: 'c' } } },
+      { insert: { verse: { number: '1', style: 'v' } } },
+      { insert: 'verse one', attributes: { segment: 'verse_1_1' } },
+      { insert: '\n', attributes: { para: { style: 'li2' } } },
+      { insert: { blank: true }, attributes: { segment: 'verse_1_1/li2_1' } },
+      { insert: { verse: { number: '2', style: 'v' } } },
+      { insert: 'verse two', attributes: { segment: 'verse_1_2' } },
+      { insert: '\n', attributes: { para: { style: 'li2' } } }
+    ];
+    const env = new TestEnvironment({ chapterNum: 1, textDoc: textDocOps });
+    env.waitForEditor();
+    const label = 'li2 - List Entry - Level 2';
+    const verse1 = env.component.editor!.container.querySelector('usx-segment[data-segment="verse_1_1"]')!;
+    const secondParaStart = env.component.editor!.container.querySelector(
+      'usx-segment[data-segment="verse_1_1/li2_1"]'
+    )!;
+
+    env.component.highlight(['verse_1_2']);
+    tick();
+    expect(secondParaStart.getAttribute('data-style-description')).toEqual(label);
+
+    // Verse 1 also highlights the second paragraph, which must not keep the label from when verse 2 was selected
+    env.component.highlight(['verse_1_1', 'verse_1_1/li2_1']);
+    tick();
+    env.fixture.detectChanges();
+    expect(verse1.getAttribute('data-style-description')).toEqual(label);
+    expect(secondParaStart.getAttribute('data-style-description')).toBeNull();
+    expect(window.getComputedStyle(secondParaStart, '::before').content).toEqual('none');
+
+    TestEnvironment.waitForPresenceTimer();
   }));
 
   it('correctly labels verse segments after line breaks', fakeAsync(() => {

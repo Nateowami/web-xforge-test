@@ -324,7 +324,7 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
    * op (this won't exist when the highlighted segment is in the first paragraph).
    * - Find the the first segment-creating op that comes after the end of the preceding paragraph, or the firs
    * segment-creating if there is no preceding paragraph).
-   * - Apply the style description to that segment.
+   * - Apply the style description to that segment, and remove it from any other segment.
    */
   updateUsfmDescription(): void {
     const editor = this.checkEditor();
@@ -345,19 +345,26 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
       delta.ops[indexOfParagraphStyle]?.attributes?.para ?? (delta.ops[indexOfParagraphStyle]?.attributes?.book as any)
     )?.style;
     const description = USFM_STYLE_DESCRIPTIONS[style];
-    if (typeof description !== 'string' || style === 'p') {
-      return;
+    let indexOfFirstSegmentInParagraph = -1;
+    if (typeof description === 'string' && style !== 'p') {
+      // Math.max will return -Infinity when there is no preceding paragraph
+      const precedingParagraphIndex = Math.max(...styleOpIndexes.filter(i => i < highlightedSegmentIndex));
+      indexOfFirstSegmentInParagraph = delta.ops.findIndex(
+        (op, i) => i > precedingParagraphIndex && op.attributes?.segment != null
+      );
     }
-
-    // Math.max will return -Infinity when there is no preceding paragraph
-    const precedingParagraphIndex = Math.max(...styleOpIndexes.filter(i => i < highlightedSegmentIndex));
-    const indexOfFirstSegmentInParagraph = delta.ops.findIndex(
-      (op, i) => i > precedingParagraphIndex && op.attributes?.segment != null
-    );
 
     for (const [i, op] of delta.ops.entries()) {
       const len = typeof op.insert === 'string' ? op.insert.length : 1;
-      clearDelta.retain(len, indexOfFirstSegmentInParagraph === i ? { 'style-description': description } : {});
+      let attrs: StringMap = {};
+      if (i === indexOfFirstSegmentInParagraph) {
+        attrs = { 'style-description': description };
+      } else if (op.attributes?.['style-description'] != null) {
+        // Remove the description from the previously selected paragraph. Otherwise it is shown again whenever that
+        // paragraph is highlighted, such as when the selected verse ends with a blank segment in that paragraph.
+        attrs = { 'style-description': null };
+      }
+      clearDelta.retain(len, attrs);
     }
     editor.updateContents(clearDelta, 'silent');
   }
