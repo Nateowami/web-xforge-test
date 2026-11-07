@@ -1804,7 +1804,7 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     this._segment.update(text, segmentRange);
   }
 
-  /** Filter the final segments if blank and on a new line segment (i.e. verse_2_4/p_1)
+  /** Filter the final segments if blank and on a new line segment (i.e. verse_2_4/p_1 or verse_2_4/li2_1)
    * Optionally filter extra verse segments (i.e. s_1)
    */
   private filterSegments(segmentRefs: string[], includeExtraVerseSegments = true): string[] {
@@ -1813,7 +1813,8 @@ export class TextComponent implements AfterViewInit, OnDestroy {
     const filteredSegments: string[] = [...segmentRefs];
     let lastSegment: string = filteredSegments[filteredSegments.length - 1];
     while (filteredSegments.length > 1) {
-      const isBlankNewlineSegment: boolean = /\/[pq]+/.test(lastSegment) && this.isSegmentBlank(lastSegment);
+      // Every paragraph that continues a verse has a ref like verse_2_4/<style>_N, whatever the paragraph style
+      const isBlankNewlineSegment: boolean = lastSegment.includes('/') && this.isSegmentBlank(lastSegment);
       if (!isBlankNewlineSegment && (includeExtraVerseSegments || VERSE_REGEX.test(lastSegment))) {
         break;
       }
