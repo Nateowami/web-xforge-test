@@ -393,6 +393,27 @@ describe('TextComponent', () => {
     TestEnvironment.waitForPresenceTimer();
   }));
 
+  it('does not highlight the blank list paragraph segment that starts the next verse', fakeAsync(() => {
+    const env = new TestEnvironment({ chapterNum: 2, textDoc: getListVerseTextDocOps(2) });
+    env.waitForEditor();
+    env.hostComponent.isReadOnly = true;
+
+    env.component.setSegment('verse_2_2');
+    tick();
+    env.fixture.detectChanges();
+    expect(env.component.segment!.ref).toEqual('verse_2_2');
+    env.component.highlight();
+    tick();
+    env.fixture.detectChanges();
+    expect(env.isSegmentHighlighted(2, '2')).toBe(true);
+    expect(env.isSegmentHighlighted(2, '2/li2_1')).toBe(true);
+    // verse_2_2/li2_2 is in the same paragraph as verse 3, so highlighting it would highlight verse 3's paragraph
+    expect(env.isSegmentHighlighted(2, '2/li2_2')).toBe(false);
+    expect(env.getSegment('verse_2_3')!.parentElement!.classList.contains('highlight-para')).toBe(false);
+
+    TestEnvironment.waitForPresenceTimer();
+  }));
+
   it('adds data attributes for usfm labels', fakeAsync(() => {
     const env: TestEnvironment = new TestEnvironment();
     env.fixture.detectChanges();
@@ -424,9 +445,35 @@ describe('TextComponent', () => {
     const verse1 = env.component.editor!.container.querySelector('usx-segment[data-segment="verse_1_1"]')!;
     expect(verse1.getAttribute('data-style-description')).toBeNull();
 
-    // The title segment should still have its data attribute, but no pseudo element
-    expect(titleSegment.getAttribute('data-style-description')).toEqual('s - Heading - Section Level 1');
+    // The label is removed from the previously highlighted title
+    expect(titleSegment.getAttribute('data-style-description')).toBeNull();
     expect(window.getComputedStyle(titleSegment, '::before').content).toEqual('none');
+  }));
+
+  it('only labels the paragraph of the highlighted verse', fakeAsync(() => {
+    const env = new TestEnvironment({ chapterNum: 2, textDoc: getListVerseTextDocOps(2) });
+    env.waitForEditor();
+    const labelledSegments = (): string[] =>
+      Array.from(env.component.editor!.container.querySelectorAll('usx-segment[data-style-description]')).map(e =>
+        e.getAttribute('data-segment')!
+      );
+
+    env.component.highlight(['verse_2_3']);
+    tick();
+    expect(labelledSegments()).toEqual(['verse_2_2/li2_2']);
+
+    // Selecting an earlier verse moves the label rather than adding a second one
+    env.component.highlight(['verse_2_2', 'verse_2_2/li2_1', 'verse_2_2/li2_2']);
+    tick();
+    expect(labelledSegments()).toEqual(['verse_2_1/li2_1']);
+    const verse3Paragraph = env.getSegment('verse_2_3')!.parentElement!;
+    expect(window.getComputedStyle(env.getSegment('verse_2_2/li2_2')!, '::before').content).toEqual('none');
+    expect(verse3Paragraph.classList.contains('highlight-para')).toBe(false);
+
+    // Selecting a verse in a p paragraph shows no label and removes the previous one
+    env.component.highlight(['verse_2_1']);
+    tick();
+    expect(labelledSegments()).toEqual([]);
   }));
 
   it('correctly labels verse segments after line breaks', fakeAsync(() => {
@@ -1887,6 +1934,32 @@ class HostComponent {
   onPresenceChange(remotePresences?: RemotePresences): void {
     this.remotePresences = remotePresences;
   }
+}
+
+/**
+ * A chapter laid out like USFM where each verse starts a list entry, i.e. "\li2" on its own line followed by "\v N".
+ * The blank segment before each verse marker is the last segment of the previous verse.
+ */
+function getListVerseTextDocOps(chapterNum: number): RichText.DeltaOperation[] {
+  return [
+    { insert: { chapter: { number: chapterNum.toString(), style: 'c' } } },
+    { insert: { blank: true }, attributes: { segment: 'p_1' } },
+    { insert: { verse: { number: '1', style: 'v' } } },
+    { insert: 'Verse one.', attributes: { segment: `verse_${chapterNum}_1` } },
+    { insert: '\n', attributes: { para: { style: 'p' } } },
+    { insert: { blank: true }, attributes: { segment: `verse_${chapterNum}_1/li2_1` } },
+    { insert: { verse: { number: '2', style: 'v' } } },
+    { insert: 'Verse two,', attributes: { segment: `verse_${chapterNum}_2` } },
+    { insert: '\n', attributes: { para: { style: 'li2' } } },
+    { insert: 'second line of verse two.', attributes: { segment: `verse_${chapterNum}_2/li2_1` } },
+    { insert: '\n', attributes: { para: { style: 'li2' } } },
+    { insert: { blank: true }, attributes: { segment: `verse_${chapterNum}_2/li2_2` } },
+    { insert: { verse: { number: '3', style: 'v' } } },
+    { insert: 'Verse three,', attributes: { segment: `verse_${chapterNum}_3` } },
+    { insert: '\n', attributes: { para: { style: 'li2' } } },
+    { insert: 'second line of verse three.', attributes: { segment: `verse_${chapterNum}_3/li2_1` } },
+    { insert: '\n', attributes: { para: { style: 'li2' } } }
+  ];
 }
 
 class TestEnvironment {

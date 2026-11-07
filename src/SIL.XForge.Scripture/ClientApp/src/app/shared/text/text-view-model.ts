@@ -345,19 +345,25 @@ export class TextViewModel implements OnDestroy, LynxTextModelConverter {
       delta.ops[indexOfParagraphStyle]?.attributes?.para ?? (delta.ops[indexOfParagraphStyle]?.attributes?.book as any)
     )?.style;
     const description = USFM_STYLE_DESCRIPTIONS[style];
-    if (typeof description !== 'string' || style === 'p') {
-      return;
-    }
+    const showDescription: boolean = typeof description === 'string' && style !== 'p';
 
     // Math.max will return -Infinity when there is no preceding paragraph
     const precedingParagraphIndex = Math.max(...styleOpIndexes.filter(i => i < highlightedSegmentIndex));
-    const indexOfFirstSegmentInParagraph = delta.ops.findIndex(
-      (op, i) => i > precedingParagraphIndex && op.attributes?.segment != null
-    );
+    const indexOfFirstSegmentInParagraph = showDescription
+      ? delta.ops.findIndex((op, i) => i > precedingParagraphIndex && op.attributes?.segment != null)
+      : -1;
 
     for (const [i, op] of delta.ops.entries()) {
       const len = typeof op.insert === 'string' ? op.insert.length : 1;
-      clearDelta.retain(len, indexOfFirstSegmentInParagraph === i ? { 'style-description': description } : {});
+      let attributes: StringMap = {};
+      if (indexOfFirstSegmentInParagraph === i) {
+        attributes = { 'style-description': description };
+      } else if (op.attributes?.['style-description'] != null) {
+        // Remove the label from the previously selected paragraph, otherwise it is shown again whenever that
+        // paragraph is highlighted
+        attributes = { 'style-description': null };
+      }
+      clearDelta.retain(len, attributes);
     }
     editor.updateContents(clearDelta, 'silent');
   }
