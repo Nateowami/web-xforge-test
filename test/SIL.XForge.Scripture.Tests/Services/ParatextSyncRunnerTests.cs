@@ -2641,6 +2641,44 @@ public class ParatextSyncRunnerTests
     }
 
     [Test]
+    public async Task SyncAsync_ResourceUsersWithExpiredTokensAreNotRemoved()
+    {
+        var env = new TestEnvironment();
+        env.SetupSFData(true, false, false, new Book("MAT", 2), new Book("MRK", 2));
+        env.SetupPTData(new Book("MAT", 2), new Book("MRK", 2));
+
+        // The source is a resource that both Paratext users of the target are already on
+        env.ParatextService.IsResource("source").Returns(true);
+        await env
+            .RealtimeService.GetRepository<SFProject>()
+            .UpdateAsync(
+                p => p.Id == "project02",
+                u =>
+                {
+                    u.Set(p => p.UserRoles["user01"], SFProjectRole.PTObserver);
+                    u.Set(p => p.UserRoles["user02"], SFProjectRole.PTObserver);
+                }
+            );
+
+        // user01 no longer has access to the resource, and user02's Paratext tokens cannot be refreshed
+        env.ParatextService.GetResourcePermissionAsync("source", "user01", Arg.Any<CancellationToken>())
+            .Returns(TextInfoPermission.None);
+        env.ParatextService.GetResourcePermissionAsync("source", "user02", Arg.Any<CancellationToken>())
+            .ThrowsAsync(new UnauthorizedAccessException());
+
+        // SUT
+        await env.Runner.RunAsync("project01", "user01", "project01", false, CancellationToken.None);
+
+        env.VerifyProjectSync(true);
+        await env.SFProjectService.Received(1).RemoveUserWithoutPermissionsCheckAsync("user01", "project02", "user01");
+        await env
+            .SFProjectService.DidNotReceive()
+            .RemoveUserWithoutPermissionsCheckAsync(Arg.Any<string>(), "project02", "user02");
+        SyncMetrics syncMetrics = env.GetSyncMetrics("project01");
+        Assert.That(syncMetrics.ResourceUsers, Is.EqualTo(new SyncMetricInfo(0, 1, 0)));
+    }
+
+    [Test]
     public async Task SyncAsync_BiblicalTermsAreUpdated()
     {
         var env = new TestEnvironment();
