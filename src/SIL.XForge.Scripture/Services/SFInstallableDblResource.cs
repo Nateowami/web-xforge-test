@@ -213,6 +213,9 @@ public class SFInstallableDblResource : InstallableResource
     /// userSecret
     /// or
     /// restClientFactory</exception>
+    /// <exception cref="UnauthorizedAccessException">
+    /// The DBL did not accept the user's token, so their permission is unknown.
+    /// </exception>
     public static bool CheckResourcePermission(
         string id,
         UserSecret userSecret,
@@ -263,8 +266,8 @@ public class SFInstallableDblResource : InstallableResource
             {
                 if (httpException.Response.StatusCode == HttpStatusCode.Unauthorized)
                 {
-                    // A 401 error means unauthorized (probably a bad token)
-                    return false;
+                    // A 401 error means the DBL did not accept the user's token, so their permission is unknown
+                    throw new UnauthorizedAccessException("The DBL did not accept the user's Paratext token.", ex);
                 }
                 else if (httpException.Response.StatusCode == HttpStatusCode.Forbidden)
                 {
