@@ -627,6 +627,9 @@ public class ParatextService : DisposableBase, IParatextService
     /// <remarks>
     /// See <see cref="TextInfoPermission" /> for permission values.
     /// </remarks>
+    /// <exception cref="UnauthorizedAccessException">
+    /// The user's Paratext tokens could not be refreshed, so their permission is unknown.
+    /// </exception>
     public async Task<string> GetResourcePermissionAsync(string paratextId, string sfUserId, CancellationToken token)
     {
         // See if the source is even a resource
@@ -636,27 +639,18 @@ public class ParatextService : DisposableBase, IParatextService
             return TextInfoPermission.None;
         }
 
-        bool canRead;
-        try
-        {
-            UserSecret userSecret = await GetUserSecretWithCurrentParatextTokens(sfUserId, token);
-            canRead = SFInstallableDblResource.CheckResourcePermission(
-                paratextId,
-                userSecret,
-                _paratextOptions.Value,
-                _restClientFactory,
-                _fileSystemService,
-                _jwtTokenHelper,
-                ScrTextCollection,
-                _exceptionHandler,
-                _dblServerUri
-            );
-        }
-        catch (UnauthorizedAccessException)
-        {
-            // This will usually be caused by refresh token expiration
-            canRead = false;
-        }
+        UserSecret userSecret = await GetUserSecretWithCurrentParatextTokens(sfUserId, token);
+        bool canRead = SFInstallableDblResource.CheckResourcePermission(
+            paratextId,
+            userSecret,
+            _paratextOptions.Value,
+            _restClientFactory,
+            _fileSystemService,
+            _jwtTokenHelper,
+            ScrTextCollection,
+            _exceptionHandler,
+            _dblServerUri
+        );
 
         return canRead ? TextInfoPermission.Read : TextInfoPermission.None;
     }
@@ -891,6 +885,7 @@ public class ParatextService : DisposableBase, IParatextService
     /// <remarks>
     /// See <see cref="TextInfoPermission" /> for permission values.
     /// A dictionary is returned, as permissions can be updated.
+    /// For a resource, users whose Paratext tokens cannot be refreshed are not in the dictionary.
     /// </remarks>
     public async Task<Dictionary<string, string>> GetPermissionsAsync(
         UserSecret userSecret,
@@ -907,7 +902,15 @@ public class ParatextService : DisposableBase, IParatextService
         {
             foreach (string sfUserId in sfProject.UserRoles.Keys)
             {
-                permissions.Add(sfUserId, await GetResourcePermissionAsync(sfProject.ParatextId, sfUserId, token));
+                try
+                {
+                    permissions.Add(sfUserId, await GetResourcePermissionAsync(sfProject.ParatextId, sfUserId, token));
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // The user's Paratext tokens have expired, so we cannot tell if they can still read the resource.
+                    // Leave them out, so that their existing permission is kept.
+                }
             }
         }
         else

@@ -382,11 +382,22 @@ public class ParatextSyncRunner : IParatextSyncRunner
                     ];
                     foreach (string uid in usersToCheck)
                     {
-                        string permission = await _paratextService.GetResourcePermissionAsync(
-                            sourceParatextId,
-                            uid,
-                            token
-                        );
+                        string permission;
+                        try
+                        {
+                            permission = await _paratextService.GetResourcePermissionAsync(
+                                sourceParatextId,
+                                uid,
+                                token
+                            );
+                        }
+                        catch (UnauthorizedAccessException)
+                        {
+                            // Expired Paratext tokens do not mean the user lost access, so leave them on the resource
+                            Log($"RunAsync: Could not check resource access for user {uid}, as their tokens expired.");
+                            continue;
+                        }
+
                         if (permission == TextInfoPermission.None)
                         {
                             await _projectService.RemoveUserWithoutPermissionsCheckAsync(uid, sourceProjectRef, uid);

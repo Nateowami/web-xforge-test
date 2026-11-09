@@ -2459,6 +2459,58 @@ public class SFProjectServiceTests
     }
 
     [Test]
+    public async Task UpdatePermissionsAsync_KeepsResourcePermissionsOfUsersWithExpiredTokens()
+    {
+        var env = new TestEnvironment();
+        env.ParatextService.GetBookList(Arg.Any<UserSecret>(), Resource01PTId).Returns([40, 41]);
+        await env
+            .RealtimeService.GetRepository<SFProject>()
+            .UpdateAsync(
+                p => p.Id == Resource01,
+                u =>
+                {
+                    u.Set(p => p.Texts[0].Permissions[User02], TextInfoPermission.None);
+                    u.Set(p => p.Texts[0].Permissions[User03], TextInfoPermission.None);
+                }
+            );
+
+        // User02 is not in the DBL permissions, as their Paratext tokens could not be refreshed
+        env.ParatextService.GetPermissionsAsync(
+                Arg.Any<UserSecret>(),
+                Arg.Is<SFProject>(p => p.ParatextId == Resource01PTId),
+                Arg.Any<IReadOnlyDictionary<string, string>>(),
+                0,
+                0,
+                Arg.Any<CancellationToken>()
+            )
+            .Returns(
+                new Dictionary<string, string>
+                {
+                    { User01, TextInfoPermission.None },
+                    { User03, TextInfoPermission.Read },
+                }
+            );
+
+        await using IConnection conn = await env.RealtimeService.ConnectAsync(User01);
+        IDocument<SFProject> resourceDoc = await conn.FetchAsync<SFProject>(Resource01);
+
+        // SUT
+        await env.Service.UpdatePermissionsAsync(User01, resourceDoc);
+
+        SFProject resource = env.GetProject(Resource01);
+        Assert.That(
+            resource.Texts[0].Permissions,
+            Is.EquivalentTo(
+                new Dictionary<string, string>
+                {
+                    { User01, TextInfoPermission.None },
+                    { User02, TextInfoPermission.None },
+                }
+            )
+        );
+    }
+
+    [Test]
     public async Task IsSourceProject_TrueWhenProjectIsDraftingSource()
     {
         var env = new TestEnvironment();
@@ -3484,6 +3536,19 @@ public class SFProjectServiceTests
         await Assert.ThrowsAsync<ForbiddenException>(() => env.Service.AddUserAsync(User01, Resource01, null));
 
         user = env.GetUser(User01);
+        Assert.That(user.Sites[SiteId].Projects.Contains(Resource01), Is.False, "user cannot access resource");
+    }
+
+    [Test]
+    public async Task AddUserToResourceProjectAsync_ExpiredTokensAreForbidden()
+    {
+        var env = new TestEnvironment();
+        env.ParatextService.GetResourcePermissionAsync(Arg.Any<string>(), User01, Arg.Any<CancellationToken>())
+            .ThrowsAsync(new UnauthorizedAccessException());
+
+        await Assert.ThrowsAsync<ForbiddenException>(() => env.Service.AddUserAsync(User01, Resource01, null));
+
+        User user = env.GetUser(User01);
         Assert.That(user.Sites[SiteId].Projects.Contains(Resource01), Is.False, "user cannot access resource");
     }
 

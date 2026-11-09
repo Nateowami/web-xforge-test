@@ -1781,6 +1781,14 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
                     .Where(kvp => kvp.Value != TextInfoPermission.Read)
                     .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
+                // Users whose DBL permission could not be checked (their Paratext tokens have expired)
+                // keep the permission they already have
+                foreach ((string uid, string permission) in text.Permissions)
+                {
+                    if (!resourcePermissions.ContainsKey(uid))
+                        bookPermissions[uid] = permission;
+                }
+
                 // Chapter permissions will not vary from book permissions for resources
                 chapterPermissionsInBook = chapters.Select(
                     (_, chapterIndex) => (textIndex, chapterIndex, new Dictionary<string, string>())
@@ -2321,11 +2329,21 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
             if (_paratextService.IsResource(project.ParatextId))
             {
                 // If the project is a resource, get the permission from the DBL
-                string permission = await _paratextService.GetResourcePermissionAsync(
-                    project.ParatextId,
-                    userId,
-                    CancellationToken.None
-                );
+                string permission;
+                try
+                {
+                    permission = await _paratextService.GetResourcePermissionAsync(
+                        project.ParatextId,
+                        userId,
+                        CancellationToken.None
+                    );
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // The user's Paratext tokens have expired, so we cannot confirm they have access
+                    return Attempt.Failure(ProjectRole.None);
+                }
+
                 return permission switch
                 {
                     TextInfoPermission.None => Attempt.Failure(ProjectRole.None),

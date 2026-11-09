@@ -447,6 +447,48 @@ public class ParatextServiceTests
     }
 
     [Test]
+    public async Task GetPermissionsAsync_ResourceUserWithExpiredTokensIsOmitted()
+    {
+        // Set up environment
+        var env = new TestEnvironment();
+        UserSecret user01Secret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        env.SetRestClientFactory(user01Secret);
+
+        // User02's Paratext tokens cannot be refreshed, either directly or from Auth0
+        UserSecret user02StoredSecret = await env.MockRepository.GetAsync(env.User02);
+        env.AddUserRepository([new User { Id = env.User02, AuthId = "auth02" }]);
+        env.MockAuthService.GetParatextTokensAsync("auth02", Arg.Any<CancellationToken>()).Returns(new Tokens());
+        env.MockJwtTokenHelper.RefreshAccessTokenAsync(
+                Arg.Any<ParatextOptions>(),
+                Arg.Is<Tokens>(t => t.AccessToken == user02StoredSecret.ParatextTokens.AccessToken),
+                Arg.Any<HttpClient>(),
+                Arg.Any<CancellationToken>()
+            )
+            .Throws(new UnauthorizedAccessException());
+
+        // Set up mock project
+        var projects = await env.RealtimeService.GetRepository<SFProject>().GetAllAsync();
+        SFProject project = projects.First();
+        project.ParatextId = env.Resource2Id;
+        project.UserRoles = new Dictionary<string, string>
+        {
+            { env.User01, SFProjectRole.PTObserver },
+            { env.User02, SFProjectRole.PTObserver },
+        };
+
+        // SUT
+        var permissions = await env.Service.GetPermissionsAsync(
+            user01Secret,
+            project,
+            new Dictionary<string, string>()
+        );
+        Assert.That(
+            permissions,
+            Is.EquivalentTo(new Dictionary<string, string> { { env.User01, TextInfoPermission.Read } })
+        );
+    }
+
+    [Test]
     public async Task GetPermissionsAsync_AllBooksAndAutomaticBooks_HasBookLevelPermission()
     {
         // Set up environment
@@ -559,7 +601,7 @@ public class ParatextServiceTests
     }
 
     [Test]
-    public async Task GetResourcePermissionAsync_UserNoResourcePermissionWhenUnauthorized()
+    public void GetResourcePermissionAsync_ThrowsWhenTokensCannotBeRefreshed()
     {
         // Set up environment
         var env = new TestEnvironment();
@@ -576,10 +618,12 @@ public class ParatextServiceTests
 
         // SUT
         var paratextId = env.Resource2Id;
-        var permission = await env.Service.GetResourcePermissionAsync(paratextId, env.User01, CancellationToken.None);
+        Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            env.Service.GetResourcePermissionAsync(paratextId, env.User01, CancellationToken.None)
+        );
 
-        Assert.That(permission, Is.EqualTo(TextInfoPermission.None));
-        await env
+        // Expired tokens must not be reported as no permission, as the user may still have access
+        _ = env
             .MockJwtTokenHelper.Received()
             .RefreshAccessTokenAsync(
                 Arg.Any<ParatextOptions>(),
