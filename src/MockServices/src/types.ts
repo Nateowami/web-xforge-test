@@ -1,10 +1,5 @@
 export type PtRole =
-  | 'pt_administrator'
-  | 'pt_consultant'
-  | 'pt_translator'
-  | 'pt_observer'
-  | 'pt_read'
-  | 'pt_write_note';
+  'pt_administrator' | 'pt_consultant' | 'pt_translator' | 'pt_observer' | 'pt_read' | 'pt_write_note';
 
 export interface PtIdentity {
   /** Paratext registry user id; the sub claim of PT tokens. */
@@ -32,6 +27,9 @@ export interface MockUser {
   /** Linked Paratext identity; when present, mgmt-API user responses include a paratext entry
    * in identities[] carrying freshly minted PT access/refresh tokens. */
   paratext?: PtIdentity;
+  /** Set by POST /_control/tokens/revoke (kind paratext): the PT refresh token Auth0 holds for this
+   * user is dead too, so mgmt-API responses carry a revoked one until the user logs in again. */
+  ptRefreshTokenRevoked?: boolean;
 }
 
 export interface MockProjectMember {

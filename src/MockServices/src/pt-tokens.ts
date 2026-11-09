@@ -11,14 +11,14 @@ export const PT_AUDIENCE = 'pt-registry';
  * by the registry's POST /api8/token). SF's JwtTokenHelper.GetParatextUsername reads the
  * username claim from this token directly.
  */
-export function mintPtAccessToken(identity: PtIdentity): string {
+export function mintPtAccessToken(identity: PtIdentity, expiresInSeconds = ACCESS_TOKEN_TTL_SECONDS): string {
   return signJwt(
     { username: identity.ptUsername },
     {
       issuer: REGISTRY_ISSUER,
       audience: PT_AUDIENCE,
       subject: identity.ptUserId,
-      expiresInSeconds: ACCESS_TOKEN_TTL_SECONDS
+      expiresInSeconds
     }
   );
 }

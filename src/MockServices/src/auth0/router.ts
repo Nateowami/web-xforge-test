@@ -149,6 +149,12 @@ auth0Router.get('/authorize', (req, res) => {
     return;
   }
 
+  // A fresh login gives Auth0 a live Paratext refresh token again.
+  if (user.ptRefreshTokenRevoked) {
+    user.ptRefreshTokenRevoked = false;
+    state.save();
+  }
+
   const code = `code_${crypto.randomBytes(16).toString('base64url')}`;
   state.authCodes.set(code, {
     code,
@@ -354,6 +360,13 @@ function requireManagementToken(req: express.Request, res: express.Response): bo
  * live PT access/refresh tokens — this is how the SF backend obtains PT tokens today.
  * TODO(fidelity): mirror a captured real Management API response field-for-field (spec §7).
  */
+function revokedPtRefreshToken(user: MockUser): string {
+  const token = mintPtRefreshToken(user);
+  const record = state.refreshTokens.get(token);
+  if (record !== undefined) record.revoked = true;
+  return token;
+}
+
 function managementProfile(user: MockUser): Record<string, unknown> {
   const [provider, ...rest] = user.authId.split('|');
   const identities: Record<string, unknown>[] = [
@@ -373,8 +386,9 @@ function managementProfile(user: MockUser): Record<string, unknown> {
       // UserService.GetIdpIdFromAuthId splits on '|' to recover the PT user id.
       user_id: `paratext|${user.paratext.ptUserId}`,
       isSocial: true,
-      access_token: mintPtAccessToken(user.paratext),
-      refresh_token: mintPtRefreshToken(user)
+      // With a dead refresh token, Auth0 still holds the last (long expired) access token.
+      access_token: mintPtAccessToken(user.paratext, user.ptRefreshTokenRevoked ? -3600 : undefined),
+      refresh_token: user.ptRefreshTokenRevoked ? revokedPtRefreshToken(user) : mintPtRefreshToken(user)
     });
     if (!identities.includes(ptIdentity)) identities.push(ptIdentity);
   }

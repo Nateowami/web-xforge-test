@@ -120,6 +120,13 @@ controlRouter.post(
         revoked += 1;
       }
     }
+    if (kind === undefined || kind === 'paratext') {
+      for (const user of state.users.values()) {
+        if (user.paratext !== undefined && (authId === undefined || user.authId === authId)) {
+          user.ptRefreshTokenRevoked = true;
+        }
+      }
+    }
     state.save();
     return { ok: true, revoked };
   })
