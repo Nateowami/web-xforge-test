@@ -621,7 +621,8 @@ public class ParatextService : DisposableBase, IParatextService
     /// See <see cref="TextInfoPermission" /> for permission values.
     /// </remarks>
     /// <exception cref="UnauthorizedAccessException">
-    /// The user's Paratext tokens could not be refreshed, so their permission is unknown.
+    /// The user's Paratext tokens could not be refreshed, or the DBL did not accept them,
+    /// so their permission is unknown.
     /// </exception>
     public async Task<string> GetResourcePermissionAsync(string paratextId, string sfUserId, CancellationToken token)
     {
@@ -901,8 +902,8 @@ public class ParatextService : DisposableBase, IParatextService
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    // The user's Paratext tokens have expired, so we cannot tell if they can still read the resource.
-                    // Leave them out, so that their existing permission is kept.
+                    // The user's Paratext tokens have expired or were rejected, so we cannot tell if they can
+                    // still read the resource. Leave them out, so that their existing permission is kept.
                 }
             }
         }

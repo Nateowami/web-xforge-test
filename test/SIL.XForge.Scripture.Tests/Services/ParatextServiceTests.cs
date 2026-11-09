@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -631,6 +632,44 @@ public class ParatextServiceTests
                 Arg.Any<HttpClient>(),
                 CancellationToken.None
             );
+    }
+
+    [Test]
+    public void GetResourcePermissionAsync_ThrowsWhenDblRejectsToken()
+    {
+        // Set up environment
+        var env = new TestEnvironment();
+        UserSecret user01Secret = TestEnvironment.MakeUserSecret(env.User01, env.Username01, env.ParatextUserId01);
+        ISFRestClientFactory mockRestClientFactory = env.SetRestClientFactory(user01Secret);
+
+        // The DBL responds with 401 Unauthorized, which ParatextData's RESTClient reports as an HttpException
+        // HttpWebResponse has no usable public constructor, so use the one .NET uses internally
+        var unauthorizedResponse = (HttpWebResponse)
+            Activator.CreateInstance(
+                typeof(HttpWebResponse),
+                BindingFlags.NonPublic | BindingFlags.Instance,
+                null,
+                [new HttpResponseMessage(HttpStatusCode.Unauthorized), null, null],
+                null
+            );
+        ISFRestClient unauthorizedMockClient = Substitute.For<ISFRestClient>();
+        unauthorizedMockClient
+            .Get(Arg.Any<string>())
+            .Throws(
+                HttpException.Create(
+                    new WebException("401", null, WebExceptionStatus.ProtocolError, unauthorizedResponse),
+                    (HttpWebRequest)null
+                )
+            );
+        mockRestClientFactory
+            .Create(Arg.Any<string>(), Arg.Is<UserSecret>(s => s.Id == env.User01))
+            .Returns(unauthorizedMockClient);
+
+        // SUT
+        // A rejected token must not be reported as no permission, as the user may still have access
+        Assert.ThrowsAsync<UnauthorizedAccessException>(() =>
+            env.Service.GetResourcePermissionAsync(env.Resource2Id, env.User01, CancellationToken.None)
+        );
     }
 
     [Test]

@@ -393,8 +393,11 @@ public class ParatextSyncRunner : IParatextSyncRunner
                         }
                         catch (UnauthorizedAccessException)
                         {
-                            // Expired Paratext tokens do not mean the user lost access, so leave them on the resource
-                            Log($"RunAsync: Could not check resource access for user {uid}, as their tokens expired.");
+                            // Expired or rejected Paratext tokens do not mean the user lost access,
+                            // so leave them on the resource
+                            Log(
+                                $"RunAsync: Could not check resource access for user {uid}, as their token was not accepted."
+                            );
                             continue;
                         }
 

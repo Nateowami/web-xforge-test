@@ -1781,7 +1781,7 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
                     .Where(kvp => kvp.Value != TextInfoPermission.Read)
                     .ToDictionary(kvp => kvp.Key, kvp => kvp.Value);
 
-                // Users whose DBL permission could not be checked (their Paratext tokens have expired)
+                // Users whose DBL permission could not be checked (their Paratext tokens have expired or were rejected)
                 // keep the permission they already have
                 foreach ((string uid, string permission) in text.Permissions)
                 {
@@ -2340,7 +2340,7 @@ public class SFProjectService : ProjectService<SFProject, SFProjectSecret>, ISFP
                 }
                 catch (UnauthorizedAccessException)
                 {
-                    // The user's Paratext tokens have expired, so we cannot confirm they have access
+                    // The user's Paratext tokens have expired or were rejected, so we cannot confirm they have access
                     return Attempt.Failure(ProjectRole.None);
                 }
 
