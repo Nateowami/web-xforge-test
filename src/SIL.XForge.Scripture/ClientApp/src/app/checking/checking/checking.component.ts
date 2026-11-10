@@ -587,6 +587,8 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
                     this.onRemovedFromProject();
                   } else if (!this.permissions.canAccessCommunityChecking(this.projectDoc)) {
                     this.onRemovedFromProject();
+                  } else {
+                    this.initQuestionFilters();
                   }
                 }
               });
@@ -1639,6 +1641,11 @@ export class CheckingComponent extends DataLoadingComponent implements OnInit, A
         .set(QuestionFilter.CurrentUserHasAnswered, 'question_filter_answered')
         .set(QuestionFilter.CurrentUserHasNotAnswered, 'question_filter_not_answered');
     }
+    // The available filters depend on the user's permissions, which can change while the page is open
+    if (!this.questionFilters.has(this.activeQuestionFilter)) {
+      this.resetFilter();
+    }
+    this.changeDetector.markForCheck();
   }
 
   private isInScope(verseRefData: VerseRefData | undefined): boolean {

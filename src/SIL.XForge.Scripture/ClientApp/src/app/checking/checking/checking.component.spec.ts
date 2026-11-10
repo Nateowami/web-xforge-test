@@ -954,6 +954,34 @@ describe('CheckingComponent', () => {
       discardPeriodicTasks();
     }));
 
+    it('updates filter options when the answer status permission changes', fakeAsync(() => {
+      const env = new TestEnvironment({
+        user: TRANSLATOR_USER,
+        projectBookRoute: 'JHN',
+        projectChapterRoute: 1,
+        questionScope: 'chapter'
+      });
+      expect(env.component.questionFilters.has(QuestionFilter.StatusExport)).toBe(false);
+      expect(env.component.questionFilters.has(QuestionFilter.CurrentUserHasAnswered)).toBe(true);
+
+      const answerStatusEdit: string = SF_PROJECT_RIGHTS.joinRight(SFProjectDomain.AnswerStatus, Operation.Edit);
+      env.setUserPermissions(TRANSLATOR_USER.id, [answerStatusEdit]);
+      expect(env.component.questionFilters.has(QuestionFilter.StatusExport)).toBe(true);
+      expect(env.component.questionFilters.has(QuestionFilter.CurrentUserHasAnswered)).toBe(false);
+
+      env.setQuestionFilter(QuestionFilter.StatusExport);
+      expect(env.questions.length).toEqual(2);
+
+      // Revoking the permission removes the filter the user had applied, so it must not stay in effect
+      env.setUserPermissions(TRANSLATOR_USER.id, []);
+      expect(env.component.questionFilters.has(QuestionFilter.StatusExport)).toBe(false);
+      expect(env.component.questionFilters.has(QuestionFilter.CurrentUserHasAnswered)).toBe(true);
+      expect(env.component.activeQuestionFilter).toEqual(QuestionFilter.None);
+      expect(env.component.isQuestionFilterApplied).toBe(false);
+      expect(env.questions.length).toEqual(14);
+      env.waitForQuestionTimersToComplete();
+    }));
+
     it('can filter questions', fakeAsync(() => {
       const env = new TestEnvironment({
         user: ADMIN_USER,
@@ -3574,6 +3602,12 @@ class TestEnvironment {
     );
     tick();
     this.fixture.detectChanges();
+  }
+
+  /** Changes a user's permissions as a remote op, as when an admin edits them on the Users page. */
+  setUserPermissions(userId: string, permissions: string[]): void {
+    this.component.projectDoc!.submitJson0Op(op => op.set(p => p.userPermissions[userId], permissions), false);
+    this.waitForSliderUpdate();
   }
 
   setTextFieldValue(textField: DebugElement, value: string): void {
