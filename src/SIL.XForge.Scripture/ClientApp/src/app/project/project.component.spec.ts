@@ -13,7 +13,7 @@ import {
   SFProjectUserConfig
 } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config';
 import { createTestProjectUserConfig } from 'realtime-server/lib/esm/scriptureforge/models/sf-project-user-config-test-data';
-import { of } from 'rxjs';
+import { of, Subject } from 'rxjs';
 import { anything, deepEqual, mock, verify, when } from 'ts-mockito';
 import { AuthService } from 'xforge-common/auth.service';
 import { DialogService } from 'xforge-common/dialog.service';
@@ -26,6 +26,7 @@ import { ResumeCheckingService } from '../checking/checking/resume-checking.serv
 import { SFProjectProfileDoc } from '../core/models/sf-project-profile-doc';
 import { SFProjectUserConfigDoc } from '../core/models/sf-project-user-config-doc';
 import { SF_TYPE_REGISTRY } from '../core/models/sf-type-registry';
+import { SFProjectService } from '../core/sf-project.service';
 import { ProjectComponent } from './project.component';
 
 const mockedAuthService = mock(AuthService);
@@ -148,6 +149,45 @@ describe('ProjectComponent', () => {
   it('do not navigate when project does not exist', fakeAsync(() => {
     const env = new TestEnvironment();
     env.fixture.detectChanges();
+    tick();
+
+    verify(mockedRouter.navigate(anything(), anything())).never();
+    expect().nothing();
+  }));
+
+  it('does not navigate if the user left the page while the project was loading', fakeAsync(() => {
+    const env = new TestEnvironment();
+    env.setProjectData({ selectedTask: 'translate', memberProjectIdSuffixes: [1] });
+    // Offline, the user config is only fetched once the app is back online
+    const projectService = TestBed.inject(SFProjectService);
+    const getUserConfig = projectService.getUserConfig.bind(projectService);
+    let releaseUserConfig!: () => void;
+    spyOn(projectService, 'getUserConfig').and.callFake(async (projectId: string, userId: string) => {
+      await new Promise<void>(resolve => (releaseUserConfig = resolve));
+      return getUserConfig(projectId, userId);
+    });
+    env.fixture.detectChanges();
+    tick();
+
+    // The user navigates to another page of the project, then the app comes back online
+    env.fixture.destroy();
+    releaseUserConfig();
+    tick();
+
+    verify(mockedRouter.navigate(anything(), anything())).never();
+    expect().nothing();
+  }));
+
+  it('does not navigate to checking if the user left the page while the resume link was loading', fakeAsync(() => {
+    const resumeLink$ = new Subject<string[]>();
+    const env = new TestEnvironment();
+    when(mockResumeCheckingService.resumeLink$).thenReturn(resumeLink$);
+    env.setProjectData({ selectedTask: 'checking', memberProjectIdSuffixes: [1] });
+    env.fixture.detectChanges();
+    tick();
+
+    env.fixture.destroy();
+    resumeLink$.next(['projects', 'project1', 'checking', 'JHN', '1']);
     tick();
 
     verify(mockedRouter.navigate(anything(), anything())).never();

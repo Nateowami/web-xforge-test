@@ -111,6 +111,23 @@ describe('SyncComponent', () => {
     verify(mockedProjectService.onlineSync(anything())).never();
   }));
 
+  it('does not show the serval admin read-only notice while the project is still loading', fakeAsync(() => {
+    const env = new TestEnvironment({ isServalAdmin: true, isProjectLoadPending: true });
+    expect(env.servalAdminReadOnlyNotice).toBeNull();
+
+    env.loadProject();
+    expect(env.servalAdminReadOnlyNotice).toBeNull();
+    expect(env.syncButton.nativeElement.disabled).toBe(false);
+  }));
+
+  it('shows the serval admin read-only notice once the project has loaded', fakeAsync(() => {
+    const env = new TestEnvironment({ isServalAdmin: true, isUserOnProject: false, isProjectLoadPending: true });
+    expect(env.servalAdminReadOnlyNotice).toBeNull();
+
+    env.loadProject();
+    expect(env.servalAdminReadOnlyNotice).not.toBeNull();
+  }));
+
   it('shows the sync log to serval admins', fakeAsync(() => {
     const env = new TestEnvironment({ isServalAdmin: true });
     expect(env.syncLog).not.toBeNull();
@@ -309,6 +326,8 @@ interface SyncComponentTestConstructorArgs {
   isUserOnProject?: boolean;
   isResourceProject?: boolean;
   userRole?: SFProjectRole;
+  /** Hold back the project doc until loadProject() is called, as when the doc is fetched after reconnecting. */
+  isProjectLoadPending?: boolean;
 }
 
 class TestEnvironment {
@@ -321,6 +340,7 @@ class TestEnvironment {
 
   private readonly realtimeService: TestRealtimeService = TestBed.inject<TestRealtimeService>(TestRealtimeService);
   private isLoading: boolean = false;
+  private releaseProjectLoad?: () => void;
 
   constructor(args: SyncComponentTestConstructorArgs = {}) {
     when(mockedProjectNotificationService.syncProgress$(anything())).thenReturn(NEVER);
@@ -374,13 +394,20 @@ class TestEnvironment {
       })
     });
 
-    when(mockedProjectService.get(anyString())).thenCall(projectId =>
-      this.realtimeService.subscribe(SFProjectDoc.COLLECTION, projectId)
-    );
+    when(mockedProjectService.get(anyString())).thenCall(async projectId => {
+      if (args.isProjectLoadPending) await new Promise<void>(resolve => (this.releaseProjectLoad = resolve));
+      return this.realtimeService.subscribe(SFProjectDoc.COLLECTION, projectId);
+    });
 
     this.fixture = TestBed.createComponent(SyncComponent);
     this.component = this.fixture.componentInstance;
     this.fixture.detectChanges();
+    tick();
+    this.fixture.detectChanges();
+  }
+
+  loadProject(): void {
+    this.releaseProjectLoad!();
     tick();
     this.fixture.detectChanges();
   }
