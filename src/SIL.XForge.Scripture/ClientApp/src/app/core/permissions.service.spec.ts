@@ -202,6 +202,45 @@ describe('PermissionsService', () => {
     });
   });
 
+  describe('isSyncReadOnlyForServalAdmin and areProjectSettingsReadOnlyForServalAdmin', () => {
+    it('are false until the project doc has data, since the role is not known yet', () => {
+      const env = new TestEnvironment();
+      when(mockedAuthService.currentUserRoles).thenReturn([SystemRole.ServalAdmin]);
+      expect(env.service.isSyncReadOnlyForServalAdmin(undefined)).toBe(false);
+      expect(env.service.areProjectSettingsReadOnlyForServalAdmin(undefined)).toBe(false);
+      when(mockedProjectDoc.data).thenReturn(undefined);
+      expect(env.service.isSyncReadOnlyForServalAdmin(env.projectDoc)).toBe(false);
+      expect(env.service.areProjectSettingsReadOnlyForServalAdmin(env.projectDoc)).toBe(false);
+    });
+
+    it('are true for a serval admin without the rights for the page', () => {
+      const env = new TestEnvironment();
+      env.setProjectType('project');
+      env.setCurrentUser(SFProjectRole.ParatextObserver);
+      when(mockedAuthService.currentUserRoles).thenReturn([SystemRole.ServalAdmin]);
+      expect(env.service.isSyncReadOnlyForServalAdmin(env.projectDoc)).toBe(true);
+      expect(env.service.areProjectSettingsReadOnlyForServalAdmin(env.projectDoc)).toBe(true);
+    });
+
+    it('are false for a serval admin with the rights for the page', () => {
+      const env = new TestEnvironment();
+      env.setProjectType('project');
+      env.setCurrentUser(SFProjectRole.ParatextAdministrator);
+      when(mockedAuthService.currentUserRoles).thenReturn([SystemRole.ServalAdmin]);
+      expect(env.service.isSyncReadOnlyForServalAdmin(env.projectDoc)).toBe(false);
+      expect(env.service.areProjectSettingsReadOnlyForServalAdmin(env.projectDoc)).toBe(false);
+    });
+
+    it('are false for users who are not serval admins', () => {
+      const env = new TestEnvironment();
+      env.setProjectType('project');
+      env.setCurrentUser(SFProjectRole.ParatextObserver);
+      when(mockedAuthService.currentUserRoles).thenReturn([]);
+      expect(env.service.isSyncReadOnlyForServalAdmin(env.projectDoc)).toBe(false);
+      expect(env.service.areProjectSettingsReadOnlyForServalAdmin(env.projectDoc)).toBe(false);
+    });
+  });
+
   describe('canSync', () => {
     it('returns false when projectDoc.data is undefined', fakeAsync(() => {
       const env = new TestEnvironment();

@@ -125,6 +125,17 @@ export class PermissionsService {
     return projectDoc.data != null && (this.isServalAdmin || this.canInitiateSync(projectDoc));
   }
 
+  /** Whether the sync page is read-only because the user is only there by virtue of being a serval admin. */
+  isSyncReadOnlyForServalAdmin(projectDoc: SFProjectProfileDoc | undefined): boolean {
+    return this.isReadOnlyForServalAdmin(projectDoc, doc => this.canInitiateSync(doc));
+  }
+
+  /** Whether the settings and users pages are read-only because the user is only there by virtue of being a serval
+   * admin. */
+  areProjectSettingsReadOnlyForServalAdmin(projectDoc: SFProjectProfileDoc | undefined): boolean {
+    return this.isReadOnlyForServalAdmin(projectDoc, doc => this.canEditProjectSettings(doc));
+  }
+
   /** Whether the user has the project role required to edit project settings and manage project users. */
   canEditProjectSettings(projectDoc: SFProjectProfileDoc, userId?: string): boolean {
     return this.isProjectAdmin(projectDoc, userId);
@@ -199,5 +210,15 @@ export class PermissionsService {
       SFProjectDomain.BiblicalTerms,
       Operation.View
     );
+  }
+
+  /** The user has no role that allows editing the page and is a serval admin. Unknown (false) until the project has
+   * loaded: offline, an uncached project doc only loads once the app is back online, and until then the user's role
+   * is unknown, not missing. */
+  private isReadOnlyForServalAdmin(
+    projectDoc: SFProjectProfileDoc | undefined,
+    hasEditRights: (projectDoc: SFProjectProfileDoc) => boolean
+  ): boolean {
+    return projectDoc?.data != null && this.isServalAdmin && !hasEditRights(projectDoc);
   }
 }
