@@ -150,6 +150,34 @@ describe('SettingsComponent', () => {
       expect(env.component.form.enabled).toBe(true);
     }));
 
+    it('does not show the serval admin read-only notice while the project is still loading', fakeAsync(() => {
+      const env = new TestEnvironment();
+      when(mockedAuthService.currentUserRoles).thenReturn([SystemRole.ServalAdmin]);
+      const loadProject = env.holdBackProjectLoad();
+      env.setupProject();
+      env.wait();
+      expect(env.servalAdminReadOnlyNotice).toBeNull();
+
+      loadProject();
+      env.wait();
+      expect(env.servalAdminReadOnlyNotice).toBeNull();
+      expect(env.component.form.enabled).toBe(true);
+    }));
+
+    it('shows the serval admin read-only notice once the project has loaded', fakeAsync(() => {
+      const env = new TestEnvironment();
+      when(mockedAuthService.currentUserRoles).thenReturn([SystemRole.ServalAdmin]);
+      when(mockedUserService.currentUserId).thenReturn('serval01');
+      const loadProject = env.holdBackProjectLoad();
+      env.setupProject();
+      env.wait();
+      expect(env.servalAdminReadOnlyNotice).toBeNull();
+
+      loadProject();
+      env.wait();
+      expect(env.servalAdminReadOnlyNotice).not.toBeNull();
+    }));
+
     it('is read-only for a serval admin who is not on the project', fakeAsync(() => {
       const env = new TestEnvironment();
       when(mockedAuthService.currentUserRoles).thenReturn([SystemRole.ServalAdmin]);
@@ -942,6 +970,18 @@ class TestEnvironment {
   setBasedOnValue(value: string): void {
     this.basedOnSelectComponent.value = value;
     this.wait();
+  }
+
+  /** Hold back the project doc until the returned function is called, as when the doc is fetched after the app
+   * comes back online. */
+  holdBackProjectLoad(): () => void {
+    let release!: () => void;
+    const released = new Promise<void>(resolve => (release = resolve));
+    when(mockedSFProjectService.get('project01')).thenCall(async () => {
+      await released;
+      return this.realtimeService.subscribe(SFProjectDoc.COLLECTION, 'project01');
+    });
+    return release;
   }
 
   wait(): void {
