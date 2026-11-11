@@ -80,7 +80,9 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
       const projectUserConfig = projectUserConfigDoc.data;
       const project = projectDoc.data;
 
-      if (project == null || projectUserConfig == null) {
+      // Offline, these docs only load once the app is back online. By then the user may have moved on to another page
+      // of the project, which a late redirect to the default task would yank them away from.
+      if (this.destroyRef.destroyed || project == null || projectUserConfig == null) {
         return;
       }
 
@@ -136,6 +138,7 @@ export class ProjectComponent extends DataLoadingComponent implements OnInit {
   private async navigateToChecking(projectId: string, task: TaskType = 'checking'): Promise<void> {
     const defaultCheckingLink: string[] = ['/projects', projectId, task];
     const link = await lastValueFrom(this.resumeCheckingService.resumeLink$.pipe(first()));
+    if (this.destroyRef.destroyed) return;
 
     void this.router.navigate(link ?? defaultCheckingLink, { replaceUrl: true });
   }
