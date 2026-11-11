@@ -203,10 +203,9 @@ export class SettingsComponent extends DataLoadingComponent implements OnInit {
     return this.projectDoc != null && this.permissionsService.canEditProjectSettings(this.projectDoc);
   }
 
-  /** Whether the page is read-only because the user is only here by virtue of being a serval admin. Unknown (false)
-   * until the project has loaded. */
+  /** Whether the page is read-only because the user is only here by virtue of being a serval admin. */
   get isServalAdminReadOnly(): boolean {
-    return this.projectDoc?.data != null && !this.hasEditRights && this.permissionsService.isServalAdmin;
+    return this.permissionsService.areProjectSettingsReadOnlyForServalAdmin(this.projectDoc);
   }
 
   ngOnInit(): void {

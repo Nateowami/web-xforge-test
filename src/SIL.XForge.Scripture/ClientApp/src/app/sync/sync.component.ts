@@ -85,10 +85,9 @@ export class SyncComponent extends DataLoadingComponent implements OnInit {
     return this.projectDoc != null && this.permissionsService.canInitiateSync(this.projectDoc);
   }
 
-  /** Whether the page is read-only because the user is only here by virtue of being a serval admin. Unknown (false)
-   * until the project has loaded, which can take a while after the app comes back online. */
+  /** Whether the page is read-only because the user is only here by virtue of being a serval admin. */
   get isServalAdminReadOnly(): boolean {
-    return this.projectDoc?.data != null && !this.canInitiateSync && this.permissionsService.isServalAdmin;
+    return this.permissionsService.isSyncReadOnlyForServalAdmin(this.projectDoc);
   }
 
   /** For now the sync log is only shown to serval and system administrators, but it may be opened up to project
