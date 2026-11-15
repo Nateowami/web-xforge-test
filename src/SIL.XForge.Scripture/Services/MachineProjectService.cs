@@ -8,6 +8,7 @@ using System.Linq;
 using System.Net;
 using System.Security.Cryptography;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Autofac.Extras.DynamicProxy;
@@ -41,7 +42,7 @@ namespace SIL.XForge.Scripture.Services;
 /// Provides functionality to add, remove, and build Machine projects.
 /// </summary>
 [Intercept(typeof(EventMetricLogger))]
-public class MachineProjectService(
+public partial class MachineProjectService(
     ICorporaClient corporaClient,
     IDataFilesClient dataFilesClient,
     IEmailService emailService,
@@ -73,6 +74,12 @@ public class MachineProjectService(
     internal const string TagTest = "sf-test";
     internal const string TagStaging = "sf-qa";
     internal const string TagProduction = "sf-live";
+
+    /// <summary>
+    /// Matches a run of line breaks and tabs, with any whitespace around it.
+    /// </summary>
+    [GeneratedRegex(@"\s*[\r\n\t]+\s*", RegexOptions.CultureInvariant)]
+    private static partial Regex LineBreakOrTabRegex();
 
     /// <summary>
     /// Executes <see cref="BuildProjectAsync"/>, and traps any errors during execution.
@@ -989,9 +996,7 @@ public class MachineProjectService(
 
             // Serval reads one segment per line, so a line break in the text (e.g. in a spreadsheet cell) would
             // start a new row keyed by its line number, and a tab would be read as the start of the flags column.
-            sb.Append(
-                segment.SegmentText.Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ')
-            );
+            sb.Append(LineBreakOrTabRegex().Replace(segment.SegmentText, " "));
             sb.Append('\t');
             if (segment.IsSentenceStart)
             {
