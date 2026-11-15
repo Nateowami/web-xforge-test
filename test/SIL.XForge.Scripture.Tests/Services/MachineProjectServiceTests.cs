@@ -1533,9 +1533,12 @@ public class MachineProjectServiceTests
                 new SFTextSegment(["1"], "first", false, false, false),
                 new SFTextSegment(["2"], "line\nfeed, crlf\r\nand\rcarriage return", false, false, false),
                 new SFTextSegment(["3"], "tab\there", true, false, false),
+                new SFTextSegment(["4"], "spaced \n out, blank\r\n\r\nline, tab \t\t end", false, false, false),
             ],
         };
-        const string expected = "001\tfirst\n002\tline feed, crlf and carriage return\n003\ttab here\tss\n";
+        const string expected =
+            "001\tfirst\n002\tline feed, crlf and carriage return\n003\ttab here\tss\n"
+            + "004\tspaced out, blank line, tab end\n";
 
         // SUT
         string actual = env.Service.GetTextFileData(text);
