@@ -986,7 +986,12 @@ public class MachineProjectService(
         {
             sb.Append(segment.SegmentRef);
             sb.Append('\t');
-            sb.Append(segment.SegmentText);
+
+            // Serval reads one segment per line, so a line break in the text (e.g. in a spreadsheet cell) would
+            // start a new row keyed by its line number, and a tab would be read as the start of the flags column.
+            sb.Append(
+                segment.SegmentText.Replace("\r\n", " ").Replace('\r', ' ').Replace('\n', ' ').Replace('\t', ' ')
+            );
             sb.Append('\t');
             if (segment.IsSentenceStart)
             {

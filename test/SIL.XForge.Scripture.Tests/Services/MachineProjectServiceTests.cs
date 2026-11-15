@@ -1521,6 +1521,28 @@ public class MachineProjectServiceTests
     }
 
     [Test]
+    public void GetTextFileData_ReplacesLineBreaksAndTabsInSegmentText()
+    {
+        // Set up test environment
+        var env = new TestEnvironment();
+        var text = new SFTrainingText
+        {
+            Id = $"{Project01}_{Data01}",
+            Segments =
+            [
+                new SFTextSegment(["1"], "first", false, false, false),
+                new SFTextSegment(["2"], "line\nfeed, crlf\r\nand\rcarriage return", false, false, false),
+                new SFTextSegment(["3"], "tab\there", true, false, false),
+            ],
+        };
+        const string expected = "001\tfirst\n002\tline feed, crlf and carriage return\n003\ttab here\tss\n";
+
+        // SUT
+        string actual = env.Service.GetTextFileData(text);
+        Assert.AreEqual(expected, actual);
+    }
+
+    [Test]
     public void GetTargetLanguage_ReturnSourceIfEcho()
     {
         // Set up test environment
