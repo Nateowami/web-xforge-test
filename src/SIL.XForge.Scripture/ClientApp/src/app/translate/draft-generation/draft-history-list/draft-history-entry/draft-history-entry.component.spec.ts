@@ -534,6 +534,17 @@ describe('DraftHistoryEntryComponent', () => {
         header.getBoundingClientRect().right - parseFloat(getComputedStyle(header).paddingRight);
       expect(status.getBoundingClientRect().right).toBeLessThanOrEqual(headerContentRight);
     }));
+
+    it('should not render an empty confidence item when confidence is not low', fakeAsync(() => {
+      component.entry = { ...getStandardBuildDto({ translateBooks: ['MRK'] }), state: BuildStates.Completed };
+      component.isLatestBuild = true;
+      tick();
+      fixture.detectChanges();
+
+      const status: HTMLElement = fixture.nativeElement.querySelector('.status');
+      expect(status.querySelector('app-display-confidence')).toBeNull();
+      expect(status.textContent).toContain('Completed');
+    }));
   });
 
   describe('formatDate', () => {
