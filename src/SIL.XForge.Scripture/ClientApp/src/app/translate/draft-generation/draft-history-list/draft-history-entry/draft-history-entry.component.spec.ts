@@ -17,7 +17,12 @@ import { SFProjectProfileDoc } from '../../../../core/models/sf-project-profile-
 import { SF_TYPE_REGISTRY } from '../../../../core/models/sf-type-registry';
 import { PermissionsService } from '../../../../core/permissions.service';
 import { SFProjectService } from '../../../../core/sf-project.service';
-import { BuildDto, BuildExecutionData } from '../../../../machine-api/build-dto';
+import {
+  BuildDto,
+  BuildExecutionData,
+  ServalDiagnosticCode,
+  ServalDiagnosticSeverity
+} from '../../../../machine-api/build-dto';
 import { BuildStates } from '../../../../machine-api/build-states';
 import { DraftGenerationService } from '../../draft-generation.service';
 import { DraftOptionsService, FORMATTING_OPTIONS_SUPPORTED_DATE } from '../../draft-options.service';
@@ -493,6 +498,41 @@ describe('DraftHistoryEntryComponent', () => {
       expect(component.draftIsAvailable).toBe(true);
       expect(fixture.nativeElement.querySelector('.format-usfm')).toBeNull();
       expect(component.formattingOptionsSupported).toBe(false);
+    }));
+  });
+
+  describe('status', () => {
+    it('should keep low confidence and completed status within the header on a narrow screen', fakeAsync(() => {
+      fixture.nativeElement.style.display = 'block';
+      fixture.nativeElement.style.width = '375px';
+      component.entry = {
+        ...getStandardBuildDto({
+          translateBooks: ['MRK', '1TH', '2TH'],
+          executionData: {
+            diagnostics: [
+              {
+                code: ServalDiagnosticCode.LowConfidence,
+                category: 'model',
+                severity: ServalDiagnosticSeverity.Warn,
+                message: '',
+                data: { bookId: 'MRK' }
+              }
+            ]
+          }
+        }),
+        state: BuildStates.Completed
+      };
+      component.isLatestBuild = true;
+      tick();
+      fixture.detectChanges();
+
+      const header: HTMLElement = fixture.nativeElement.querySelector('mat-expansion-panel-header');
+      const status: HTMLElement = fixture.nativeElement.querySelector('.status');
+      expect(status.textContent).toContain('Low confidence');
+      expect(status.textContent).toContain('Completed');
+      const headerContentRight: number =
+        header.getBoundingClientRect().right - parseFloat(getComputedStyle(header).paddingRight);
+      expect(status.getBoundingClientRect().right).toBeLessThanOrEqual(headerContentRight);
     }));
   });
 
