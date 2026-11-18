@@ -15,7 +15,9 @@
         </mat-panel-title>
         <mat-panel-description>
           <span class="status" [ngClass]="getStatus(entry.state).color">
-            <app-display-confidence [showIconAndText]="hasLowConfidence(entry)"></app-display-confidence>
+            @if (hasLowConfidence(entry)) {
+              <app-display-confidence [showIconAndText]="true"></app-display-confidence>
+            }
             <span class="status-state">
               <mat-icon class="status-icon">{{ getStatus(entry.state).icons }}</mat-icon>
               {{ t(getStatus(entry.state).text) }}
